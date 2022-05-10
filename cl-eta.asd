@@ -3,10 +3,12 @@
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("cl-gserver"
+               "libserialport"
                )
   :components ((:module "src"
                 :serial t
-                :components ()))
+                :components
+                ((:file "eta"))))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
 
 (defsystem "cl-eta/tests"
