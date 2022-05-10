@@ -1,15 +1,15 @@
-(defpackage :cl-eta.eta-test
+(defpackage :cl-eta.eta-atest
   (:use :cl :fiveam :cl-mock :cl-eta.eta)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-eta.eta-test)
+(in-package :cl-eta.eta-atest)
 
-(def-suite eta-tests
+(def-suite eta-atests
   :description "Acceptance tests"
   :in cl-eta.tests:test-suite)
 
-(in-suite eta-tests)
+(in-suite eta-atests)
 
 (test send-record-package
   "Sends the record ETA interface package that will result in receiving data packages."
