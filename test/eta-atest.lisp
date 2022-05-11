@@ -13,12 +13,12 @@
 
 (defvar *path-prefix* "/rest/items/")
 
-(test send-record-package--success--one-item
+(test start-record--success--one-item
   "Sends the record ETA interface package that will result in receiving data packages."
   (with-mocks ()
-    ;; the `send-record-package' function is the trigger for the boiler to send monitor data,
+    ;; the `start-record' function is the trigger for the boiler to send monitor data,
     ;; which is eventually forwarded to openHAB.
-    ;; So we can expect that after calling `send-record-package' an http call will go out
+    ;; So we can expect that after calling `start-record' an http call will go out
     ;; to openHAB with data we expect to be sent.
     (answer (openhab:do-post url data)
       (progn
@@ -27,6 +27,6 @@
         (assert (floatp data))
         t))
 
-    (is (eq :ok (send-record-package)))
+    (is (eq :ok (start-record)))
     (is (= 1 (length (invocations 'openhab:do-post))))    
     ))

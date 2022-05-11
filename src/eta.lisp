@@ -1,9 +1,9 @@
 (defpackage :cl-eta.eta
   (:use :cl)
   (:nicknames :eta)
-  (:export #:send-record-package))
+  (:export #:start-record))
 
 (in-package :cl-eta.eta)
 
-(defun send-record-package ()
+(defun start-record ()
   nil)
