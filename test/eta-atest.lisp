@@ -11,18 +11,22 @@
 
 (in-suite eta-atests)
 
-(test send-record-package--success
+(defvar *path-prefix* "/rest/items/")
+
+(test send-record-package--success--one-item
   "Sends the record ETA interface package that will result in receiving data packages."
   (with-mocks ()
-    ;; we check against the serial system boundary at this point
-    ;; and verify that data is sent via `libserialport' library.
-    ;; this of course adds a coupling to `libserialport',
-    ;; but it's unlikely this library will be replaced but
-    ;; it represents the external interface we can check against
-    ;; later we can expand and verify the data that is sent.
-    (answer (libserialport:serial-write-data _ _) 10)  ; just some
+    ;; the `send-record-package' function is the trigger for the boiler to send monitor data,
+    ;; which is eventually forwarded to openHAB.
+    ;; So we can expect that after calling `send-record-package' an http call will go out
+    ;; to openHAB with data we expect to be sent.
+    (answer (openhab:do-post url data)
+      (progn
+        (assert (uiop:string-prefix-p "http://" url))
+        (assert (uiop:string-suffix-p (format nil "~a/HeatingETAOperatingHours" *path-prefix*) url))
+        (assert (floatp data))
+        t))
 
     (is (eq :ok (send-record-package)))
-
-    (is (= 1 (length (invocations 'libserialport:serial-write-data))))    
+    (is (= 1 (length (invocations 'openhab:do-post))))    
     ))

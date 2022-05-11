@@ -3,12 +3,12 @@
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("cl-gserver"
-               "libserialport"
                )
   :components ((:module "src"
                 :serial t
                 :components
-                ((:file "eta"))))
+                ((:file "openhab")
+                 (:file "eta"))))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
 
 (defsystem "cl-eta/tests"
@@ -19,6 +19,7 @@
   :components ((:module "test"
                 :components
                 ((:file "all-tests")
+                 (:file "eta-test")
                  (:file "eta-atest")
                  )))
   :description "Test system for cl-eta"
