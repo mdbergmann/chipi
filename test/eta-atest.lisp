@@ -11,7 +11,7 @@
 
 (in-suite eta-atests)
 
-(test send-record-package
+(test send-record-package--success
   "Sends the record ETA interface package that will result in receiving data packages."
   (with-mocks ()
     ;; we check against the serial system boundary at this point
@@ -20,7 +20,7 @@
     ;; but it's unlikely this library will be replaced but
     ;; it represents the external interface we can check against
     ;; later we can expand and verify the data that is sent.
-    (answer (libserialport:serial-write-data port data))
+    (answer (libserialport:serial-write-data _ _) 10)  ; just some
 
     (is (eq :ok (send-record-package)))
 
