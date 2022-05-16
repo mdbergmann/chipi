@@ -6,4 +6,4 @@
 (in-package :cl-eta.eta)
 
 (defun start-record ()
-  nil)
+  :ok)
