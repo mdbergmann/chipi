@@ -14,10 +14,12 @@
 
 (test start-record--ok
   (with-mocks ()
-    (answer (eta-handler:start-record) t)
+    (answer (libserialport:serial-write-data port data)
+      (progn
+        5))
 
     (is (eq :ok (start-record)))
-    (is (= 1 (length (invocations 'eta-handler:start-record))))
+    (is (= 1 (length (invocations 'libserialport:serial-write-data))))
   ))
 
 (run! 'start-record--ok)
