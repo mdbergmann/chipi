@@ -8,6 +8,7 @@
                 :serial t
                 :components
                 ((:file "openhab")
+                 (:file "eta-handler")
                  (:file "eta"))))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
 
