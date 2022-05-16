@@ -3,18 +3,22 @@
   (:nicknames :eta)
   (:export #:init-serial
            #:start-record
-           #:*serial-device*
-           #:ensure-shutdown))
+           #:ensure-initialized
+           #:ensure-shutdown
+           #:serial-proxy
+           #:*serial-proxy*))
 
 (in-package :cl-eta.eta)
 
 (defvar *actor-system* nil)
-
 (defvar *serial-actor* nil)
 (defvar *serial-device* nil)
 (defvar *serial-port* nil)
+(defvar *serial-proxy* nil)
 
 (defun ensure-initialized ()
+  (unless *serial-proxy*
+    (setf *serial-proxy* (make-instance 'real-serial-proxy)))
   (unless *actor-system*
     (setf *actor-system* (asys:make-actor-system)))
   (unless *serial-actor*
@@ -29,7 +33,9 @@
     (ac:shutdown *actor-system*)
     (setf *actor-system* nil))
   (when *serial-actor*
-    (setf *serial-actor* nil)))
+    (setf *serial-actor* nil))
+  (when *serial-proxy*
+    (setf *serial-proxy* nil)))
 
 (defun init-serial (device)
   (multiple-value-bind (actor)
@@ -38,6 +44,10 @@
     (act:tell actor '(:init . nil)))
   :ok)
 
+;; ---------------------
+;; package functions
+;; ---------------------
+
 (defun start-record ()
   (multiple-value-bind (actor)
       (ensure-initialized)
@@ -45,20 +55,42 @@
   :ok)
 
 ;; ---------------------
+;; serial facade
+;; ---------------------
+
+(defclass serial-proxy () ())
+(defgeneric open-serial (serial-proxy device))
+(defgeneric write-serial (serial-proxy port data))
+
+;; ---------------------
+;; serial facade -- real
+;; ---------------------
+
+(defclass real-serial-proxy (serial-proxy) ())
+(defmethod open-serial ((proxy real-serial-proxy) device)
+  (declare (ignore proxy))
+  (format t "open-serial--real~%")
+  (libserialport:open-serial-port device
+                                  :baud 19200
+                                  :bits 8
+                                  :stopbits 1
+                                  :parity :sp-parity-none
+                                  :rts :sp-rts-off
+                                  :flowcontrol :sp-flowcontrol-none))
+(defmethod write-serial ((proxy real-serial-proxy) port data)
+  (declare (ignore proxy))
+  (libserialport:serial-write-data port data))
+
+;; ---------------------
 ;; actor receive
 ;; ---------------------
 
 (defun %serial-actor-receive (self msg state)
+  (declare (ignore self))
   (case (car msg)
     (:init
      (setf *serial-port*
-           (libserialport:open-serial-port *serial-device*
-                                           :baud 19200
-                                           :bits 8
-                                           :stopbits 1
-                                           :parity :sp-parity-none
-                                           :rts :sp-rts-off
-                                           :flowcontrol :sp-flowcontrol-none)))
+           (open-serial *serial-proxy* *serial-device*)))
     (:write
-     (libserialport:serial-write-data *serial-port* (cdr msg))))
+     (write-serial *serial-proxy* *serial-port* (cdr msg))))
   (cons nil state))
