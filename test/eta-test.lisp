@@ -26,7 +26,7 @@
   (unwind-protect
        (progn
          (eta:ensure-initialized)
-         (setf eta:*serial-proxy* (make-instance 'fake-serial-proxy))
+         (change-class eta:*serial-proxy* 'fake-serial-proxy)
          (is (eq :ok (init-serial "/dev/serial")))
          (is-true (utils:assert-cond
                    (lambda ()
