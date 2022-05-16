@@ -12,17 +12,25 @@
 (in-suite eta-tests)
 
 
-(test start-record--ok
-  (setf *actor-system* (asys:make-actor-system))
+(test init-serial
   (unwind-protect
        (with-mocks ()
-         (answer (libserialport:serial-write-data port data)
-           (progn
-             5))
+         (is (eq :ok (init-serial "/dev/serial")))
+         (is-true (utils:assert-cond
+                   (lambda ()
+                     (= 1 (length (invocations 'libserialport:open-serial-port))))
+                   1.0)))
+    (eta:ensure-shutdown)))
 
+(test start-record--ok
+  (unwind-protect
+       (with-mocks ()
          (is (eq :ok (start-record)))
-         (is (= 1 (length (invocations 'libserialport:serial-write-data))))
-         )
-    (ac:shutdown *actor-system*)))
+         (is-true (utils:assert-cond
+                   (lambda ()
+                     (= 1 (length (invocations 'libserialport:serial-write-data))))
+                   1.0)))
+    (eta:ensure-shutdown)))
 
+(run! 'init-serial)
 (run! 'start-record--ok)
