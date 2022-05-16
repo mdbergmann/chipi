@@ -13,13 +13,16 @@
 
 
 (test start-record--ok
-  (with-mocks ()
-    (answer (libserialport:serial-write-data port data)
-      (progn
-        5))
+  (setf *actor-system* (asys:make-actor-system))
+  (unwind-protect
+       (with-mocks ()
+         (answer (libserialport:serial-write-data port data)
+           (progn
+             5))
 
-    (is (eq :ok (start-record)))
-    (is (= 1 (length (invocations 'libserialport:serial-write-data))))
-  ))
+         (is (eq :ok (start-record)))
+         (is (= 1 (length (invocations 'libserialport:serial-write-data))))
+         )
+    (ac:shutdown *actor-system*)))
 
 (run! 'start-record--ok)

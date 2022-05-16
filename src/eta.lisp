@@ -1,7 +1,9 @@
 (defpackage :cl-eta.eta
   (:use :cl :gs-user)
   (:nicknames :eta)
-  (:export #:start-record))
+  (:export #:start-record
+           #:*actor-system*
+           #:*serial-device*))
 
 (in-package :cl-eta.eta)
 
