@@ -1,5 +1,5 @@
 (defpackage :cl-eta.eta-test
-  (:use :cl :fiveam :cl-eta.eta)
+  (:use :cl :fiveam :cl-mock :cl-eta.eta)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -13,7 +13,11 @@
 
 
 (test start-record--ok
-  (is (eq :ok (start-record)))
-  )
+  (with-mocks ()
+    (answer (eta-handler:start-record) t)
+
+    (is (eq :ok (start-record)))
+    (is (= 1 (length (invocations 'eta-handler:start-record))))
+  ))
 
 (run! 'start-record--ok)

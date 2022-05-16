@@ -6,4 +6,5 @@
 (in-package :cl-eta.eta)
 
 (defun start-record ()
+  (eta-handler:start-record)
   :ok)
