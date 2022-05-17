@@ -1,5 +1,5 @@
 (defpackage :cl-eta.eta-test
-  (:use :cl :fiveam :cl-mock :cl-eta.eta)
+  (:use :cl :fiveam :cl-mock :cl-eta.eta :eta-ser-if)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -15,10 +15,12 @@
 (defparameter *write-serial-called* nil)
 
 (defclass fake-serial-proxy (serial-proxy) ())
-(defmethod eta::open-serial ((proxy fake-serial-proxy) device)
+(defmethod eta-ser-if::open-serial ((proxy fake-serial-proxy) device)
+  (declare (ignore device))
   (assert proxy)
   (setf *open-serial-called* t))
-(defmethod eta::write-serial ((proxy fake-serial-proxy) port data)
+(defmethod eta-ser-if::write-serial ((proxy fake-serial-proxy) port data)  
+  (declare (ignore port data))
   (assert proxy)
   (setf *write-serial-called* 5))
 
@@ -29,8 +31,7 @@
          (change-class eta:*serial-proxy* 'fake-serial-proxy)
          (is (eq :ok (init-serial "/dev/serial")))
          (is-true (utils:assert-cond
-                   (lambda ()
-                     *open-serial-called*)
+                   (lambda () *open-serial-called*)
                    1.0)))
   (eta:ensure-shutdown)))
 

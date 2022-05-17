@@ -1,11 +1,10 @@
 (defpackage :cl-eta.eta
-  (:use :cl :gs-user)
+  (:use :cl :gs-user :eta-ser-if)
   (:nicknames :eta)
   (:export #:init-serial
            #:start-record
            #:ensure-initialized
            #:ensure-shutdown
-           #:serial-proxy
            #:*serial-proxy*))
 
 (in-package :cl-eta.eta)
@@ -18,7 +17,7 @@
 
 (defun ensure-initialized ()
   (unless *serial-proxy*
-    (setf *serial-proxy* (make-instance 'real-serial-proxy)))
+    (setf *serial-proxy* (make-real-serial-proxy)))
   (unless *actor-system*
     (setf *actor-system* (asys:make-actor-system)))
   (unless *serial-actor*
@@ -53,33 +52,6 @@
       (ensure-initialized)
     (act:tell actor '(:write . "Foo")))
   :ok)
-
-;; ---------------------
-;; serial facade
-;; ---------------------
-
-(defclass serial-proxy () ())
-(defgeneric open-serial (serial-proxy device))
-(defgeneric write-serial (serial-proxy port data))
-
-;; ---------------------
-;; serial facade -- real
-;; ---------------------
-
-(defclass real-serial-proxy (serial-proxy) ())
-(defmethod open-serial ((proxy real-serial-proxy) device)
-  (declare (ignore proxy))
-  (format t "open-serial--real~%")
-  (libserialport:open-serial-port device
-                                  :baud 19200
-                                  :bits 8
-                                  :stopbits 1
-                                  :parity :sp-parity-none
-                                  :rts :sp-rts-off
-                                  :flowcontrol :sp-flowcontrol-none))
-(defmethod write-serial ((proxy real-serial-proxy) port data)
-  (declare (ignore proxy))
-  (libserialport:serial-write-data port data))
 
 ;; ---------------------
 ;; actor receive
