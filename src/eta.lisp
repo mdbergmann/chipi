@@ -22,7 +22,7 @@
     (setf *actor-system* (asys:make-actor-system)))
   (unless *serial-actor*
     (setf *serial-actor* (ac:actor-of *actor-system*
-                                      :name "ETA serial actor"
+                                      :name "ETA-serial-actor"
                                       :receive (lambda (self msg state)
                                                  (%serial-actor-receive self msg state)))))
   (values *serial-actor* *actor-system*))
@@ -59,6 +59,7 @@
 
 (defun %serial-actor-receive (self msg state)
   (declare (ignore self))
+  (format t "msg: ~a~%" msg)
   (case (car msg)
     (:init
      (setf *serial-port*
