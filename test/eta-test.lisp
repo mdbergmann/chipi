@@ -31,6 +31,7 @@
   (sleep .1)
   (incf *read-serial-called*))
 
+
 (def-fixture init-destroy ()
   (setf *open-serial-called* nil
         *write-serial-called* nil
@@ -81,4 +82,6 @@ TODO:
 OK - test for read continously
 - test for call to read handler when data arrived
 - test 'start-record' actually sends the proper ETA package
+- 'stop-record'
+- 'shutdown-serial
 |#
