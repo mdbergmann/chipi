@@ -58,7 +58,8 @@ Once this command is sent, the ETA will start to send monitor data packages.
 So we gotta trigger a read here as well."
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (act:tell actor '(:write . "Foo")))
+    (act:tell actor '(:write . "Foo"))
+    (act:tell actor '(:read . nil)))
   :ok)
 
 ;; ---------------------
@@ -72,5 +73,7 @@ So we gotta trigger a read here as well."
                  (setf *serial-port*
                        (open-serial *serial-proxy* *serial-device*)))
                 (:write
-                 (write-serial *serial-proxy* *serial-port* (cdr msg))))))
+                 (write-serial *serial-proxy* *serial-port* (cdr msg)))
+                (:read
+                 (read-serial *serial-proxy* *serial-port*)))))
     (cons resp state)))
