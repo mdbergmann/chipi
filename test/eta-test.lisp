@@ -42,7 +42,7 @@
   (with-fixture init-destroy ()
     (let ((init-serial-result (multiple-value-list (init-serial "/dev/not-exists"))))
       (is (eq :fail (car init-serial-result)))
-      )))
+      (is (string= "Can't open!" (second init-serial-result))))))
 
 (test start-record--serial-written
   (with-fixture init-destroy ()
