@@ -45,6 +45,9 @@
       (is (string= "Can't open!" (second init-serial-result))))))
 
 (test start-record--serial-written
+  "Tests that the write function on the serial proxy is called.
+This is asynchronous and we don't check a result.
+A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (is (eq :ok (start-record)))
     (is-true (utils:assert-cond
