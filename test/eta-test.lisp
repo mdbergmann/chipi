@@ -13,7 +13,7 @@
 
 (defparameter *open-serial-called* nil)
 (defparameter *write-serial-called* nil)
-(defparameter *read-serial-called* nil)
+(defparameter *read-serial-called* 0)
 
 (defclass fake-serial-proxy (eta-ser-if:serial-proxy) ())
 (defmethod eta-ser-if:open-serial ((proxy fake-serial-proxy) device)
@@ -25,14 +25,16 @@
   (declare (ignore port data))
   (assert proxy)
   (setf *write-serial-called* 5))
-(defmethod eta-ser-if:read-serial ((proxy fake-serial-proxy) port)
-  (declare (ignore port))
-  (setf *read-serial-called* t))
+(defmethod eta-ser-if:read-serial ((proxy fake-serial-proxy) port &optional timeout)
+  (declare (ignore port timeout))
+  ;; we just do a tiny timeout
+  (sleep .1)
+  (incf *read-serial-called*))
 
 (def-fixture init-destroy ()
   (setf *open-serial-called* nil
         *write-serial-called* nil
-        *read-serial-called* nil)
+        *read-serial-called* 0)
   (unwind-protect
        (progn
          (eta:ensure-initialized)
@@ -65,10 +67,18 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (is (eq :ok (start-record)))
     (is-true (utils:assert-cond
-              (lambda () (eq t *read-serial-called*))
+              (lambda () (> *read-serial-called* 1))
               1.0))))
 
 (run! 'init-serial)
 (run! 'init-serial--fail-to-open)
 (run! 'start-record--serial-written)
 (run! 'start-record--serial-written--read-received)
+
+
+#|
+TODO:
+OK - test for read continously
+- test for call to read handler when data arrived
+- test 'start-record' actually sends the proper ETA package
+|#

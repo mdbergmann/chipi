@@ -67,7 +67,6 @@ So we gotta trigger a read here as well."
 ;; ---------------------
 
 (defun %serial-actor-receive (self msg state)
-  (declare (ignore self))
   (let ((resp (case (car msg)
                 (:init
                  (setf *serial-port*
@@ -75,5 +74,7 @@ So we gotta trigger a read here as well."
                 (:write
                  (write-serial *serial-proxy* *serial-port* (cdr msg)))
                 (:read
-                 (read-serial *serial-proxy* *serial-port*)))))
+                 (progn 
+                   (read-serial *serial-proxy* *serial-port*)
+                   (act:tell self '(:read . nil)))))))
     (cons resp state)))

@@ -16,7 +16,7 @@
 (defclass serial-proxy () ())
 (defgeneric open-serial (serial-proxy device))
 (defgeneric write-serial (serial-proxy port data))
-(defgeneric read-serial (serial-proxy port))
+(defgeneric read-serial (serial-proxy port &optional timeout))
 
 ;; ---------------------
 ;; serial facade -- real
@@ -39,9 +39,9 @@
   (declare (ignore proxy))
   (libserialport:serial-write-data port data))
 
-(defmethod read-serial ((proxy real-serial-proxy) port)
+(defmethod read-serial ((proxy real-serial-proxy) port &optional (timeout 2000))
   (declare (ignore proxy))
   (libserialport:serial-read-octets-until
    port
    #\}
-   :timeout 2000))
+   :timeout timeout))
