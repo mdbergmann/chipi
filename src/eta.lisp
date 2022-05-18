@@ -13,7 +13,7 @@
 (defvar *serial-actor* nil)
 (defvar *serial-device* nil)
 (defvar *serial-port* nil)
-(defvar *serial-proxy* nil)
+(defvar *serial-proxy* nil "Public, able to `change-class' for tests.")
 
 (defun ensure-initialized ()
   (unless *serial-proxy*
@@ -40,8 +40,13 @@
   (multiple-value-bind (actor)
       (ensure-initialized)
     (setf *serial-device* device)
-    (act:tell actor '(:init . nil)))
-  :ok)
+    (let ((ask-result (act:ask-s actor '(:init . nil))))
+      (cond
+        ((listp ask-result)
+         (case (car ask-result)
+           (:handler-error (values :fail (format nil "~a" (cdr ask-result))))
+           (otherwise (values :ok))))
+        (t (values :ok))))))
 
 ;; ---------------------
 ;; package functions
@@ -59,11 +64,10 @@
 
 (defun %serial-actor-receive (self msg state)
   (declare (ignore self))
-  (format t "msg: ~a~%" msg)
-  (case (car msg)
-    (:init
-     (setf *serial-port*
-           (open-serial *serial-proxy* *serial-device*)))
-    (:write
-     (write-serial *serial-proxy* *serial-port* (cdr msg))))
-  (cons nil state))
+  (let ((resp (case (car msg)
+                (:init
+                 (setf *serial-port*
+                       (open-serial *serial-proxy* *serial-device*)))
+                (:write
+                 (write-serial *serial-proxy* *serial-port* (cdr msg))))))
+    (cons resp state)))

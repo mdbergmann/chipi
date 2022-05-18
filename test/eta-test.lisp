@@ -17,8 +17,9 @@
 (defclass fake-serial-proxy (eta-ser-if:serial-proxy) ())
 (defmethod eta-ser-if:open-serial ((proxy fake-serial-proxy) device)
   (assert proxy)
-  (assert (string= "/dev/serial" device))
-  (setf *open-serial-called* t))
+  (cond
+    ((string= "/dev/not-exists" device) (error "Can't open!"))
+    (t (setf *open-serial-called* t))))
 (defmethod eta-ser-if:write-serial ((proxy fake-serial-proxy) port data)  
   (declare (ignore port data))
   (assert proxy)
@@ -35,9 +36,13 @@
 (test init-serial
   (with-fixture init-destroy ()
     (is (eq :ok (init-serial "/dev/serial")))
-    (is-true (utils:assert-cond
-              (lambda () *open-serial-called*)
-              1.0))))
+    (is-true *open-serial-called*)))
+
+(test init-serial--fail-to-open
+  (with-fixture init-destroy ()
+    (let ((init-serial-result (multiple-value-list (init-serial "/dev/not-exists"))))
+      (is (eq :fail (car init-serial-result)))
+      )))
 
 (test start-record--serial-written
   (with-fixture init-destroy ()
@@ -47,4 +52,5 @@
               1.0))))
 
 (run! 'init-serial)
+(run! 'init-serial--fail-to-open)
 (run! 'start-record--serial-written)
