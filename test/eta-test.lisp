@@ -14,6 +14,7 @@
 (defparameter *open-serial-called* nil)
 (defparameter *write-serial-called* nil)
 (defparameter *read-serial-called* 0)
+(defparameter *eta-col-called* 0)
 
 (defclass fake-serial-proxy (eta-ser-if:serial-proxy) ())
 (defmethod eta-ser-if:open-serial ((proxy fake-serial-proxy) device)
@@ -32,12 +33,14 @@
   (incf *read-serial-called*))
 
 (defmethod eta-col:collect-data ((impl (eql :test)) prev-data new-data)
+  (incf *eta-col-called*)
   t)
 
 (def-fixture init-destroy ()
   (setf *open-serial-called* nil
         *write-serial-called* nil
-        *read-serial-called* 0)
+        *read-serial-called* 0
+        *eta-col-called* 0)
   (unwind-protect
        (progn
          (eta:ensure-initialized)
@@ -75,10 +78,11 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser
   (with-fixture init-destroy ()
-    (setf eta-col:*collector-impl* :test)
+    (setf eta:*eta-collector* :test)
     (is (eq :ok (start-record)))
     (is-true (utils:assert-cond
-              (lambda () (> *read-serial-called* 0))
+              (lambda () (and (> *read-serial-called* 0)
+                         (> *eta-col-called* 0)))
               1.0))
     ))
 

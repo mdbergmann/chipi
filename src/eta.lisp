@@ -1,11 +1,12 @@
 (defpackage :cl-eta.eta
-  (:use :cl :gs-user :eta-ser-if)
+  (:use :cl :gs-user :eta-ser-if :eta-col)
   (:nicknames :eta)
   (:export #:init-serial
            #:start-record
            #:ensure-initialized
            #:ensure-shutdown
-           #:*serial-proxy*))
+           #:*serial-proxy*
+           #:*eta-collector*))
 
 (in-package :cl-eta.eta)
 
@@ -14,10 +15,11 @@
 (defvar *serial-device* nil)
 (defvar *serial-port* nil)
 (defvar *serial-proxy* nil "Public, able to `change-class' for tests.")
-(defvar *collector-impl* :prod)
+(defvar *eta-collector* nil)
 
 (defun ensure-initialized ()
-  (setf *collector-impl* :prod)
+  (unless *eta-collector*
+    (setf *eta-collector* :prod))
   (unless *serial-proxy*
     (setf *serial-proxy* (make-real-serial-proxy)))
   (unless *actor-system*
@@ -36,7 +38,9 @@
   (when *serial-actor*
     (setf *serial-actor* nil))
   (when *serial-proxy*
-    (setf *serial-proxy* nil)))
+    (setf *serial-proxy* nil))
+  (when *eta-collector*
+    (setf *eta-collector* nil)))
 
 (defun init-serial (device)
   (multiple-value-bind (actor)
@@ -78,8 +82,8 @@ So we gotta trigger a read here as well."
              (write-serial *serial-proxy* *serial-port* (cdr msg)))
             (:read
              (progn
-               (eta-col:collect-data *collector-impl*
-                                     state
-                                     (read-serial *serial-proxy* *serial-port*))
+               (collect-data *eta-collector*
+                             state
+                             (read-serial *serial-proxy* *serial-port*))
                (act:tell self '(:read . nil)))))))
     (cons resp state)))

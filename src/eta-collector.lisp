@@ -5,5 +5,9 @@
 
 (in-package :cl-eta.collector)
 
-(defmethod collect-data ((impl (eql :prod)) prev-data new-data) nil)
+(defgeneric collect-data (impl prev-data new-data))
+
+(defmethod collect-data ((impl (eql :prod)) prev-data new-data) 
+  (format t "Foobar~%")
+  nil)
 
