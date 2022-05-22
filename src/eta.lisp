@@ -5,8 +5,8 @@
            #:start-record
            #:ensure-initialized
            #:ensure-shutdown
-           #:*serial-proxy*
-           #:*eta-collector*))
+           #:*serial-proxy-impl*
+           #:*eta-collector-impl*))
 
 (in-package :cl-eta.eta)
 
@@ -14,33 +14,31 @@
 (defvar *serial-actor* nil)
 (defvar *serial-device* nil)
 (defvar *serial-port* nil)
-(defvar *serial-proxy* nil "Public, able to `change-class' for tests.")
-(defvar *eta-collector* nil)
+(defvar *serial-proxy-impl* nil)
+(defvar *eta-collector-impl* nil)
 
 (defun ensure-initialized ()
-  (unless *eta-collector*
-    (setf *eta-collector* :prod))
-  (unless *serial-proxy*
-    (setf *serial-proxy* (make-real-serial-proxy)))
+  (unless *eta-collector-impl*
+    (setf *eta-collector-impl* :prod))
+  (unless *serial-proxy-impl*
+    (setf *serial-proxy-impl* :prod))
   (unless *actor-system*
     (setf *actor-system* (asys:make-actor-system)))
   (unless *serial-actor*
     (setf *serial-actor* (ac:actor-of *actor-system*
                                       :name "ETA-serial-actor"
+                                      :state #()
                                       :receive (lambda (self msg state)
                                                  (%serial-actor-receive self msg state)))))
   (values *serial-actor* *actor-system*))
 
 (defun ensure-shutdown ()
   (when *actor-system*
-    (ac:shutdown *actor-system*)
-    (setf *actor-system* nil))
-  (when *serial-actor*
-    (setf *serial-actor* nil))
-  (when *serial-proxy*
-    (setf *serial-proxy* nil))
-  (when *eta-collector*
-    (setf *eta-collector* nil)))
+    (ac:shutdown *actor-system*))
+  (setf *actor-system* nil)
+  (setf *serial-actor* nil)
+  (setf *serial-proxy-impl* nil)
+  (setf *eta-collector-impl* nil))
 
 (defun init-serial (device)
   (multiple-value-bind (actor)
@@ -78,18 +76,19 @@ So we gotta trigger a read here as well."
             (:init
              (cons
               (setf *serial-port*
-                    (open-serial *serial-proxy* *serial-device*))
+                    (open-serial *serial-proxy-impl* *serial-device*))
               state))
             (:write
-             (cons (write-serial *serial-proxy* *serial-port* (cdr msg)) state))
+             (cons (write-serial *serial-proxy-impl* *serial-port* (cdr msg)) state))
             (:read
              (let ((new-state
-                     (multiple-value-bind (complete vec)
-                         (collect-data *eta-collector*
+                     (multiple-value-bind (complete data)
+                         (collect-data *eta-collector-impl*
                                        state
-                                       (read-serial *serial-proxy* *serial-port*))
+                                       (read-serial *serial-proxy-impl* *serial-port*))
                        (if complete
                            #()
-                           vec))))
-               (cons (act:tell self '(:read . nil)) new-state))))))
+                           data))))
+               (act:tell self '(:read . nil))
+               (cons t new-state))))))
     resp))

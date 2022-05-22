@@ -1,9 +1,7 @@
 (defpackage :cl-eta.eta-ser-if
   (:use :cl :libserialport)
   (:nicknames :eta-ser-if)
-  (:export #:serial-proxy
-           #:make-real-serial-proxy
-           #:open-serial
+  (:export #:open-serial
            #:write-serial
            #:read-serial))
 
@@ -13,21 +11,16 @@
 ;; serial facade
 ;; ---------------------
 
-(defclass serial-proxy () ())
-(defgeneric open-serial (serial-proxy device))
-(defgeneric write-serial (serial-proxy port data))
-(defgeneric read-serial (serial-proxy port &optional timeout))
+(defgeneric open-serial (impl device))
+(defgeneric write-serial (impl port data))
+(defgeneric read-serial (impl port &optional timeout))
 
 ;; ---------------------
 ;; serial facade -- real
 ;; ---------------------
 
-(defun make-real-serial-proxy ()
-  (make-instance 'real-serial-proxy))
-
-(defclass real-serial-proxy (serial-proxy) ())
-(defmethod open-serial ((proxy real-serial-proxy) device)
-  (declare (ignore proxy))
+(defmethod open-serial ((impl (eql :prod)) device)
+  (declare (ignore impl))
   (libserialport:open-serial-port device
                                   :baud 19200
                                   :bits 8
@@ -35,12 +28,12 @@
                                   :parity :sp-parity-none
                                   :rts :sp-rts-off
                                   :flowcontrol :sp-flowcontrol-none))
-(defmethod write-serial ((proxy real-serial-proxy) port data)
-  (declare (ignore proxy))
+(defmethod write-serial ((impl (eql :prod)) port data)
+  (declare (ignore impl))
   (libserialport:serial-write-data port data))
 
-(defmethod read-serial ((proxy real-serial-proxy) port &optional (timeout 2000))
-  (declare (ignore proxy))
+(defmethod read-serial ((impl (eql :prod)) port &optional (timeout 2000))
+  (declare (ignore impl))
   (libserialport:serial-read-octets-until
    port
    #\}

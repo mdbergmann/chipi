@@ -17,17 +17,14 @@
 (defparameter *eta-col-called* 0)
 (defparameter *eta-col-no-complete* #())
 
-(defclass fake-serial-proxy (eta-ser-if:serial-proxy) ())
-(defmethod eta-ser-if:open-serial ((proxy fake-serial-proxy) device)
-  (assert proxy)
+(defmethod eta-ser-if:open-serial ((impl (eql :test)) device)
   (cond
     ((string= "/dev/not-exists" device) (error "Can't open!"))
     (t (setf *open-serial-called* t))))
-(defmethod eta-ser-if:write-serial ((proxy fake-serial-proxy) port data)  
+(defmethod eta-ser-if:write-serial ((impl (eql :test)) port data)  
   (declare (ignore port data))
-  (assert proxy)
   (setf *write-serial-called* 5))
-(defmethod eta-ser-if:read-serial ((proxy fake-serial-proxy) port &optional timeout)
+(defmethod eta-ser-if:read-serial ((impl (eql :test)) port &optional timeout)
   (declare (ignore port timeout))
   ;; we just do a tiny timeout
   (sleep .1)
@@ -40,22 +37,27 @@
 
 (defmethod eta-col:collect-data ((impl (eql :test-no-complete-pkg)) prev-data new-data)
   (declare (ignore new-data))
+  (format t "counter: ~a~%" *eta-col-called*)
   (setf *eta-col-no-complete* (concatenate 'vector prev-data `#(,*eta-col-called*)))
   (incf *eta-col-called*)
   (values nil *eta-col-no-complete*))
 
-(def-fixture init-destroy ()
+(defun clean-vars ()
   (setf *open-serial-called* nil
         *write-serial-called* nil
         *read-serial-called* 0
         *eta-col-called* 0
-        *eta-col-no-complete* #())
+        *eta-col-no-complete* #()))
+
+(def-fixture init-destroy ()
+  (clean-vars)
   (unwind-protect
        (progn
          (eta:ensure-initialized)
-         (change-class eta:*serial-proxy* 'fake-serial-proxy)
+         (setf eta:*serial-proxy-impl* :test)
          (&body))
-    (eta:ensure-shutdown)))
+    (eta:ensure-shutdown)
+    (clean-vars)))
   
 (test init-serial
   (with-fixture init-destroy ()
@@ -87,7 +89,7 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser
   (with-fixture init-destroy ()
-    (setf eta:*eta-collector* :test)
+    (setf eta:*eta-collector-impl* :test)
     (is (eq :ok (start-record)))
     (is-true (utils:assert-cond
               (lambda () (and (> *read-serial-called* 0)
@@ -95,24 +97,26 @@ A result will be visible when this function is called on the REPL."
               1.0))))
 
 (test start-record--read-received--call-parser--no-complete
-  "Continue loop"
   (with-fixture init-destroy ()
-    (setf eta:*eta-collector* :test-no-complete-pkg)
+    (setf eta:*eta-collector-impl* :test-no-complete-pkg)
     (is (eq :ok (start-record)))
     (is-true (utils:assert-cond
               (lambda () (and (> *read-serial-called* 0)
                          (> *eta-col-called* 4)))
               1.0))
     (format t "col-final: ~a~%" *eta-col-no-complete*)
-    (is (equalp *eta-col-no-complete* (coerce (loop :for x :from 1 :to (1- *eta-col-called*)
-                                                    :collect x)
-                                              'vector)))))
+    (is (equalp *eta-col-no-complete*
+                (coerce (loop :for x :from 0 :to (1- *eta-col-called*)
+                              :collect x)
+                        'vector)))))
 
 
 #|
 TODO:
 OK - test for read continously
-=> - test for call to read handler when data arrived
+OK - test for call to read handler when data arrived
+OK - test for incomplete package handling
+=> - test for complete package handling
 - test 'start-record' actually sends the proper ETA package
 - 'stop-record'
 - 'shutdown-serial
