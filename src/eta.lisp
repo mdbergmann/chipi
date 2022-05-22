@@ -76,14 +76,20 @@ So we gotta trigger a read here as well."
   (let ((resp
           (case (car msg)
             (:init
-             (setf *serial-port*
-                   (open-serial *serial-proxy* *serial-device*)))
+             (cons
+              (setf *serial-port*
+                    (open-serial *serial-proxy* *serial-device*))
+              state))
             (:write
-             (write-serial *serial-proxy* *serial-port* (cdr msg)))
+             (cons (write-serial *serial-proxy* *serial-port* (cdr msg)) state))
             (:read
-             (progn
-               (collect-data *eta-collector*
-                             state
-                             (read-serial *serial-proxy* *serial-port*))
-               (act:tell self '(:read . nil)))))))
-    (cons resp state)))
+             (let ((new-state
+                     (multiple-value-bind (complete vec)
+                         (collect-data *eta-collector*
+                                       state
+                                       (read-serial *serial-proxy* *serial-port*))
+                       (if complete
+                           #()
+                           vec))))
+               (cons (act:tell self '(:read . nil)) new-state))))))
+    resp))

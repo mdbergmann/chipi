@@ -15,6 +15,7 @@
 (defparameter *write-serial-called* nil)
 (defparameter *read-serial-called* 0)
 (defparameter *eta-col-called* 0)
+(defparameter *eta-col-no-complete* #())
 
 (defclass fake-serial-proxy (eta-ser-if:serial-proxy) ())
 (defmethod eta-ser-if:open-serial ((proxy fake-serial-proxy) device)
@@ -30,17 +31,25 @@
   (declare (ignore port timeout))
   ;; we just do a tiny timeout
   (sleep .1)
-  (incf *read-serial-called*))
+  (incf *read-serial-called*)
+  #())
 
 (defmethod eta-col:collect-data ((impl (eql :test)) prev-data new-data)
   (incf *eta-col-called*)
-  t)
+  (values nil (concatenate 'vector prev-data new-data)))
+
+(defmethod eta-col:collect-data ((impl (eql :test-no-complete-pkg)) prev-data new-data)
+  (declare (ignore new-data))
+  (setf *eta-col-no-complete* (concatenate 'vector prev-data `#(,*eta-col-called*)))
+  (incf *eta-col-called*)
+  (values nil *eta-col-no-complete*))
 
 (def-fixture init-destroy ()
   (setf *open-serial-called* nil
         *write-serial-called* nil
         *read-serial-called* 0
-        *eta-col-called* 0)
+        *eta-col-called* 0
+        *eta-col-no-complete* #())
   (unwind-protect
        (progn
          (eta:ensure-initialized)
@@ -83,8 +92,21 @@ A result will be visible when this function is called on the REPL."
     (is-true (utils:assert-cond
               (lambda () (and (> *read-serial-called* 0)
                          (> *eta-col-called* 0)))
+              1.0))))
+
+(test start-record--read-received--call-parser--no-complete
+  "Continue loop"
+  (with-fixture init-destroy ()
+    (setf eta:*eta-collector* :test-no-complete-pkg)
+    (is (eq :ok (start-record)))
+    (is-true (utils:assert-cond
+              (lambda () (and (> *read-serial-called* 0)
+                         (> *eta-col-called* 4)))
               1.0))
-    ))
+    (format t "col-final: ~a~%" *eta-col-no-complete*)
+    (is (equalp *eta-col-no-complete* (coerce (loop :for x :from 1 :to (1- *eta-col-called*)
+                                                    :collect x)
+                                              'vector)))))
 
 
 #|

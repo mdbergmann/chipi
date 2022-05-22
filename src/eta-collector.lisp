@@ -8,6 +8,5 @@
 (defgeneric collect-data (impl prev-data new-data))
 
 (defmethod collect-data ((impl (eql :prod)) prev-data new-data) 
-  (format t "Foobar~%")
   nil)
 
