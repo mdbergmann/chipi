@@ -31,6 +31,8 @@
   (sleep .1)
   (incf *read-serial-called*))
 
+(defmethod eta-col:collect-data ((impl (eql :test)) prev-data new-data)
+  t)
 
 (def-fixture init-destroy ()
   (setf *open-serial-called* nil
@@ -52,7 +54,7 @@
   (with-fixture init-destroy ()
     (let ((init-serial-result (multiple-value-list (init-serial "/dev/not-exists"))))
       (is (eq :fail (car init-serial-result)))
-      (is (string= "Can't open!" (second init-serial-result))))))
+      (is (string= "Can't open!" (cadr init-serial-result))))))
 
 (test start-record--serial-written
   "Tests that the write function on the serial proxy is called.
@@ -71,16 +73,20 @@ A result will be visible when this function is called on the REPL."
               (lambda () (> *read-serial-called* 1))
               1.0))))
 
-(run! 'init-serial)
-(run! 'init-serial--fail-to-open)
-(run! 'start-record--serial-written)
-(run! 'start-record--serial-written--read-received)
+(test start-record--read-received--call-parser
+  (with-fixture init-destroy ()
+    (setf eta-col:*collector-impl* :test)
+    (is (eq :ok (start-record)))
+    (is-true (utils:assert-cond
+              (lambda () (> *read-serial-called* 0))
+              1.0))
+    ))
 
 
 #|
 TODO:
 OK - test for read continously
-- test for call to read handler when data arrived
+=> - test for call to read handler when data arrived
 - test 'start-record' actually sends the proper ETA package
 - 'stop-record'
 - 'shutdown-serial

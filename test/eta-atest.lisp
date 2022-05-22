@@ -52,5 +52,3 @@
       (is (eq :ok (start-record)))
       (is (= 1 (length (invocations 'openhab:do-post))))    
       )))
-
-(run! 'start-record--success--one-item)

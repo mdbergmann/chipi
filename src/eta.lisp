@@ -14,8 +14,10 @@
 (defvar *serial-device* nil)
 (defvar *serial-port* nil)
 (defvar *serial-proxy* nil "Public, able to `change-class' for tests.")
+(defvar *collector-impl* :prod)
 
 (defun ensure-initialized ()
+  (setf *collector-impl* :prod)
   (unless *serial-proxy*
     (setf *serial-proxy* (make-real-serial-proxy)))
   (unless *actor-system*
@@ -67,14 +69,17 @@ So we gotta trigger a read here as well."
 ;; ---------------------
 
 (defun %serial-actor-receive (self msg state)
-  (let ((resp (case (car msg)
-                (:init
-                 (setf *serial-port*
-                       (open-serial *serial-proxy* *serial-device*)))
-                (:write
-                 (write-serial *serial-proxy* *serial-port* (cdr msg)))
-                (:read
-                 (progn 
-                   (read-serial *serial-proxy* *serial-port*)
-                   (act:tell self '(:read . nil)))))))
+  (let ((resp
+          (case (car msg)
+            (:init
+             (setf *serial-port*
+                   (open-serial *serial-proxy* *serial-device*)))
+            (:write
+             (write-serial *serial-proxy* *serial-port* (cdr msg)))
+            (:read
+             (progn
+               (eta-col:collect-data *collector-impl*
+                                     state
+                                     (read-serial *serial-proxy* *serial-port*))
+               (act:tell self '(:read . nil)))))))
     (cons resp state)))

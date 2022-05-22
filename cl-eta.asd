@@ -17,7 +17,8 @@
   :author "Manfred Bergmann"
   :depends-on ("cl-eta"
                "fiveam"
-               "cl-mock")
+               "cl-mock"
+               )
   :components ((:module "test"
                 :components
                 ((:file "all-tests")
