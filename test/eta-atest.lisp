@@ -13,14 +13,14 @@
 
 (defvar *path-prefix* "/rest/items/")
 
-(defmethod eta-ser-if:open-serial ((impl (eql :test)) device)
+(defmethod eta-ser-if:open-serial ((impl (eql :atest)) device)
   (declare (ignore proxy device))
   t)
-(defmethod eta-ser-if:write-serial ((impl (eql :test)) port data)
+(defmethod eta-ser-if:write-serial ((impl (eql :atest)) port data)
   (declare (ignore port data))
   ;; todo: create proper size of start-record package
   0)
-(defmethod eta-ser-if:read-serial ((impl (eql :test)) port &optional timeout)
+(defmethod eta-ser-if:read-serial ((impl (eql :atest)) port &optional timeout)
   (declare (ignore port timeout))
   ;; todo: create proper monitor package
   #())
@@ -29,7 +29,7 @@
   (unwind-protect
        (progn
          (eta:ensure-initialized)
-         (setf eta:*serial-proxy-impl* :test)
+         (setf eta:*serial-proxy-impl* :atest)
          (&body))
     (eta:ensure-shutdown)))
 
