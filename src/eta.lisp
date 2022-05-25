@@ -34,7 +34,7 @@
 
 (defun ensure-shutdown ()
   (when *actor-system*
-    (ac:shutdown *actor-system*))
+    (ac:shutdown *actor-system* :wait t))
   (setf *actor-system* nil)
   (setf *serial-actor* nil)
   (setf *serial-proxy-impl* nil)

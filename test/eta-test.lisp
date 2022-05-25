@@ -11,11 +11,11 @@
 
 (in-suite eta-tests)
 
-(defparameter *open-serial-called* nil)
-(defparameter *write-serial-called* nil)
-(defparameter *read-serial-called* 0)
-(defparameter *eta-col-called* 0)
-(defparameter *eta-col-no-complete* #())
+(defvar *open-serial-called* nil)
+(defvar *write-serial-called* nil)
+(defvar *read-serial-called* 0)
+(defvar *eta-col-called* 0)
+(defvar *eta-col-no-complete* #())
 
 (defmethod eta-ser-if:open-serial ((impl (eql :test)) device)
   (cond
@@ -42,22 +42,19 @@
   (incf *eta-col-called*)
   (values nil *eta-col-no-complete*))
 
-(defun clean-vars ()
+(def-fixture init-destroy ()
   (setf *open-serial-called* nil
         *write-serial-called* nil
         *read-serial-called* 0
         *eta-col-called* 0
-        *eta-col-no-complete* #()))
-
-(def-fixture init-destroy ()
-  (clean-vars)
+        *eta-col-no-complete* #())
   (unwind-protect
        (progn
          (eta:ensure-initialized)
          (setf eta:*serial-proxy-impl* :test)
          (&body))
-    (eta:ensure-shutdown)
-    (clean-vars)))
+    (progn
+      (eta:ensure-shutdown))))
   
 (test init-serial
   (with-fixture init-destroy ()
