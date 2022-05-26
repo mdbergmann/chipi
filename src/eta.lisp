@@ -90,9 +90,11 @@ So we gotta trigger a read here as well."
                                        state
                                        (read-serial *serial-proxy-impl* *serial-port*))
                        (if complete
-                           (progn
-                             (eta-extract:extract-pkg data)
-                             (openhab:do-post "FooItem" 1.1)
+                           (multiple-value-bind (pkg-type items)
+                               (eta-extract:extract-pkg data)
+                             (when (eq :monitor pkg-type)
+                               (dolist (item items)
+                                 (openhab:do-post (car item) (cdr item))))
                              (new-start-pkg))
                            data))))
                (act:tell self '(:read . nil))
