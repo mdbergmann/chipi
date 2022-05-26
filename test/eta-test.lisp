@@ -50,18 +50,12 @@
   (setf *eta-col-data* #(#\{ 0 1 2 3 #\}))
   (values t *eta-col-data*))
 
-(defmethod openhab:do-post ((impl (eql :test-ok)) data)
-  (incf *openhab-post-called*)
-  (setf *openhab-post-data* data))
-
 (def-fixture init-destroy ()
   (setf *open-serial-called* nil
         *write-serial-called* nil
         *read-serial-called* 0
         *eta-col-called* 0
-        *eta-col-data* #()
-        *openhab-post-called* 0
-        *openhab-post-data* nil)
+        *eta-col-data* #())
   (unwind-protect
        (progn
          (eta:ensure-initialized)
@@ -127,21 +121,26 @@ A result will be visible when this function is called on the REPL."
                 (equalp #(#\{ 0 1 2 3 #\}) *eta-col-data*))))
     (with-fixture init-destroy ()
       (setf eta:*eta-collector-impl* :test-complete-pkg)
-      (setf eta:*openhab-impl* :test-ok)
-      (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
-                (lambda () (and (> *read-serial-called* 0)
-                           (= *openhab-post-called* 1)))
-                1.0))
-      (format t "col-final: ~a~%" *eta-col-data*)
-      (is-true (assert-package-complete)))))
+      (with-mocks ()
+        (answer (eta-extract:extract-pkg pkg-data) '())
+        
+        (is (eq :ok (start-record)))
+        (is-true (utils:assert-cond
+                  (lambda () (and (> *read-serial-called* 0)
+                             (= (length (invocations 'eta-extract:extract-pkg)) 1)))
+                  1.0))
+        (format t "col-final: ~a~%" *eta-col-data*)
+        (is-true (assert-package-complete))))))
 
 #|
 TODO:
 OK - test for read continously
 OK - test for call to read handler when data arrived
 OK - test for incomplete package handling
-=> - test for complete package handling
+OK - test for complete package handling
+=> - complete package handling should call eta pkg extractor
+- result of pkg extractor should extract eta package
+- extracted package should send openhab post requests for each extract
 - test 'start-record' actually sends the proper ETA package
 - 'stop-record'
 - 'shutdown-serial

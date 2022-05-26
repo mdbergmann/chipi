@@ -17,15 +17,12 @@
 (defvar *serial-port* nil)
 (defvar *serial-proxy-impl* nil)
 (defvar *eta-collector-impl* nil)
-(defvar *openhab-impl* nil)
 
 (defun ensure-initialized ()
   (unless *eta-collector-impl*
     (setf *eta-collector-impl* :prod))
   (unless *serial-proxy-impl*
     (setf *serial-proxy-impl* :prod))
-  (unless *openhab-impl*
-    (setf *openhab-impl* :prod))
   (unless *actor-system*
     (setf *actor-system* (asys:make-actor-system)))
   (unless *serial-actor*
@@ -42,8 +39,7 @@
   (setf *actor-system* nil)
   (setf *serial-actor* nil)
   (setf *serial-proxy-impl* nil)
-  (setf *eta-collector-impl* nil)
-  (setf *openhab-impl* nil))
+  (setf *eta-collector-impl* nil))
 
 (defun init-serial (device)
   (multiple-value-bind (actor)
@@ -95,7 +91,7 @@ So we gotta trigger a read here as well."
                                        (read-serial *serial-proxy-impl* *serial-port*))
                        (if complete
                            (progn
-                             (openhab:do-post *openhab-impl* data)
+                             (eta-extract:extract-pkg data)
                              (new-start-pkg))
                            data))))
                (act:tell self '(:read . nil))

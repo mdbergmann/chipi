@@ -5,6 +5,4 @@
 
 (in-package :cl-eta.openhab)
 
-(defgeneric do-post (impl data))
-
-(defmethod do-post ((impl (eql :prod)) data))
+(defun do-post (resource data))
