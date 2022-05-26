@@ -5,8 +5,7 @@
            #:start-record
            #:ensure-initialized
            #:ensure-shutdown
-           #:*serial-proxy-impl*
-           #:*eta-collector-impl*))
+           #:*serial-proxy-impl*))
 
 (in-package :cl-eta.eta)
 
