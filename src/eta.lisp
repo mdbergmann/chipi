@@ -95,7 +95,6 @@ So we gotta trigger a read here as well."
                                        (read-serial *serial-proxy-impl* *serial-port*))
                        (if complete
                            (progn
-                             (format t "calling openhab~%")
                              (openhab:do-post *openhab-impl* data)
                              (new-start-pkg))
                            data))))

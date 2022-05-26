@@ -38,10 +38,10 @@
   (values nil (concatenate 'vector prev-data new-data)))
 
 (defmethod eta-col:collect-data ((impl (eql :test-no-complete-pkg)) prev-data new-data)
-  (declare (ignore new-data))
+  (declare (ignore prev-data new-data))
   (format t "counter: ~a~%" *eta-col-called*)
-  (setf *eta-col-data* (concatenate 'vector prev-data `#(,*eta-col-called*)))
   (incf *eta-col-called*)
+  (setf *eta-col-data* #(#\{ 0 1 2 3))
   (values nil *eta-col-data*))
 
 (defmethod eta-col:collect-data ((impl (eql :test-complete-pkg)) prev-data new-data)
@@ -109,16 +109,14 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser--no-complete
   (flet ((assert-package-incomplete ()
-           (equalp *eta-col-data*
-                   (coerce (loop :for x :from 0 :to (1- *eta-col-called*)
-                                 :collect x)
-                           'vector))))
+           (and (= (length *eta-col-data*) 5)
+                (equalp #(#\{ 0 1 2 3) *eta-col-data*))))
     (with-fixture init-destroy ()
       (setf eta:*eta-collector-impl* :test-no-complete-pkg)
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
-                           (> *eta-col-called* 4)))
+                           (> *eta-col-called* 0)))
                 1.0))
       (format t "col-final: ~a~%" *eta-col-data*)
       (is-true (assert-package-incomplete)))))
