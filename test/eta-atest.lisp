@@ -14,14 +14,14 @@
 (defvar *path-prefix* "/rest/items/")
 
 (defmethod eta-ser-if:open-serial ((impl (eql :atest)) device)
-  (declare (ignore proxy device))
+  (declare (ignore impl device))
   t)
 (defmethod eta-ser-if:write-serial ((impl (eql :atest)) port data)
-  (declare (ignore port data))
+  (declare (ignore impl port data))
   ;; todo: create proper size of start-record package
   0)
 (defmethod eta-ser-if:read-serial ((impl (eql :atest)) port &optional timeout)
-  (declare (ignore port timeout))
+  (declare (ignore impl port timeout))
   ;; todo: create proper monitor package
   #())
 
@@ -41,12 +41,11 @@
       ;; which is eventually forwarded to openHAB.
       ;; So we can expect that after calling `start-record' an http call will go out
       ;; to openHAB with data we expect to be sent.
-      (answer (openhab:do-post url data)
+      (answer (openhab:do-post resource data)
         (progn
-          (assert (uiop:string-prefix-p "http://" url))
-          (assert (uiop:string-suffix-p (format nil "~a/HeatingETAOperatingHours" *path-prefix*) url))
+          (assert (string= "HeatingETAOperatingHours" resource))
           (assert (floatp data))
-          t))
+          :ok))
 
       (is (eq :ok (start-record)))
       (is (= 1 (length (invocations 'openhab:do-post))))    
