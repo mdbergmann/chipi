@@ -15,7 +15,9 @@
 (defvar *write-serial-called* nil)
 (defvar *read-serial-called* 0)
 (defvar *eta-col-called* 0)
-(defvar *eta-col-no-complete* #())
+(defvar *eta-col-data* #())
+(defvar *openhab-post-called* 0)
+(defvar *openhab-post-data* nil)
 
 (defmethod eta-ser-if:open-serial ((impl (eql :test)) device)
   (cond
@@ -38,16 +40,28 @@
 (defmethod eta-col:collect-data ((impl (eql :test-no-complete-pkg)) prev-data new-data)
   (declare (ignore new-data))
   (format t "counter: ~a~%" *eta-col-called*)
-  (setf *eta-col-no-complete* (concatenate 'vector prev-data `#(,*eta-col-called*)))
+  (setf *eta-col-data* (concatenate 'vector prev-data `#(,*eta-col-called*)))
   (incf *eta-col-called*)
-  (values nil *eta-col-no-complete*))
+  (values nil *eta-col-data*))
+
+(defmethod eta-col:collect-data ((impl (eql :test-complete-pkg)) prev-data new-data)
+  (declare (ignore prev-data new-data))
+  (format t "counter: ~a~%" *eta-col-called*)
+  (setf *eta-col-data* #(#\{ 0 1 2 3 #\}))
+  (values t *eta-col-data*))
+
+(defmethod openhab:do-post ((impl (eql :test-ok)) data)
+  (incf *openhab-post-called*)
+  (setf *openhab-post-data* data))
 
 (def-fixture init-destroy ()
   (setf *open-serial-called* nil
         *write-serial-called* nil
         *read-serial-called* 0
         *eta-col-called* 0
-        *eta-col-no-complete* #())
+        *eta-col-data* #()
+        *openhab-post-called* 0
+        *openhab-post-data* nil)
   (unwind-protect
        (progn
          (eta:ensure-initialized)
@@ -94,19 +108,35 @@ A result will be visible when this function is called on the REPL."
               1.0))))
 
 (test start-record--read-received--call-parser--no-complete
-  (with-fixture init-destroy ()
-    (setf eta:*eta-collector-impl* :test-no-complete-pkg)
-    (is (eq :ok (start-record)))
-    (is-true (utils:assert-cond
-              (lambda () (and (> *read-serial-called* 0)
-                         (> *eta-col-called* 4)))
-              1.0))
-    (format t "col-final: ~a~%" *eta-col-no-complete*)
-    (is (equalp *eta-col-no-complete*
-                (coerce (loop :for x :from 0 :to (1- *eta-col-called*)
-                              :collect x)
-                        'vector)))))
+  (flet ((assert-package-incomplete ()
+           (equalp *eta-col-data*
+                   (coerce (loop :for x :from 0 :to (1- *eta-col-called*)
+                                 :collect x)
+                           'vector))))
+    (with-fixture init-destroy ()
+      (setf eta:*eta-collector-impl* :test-no-complete-pkg)
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (and (> *read-serial-called* 0)
+                           (> *eta-col-called* 4)))
+                1.0))
+      (format t "col-final: ~a~%" *eta-col-data*)
+      (is-true (assert-package-incomplete)))))
 
+(test start-record--read-received--call-parser--complete
+  (flet ((assert-package-complete ()
+           (and (= (length *eta-col-data*) 6)
+                (equalp #(#\{ 0 1 2 3 #\}) *eta-col-data*))))
+    (with-fixture init-destroy ()
+      (setf eta:*eta-collector-impl* :test-complete-pkg)
+      (setf eta:*openhab-impl* :test-ok)
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (and (> *read-serial-called* 0)
+                           (= *openhab-post-called* 1)))
+                1.0))
+      (format t "col-final: ~a~%" *eta-col-data*)
+      (is-true (assert-package-complete)))))
 
 #|
 TODO:

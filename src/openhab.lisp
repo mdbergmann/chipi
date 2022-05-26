@@ -5,6 +5,6 @@
 
 (in-package :cl-eta.openhab)
 
-(defun do-post (url data)
-  (declare (ignore url data))
-  nil)
+(defgeneric do-post (impl data))
+
+(defmethod do-post ((impl (eql :prod)) data))

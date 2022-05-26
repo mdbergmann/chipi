@@ -6,7 +6,8 @@
            #:ensure-initialized
            #:ensure-shutdown
            #:*serial-proxy-impl*
-           #:*eta-collector-impl*))
+           #:*eta-collector-impl*
+           #:*openhab-impl*))
 
 (in-package :cl-eta.eta)
 
@@ -16,18 +17,21 @@
 (defvar *serial-port* nil)
 (defvar *serial-proxy-impl* nil)
 (defvar *eta-collector-impl* nil)
+(defvar *openhab-impl* nil)
 
 (defun ensure-initialized ()
   (unless *eta-collector-impl*
     (setf *eta-collector-impl* :prod))
   (unless *serial-proxy-impl*
     (setf *serial-proxy-impl* :prod))
+  (unless *openhab-impl*
+    (setf *openhab-impl* :prod))
   (unless *actor-system*
     (setf *actor-system* (asys:make-actor-system)))
   (unless *serial-actor*
     (setf *serial-actor* (ac:actor-of *actor-system*
                                       :name "ETA-serial-actor"
-                                      :state #()
+                                      :state (new-start-pkg)
                                       :receive (lambda (self msg state)
                                                  (%serial-actor-receive self msg state)))))
   (values *serial-actor* *actor-system*))
@@ -38,7 +42,8 @@
   (setf *actor-system* nil)
   (setf *serial-actor* nil)
   (setf *serial-proxy-impl* nil)
-  (setf *eta-collector-impl* nil))
+  (setf *eta-collector-impl* nil)
+  (setf *openhab-impl* nil))
 
 (defun init-serial (device)
   (multiple-value-bind (actor)
@@ -70,6 +75,8 @@ So we gotta trigger a read here as well."
 ;; actor receive
 ;; ---------------------
 
+(defun new-start-pkg () #())
+
 (defun %serial-actor-receive (self msg state)
   (let ((resp
           (case (car msg)
@@ -87,7 +94,10 @@ So we gotta trigger a read here as well."
                                        state
                                        (read-serial *serial-proxy-impl* *serial-port*))
                        (if complete
-                           #()
+                           (progn
+                             (format t "calling openhab~%")
+                             (openhab:do-post *openhab-impl* data)
+                             (new-start-pkg))
                            data))))
                (act:tell self '(:read . nil))
                (cons t new-state))))))
