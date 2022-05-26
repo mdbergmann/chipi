@@ -80,6 +80,17 @@ So we gotta trigger a read here as well."
       (dolist (item items)
         (openhab:do-post (car item) (cdr item))))))
 
+(defun generate-new-state (old-state)
+  (multiple-value-bind (complete data)
+      (collect-data *eta-collector-impl*
+                    old-state
+                    (read-serial *serial-proxy-impl* *serial-port*))
+    (if complete
+        (progn 
+          (handle-complete-pkg data)
+          (new-start-pkg))
+        data)))
+
 (defun %serial-actor-receive (self msg state)
   (let ((resp
           (case (car msg)
@@ -91,16 +102,7 @@ So we gotta trigger a read here as well."
             (:write
              (cons (write-serial *serial-proxy-impl* *serial-port* (cdr msg)) state))
             (:read
-             (let ((new-state
-                     (multiple-value-bind (complete data)
-                         (collect-data *eta-collector-impl*
-                                       state
-                                       (read-serial *serial-proxy-impl* *serial-port*))
-                       (if complete
-                           (progn 
-                             (handle-complete-pkg data)
-                             (new-start-pkg))
-                           data))))
+             (let ((new-state (generate-new-state state)))
                (act:tell self '(:read . nil))
                (cons t new-state))))))
     resp))
