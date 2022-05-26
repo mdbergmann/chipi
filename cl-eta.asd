@@ -10,7 +10,7 @@
                 :components
                 ((:file "openhab")
                  (:file "eta-ser-if")
-                 (:file "eta-collector")
+                 (:file "eta-pkg")
                  (:file "eta-extrator")
                  (:file "eta"))))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))

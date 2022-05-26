@@ -72,40 +72,40 @@ A result will be visible when this function is called on the REPL."
 (test start-record--read-received--call-parser
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-col:collect-data (values nil #()))
+      (answer eta-pkg:collect-data (values nil #()))
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
               (lambda () (and (> *read-serial-called* 0)
-                         (> (length (invocations 'eta-col:collect-data)) 0)))
+                         (> (length (invocations 'eta-pkg:collect-data)) 0)))
               1.0)))))
 
 (test start-record--read-received--call-parser--no-complete
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-col:collect-data (values nil #(#\{ 0 1 2 3)))
+      (answer eta-pkg:collect-data (values nil #(#\{ 0 1 2 3)))
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
-                           (> (length (invocations 'eta-col:collect-data)) 0)))
+                           (> (length (invocations 'eta-pkg:collect-data)) 0)))
                 1.0)))))
 
 (test start-record--read-received--call-parser--complete--empty-monitor
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-col:collect-data (values t #(#\{ 0 1 2 3 #\})))      
-      (answer eta-extract:extract-pkg (values :monitor '()))
+      (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
+      (answer eta-pkg:extract-pkg (values :monitor '()))
 
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
-                           (= (length (invocations 'eta-extract:extract-pkg)) 1)))
+                           (= (length (invocations 'eta-pkg:extract-pkg)) 1)))
                 1.0)))))
 
 (test start-record--read-received--call-parser--complete--with-monitor
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-col:collect-data (values t #(#\{ 0 1 2 3 #\})))      
-      (answer eta-extract:extract-pkg
+      (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
+      (answer eta-pkg:extract-pkg
         (values :monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post res data)
         (progn
@@ -116,22 +116,22 @@ A result will be visible when this function is called on the REPL."
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
-                           (= (length (invocations 'eta-extract:extract-pkg)) 1)
+                           (= (length (invocations 'eta-pkg:extract-pkg)) 1)
                            (= (length (invocations 'openhab:do-post)) 1)))
                 1.0)))))
 
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-col:collect-data (values t #(#\{ 0 1 2 3 #\})))      
-      (answer eta-extract:extract-pkg
+      (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
+      (answer eta-pkg:extract-pkg
         (values :fail "Extract failure!"))
       (answer openhab:do-post nil)
 
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
-                           (= (length (invocations 'eta-extract:extract-pkg)) 1)))
+                           (= (length (invocations 'eta-pkg:extract-pkg)) 1)))
                 1.0))
       (is (= (length (invocations 'openhab:do-post)) 0)))))
 
@@ -144,6 +144,7 @@ OK - test for complete package handling
 OK - complete package handling should call eta pkg extractor
 OK - result of pkg extractor should extract eta package
 OK - extracted package should send openhab post requests for each extract
-=> - 'stop-record'
+=> - verify proper eta-packages are used (i.e. for start-record)
+- 'stop-record'
 - 'shutdown-serial
 |#

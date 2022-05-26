@@ -71,14 +71,14 @@ So we gotta trigger a read here as well."
 
 (defun handle-complete-pkg (pkg-data)
   (multiple-value-bind (pkg-type items)
-      (eta-extract:extract-pkg pkg-data)
+      (eta-pkg:extract-pkg pkg-data)
     (when (eq :monitor pkg-type)
       (dolist (item items)
         (openhab:do-post (car item) (cdr item))))))
 
 (defun generate-new-state (old-state)
   (multiple-value-bind (complete data)
-      (eta-col:collect-data old-state
+      (eta-pkg:collect-data old-state
                             (read-serial *serial-proxy-impl* *serial-port*))
     (if complete
         (progn 
