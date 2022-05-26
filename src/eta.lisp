@@ -23,7 +23,7 @@
   (unless *serial-actor*
     (setf *serial-actor* (ac:actor-of *actor-system*
                                       :name "ETA-serial-actor"
-                                      :state (new-start-pkg)
+                                      :state (new-empty-data)
                                       :receive (lambda (self msg state)
                                                  (%serial-actor-receive self msg state)))))
   (values *serial-actor* *actor-system*))
@@ -65,7 +65,7 @@ So we gotta trigger a read here as well."
 ;; actor receive
 ;; ---------------------
 
-(defun new-start-pkg () #())
+(defun new-empty-data () #())
 
 (defun handle-complete-pkg (pkg-data)
   (multiple-value-bind (pkg-type items)
@@ -81,7 +81,7 @@ So we gotta trigger a read here as well."
     (if complete
         (progn 
           (handle-complete-pkg data)
-          (new-start-pkg))
+          (new-empty-data))
         data)))
 
 (defun %serial-actor-receive (self msg state)

@@ -12,7 +12,18 @@
 A full package is when it starts with `#\{' and ends with `#\}'.
 In this case the return is `(values t <full-package>)'.
 If this is a partial package the return is: `(values nil <partial-package>)'."
-  nil)
+  (let* ((data (concatenate 'vector prev-data new-data))
+         (data-len (length data)))
+    (values
+     (if (> data-len 0)
+         (let ((first (elt data 0))
+               (last (elt data (1- data-len))))
+           (and (characterp first)
+                (characterp last)
+                (char= #\{ first)
+                (char= #\} last)))
+         nil)
+     data)))
 
 (defun extract-pkg (pkg-data)
   "`pkg-data' is supposed to be a full eta package with starting `#\{' and ending `#\}'.

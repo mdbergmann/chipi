@@ -2,7 +2,8 @@
   :version "0.0.1"
   :author "Manfred Bergmann"
   :license "Apache-2"
-  :depends-on ("cl-gserver"
+  :depends-on ("cl-gserver/logif-log4cl"
+               "cl-gserver/plain"
                "libserialport"
                )
   :components ((:module "src"
