@@ -16,8 +16,6 @@
 (defvar *read-serial-called* 0)
 (defvar *eta-col-called* 0)
 (defvar *eta-col-data* #())
-(defvar *openhab-post-called* 0)
-(defvar *openhab-post-data* nil)
 
 (defmethod eta-ser-if:open-serial ((impl (eql :test)) device)
   (cond
@@ -146,15 +144,30 @@ A result will be visible when this function is called on the REPL."
                            (= (length (invocations 'openhab:do-post)) 1)))
                 1.0)))))
 
+(test start-record--read-received--call-parser--complete--extract-fail
+  (with-fixture init-destroy ()
+    (setf eta:*eta-collector-impl* :test-complete-pkg)
+    (with-mocks ()
+      (answer eta-extract:extract-pkg
+        (values :fail "Extract failure!"))
+      (answer openhab:do-post nil)
+
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (and (> *read-serial-called* 0)
+                           (= (length (invocations 'eta-extract:extract-pkg)) 1)))
+                1.0))
+      (is (= (length (invocations 'openhab:do-post)) 0)))))
+
 #|
 TODO:
 OK - test for read continously
 OK - test for call to read handler when data arrived
 OK - test for incomplete package handling
 OK - test for complete package handling
-=> - complete package handling should call eta pkg extractor
-- result of pkg extractor should extract eta package
-- extracted package should send openhab post requests for each extract
+OK - complete package handling should call eta pkg extractor
+OK - result of pkg extractor should extract eta package
+OK - extracted package should send openhab post requests for each extract
 - test 'start-record' actually sends the proper ETA package
 - 'stop-record'
 - 'shutdown-serial

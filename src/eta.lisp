@@ -73,6 +73,13 @@ So we gotta trigger a read here as well."
 
 (defun new-start-pkg () #())
 
+(defun handle-complete-pkg (pkg-data)
+  (multiple-value-bind (pkg-type items)
+      (eta-extract:extract-pkg pkg-data)
+    (when (eq :monitor pkg-type)
+      (dolist (item items)
+        (openhab:do-post (car item) (cdr item))))))
+
 (defun %serial-actor-receive (self msg state)
   (let ((resp
           (case (car msg)
@@ -90,11 +97,8 @@ So we gotta trigger a read here as well."
                                        state
                                        (read-serial *serial-proxy-impl* *serial-port*))
                        (if complete
-                           (multiple-value-bind (pkg-type items)
-                               (eta-extract:extract-pkg data)
-                             (when (eq :monitor pkg-type)
-                               (dolist (item items)
-                                 (openhab:do-post (car item) (cdr item))))
+                           (progn 
+                             (handle-complete-pkg data)
                              (new-start-pkg))
                            data))))
                (act:tell self '(:read . nil))
