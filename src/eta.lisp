@@ -1,5 +1,5 @@
 (defpackage :cl-eta.eta
-  (:use :cl :gs-user :eta-ser-if :eta-col)
+  (:use :cl :gs-user :eta-ser-if)
   (:nicknames :eta)
   (:export #:init-serial
            #:start-record
@@ -16,11 +16,8 @@
 (defvar *serial-device* nil)
 (defvar *serial-port* nil)
 (defvar *serial-proxy-impl* nil)
-(defvar *eta-collector-impl* nil)
 
 (defun ensure-initialized ()
-  (unless *eta-collector-impl*
-    (setf *eta-collector-impl* :prod))
   (unless *serial-proxy-impl*
     (setf *serial-proxy-impl* :prod))
   (unless *actor-system*
@@ -38,8 +35,7 @@
     (ac:shutdown *actor-system* :wait t))
   (setf *actor-system* nil)
   (setf *serial-actor* nil)
-  (setf *serial-proxy-impl* nil)
-  (setf *eta-collector-impl* nil))
+  (setf *serial-proxy-impl* nil))
 
 (defun init-serial (device)
   (multiple-value-bind (actor)
@@ -82,9 +78,8 @@ So we gotta trigger a read here as well."
 
 (defun generate-new-state (old-state)
   (multiple-value-bind (complete data)
-      (collect-data *eta-collector-impl*
-                    old-state
-                    (read-serial *serial-proxy-impl* *serial-port*))
+      (eta-col:collect-data old-state
+                            (read-serial *serial-proxy-impl* *serial-port*))
     (if complete
         (progn 
           (handle-complete-pkg data)

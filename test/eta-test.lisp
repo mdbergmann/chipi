@@ -14,8 +14,6 @@
 (defvar *open-serial-called* nil)
 (defvar *write-serial-called* nil)
 (defvar *read-serial-called* 0)
-(defvar *eta-col-called* 0)
-(defvar *eta-col-data* #())
 
 (defmethod eta-ser-if:open-serial ((impl (eql :test)) device)
   (cond
@@ -31,29 +29,10 @@
   (incf *read-serial-called*)
   #())
 
-(defmethod eta-col:collect-data ((impl (eql :test)) prev-data new-data)
-  (incf *eta-col-called*)
-  (values nil (concatenate 'vector prev-data new-data)))
-
-(defmethod eta-col:collect-data ((impl (eql :test-no-complete-pkg)) prev-data new-data)
-  (declare (ignore prev-data new-data))
-  (format t "counter: ~a~%" *eta-col-called*)
-  (incf *eta-col-called*)
-  (setf *eta-col-data* #(#\{ 0 1 2 3))
-  (values nil *eta-col-data*))
-
-(defmethod eta-col:collect-data ((impl (eql :test-complete-pkg)) prev-data new-data)
-  (declare (ignore prev-data new-data))
-  (format t "counter: ~a~%" *eta-col-called*)
-  (setf *eta-col-data* #(#\{ 0 1 2 3 #\}))
-  (values t *eta-col-data*))
-
 (def-fixture init-destroy ()
   (setf *open-serial-called* nil
-        *write-serial-called* nil
-        *read-serial-called* 0
-        *eta-col-called* 0
-        *eta-col-data* #())
+        *write-serial-called* 0
+        *read-serial-called* 0)
   (unwind-protect
        (progn
          (eta:ensure-initialized)
@@ -92,33 +71,30 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser
   (with-fixture init-destroy ()
-    (setf eta:*eta-collector-impl* :test)
-    (is (eq :ok (start-record)))
-    (is-true (utils:assert-cond
+    (with-mocks ()
+      (answer eta-col:collect-data (values nil #()))
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
               (lambda () (and (> *read-serial-called* 0)
-                         (> *eta-col-called* 0)))
-              1.0))))
+                         (> (length (invocations 'eta-col:collect-data)) 0)))
+              1.0)))))
 
 (test start-record--read-received--call-parser--no-complete
-  (flet ((assert-package-incomplete ()
-           (and (= (length *eta-col-data*) 5)
-                (equalp #(#\{ 0 1 2 3) *eta-col-data*))))
-    (with-fixture init-destroy ()
-      (setf eta:*eta-collector-impl* :test-no-complete-pkg)
+  (with-fixture init-destroy ()
+    (with-mocks ()
+      (answer eta-col:collect-data (values nil #(#\{ 0 1 2 3)))
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
-                           (> *eta-col-called* 0)))
-                1.0))
-      (format t "col-final: ~a~%" *eta-col-data*)
-      (is-true (assert-package-incomplete)))))
+                           (> (length (invocations 'eta-col:collect-data)) 0)))
+                1.0)))))
 
 (test start-record--read-received--call-parser--complete--empty-monitor
   (with-fixture init-destroy ()
-    (setf eta:*eta-collector-impl* :test-complete-pkg)
     (with-mocks ()
+      (answer eta-col:collect-data (values t #(#\{ 0 1 2 3 #\})))      
       (answer eta-extract:extract-pkg (values :monitor '()))
-        
+
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
@@ -127,8 +103,8 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser--complete--with-monitor
   (with-fixture init-destroy ()
-    (setf eta:*eta-collector-impl* :test-complete-pkg)
     (with-mocks ()
+      (answer eta-col:collect-data (values t #(#\{ 0 1 2 3 #\})))      
       (answer eta-extract:extract-pkg
         (values :monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post res data)
@@ -146,8 +122,8 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
-    (setf eta:*eta-collector-impl* :test-complete-pkg)
     (with-mocks ()
+      (answer eta-col:collect-data (values t #(#\{ 0 1 2 3 #\})))      
       (answer eta-extract:extract-pkg
         (values :fail "Extract failure!"))
       (answer openhab:do-post nil)
@@ -168,7 +144,6 @@ OK - test for complete package handling
 OK - complete package handling should call eta pkg extractor
 OK - result of pkg extractor should extract eta package
 OK - extracted package should send openhab post requests for each extract
-- test 'start-record' actually sends the proper ETA package
-- 'stop-record'
+=> - 'stop-record'
 - 'shutdown-serial
 |#

@@ -5,8 +5,4 @@
 
 (in-package :cl-eta.collector)
 
-(defgeneric collect-data (impl prev-data new-data))
-
-(defmethod collect-data ((impl (eql :prod)) prev-data new-data) 
-  nil)
-
+(defun collect-data (prev-data new-data) nil)
