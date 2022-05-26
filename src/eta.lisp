@@ -6,8 +6,7 @@
            #:ensure-initialized
            #:ensure-shutdown
            #:*serial-proxy-impl*
-           #:*eta-collector-impl*
-           #:*openhab-impl*))
+           #:*eta-collector-impl*))
 
 (in-package :cl-eta.eta)
 
