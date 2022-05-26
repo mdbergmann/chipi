@@ -92,6 +92,7 @@ So we gotta trigger a read here as well."
                        (if complete
                            (progn
                              (eta-extract:extract-pkg data)
+                             (openhab:do-post "FooItem" 1.1)
                              (new-start-pkg))
                            data))))
                (act:tell self '(:read . nil))

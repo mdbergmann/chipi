@@ -115,22 +115,36 @@ A result will be visible when this function is called on the REPL."
       (format t "col-final: ~a~%" *eta-col-data*)
       (is-true (assert-package-incomplete)))))
 
-(test start-record--read-received--call-parser--complete
-  (flet ((assert-package-complete ()
-           (and (= (length *eta-col-data*) 6)
-                (equalp #(#\{ 0 1 2 3 #\}) *eta-col-data*))))
-    (with-fixture init-destroy ()
-      (setf eta:*eta-collector-impl* :test-complete-pkg)
-      (with-mocks ()
-        (answer (eta-extract:extract-pkg pkg-data) '())
+(test start-record--read-received--call-parser--complete--empty-monitor
+  (with-fixture init-destroy ()
+    (setf eta:*eta-collector-impl* :test-complete-pkg)
+    (with-mocks ()
+      (answer eta-extract:extract-pkg (values :monitor '()))
         
-        (is (eq :ok (start-record)))
-        (is-true (utils:assert-cond
-                  (lambda () (and (> *read-serial-called* 0)
-                             (= (length (invocations 'eta-extract:extract-pkg)) 1)))
-                  1.0))
-        (format t "col-final: ~a~%" *eta-col-data*)
-        (is-true (assert-package-complete))))))
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (and (> *read-serial-called* 0)
+                           (= (length (invocations 'eta-extract:extract-pkg)) 1)))
+                1.0)))))
+
+(test start-record--read-received--call-parser--complete--with-monitor
+  (with-fixture init-destroy ()
+    (setf eta:*eta-collector-impl* :test-complete-pkg)
+    (with-mocks ()
+      (answer eta-extract:extract-pkg
+        (values :monitor '(("FooItem" . 1.1))))
+      (answer (openhab:do-post res data)
+        (progn
+          (assert (equal res "FooItem"))
+          (assert (= data 1.1))
+          :ok))
+
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (and (> *read-serial-called* 0)
+                           (= (length (invocations 'eta-extract:extract-pkg)) 1)
+                           (= (length (invocations 'openhab:do-post)) 1)))
+                1.0)))))
 
 #|
 TODO:
