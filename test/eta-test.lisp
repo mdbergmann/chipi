@@ -108,8 +108,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
-      (answer eta-pkg:extract-pkg
-        (values :monitor '(("FooItem" . 1.1))))
+      (answer eta-pkg:extract-pkg (values :monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post res data)
         (progn
           (assert (equal res "FooItem"))
@@ -127,8 +126,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
-      (answer eta-pkg:extract-pkg
-        (values :fail "Extract failure!"))
+      (answer eta-pkg:extract-pkg (values :fail "Extract failure!"))
       (answer openhab:do-post nil)
 
       (is (eq :ok (start-record)))
@@ -147,7 +145,7 @@ OK - test for complete package handling
 OK - complete package handling should call eta pkg extractor
 OK - result of pkg extractor should extract eta package
 OK - extracted package should send openhab post requests for each extract
-=> - verify proper eta-packages are used (i.e. for start-record)
+OK - verify proper eta-packages are used (i.e. for start-record)
 - 'stop-record'
 - 'shutdown-serial
 |#
