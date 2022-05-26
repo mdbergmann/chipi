@@ -57,10 +57,13 @@
 This is asynchronous and we don't check a result.
 A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
-    (is (eq :ok (start-record)))
-    (is-true (utils:assert-cond
-              (lambda () (= 5 *write-serial-called*))
-              1.0))))
+    (with-mocks ()
+      (answer eta-pkg:new-start-record-pkg #(#\{ 0 0 0 #\})) ;; just dummy package
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (= 5 *write-serial-called*))
+                1.0))
+      (is (= 1 (length (invocations 'eta-pkg:new-start-record-pkg)))))))
 
 (test start-record--serial-written--read-received
   (with-fixture init-destroy ()

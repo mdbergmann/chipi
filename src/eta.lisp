@@ -59,7 +59,7 @@ Once this command is sent, the ETA will start to send monitor data packages.
 So we gotta trigger a read here as well."
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (act:tell actor '(:write . "Foo"))
+    (act:tell actor `(:write . ,(eta-pkg:new-start-record-pkg)))
     (act:tell actor '(:read . nil)))
   :ok)
 
