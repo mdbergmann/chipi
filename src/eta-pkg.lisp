@@ -29,31 +29,33 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
 (defun check-sum (seq)
   (mod (reduce #'+ seq) 256))
 
-(defun to-int (upper lower)
+(defun %to-int (upper lower)
   (+ (ash upper 8) lower))
 
-(defun to-vec (int)
+(defun %to-vec (int)
   (vector (ash (mask-field (byte 16 8) int) -8)
           (mask-field (byte 8 0) int)))
 
 (defparameter +monitor-items+
   '((167 . ("BoilerUnten" . 10.0))))
 
-(defun id-to-item-name (mid)
+(defvar +monitor-size+ 5)
+
+(defun %id-to-item-name (mid)
   (cadr (find mid +monitor-items+ :key #'car :test #'=)))
 
-(defun id-to-item-divisor (mid)
+(defun %id-to-item-divisor (mid)
   (cddr (find mid +monitor-items+ :key #'car :test #'=)))
 
-(defun process-monitors (monitor-data)
-  (let ((monitors (/ (length monitor-data) 5)))
+(defun %process-monitors (monitor-data)
+  (let ((monitors (/ (length monitor-data) +monitor-size+)))
     (loop :for i :to (1- monitors)
-          :for m = (subseq monitor-data (* i 5))
+          :for m = (subseq monitor-data (* i +monitor-size+))
           :for node-id = (elt m 0)
-          :for m-id = (to-int (elt m 1) (elt m 2))
-          :for m-val = (to-int (elt m 3) (elt m 4))
-          :for item-name = (id-to-item-name m-id)
-          :for item-div = (id-to-item-divisor m-id)
+          :for m-id = (%to-int (elt m 1) (elt m 2))
+          :for m-val = (%to-int (elt m 3) (elt m 4))
+          :for item-name = (%id-to-item-name m-id)
+          :for item-div = (%id-to-item-divisor m-id)
           :collect `(,item-name . ,(/ m-val item-div)))))
 
 
@@ -69,7 +71,7 @@ If it is a full package with monitors data the return is:
             (payload-len (elt pkg-data 3))
             (checksum (elt pkg-data 4))
             (payload (subseq pkg-data 5 (1- (length pkg-data)))))
-        (values :monitor (process-monitors payload)))))
+        (values :monitor (%process-monitors payload)))))
       
 
 (defun new-start-record-pkg ()
