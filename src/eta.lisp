@@ -35,6 +35,10 @@
   (setf *serial-actor* nil)
   (setf *serial-proxy-impl* nil))
 
+;; ---------------------
+;; public functions
+;; ---------------------
+
 (defun init-serial (device)
   (multiple-value-bind (actor)
       (ensure-initialized)
@@ -47,10 +51,6 @@
            (otherwise (values :ok))))
         (t (values :ok))))))
 
-;; ---------------------
-;; package functions
-;; ---------------------
-
 (defun start-record ()
   "Triggers the recording of data.
 Once this command is sent, the ETA will start to send monitor data packages.
@@ -62,10 +62,10 @@ So we gotta trigger a read here as well."
   :ok)
 
 ;; ---------------------
-;; actor receive
+;; actor handling
 ;; ---------------------
 
-(defun %new-empty-data () #())
+(defmacro %new-empty-data () #())
 
 (defun %process-complete-pkg (pkg-data)
   (multiple-value-bind (pkg-type items)

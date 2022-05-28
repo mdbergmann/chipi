@@ -61,6 +61,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:new-start-record-pkg #(#\{ 0 0 0 #\})) ;; just dummy package
+      
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (= 5 *write-serial-called*))
@@ -78,6 +79,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:collect-data (values nil #()))
+      
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
               (lambda () (and (> *read-serial-called* 0)
@@ -88,6 +90,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:collect-data (values nil #(#\{ 0 1 2 3)))
+      
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
@@ -148,7 +151,7 @@ OK - complete package handling should call eta pkg extractor
 OK - result of pkg extractor should extract eta package
 OK - extracted package should send openhab post requests for each extract
 OK - verify proper eta-packages are used (i.e. for start-record)
-=> - log extracted package
+OK - log extracted package
 - implement more receive package types (error, etc)
 - implement full start-record package
 - 'stop-record'
