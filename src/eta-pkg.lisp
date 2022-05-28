@@ -37,7 +37,8 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
           (mask-field (byte 8 0) int)))
 
 (defparameter +monitor-items+
-  '((167 . ("BoilerUnten" . 10.0))))
+  '((167 . ("EtaBoilerUnten" . 10.0))
+    (21 . ("EtaBoiler" . 10.0))))
 
 (defvar +monitor-size+ 5)
 
@@ -48,16 +49,20 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
   (cddr (find mid +monitor-items+ :key #'car :test #'=)))
 
 (defun %process-monitors (monitor-data)
-  (let ((monitors (/ (length monitor-data) +monitor-size+)))
-    (loop :for i :to (1- monitors)
-          :for m = (subseq monitor-data (* i +monitor-size+))
-          :for node-id = (elt m 0)
-          :for m-id = (%to-int (elt m 1) (elt m 2))
-          :for m-val = (%to-int (elt m 3) (elt m 4))
-          :for item-name = (%id-to-item-name m-id)
-          :for item-div = (%id-to-item-divisor m-id)
-          :collect `(,item-name . ,(/ m-val item-div)))))
+  (if (> (mod (length monitor-data) +monitor-size+) 0)
+      `(:fail "Wrong payload size!")
+      `(:ok ,(let ((monitors (/ (length monitor-data) +monitor-size+)))
+               (loop :for i :to (1- monitors)
+                     :for m = (subseq monitor-data (* i +monitor-size+))
+                     :for node-id = (elt m 0)
+                     :for m-id = (%to-int (elt m 1) (elt m 2))
+                     :for m-val = (%to-int (elt m 3) (elt m 4))
+                     :for item-name = (%id-to-item-name m-id)
+                     :for item-div = (%id-to-item-divisor m-id)
+                     :collect `(,item-name . ,(/ m-val item-div)))))))
 
+(defun %undersized-pkg-p (pkg-data)
+  (< (length pkg-data) 6))
 
 (defun extract-pkg (pkg-data)
   "`pkg-data' is a full eta package with starting `#\{' and ending `#\}'.
@@ -65,13 +70,16 @@ If something happens during extraction the return is:
 `(values :fail <reason>)'.
 If it is a full package with monitors data the return is:
 `(values :monitor <alist-of-monitor-items)' where an item consists of: `(cons <openhab-item-name> <item-value>)'."
-  (if (< (length pkg-data) 6) ; minimal size of package
+  (if (%undersized-pkg-p pkg-data) ; minimal size of package
       (values :fail "Undersized package!")
       (let ((sid (coerce `#(,(elt pkg-data 1) ,(elt pkg-data 2)) 'string))
             (payload-len (elt pkg-data 3))
             (checksum (elt pkg-data 4))
             (payload (subseq pkg-data 5 (1- (length pkg-data)))))
-        (values :monitor (%process-monitors payload)))))
+        (let ((monitor-data (%process-monitors payload)))
+          (case (car monitor-data)
+            (:ok (values :monitor (cadr (%process-monitors payload))))
+            (:fail (values :fail (cadr monitor-data))))))))
       
 
 (defun new-start-record-pkg ()

@@ -25,7 +25,7 @@
   (is (equalp '(:fail "Undersized package!") (multiple-value-list (extract-pkg #())))))
 
 (test extract-pkg--monitor--one-item
-  (is (equalp (list :monitor (list (cons "BoilerUnten" 54.5)))
+  (is (equalp (list :monitor (list (cons "EtaBoilerUnten" 54.5)))
               (multiple-value-list
                (extract-pkg
                 #(#\{
@@ -34,5 +34,33 @@
                   3 ; checksum of payload
                   0 ; node id
                   0 167 ; monitor id two byte
+                  2 33 ; value two byte (545) / divisor 10
+                  #\}))))))
+
+(test extract-pkg--monitor--more-items
+  (is (equalp (list :monitor (list (cons "EtaBoilerUnten" 54.5)
+                                   (cons "EtaBoiler" 12.4)))
+              (multiple-value-list
+               (extract-pkg
+                #(#\{
+                  #\M #\D ; service identifier
+                  10 ; payload len
+                  3 ; checksum of payload (ignored)
+                  0 ; node id
+                  0 167 ; monitor id two byte
+                  2 33 ; value two byte (545) / divisor 10
+                  0
+                  0 21
+                  0 124
+                  #\}))))))
+
+(test extract-pkg--monitor--wrong-payload-size
+  (is (equalp (list :fail "Wrong payload size!")
+              (multiple-value-list
+               (extract-pkg
+                #(#\{
+                  #\M #\D ; service identifier
+                  5 ; payload len
+                  3 ; checksum of payload
                   2 33 ; value two byte (545) / divisor 10
                   #\}))))))
