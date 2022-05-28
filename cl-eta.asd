@@ -25,6 +25,7 @@
                 :components
                 ((:file "all-tests")
                  (:file "eta-test")
+                 (:file "eta-pkg-test")
                  (:file "eta-atest")
                  )))
   :description "Test system for cl-eta"

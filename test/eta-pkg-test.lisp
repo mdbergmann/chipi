@@ -19,3 +19,20 @@
 
 (test collect-data--full-package
   (is (equalp '(t #(#\{ 1 2 #\})) (multiple-value-list (collect-data #(#\{ 1) #(2 #\}))))))
+
+
+(test extract-pkg--fail-empty
+  (is (equalp '(:fail "Undersized package!") (multiple-value-list (extract-pkg #())))))
+
+(test extract-pkg--monitor--one-item
+  (is (equalp (list :monitor (list (cons "BoilerUnten" 545)))
+              (multiple-value-list
+               (extract-pkg
+                #(#\{
+                  #\M #\D ; service identifier
+                  5 ; payload len
+                  3 ; checksum of payload
+                  0 ; node id
+                  0 167 ; monitor id two byte
+                  2 33 ; value two byte (545) / divisor 10
+                  #\}))))))
