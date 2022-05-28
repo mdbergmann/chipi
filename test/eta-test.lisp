@@ -11,6 +11,8 @@
 
 (in-suite eta-tests)
 
+(log:config '(cl-gserver) :warn)
+
 (defvar *open-serial-called* nil)
 (defvar *write-serial-called* nil)
 (defvar *read-serial-called* 0)
@@ -146,6 +148,9 @@ OK - complete package handling should call eta pkg extractor
 OK - result of pkg extractor should extract eta package
 OK - extracted package should send openhab post requests for each extract
 OK - verify proper eta-packages are used (i.e. for start-record)
+=> - log extracted package
+- implement more receive package types (error, etc)
+- implement full start-record package
 - 'stop-record'
 - 'shutdown-serial
 |#

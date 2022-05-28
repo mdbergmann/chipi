@@ -67,35 +67,43 @@ So we gotta trigger a read here as well."
 
 (defun %new-empty-data () #())
 
-(defun %handle-complete-pkg (pkg-data)
+(defun %process-complete-pkg (pkg-data)
   (multiple-value-bind (pkg-type items)
       (eta-pkg:extract-pkg pkg-data)
-    (when (eq :eta-monitor pkg-type)
-      (dolist (item items)
-        (openhab:do-post (car item) (cdr item))))))
+    (case pkg-type
+      (:fail (lf:lwarn "Failed package extraction: ~a" pkg-data))
+      (:eta-monitor (progn
+                      (lf:linfo "Monitor data: ~a" pkg-data)
+                      (dolist (item items)
+                        (openhab:do-post (car item) (cdr item)))))
+      (otherwise (lf:linfo "Unknown extract pkg result!")))))
 
-(defun %generate-new-state (old-state)
-  (multiple-value-bind (complete data)
-      (eta-pkg:collect-data old-state
-                            (read-serial *serial-proxy-impl* *serial-port*))
-    (if complete
-        (progn 
-          (%handle-complete-pkg data)
-          (%new-empty-data))
-        data)))
+(defun %handle-init (state)
+  (cons
+   (setf *serial-port*
+         (open-serial *serial-proxy-impl* *serial-device*))
+   state))
+
+(defun %handle-write (data state)
+  (cons (write-serial *serial-proxy-impl* *serial-port* data) state))
+
+(defun %handle-read (actor state)
+  (let ((new-state
+          (multiple-value-bind (complete data)
+              (eta-pkg:collect-data state
+                                    (read-serial *serial-proxy-impl* *serial-port*))
+            (if complete
+                (progn 
+                  (%process-complete-pkg data)
+                  (%new-empty-data))
+                data))))
+    (act:tell actor '(:read . nil))
+    (cons t new-state)))
 
 (defun %serial-actor-receive (self msg state)
   (let ((resp
           (case (car msg)
-            (:init
-             (cons
-              (setf *serial-port*
-                    (open-serial *serial-proxy-impl* *serial-device*))
-              state))
-            (:write
-             (cons (write-serial *serial-proxy-impl* *serial-port* (cdr msg)) state))
-            (:read
-             (let ((new-state (%generate-new-state state)))
-               (act:tell self '(:read . nil))
-               (cons t new-state))))))
+            (:init (%handle-init state))
+            (:write (%handle-write (cdr msg) state))
+            (:read (%handle-read self state)))))
     resp))
