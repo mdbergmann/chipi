@@ -48,8 +48,11 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
 (defun %id-to-item-divisor (mid)
   (cddr (find mid +monitor-items+ :key #'car :test #'=)))
 
+(defun %monitor-payload-size-nok-p (monitor-data)
+  (> (mod (length monitor-data) +monitor-size+) 0))
+
 (defun %process-monitors (monitor-data)
-  (if (> (mod (length monitor-data) +monitor-size+) 0)
+  (if (%monitor-payload-size-nok-p monitor-data)
       `(:fail "Wrong payload size!")
       `(:ok ,(let ((monitors (/ (length monitor-data) +monitor-size+)))
                (loop :for i :to (1- monitors)
@@ -70,7 +73,7 @@ If something happens during extraction the return is:
 `(values :fail <reason>)'.
 If it is a full package with monitors data the return is:
 `(values :monitor <alist-of-monitor-items)' where an item consists of: `(cons <openhab-item-name> <item-value>)'."
-  (if (%undersized-pkg-p pkg-data) ; minimal size of package
+  (if (%undersized-pkg-p pkg-data)
       (values :fail "Undersized package!")
       (let ((sid (coerce `#(,(elt pkg-data 1) ,(elt pkg-data 2)) 'string))
             (payload-len (elt pkg-data 3))
