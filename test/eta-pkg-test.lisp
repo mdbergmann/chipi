@@ -25,7 +25,7 @@
   (is (equalp '(:fail "Undersized package!") (multiple-value-list (extract-pkg #())))))
 
 (test extract-pkg--monitor--one-item
-  (is (equalp (list :monitor (list (cons "BoilerUnten" 545)))
+  (is (equalp (list :monitor (list (cons "BoilerUnten" 54.5)))
               (multiple-value-list
                (extract-pkg
                 #(#\{

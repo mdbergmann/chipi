@@ -36,11 +36,14 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
   (vector (ash (mask-field (byte 16 8) int) -8)
           (mask-field (byte 8 0) int)))
 
-(defparameter +item-numbers-to-names+
-  '((167 . "BoilerUnten")))
+(defparameter +monitor-items+
+  '((167 . ("BoilerUnten" . 10.0))))
 
 (defun id-to-item-name (mid)
-  (cdr (find mid +item-numbers-to-names+ :key #'car :test #'=)))
+  (cadr (find mid +monitor-items+ :key #'car :test #'=)))
+
+(defun id-to-item-divisor (mid)
+  (cddr (find mid +monitor-items+ :key #'car :test #'=)))
 
 (defun process-monitors (monitor-data)
   (let ((monitors (/ (length monitor-data) 5)))
@@ -49,7 +52,9 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
           :for node-id = (elt m 0)
           :for m-id = (to-int (elt m 1) (elt m 2))
           :for m-val = (to-int (elt m 3) (elt m 4))
-          :collect `(,(id-to-item-name m-id) . ,m-val))))
+          :for item-name = (id-to-item-name m-id)
+          :for item-div = (id-to-item-divisor m-id)
+          :collect `(,item-name . ,(/ m-val item-div)))))
 
 
 (defun extract-pkg (pkg-data)
