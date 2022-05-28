@@ -72,7 +72,7 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
 If something happens during extraction the return is:
 `(values :fail <reason>)'.
 If it is a full package with monitors data the return is:
-`(values :monitor <alist-of-monitor-items)' where an item consists of: `(cons <openhab-item-name> <item-value>)'."
+`(values :eta-monitor <alist-of-monitor-items)' where an item consists of: `(cons <openhab-item-name> <item-value>)'."
   (if (%undersized-pkg-p pkg-data)
       (values :fail "Undersized package!")
       (let ((sid (coerce `#(,(elt pkg-data 1) ,(elt pkg-data 2)) 'string))
@@ -81,7 +81,7 @@ If it is a full package with monitors data the return is:
             (payload (subseq pkg-data 5 (1- (length pkg-data)))))
         (let ((monitor-data (%process-monitors payload)))
           (case (car monitor-data)
-            (:ok (values :monitor (cadr (%process-monitors payload))))
+            (:ok (values :eta-monitor (cadr (%process-monitors payload))))
             (:fail (values :fail (cadr monitor-data))))))))
       
 

@@ -23,7 +23,7 @@
   (unless *serial-actor*
     (setf *serial-actor* (ac:actor-of *actor-system*
                                       :name "ETA-serial-actor"
-                                      :state (new-empty-data)
+                                      :state (%new-empty-data)
                                       :receive (lambda (self msg state)
                                                  (%serial-actor-receive self msg state)))))
   (values *serial-actor* *actor-system*))
@@ -65,23 +65,23 @@ So we gotta trigger a read here as well."
 ;; actor receive
 ;; ---------------------
 
-(defun new-empty-data () #())
+(defun %new-empty-data () #())
 
-(defun handle-complete-pkg (pkg-data)
+(defun %handle-complete-pkg (pkg-data)
   (multiple-value-bind (pkg-type items)
       (eta-pkg:extract-pkg pkg-data)
-    (when (eq :monitor pkg-type)
+    (when (eq :eta-monitor pkg-type)
       (dolist (item items)
         (openhab:do-post (car item) (cdr item))))))
 
-(defun generate-new-state (old-state)
+(defun %generate-new-state (old-state)
   (multiple-value-bind (complete data)
       (eta-pkg:collect-data old-state
                             (read-serial *serial-proxy-impl* *serial-port*))
     (if complete
         (progn 
-          (handle-complete-pkg data)
-          (new-empty-data))
+          (%handle-complete-pkg data)
+          (%new-empty-data))
         data)))
 
 (defun %serial-actor-receive (self msg state)
@@ -95,7 +95,7 @@ So we gotta trigger a read here as well."
             (:write
              (cons (write-serial *serial-proxy-impl* *serial-port* (cdr msg)) state))
             (:read
-             (let ((new-state (generate-new-state state)))
+             (let ((new-state (%generate-new-state state)))
                (act:tell self '(:read . nil))
                (cons t new-state))))))
     resp))

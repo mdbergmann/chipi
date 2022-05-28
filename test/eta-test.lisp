@@ -96,7 +96,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
-      (answer eta-pkg:extract-pkg (values :monitor '()))
+      (answer eta-pkg:extract-pkg (values :eta-monitor '()))
 
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
@@ -108,7 +108,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
-      (answer eta-pkg:extract-pkg (values :monitor '(("FooItem" . 1.1))))
+      (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post res data)
         (progn
           (assert (equal res "FooItem"))

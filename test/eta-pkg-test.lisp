@@ -25,7 +25,7 @@
   (is (equalp '(:fail "Undersized package!") (multiple-value-list (extract-pkg #())))))
 
 (test extract-pkg--monitor--one-item
-  (is (equalp (list :monitor (list (cons "EtaBoilerUnten" 54.5)))
+  (is (equalp (list :eta-monitor (list (cons "EtaBoilerUnten" 54.5)))
               (multiple-value-list
                (extract-pkg
                 #(#\{
@@ -38,7 +38,7 @@
                   #\}))))))
 
 (test extract-pkg--monitor--more-items
-  (is (equalp (list :monitor (list (cons "EtaBoilerUnten" 54.5)
+  (is (equalp (list :eta-monitor (list (cons "EtaBoilerUnten" 54.5)
                                    (cons "EtaBoiler" 12.4)))
               (multiple-value-list
                (extract-pkg
@@ -64,3 +64,5 @@
                   3 ; checksum of payload
                   2 33 ; value two byte (545) / divisor 10
                   #\}))))))
+
+;; todo: other package types
