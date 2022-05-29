@@ -150,8 +150,9 @@ OK - extracted package should send openhab post requests for each extract
 OK - verify proper eta-packages are used (i.e. for start-record)
 OK - log extracted package
 OK - implement full start-record package
-- update atest with receive monitor package
-- implement more receive package types (error, etc)
-- 'stop-record'
+OK - update atest with receive monitor package
+=> - 'stop-record'
 - 'shutdown-serial
+- implement more receive package types (error, etc)
+- implement real http server for more integration testing
 |#
