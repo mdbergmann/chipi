@@ -15,6 +15,8 @@
 (defvar *serial-port* nil)
 (defvar *serial-proxy-impl* nil)
 
+(defvar +new-empty-data+ #())
+
 (defun ensure-initialized ()
   (unless *serial-proxy-impl*
     (setf *serial-proxy-impl* :prod))
@@ -23,7 +25,7 @@
   (unless *serial-actor*
     (setf *serial-actor* (ac:actor-of *actor-system*
                                       :name "ETA-serial-actor"
-                                      :state (%new-empty-data)
+                                      :state +new-empty-data+
                                       :receive (lambda (self msg state)
                                                  (%serial-actor-receive self msg state)))))
   (values *serial-actor* *actor-system*))
@@ -65,8 +67,6 @@ So we gotta trigger a read here as well."
 ;; actor handling
 ;; ---------------------
 
-(defmacro %new-empty-data () #())
-
 (defun %process-complete-pkg (pkg-data)
   (multiple-value-bind (pkg-type items)
       (eta-pkg:extract-pkg pkg-data)
@@ -95,7 +95,7 @@ So we gotta trigger a read here as well."
             (if complete
                 (progn 
                   (%process-complete-pkg data)
-                  (%new-empty-data))
+                  +new-empty-data+)
                 data))))
     (act:tell actor '(:read . nil))
     (cons t new-state)))

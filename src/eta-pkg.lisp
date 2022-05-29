@@ -8,6 +8,12 @@
 
 (in-package :cl-eta.package)
 
+(defparameter +monitor-items+
+  '((167 . ("EtaBoilerUnten" . 10.0))
+    (21 . ("EtaBoiler" . 10.0))))
+
+(defvar +monitor-size+ 5)
+
 (defun collect-data (prev-data new-data)
   "Concatenates `prev-data' and `new-data'.
 A full package is when it starts with `#\{' and ends with `#\}'.
@@ -35,12 +41,6 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
 (defun %to-vec (int)
   (vector (ash (mask-field (byte 16 8) int) -8)
           (mask-field (byte 8 0) int)))
-
-(defparameter +monitor-items+
-  '((167 . ("EtaBoilerUnten" . 10.0))
-    (21 . ("EtaBoiler" . 10.0))))
-
-(defvar +monitor-size+ 5)
 
 (defun %id-to-item-name (mid)
   (cadr (find mid +monitor-items+ :key #'car :test #'=)))
