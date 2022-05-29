@@ -23,7 +23,7 @@
     (t (setf *open-serial-called* t))))
 (defmethod eta-ser-if:write-serial ((impl (eql :test)) port data)  
   (declare (ignore port data))
-  (setf *write-serial-called* 5))
+  (setf *write-serial-called* (length (eta-pkg:new-start-record-pkg))))
 (defmethod eta-ser-if:read-serial ((impl (eql :test)) port &optional timeout)
   (declare (ignore port timeout))
   ;; we just do a tiny timeout
@@ -60,13 +60,10 @@ This is asynchronous and we don't check a result.
 A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-pkg:new-start-record-pkg #(#\{ 0 0 0 #\})) ;; just dummy package
-      
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
-                (lambda () (= 5 *write-serial-called*))
-                1.0))
-      (is (= 1 (length (invocations 'eta-pkg:new-start-record-pkg)))))))
+                (lambda () (= 46 *write-serial-called*))
+                1.0)))))
 
 (test start-record--serial-written--read-received
   (with-fixture init-destroy ()

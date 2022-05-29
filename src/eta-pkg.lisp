@@ -9,10 +9,49 @@
 (in-package :cl-eta.package)
 
 (defparameter +monitor-items+
-  '((167 . ("EtaBoilerUnten" . 10.0))
-    (21 . ("EtaBoiler" . 10.0))))
+  '((19 . ("EtaAbgas" . 10.0))
+    (22 . ("EtaTempAussen" . 10.0))
+    (53 . ("HeatingETAOperatingHours" . 1.0))
+    (21 . ("EtaBoiler" . 10.0))
+    (167 . ("EtaBoilerUnten" . 10.0))
+    (145 . ("EtaBoilerUntSolar" . 10.0)) ; node #x20
+    (20 . ("EtaKessel" . 10.0))
+    (112 . ("EtaKesselRuecklauf" . 10.0))
+    (75 . ("EtaKollektor" . 10.0)) ; node #x20
+    (77 . ("EtaPufferOben" . 10.0))
+    (78 . ("EtaPufferUnten" . 10.0))
+    (23 . ("EtaVorlaufMK0" . 10.0))
+    (107 . ("HeatingETAIgnitionCount" . 1.0))
+    ))
 
 (defvar +monitor-size+ 5)
+
+(defparameter +start-record-pkg-payload+
+  '(30                                  ; 30 seconds refresh time
+    #x18 0 19                           ; Abgass
+    #x18 0 22                           ; Aussen
+    #x18 0 53                           ; Betriebsstunden
+    #x18 0 21                           ; Boiler
+    #x18 0 167                          ; BoilerUnten
+    #x20 0 145                          ; BoilerUntSolar
+    #x18 0 20                           ; Kessel
+    #x18 0 112                          ; Kesselrücklauf
+    #x20 0 75                           ; Kollektor
+    #x18 0 77                           ; Puffer oben
+    #x18 0 78                           ; Puffer unten
+    #x18 0 23                           ; Vorlauf MK0
+    #x18 0 107                          ; Zündzähler
+    ))
+
+(defun new-start-record-pkg ()
+  (coerce (alexandria:flatten
+           `(#\{
+             #\M #\C
+             ,(length +start-record-pkg-payload+)
+             ,(check-sum +start-record-pkg-payload+)
+             ,+start-record-pkg-payload+
+             #\}))
+          'vector))
 
 (defun collect-data (prev-data new-data)
   "Concatenates `prev-data' and `new-data'.
@@ -84,8 +123,3 @@ If it is a full package with monitors data the return is:
             (:ok (values :eta-monitor (cadr (%process-monitors payload))))
             (:fail (values :fail (cadr monitor-data))))))))
       
-
-(defun new-start-record-pkg ()
-  "Returns a new `start-record' eta package."
-  nil)
-

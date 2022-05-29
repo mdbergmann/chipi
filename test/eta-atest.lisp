@@ -18,11 +18,9 @@
   t)
 (defmethod eta-ser-if:write-serial ((impl (eql :atest)) port data)
   (declare (ignore impl port data))
-  ;; todo: create proper size of start-record package
-  0)
+  (length eta-pkg:+new-start-record-pkg+))
 (defmethod eta-ser-if:read-serial ((impl (eql :atest)) port &optional timeout)
   (declare (ignore impl port timeout))
-  ;; todo: create proper monitor package
   #())
 
 (def-fixture init-destroy ()
