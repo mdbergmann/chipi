@@ -149,7 +149,8 @@ OK - result of pkg extractor should extract eta package
 OK - extracted package should send openhab post requests for each extract
 OK - verify proper eta-packages are used (i.e. for start-record)
 OK - log extracted package
-=> - implement full start-record package
+OK - implement full start-record package
+- update atest with receive monitor package
 - implement more receive package types (error, etc)
 - 'stop-record'
 - 'shutdown-serial

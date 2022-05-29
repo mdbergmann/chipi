@@ -75,6 +75,7 @@ So we gotta trigger a read here as well."
       (:eta-monitor (progn
                       (lf:linfo "Monitor data: ~a" pkg-data)
                       (dolist (item items)
+                        (lf:linfo "Posting item: ~a, value: ~a" (car item) (cdr item))
                         (openhab:do-post (car item) (cdr item)))))
       (otherwise (lf:linfo "Unknown extract pkg result!")))))
 

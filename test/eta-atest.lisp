@@ -13,15 +13,30 @@
 
 (defvar *path-prefix* "/rest/items/")
 
+(defparameter +record-data-pkg-payload+
+  '(#x18 0 53 0 99                      ; Betriebsstunden (99 hours)
+    ))
+
+(defun new-record-data-pkg ()
+  (coerce (alexandria:flatten
+           `(#\{
+             #\M #\D
+             ,(length +record-data-pkg-payload+)
+             ,(eta-pkg:check-sum +record-data-pkg-payload+)
+             ,+record-data-pkg-payload+
+             #\}))
+          'vector))
+
+
 (defmethod eta-ser-if:open-serial ((impl (eql :atest)) device)
   (declare (ignore impl device))
   t)
 (defmethod eta-ser-if:write-serial ((impl (eql :atest)) port data)
   (declare (ignore impl port data))
-  (length eta-pkg:+new-start-record-pkg+))
+  (length (eta-pkg:new-start-record-pkg)))
 (defmethod eta-ser-if:read-serial ((impl (eql :atest)) port &optional timeout)
   (declare (ignore impl port timeout))
-  #())
+  (new-record-data-pkg))
 
 (def-fixture init-destroy ()
   (unwind-protect
@@ -43,8 +58,10 @@
         (progn
           (assert (string= "HeatingETAOperatingHours" resource))
           (assert (floatp data))
+          (assert (= data 99.0))
           :ok))
 
       (is (eq :ok (start-record)))
-      (is (= 1 (length (invocations 'openhab:do-post))))    
-      )))
+      (is-true (utils:assert-cond (lambda ()
+                                    (>= (length (invocations 'openhab:do-post)) 1))
+                                  0.2)))))
