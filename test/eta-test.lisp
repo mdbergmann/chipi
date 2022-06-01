@@ -11,8 +11,6 @@
 
 (in-suite eta-tests)
 
-(log:config '(cl-gserver) :warn)
-
 (defvar *open-serial-called* nil)
 (defvar *write-serial-called* nil)
 (defvar *read-serial-called* 0)

@@ -3,11 +3,14 @@
   (:nicknames :eta)
   (:export #:init-serial
            #:start-record
+           #:stop-record
            #:ensure-initialized
            #:ensure-shutdown
            #:*serial-proxy-impl*))
 
 (in-package :cl-eta.eta)
+
+(log:config '(cl-gserver) :warn)
 
 (defvar *actor-system* nil)
 (defvar *serial-actor* nil)
@@ -63,6 +66,9 @@ So we gotta trigger a read here as well."
     (act:tell actor '(:read . nil)))
   :ok)
 
+(defun stop-record ()
+  )
+
 ;; ---------------------
 ;; actor handling
 ;; ---------------------
@@ -71,13 +77,13 @@ So we gotta trigger a read here as well."
   (multiple-value-bind (pkg-type items)
       (eta-pkg:extract-pkg pkg-data)
     (case pkg-type
-      (:fail (lf:lwarn "Failed package extraction: ~a" pkg-data))
+      (:fail (log:warn "Failed package extraction: ~a" pkg-data))
       (:eta-monitor (progn
-                      (lf:linfo "Monitor data: ~a" pkg-data)
+                      (log:info "Monitor data: ~a" pkg-data)
                       (dolist (item items)
-                        (lf:linfo "Posting item: ~a, value: ~a" (car item) (cdr item))
+                        (log:info "Posting item: ~a, value: ~a" (car item) (cdr item))
                         (openhab:do-post (car item) (cdr item)))))
-      (otherwise (lf:linfo "Unknown extract pkg result!")))))
+      (otherwise (log:info "Unknown extract pkg result!")))))
 
 (defun %handle-init (state)
   (cons

@@ -3,8 +3,7 @@
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
-               "cl-gserver/logif-log4cl"
-               "cl-gserver/plain"
+               "cl-gserver"
                "libserialport"
                )
   :components ((:module "src"

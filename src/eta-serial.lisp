@@ -95,7 +95,7 @@
   (libserialport:serial-write-data *serport* data))
 
 (defun receive (actor msg state)
-  ;;(lf:lwarn "received: ~a" msg)
+  ;;(log:warn "received: ~a" msg)
   (case (car msg)
     (:init
      (progn

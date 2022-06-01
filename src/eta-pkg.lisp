@@ -4,7 +4,8 @@
   (:export #:collect-data
            #:extract-pkg
            #:check-sum
-           #:new-start-record-pkg))
+           #:new-start-record-pkg
+           #:new-stop-record-pkg))
 
 (in-package :cl-eta.package)
 
@@ -52,6 +53,12 @@
              ,+start-record-pkg-payload+
              #\}))
           'vector))
+
+(defun new-stop-record-pkg ()
+  #(#\{
+    #\M #\E
+    0 0
+    #\}))
 
 (defun collect-data (prev-data new-data)
   "Concatenates `prev-data' and `new-data'.
