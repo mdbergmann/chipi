@@ -1,7 +1,8 @@
 (defpackage :cl-eta.eta
-  (:use :cl :gs-user :eta-ser-if)
+  (:use :cl :gs-user)
   (:nicknames :eta)
   (:export #:init-serial
+           #:close-serial
            #:start-record
            #:stop-record
            #:ensure-initialized
@@ -56,6 +57,17 @@
            (otherwise (values :ok))))
         (t (values :ok))))))
 
+(defun close-serial ()
+  (multiple-value-bind (actor)
+      (ensure-initialized)
+    (let ((ask-result (act:ask-s actor '(:close . nil))))
+      (cond
+        ((listp ask-result)
+         (case (car ask-result)
+           (:handler-error (values :fail (format nil "~a" (cdr ask-result))))
+           (otherwise (values :ok))))
+        (t (values :ok))))))
+
 (defun start-record ()
   "Triggers the recording of data.
 Once this command is sent, the ETA will start to send monitor data packages.
@@ -91,17 +103,22 @@ So we gotta trigger a read here as well."
 (defun %handle-init (state)
   (cons
    (setf *serial-port*
-         (open-serial *serial-proxy-impl* *serial-device*))
+         (eta-ser-if:open-serial *serial-proxy-impl* *serial-device*))
+   state))
+
+(defun %handle-close (state)
+  (cons
+   (eta-ser-if:close-serial *serial-proxy-impl* *serial-port*)
    state))
 
 (defun %handle-write (data state)
-  (cons (write-serial *serial-proxy-impl* *serial-port* data) state))
+  (cons (eta-ser-if:write-serial *serial-proxy-impl* *serial-port* data) state))
 
 (defun %handle-read (actor state)
   (let ((new-state
           (multiple-value-bind (complete data)
               (eta-pkg:collect-data state
-                                    (read-serial *serial-proxy-impl* *serial-port*))
+                                    (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
             (if complete
                 (progn 
                   (%process-complete-pkg data)
@@ -114,6 +131,7 @@ So we gotta trigger a read here as well."
   (let ((resp
           (case (car msg)
             (:init (%handle-init state))
+            (:close (%handle-close state))
             (:write (%handle-write (cdr msg) state))
             (:read (%handle-read self state)))))
     resp))

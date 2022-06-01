@@ -2,6 +2,7 @@
   (:use :cl :libserialport)
   (:nicknames :eta-ser-if)
   (:export #:open-serial
+           #:close-serial
            #:write-serial
            #:read-serial))
 
@@ -12,6 +13,7 @@
 ;; ---------------------
 
 (defgeneric open-serial (impl device))
+(defgeneric close-serial (impl port))
 (defgeneric write-serial (impl port data))
 (defgeneric read-serial (impl port &optional timeout))
 
@@ -28,6 +30,11 @@
                                   :parity :sp-parity-none
                                   :rts :sp-rts-off
                                   :flowcontrol :sp-flowcontrol-none))
+
+(defmethod close-serial ((impl (eql :prod)) port)
+  (declare (ignore impl))
+  (libserialport:shutdown-serial-port port))
+
 (defmethod write-serial ((impl (eql :prod)) port data)
   (declare (ignore impl))
   (libserialport:serial-write-data port data))

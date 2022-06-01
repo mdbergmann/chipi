@@ -1,5 +1,5 @@
 (defpackage :cl-eta.eta-test
-  (:use :cl :fiveam :cl-mock :cl-eta.eta :eta-ser-if)
+  (:use :cl :fiveam :cl-mock :cl-eta.eta)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -12,6 +12,7 @@
 (in-suite eta-tests)
 
 (defvar *open-serial-called* nil)
+(defvar *close-serial-called* nil)
 (defvar *write-serial-called* nil)
 (defvar *read-serial-called* 0)
 
@@ -19,6 +20,9 @@
   (cond
     ((string= "/dev/not-exists" device) (error "Can't open!"))
     (t (setf *open-serial-called* t))))
+(defmethod eta-ser-if:close-serial ((impl (eql :test)) port)
+  (declare (ignore port))
+  (setf *close-serial-called* t))
 (defmethod eta-ser-if:write-serial ((impl (eql :test)) port data)  
   (declare (ignore port))
   (setf *write-serial-called* (length data)))
@@ -40,7 +44,7 @@
          (&body))
     (progn
       (eta:ensure-shutdown))))
-  
+
 (test init-serial
   (with-fixture init-destroy ()
     (is (eq :ok (init-serial "/dev/serial")))
@@ -51,6 +55,12 @@
     (let ((init-serial-result (multiple-value-list (init-serial "/dev/not-exists"))))
       (is (eq :fail (car init-serial-result)))
       (is (string= "Can't open!" (cadr init-serial-result))))))
+
+(test close-serial
+  (with-fixture init-destroy ()
+    (is (eq :ok (init-serial "/dev/serial")))
+    (is (eq :ok (close-serial)))
+    (is-true *close-serial-called*)))
 
 (test start-record--serial-written
   "Tests that the write function on the serial proxy is called.
@@ -158,7 +168,7 @@ OK - log extracted package
 OK - implement full start-record package
 OK - update atest with receive monitor package
 OK - 'stop-record'
-- 'shutdown-serial
+=> - 'shutdown-serial
 - implement more receive package types (error, etc)
 - implement real http server for more integration testing
 |#
