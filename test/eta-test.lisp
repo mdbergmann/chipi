@@ -20,8 +20,8 @@
     ((string= "/dev/not-exists" device) (error "Can't open!"))
     (t (setf *open-serial-called* t))))
 (defmethod eta-ser-if:write-serial ((impl (eql :test)) port data)  
-  (declare (ignore port data))
-  (setf *write-serial-called* (length (eta-pkg:new-start-record-pkg))))
+  (declare (ignore port))
+  (setf *write-serial-called* (length data)))
 (defmethod eta-ser-if:read-serial ((impl (eql :test)) port &optional timeout)
   (declare (ignore port timeout))
   ;; we just do a tiny timeout
@@ -60,7 +60,7 @@ A result will be visible when this function is called on the REPL."
     (with-mocks ()
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
-                (lambda () (= 46 *write-serial-called*))
+                (lambda () (= (length (eta-pkg:new-start-record-pkg)) *write-serial-called*))
                 1.0)))))
 
 (test start-record--serial-written--read-received
