@@ -78,6 +78,7 @@
 (test stop-record--success
   "Sends the serial command to stop sending record packages."
   (with-fixture init-destroy ()
+    (setf eta:*serial-proxy-impl* :atest-stop-record)
     (with-mocks ()
       ;; the `stop-record' function is counterpart of the `start-record' function.
       ;; It will instruct the ETA to stop sending monitor data.

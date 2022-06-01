@@ -136,6 +136,14 @@ A result will be visible when this function is called on the REPL."
                 1.0))
       (is (= (length (invocations 'openhab:do-post)) 0)))))
 
+(test stop-record--serial-written
+  (with-fixture init-destroy ()
+    (with-mocks ()
+      (is (eq :ok (stop-record)))
+      (is-true (utils:assert-cond
+                (lambda () (= (length (eta-pkg:new-stop-record-pkg)) *write-serial-called*))
+                1.0)))))
+
 #|
 TODO:
 OK - test for read continously
@@ -149,7 +157,7 @@ OK - verify proper eta-packages are used (i.e. for start-record)
 OK - log extracted package
 OK - implement full start-record package
 OK - update atest with receive monitor package
-=> - 'stop-record'
+OK - 'stop-record'
 - 'shutdown-serial
 - implement more receive package types (error, etc)
 - implement real http server for more integration testing

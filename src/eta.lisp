@@ -67,7 +67,10 @@ So we gotta trigger a read here as well."
   :ok)
 
 (defun stop-record ()
-  )
+  (multiple-value-bind (actor)
+      (ensure-initialized)
+    (act:tell actor `(:write . ,(eta-pkg:new-stop-record-pkg))))
+  :ok)
 
 ;; ---------------------
 ;; actor handling
