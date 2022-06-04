@@ -94,7 +94,7 @@ A result will be visible when this function is called on the REPL."
 (test start-record--read-received--call-parser--no-complete
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-pkg:collect-data (values nil #(#\{ 0 1 2 3)))
+      (answer eta-pkg:collect-data (values nil `#(123 0 1 2 3)))
       
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
@@ -105,7 +105,7 @@ A result will be visible when this function is called on the REPL."
 (test start-record--read-received--call-parser--complete--empty-monitor
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :eta-monitor '()))
 
       (is (eq :ok (start-record)))
@@ -117,7 +117,7 @@ A result will be visible when this function is called on the REPL."
 (test start-record--read-received--call-parser--complete--with-monitor
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post res data)
         (progn
@@ -135,7 +135,7 @@ A result will be visible when this function is called on the REPL."
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
     (with-mocks ()
-      (answer eta-pkg:collect-data (values t #(#\{ 0 1 2 3 #\})))      
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :fail "Extract failure!"))
       (answer openhab:do-post nil)
 
@@ -169,6 +169,7 @@ OK - implement full start-record package
 OK - update atest with receive monitor package
 OK - 'stop-record'
 OK - 'shutdown-serial
-=> - implement real http server for more integration testing for http post call
+OK - implement real http server for more integration testing for http post call
+- filter temp values for spikes
 - implement more receive package types (error, etc)
 |#

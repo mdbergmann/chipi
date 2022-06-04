@@ -46,19 +46,20 @@
 
 (defun new-start-record-pkg ()
   (coerce (alexandria:flatten
-           `(#\{
-             #\M #\C
+           `(,(char-code #\{)
+             ,(char-code #\M) ,(char-code #\C)
              ,(length +start-record-pkg-payload+)
              ,(check-sum +start-record-pkg-payload+)
              ,+start-record-pkg-payload+
-             #\}))
-          'vector))
+             ,(char-code #\})))
+          '(simple-array (unsigned-byte 8))))
 
 (defun new-stop-record-pkg ()
-  #(#\{
-    #\M #\E
-    0 0
-    #\}))
+  (coerce `#(,(char-code #\{)
+             ,(char-code #\M) ,(char-code #\E)
+             0 0
+             ,(char-code #\}))
+          '(simple-array (unsigned-byte 8))))
 
 (defun collect-data (prev-data new-data)
   "Concatenates `prev-data' and `new-data'.
@@ -71,10 +72,8 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
      (if (> data-len 0)
          (let ((first (elt data 0))
                (last (elt data (1- data-len))))
-           (and (characterp first)
-                (characterp last)
-                (char= #\{ first)
-                (char= #\} last)))
+           (and (= (char-code #\{) first)
+                (= (char-code #\}) last)))
          nil)
      data)))
 
@@ -121,7 +120,7 @@ If it is a full package with monitors data the return is:
 `(values :eta-monitor <alist-of-monitor-items)' where an item consists of: `(cons <openhab-item-name> <item-value>)'."
   (if (%undersized-pkg-p pkg-data)
       (values :fail "Undersized package!")
-      (let ((sid (coerce `#(,(elt pkg-data 1) ,(elt pkg-data 2)) 'string))
+      (let ((sid (coerce `#(,(code-char (elt pkg-data 1)) ,(code-char (elt pkg-data 2))) 'string))
             (payload-len (elt pkg-data 3))
             (checksum (elt pkg-data 4))
             (payload (subseq pkg-data 5 (1- (length pkg-data)))))
