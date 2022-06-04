@@ -1,5 +1,5 @@
 (defpackage :cl-eta.eta-atest
-  (:use :cl :fiveam :cl-mock :cl-eta.eta)
+  (:use :cl :fiveam :cl-eta.eta)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -47,42 +47,58 @@
   (declare (ignore impl port timeout))
   #())
 
+(defparameter *http-server* nil)
+
+(defparameter *item-name* "")
+(defparameter *raw-data* "")
+
 (def-fixture init-destroy ()
   (unwind-protect
        (progn
+         (setf openhab:*openhab-base-url* "http://127.0.0.1:10456/rest/items/")
+         (setf *http-server*
+               (make-instance 'easy-routes:easy-routes-acceptor
+                              :port 10456
+                              :address "127.0.0.1"))
+         (hunchentoot:start *http-server*)
          (eta:ensure-initialized)
          (&body))
-    (eta:ensure-shutdown)))
+    (progn
+      (when *http-server*
+        (hunchentoot:stop *http-server*)
+        (setf *http-server* nil))
+      (eta:ensure-shutdown))))
 
 (test start-record--success
   "Sends the record ETA interface package that will result in receiving data packages."
   (with-fixture init-destroy ()
     (setf eta:*serial-proxy-impl* :atest-start-record)
-    (with-mocks ()
-      ;; the `start-record' function is the trigger for the boiler to send monitor data,
-      ;; which is eventually forwarded to openHAB.
-      ;; So we can expect that after calling `start-record' an http call will go out
-      ;; to openHAB with data we expect to be sent.
-      (answer (openhab:do-post resource data)
-        (progn
-          (assert (string= "HeatingETAOperatingHours" resource))
-          (assert (floatp data))
-          (assert (= data 99.0))
-          :ok))
-
-      (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond (lambda ()
-                                    (>= (length (invocations 'openhab:do-post)) 1))
-                                  0.2)))))
+    ;; the `start-record' function is the trigger for the boiler to send monitor data,
+    ;; which is eventually forwarded to openHAB.
+    ;; So we can expect that after calling `start-record' an http call will go out
+    ;; to openHAB with data we expect to be sent.
+    (is (eq :ok (start-record)))
+    (is-true (utils:assert-cond (lambda ()
+                                  (and (string= *item-name* "HeatingETAOperatingHours")
+                                       (string= *raw-data* "99.0")))
+                                0.2))))
 
 (test stop-record--success
   "Sends the serial command to stop sending record packages."
   (with-fixture init-destroy ()
     (setf eta:*serial-proxy-impl* :atest-stop-record)
-    (with-mocks ()
-      ;; the `stop-record' function is counterpart of the `start-record' function.
-      ;; It will instruct the ETA to stop sending monitor data.
-      (is (eq :ok (stop-record)))
-      (is-true (utils:assert-cond (lambda ()
-                                    (> *stop-record-written-serial* 0))
-                                  0.2)))))
+    ;; the `stop-record' function is counterpart of the `start-record' function.
+    ;; It will instruct the ETA to stop sending monitor data.
+    (is (eq :ok (stop-record)))
+    (is-true (utils:assert-cond (lambda ()
+                                  (> *stop-record-written-serial* 0))
+                                0.2))))
+
+;; ------------------- server routes --------------------
+
+(easy-routes:defroute rest-items ("/rest/items/:item" :method :post) ()
+  (let ((raw-content (hunchentoot:raw-post-data :force-text t)))
+    (setf *item-name* item)
+    (setf *raw-data* raw-content)
+    (log:debug "item: ~a, params: ~a" item raw-content))
+  "")

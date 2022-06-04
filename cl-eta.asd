@@ -5,6 +5,7 @@
   :depends-on ("alexandria"
                "cl-gserver"
                "libserialport"
+               "drakma"
                )
   :components ((:module "src"
                 :serial t
@@ -20,6 +21,8 @@
   :depends-on ("cl-eta"
                "fiveam"
                "cl-mock"
+               "hunchentoot"
+               "easy-routes"
                )
   :components ((:module "test"
                 :components

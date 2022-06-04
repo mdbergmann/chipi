@@ -168,7 +168,7 @@ OK - log extracted package
 OK - implement full start-record package
 OK - update atest with receive monitor package
 OK - 'stop-record'
-=> - 'shutdown-serial
+OK - 'shutdown-serial
+=> - implement real http server for more integration testing for http post call
 - implement more receive package types (error, etc)
-- implement real http server for more integration testing
 |#
