@@ -116,19 +116,20 @@ So we gotta trigger a read here as well."
 
 (defun %handle-read (actor state)
   (let ((new-state
-          (unwind-protect
-               (multiple-value-bind (complete data)
-                   (eta-pkg:collect-data
-                    state
-                    (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
-                 (if complete
-                     (progn 
-                       (%process-complete-pkg data)
-                       +new-empty-data+)
-                     data))
-            (progn
-              (log:warn "Error collecting data!")
-              state))))
+          (handler-case
+              (multiple-value-bind (complete data)
+                  (eta-pkg:collect-data
+                   state
+                   (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
+                (if complete
+                    (progn 
+                      (%process-complete-pkg data)
+                      +new-empty-data+)
+                    data))
+            (error (c)
+              (progn
+                (log:warn "Error collecting data: ~a" c)
+                state)))))
     (act:tell actor '(:read . nil))
     (cons t new-state)))
 
