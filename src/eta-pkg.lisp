@@ -55,10 +55,11 @@
           '(simple-array (unsigned-byte 8))))
 
 (defun new-stop-record-pkg ()
-  (coerce `#(,(char-code #\{)
+  (coerce (alexandria:flatten
+           `(,(char-code #\{)
              ,(char-code #\M) ,(char-code #\E)
              0 0
-             ,(char-code #\}))
+             ,(char-code #\})))
           '(simple-array (unsigned-byte 8))))
 
 (defun collect-data (prev-data new-data)
@@ -124,6 +125,7 @@ If it is a full package with monitors data the return is:
             (payload-len (elt pkg-data 3))
             (checksum (elt pkg-data 4))
             (payload (subseq pkg-data 5 (1- (length pkg-data)))))
+        (declare (ignore sid payload-len checksum))
         (let ((monitor-data (%process-monitors payload)))
           (case (car monitor-data)
             (:ok (values :eta-monitor (cadr (%process-monitors payload))))
