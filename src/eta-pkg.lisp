@@ -4,6 +4,7 @@
   (:export #:collect-data
            #:extract-pkg
            #:check-sum
+           #:make-pkg
            #:new-start-record-pkg
            #:new-stop-record-pkg))
 
@@ -44,23 +45,25 @@
     #x18 0 107                          ; Zündzähler
     ))
 
+(defun make-pkg (pkg-data-lst)
+  (let ((pkg (alexandria:flatten pkg-data-lst)))
+    (make-array (list (length pkg))
+                :initial-contents pkg
+                :element-type '(unsigned-byte 8))))
+
 (defun new-start-record-pkg ()
-  (coerce (alexandria:flatten
-           `(,(char-code #\{)
-             ,(char-code #\M) ,(char-code #\C)
-             ,(length +start-record-pkg-payload+)
-             ,(check-sum +start-record-pkg-payload+)
-             ,+start-record-pkg-payload+
-             ,(char-code #\})))
-          '(simple-array (unsigned-byte 8))))
+  (make-pkg `(,(char-code #\{)
+              ,(char-code #\M) ,(char-code #\C)
+              ,(length +start-record-pkg-payload+)
+              ,(check-sum +start-record-pkg-payload+)
+              ,+start-record-pkg-payload+
+              ,(char-code #\}))))
 
 (defun new-stop-record-pkg ()
-  (coerce (alexandria:flatten
-           `(,(char-code #\{)
-             ,(char-code #\M) ,(char-code #\E)
-             0 0
-             ,(char-code #\})))
-          '(simple-array (unsigned-byte 8))))
+  (make-pkg `(,(char-code #\{)
+              ,(char-code #\M) ,(char-code #\E)
+              0 0
+              ,(char-code #\}))))
 
 (defun collect-data (prev-data new-data)
   "Concatenates `prev-data' and `new-data'.

@@ -16,15 +16,12 @@
     ))
 
 (defun new-record-data-pkg ()
-  (coerce (alexandria:flatten
-           `(,(char-code #\{)
-             ,(char-code #\M) ,(char-code #\D)
-             ,(length +record-data-pkg-payload+)
-             ,(eta-pkg:check-sum +record-data-pkg-payload+)
-             ,+record-data-pkg-payload+
-             ,(char-code #\})))
-          '(simple-array (unsigned-byte 8))))
-
+  (eta-pkg:make-pkg `(,(char-code #\{)
+                      ,(char-code #\M) ,(char-code #\D)
+                      ,(length +record-data-pkg-payload+)
+                      ,(eta-pkg:check-sum +record-data-pkg-payload+)
+                      ,+record-data-pkg-payload+
+                      ,(char-code #\}))))
 
 (defmethod eta-ser-if:open-serial ((impl (eql :atest-start-record)) device)
   (declare (ignore impl device))
