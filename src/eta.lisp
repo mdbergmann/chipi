@@ -21,6 +21,7 @@
 
 (defvar +new-empty-data+ #())
 
+;; this should be part of actor state
 (defvar *do-continous-read* nil)
 
 (defun ensure-initialized ()
