@@ -21,6 +21,8 @@
 
 (defvar +new-empty-data+ #())
 
+(defvar *do-continous-read* nil)
+
 (defun ensure-initialized ()
   (unless *serial-proxy-impl*
     (setf *serial-proxy-impl* :prod))
@@ -74,6 +76,7 @@ Once this command is sent, the ETA will start to send monitor data packages.
 So we gotta trigger a read here as well."
   (multiple-value-bind (actor)
       (ensure-initialized)
+    (setf *do-continous-read* t)
     (act:tell actor `(:write . ,(eta-pkg:new-start-record-pkg)))
     (act:tell actor '(:read . nil)))
   :ok)
@@ -81,6 +84,7 @@ So we gotta trigger a read here as well."
 (defun stop-record ()
   (multiple-value-bind (actor)
       (ensure-initialized)
+    (setf *do-continous-read* nil)
     (act:tell actor `(:write . ,(eta-pkg:new-stop-record-pkg))))
   :ok)
 
@@ -130,7 +134,8 @@ So we gotta trigger a read here as well."
               (progn
                 (log:warn "Error collecting data: ~a" c)
                 state)))))
-    (act:tell actor '(:read . nil))
+    (when *do-continous-read*
+      (act:tell actor '(:read . nil)))
     (cons t new-state)))
 
 (defun %serial-actor-receive (self msg state)
