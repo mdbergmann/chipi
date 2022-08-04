@@ -22,7 +22,9 @@
 (defvar +new-empty-data+ #())
 
 ;; this should be part of actor state
-(defvar *do-continous-read* nil)
+(defstruct actor-state
+  (serial-data +new-empty-data+)
+  (do-read nil))
 
 (defun ensure-initialized ()
   (unless *serial-proxy-impl*
@@ -32,7 +34,7 @@
   (unless *serial-actor*
     (setf *serial-actor* (ac:actor-of *actor-system*
                                       :name "ETA-serial-actor"
-                                      :state +new-empty-data+
+                                      :state (make-actor-state)
                                       :receive (lambda (self msg state)
                                                  (%serial-actor-receive self msg state)))))
   (values *serial-actor* *actor-system*))
@@ -77,15 +79,14 @@ Once this command is sent, the ETA will start to send monitor data packages.
 So we gotta trigger a read here as well."
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (setf *do-continous-read* t)
     (act:tell actor `(:write . ,(eta-pkg:new-start-record-pkg)))
-    (act:tell actor '(:read . nil)))
+    (act:tell actor '(:start-read . nil)))
   :ok)
 
 (defun stop-record ()
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (setf *do-continous-read* nil)
+    (act:tell actor '(:stop-read . nil))
     (act:tell actor `(:write . ,(eta-pkg:new-stop-record-pkg))))
   :ok)
 
@@ -120,23 +121,36 @@ So we gotta trigger a read here as well."
   (cons (eta-ser-if:write-serial *serial-proxy-impl* *serial-port* data) state))
 
 (defun %handle-read (actor state)
-  (let ((new-state
-          (handler-case
-              (multiple-value-bind (complete data)
-                  (eta-pkg:collect-data
-                   state
-                   (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
-                (if complete
-                    (progn 
-                      (%process-complete-pkg data)
-                      +new-empty-data+)
-                    data))
-            (error (c)
-              (progn
-                (log:warn "Error collecting data: ~a" c)
-                state)))))
-    (when *do-continous-read*
-      (act:tell actor '(:read . nil)))
+  (let ((new-state (copy-structure state)))
+    (let ((new-serial-data
+            (handler-case
+                (multiple-value-bind (complete data)
+                    (eta-pkg:collect-data
+                     (actor-state-serial-data new-state)
+                     (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
+                  (if complete
+                      (progn 
+                        (%process-complete-pkg data)
+                        +new-empty-data+)
+                      data))
+              (error (c)
+                (progn
+                  (log:warn "Error collecting data: ~a" c)
+                  new-state)))))
+      (setf (actor-state-serial-data new-state) new-serial-data)
+      (when (actor-state-do-read new-state)
+        (act:tell actor '(:read . nil)))
+      (cons t new-state))))
+
+(defun %handle-start-read (actor state)
+  (act:tell actor '(:read . nil))
+  (let ((new-state (copy-structure state)))
+    (setf (actor-state-do-read new-state) t)
+    (cons t new-state)))
+
+(defun %handle-stop-read (state)
+  (let ((new-state (copy-structure state)))
+    (setf (actor-state-do-read new-state) nil)
     (cons t new-state)))
 
 (defun %serial-actor-receive (self msg state)
@@ -145,5 +159,7 @@ So we gotta trigger a read here as well."
             (:init (%handle-init state))
             (:close (%handle-close state))
             (:write (%handle-write (cdr msg) state))
-            (:read (%handle-read self state)))))
+            (:read (%handle-read self state))
+            (:start-read (%handle-start-read self state))
+            (:stop-read (%handle-stop-read state)))))
     resp))

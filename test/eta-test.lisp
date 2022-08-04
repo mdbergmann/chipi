@@ -73,11 +73,11 @@ A result will be visible when this function is called on the REPL."
                 (lambda () (= (length (eta-pkg:new-start-record-pkg)) *write-serial-called*))
                 1.0)))))
 
-(test start-record--serial-written--read-received
+(test start-record--serial-written--read-received--repeated
   (with-fixture init-destroy ()
     (is (eq :ok (start-record)))
     (is-true (utils:assert-cond
-              (lambda () (> *read-serial-called* 1))
+              (lambda () (> *read-serial-called* 3))  ;; we check for 3
               1.0))))
 
 (test start-record--read-received--call-parser
@@ -153,6 +153,17 @@ A result will be visible when this function is called on the REPL."
       (is-true (utils:assert-cond
                 (lambda () (= (length (eta-pkg:new-stop-record-pkg)) *write-serial-called*))
                 1.0)))))
+
+(test stop-record--stops-read
+  (with-fixture init-destroy ()
+    (with-mocks ()
+      (is (eq :ok (start-record)))
+      (is (eq :ok (stop-record)))
+      (is-true (utils:assert-cond
+                (lambda () (= (length (eta-pkg:new-stop-record-pkg)) *write-serial-called*))
+                1.0))
+      (sleep 0.5)
+      (is (= *read-serial-called* 1)))))
 
 #|
 TODO:
