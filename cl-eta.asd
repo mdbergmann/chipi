@@ -4,7 +4,7 @@
   :license "Apache-2"
   :depends-on ("alexandria"
                "cl-gserver"
-               "libserialport"
+               "cserial-port"
                "drakma"
                )
   :components ((:module "src"
