@@ -164,23 +164,3 @@ A result will be visible when this function is called on the REPL."
                 1.0))
       (sleep 0.5)
       (is (= *read-serial-called* 1)))))
-
-#|
-TODO:
-OK - test for read continously
-OK - test for call to read handler when data arrived
-OK - test for incomplete package handling
-OK - test for complete package handling
-OK - complete package handling should call eta pkg extractor
-OK - result of pkg extractor should extract eta package
-OK - extracted package should send openhab post requests for each extract
-OK - verify proper eta-packages are used (i.e. for start-record)
-OK - log extracted package
-OK - implement full start-record package
-OK - update atest with receive monitor package
-OK - 'stop-record'
-OK - 'shutdown-serial
-OK - implement real http server for more integration testing for http post call
-- filter temp values for spikes
-- implement more receive package types (error, etc)
-|#

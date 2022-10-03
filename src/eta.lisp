@@ -24,7 +24,7 @@
 ;; this should be part of actor state
 (defstruct actor-state
   (serial-data +new-empty-data+)
-  (do-read nil))
+  (do-read-p nil))
 
 (defun ensure-initialized ()
   (unless *serial-proxy-impl*
@@ -138,19 +138,19 @@ So we gotta trigger a read here as well."
                   (log:warn "Error collecting data: ~a" c)
                   new-state)))))
       (setf (actor-state-serial-data new-state) new-serial-data)
-      (when (actor-state-do-read new-state)
+      (when (actor-state-do-read-p new-state)
         (act:tell actor '(:read . nil)))
       (cons t new-state))))
 
 (defun %handle-start-read (actor state)
   (act:tell actor '(:read . nil))
   (let ((new-state (copy-structure state)))
-    (setf (actor-state-do-read new-state) t)
+    (setf (actor-state-do-read-p new-state) t)
     (cons t new-state)))
 
 (defun %handle-stop-read (state)
   (let ((new-state (copy-structure state)))
-    (setf (actor-state-do-read new-state) nil)
+    (setf (actor-state-do-read-p new-state) nil)
     (cons t new-state)))
 
 (defun %serial-actor-receive (self msg state)
