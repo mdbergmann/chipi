@@ -1,5 +1,5 @@
 (defpackage :cl-eta.eta
-  (:use :cl :gs-user)
+  (:use :cl :sento-user)
   (:nicknames :eta)
   (:export #:init-serial
            #:close-serial
@@ -11,7 +11,7 @@
 
 (in-package :cl-eta.eta)
 
-(log:config '(cl-gserver) :warn)
+(log:config '(sento) :warn)
 
 (defvar *actor-system* nil)
 (defvar *serial-actor* nil)

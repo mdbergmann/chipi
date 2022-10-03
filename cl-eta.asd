@@ -3,7 +3,7 @@
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
-               "cl-gserver"
+               "sento"
                "cserial-port"
                "drakma"
                )

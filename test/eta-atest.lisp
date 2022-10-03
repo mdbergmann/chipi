@@ -11,6 +11,8 @@
 
 (in-suite eta-atests)
 
+(log:config :error)
+
 (defparameter +record-data-pkg-payload+
   '(#x18 0 53 0 99                      ; Betriebsstunden (99 hours)
     ))
