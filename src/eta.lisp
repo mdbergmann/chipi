@@ -21,9 +21,12 @@
 
 (defvar +new-empty-data+ #())
 
+(defvar *avg-items* nil)
+
 ;; this should be part of actor state
 (defstruct actor-state
   (serial-data +new-empty-data+)
+  (avgs nil)
   (do-read-p nil))
 
 (defun ensure-initialized ()
@@ -90,21 +93,37 @@ So we gotta trigger a read here as well."
     (act:tell actor `(:write . ,(eta-pkg:new-stop-record-pkg))))
   :ok)
 
+(defun get-state ()
+  (multiple-value-bind (actor)
+      (ensure-initialized)
+    (act:ask-s actor '(:state . nil))))
+
 ;; ---------------------
 ;; actor handling
 ;; ---------------------
 
 (defun %process-complete-pkg (pkg-data)
+  "Transmits monitor items to openhab.
+Returns monitor items."
   (multiple-value-bind (pkg-type items)
       (eta-pkg:extract-pkg pkg-data)
     (case pkg-type
-      (:fail (log:warn "Failed package extraction: ~a" pkg-data))
+      (:fail (progn
+               (log:warn "Failed package extraction: ~a" pkg-data)
+               nil))
       (:eta-monitor (progn
                       (log:info "Monitor data: ~a" pkg-data)
                       (dolist (item items)
                         (log:info "Posting item: ~a, value: ~a" (car item) (cdr item))
-                        (openhab:do-post (car item) (cdr item)))))
-      (otherwise (log:info "Unknown extract pkg result!")))))
+                        (openhab:do-post (car item) (cdr item)))
+                      items))
+      (otherwise (progn
+                   (log:info "Unknown extract pkg result!")
+                   nil)))))
+
+(defun %process-avgs (mon-items)
+  '(("FooItemAvg" . 1.1))
+  )
 
 (defun %handle-init (state)
   (cons
@@ -129,8 +148,9 @@ So we gotta trigger a read here as well."
                      (actor-state-serial-data new-state)
                      (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
                   (if complete
-                      (progn 
-                        (%process-complete-pkg data)
+                      (let* ((mon-items (%process-complete-pkg data))
+                             (new-avgs (%process-avgs mon-items)))
+                        (setf (actor-state-avgs new-state) new-avgs)
                         +new-empty-data+)
                       data))
               (error (c)
@@ -161,5 +181,6 @@ So we gotta trigger a read here as well."
             (:write (%handle-write (cdr msg) state))
             (:read (%handle-read self state))
             (:start-read (%handle-start-read self state))
-            (:stop-read (%handle-stop-read state)))))
+            (:stop-read (%handle-stop-read state))
+            (:state (cons state state)))))
     resp))

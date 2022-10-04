@@ -132,6 +132,25 @@ A result will be visible when this function is called on the REPL."
                            (= (length (invocations 'openhab:do-post)) 1)))
                 1.0)))))
 
+(test start-record--complete--with-monitor--build-avg
+  "We use some internal API to retrieve the state of the actor in order to check on the avgs.
+Naughty."
+  (with-fixture init-destroy ()
+    (with-mocks ()
+      (setf eta::avg-items '((:item "FooItem" :cadence (("FooItemAvg" . 60)))))
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
+      (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
+      (answer (openhab:do-post :ok))
+
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (> *read-serial-called* 5))
+                1.0))
+      (let* ((state (eta::get-state))
+             (avgs (eta::actor-state-avgs state))
+             (readn *read-serial-called*))
+        (is (equalp avgs `(("FooItemAvg" . ,(/ (* readn 1.1) readn)))))))))
+
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
     (with-mocks ()
