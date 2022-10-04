@@ -137,7 +137,7 @@ A result will be visible when this function is called on the REPL."
 Naughty."
   (with-fixture init-destroy ()
     (with-mocks ()
-      (setf eta::avg-items '((:item "FooItem" :cadence (("FooItemAvg" . 60)))))
+      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg" . 60)))))
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post :ok))

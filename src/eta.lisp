@@ -121,9 +121,33 @@ Returns monitor items."
                    (log:info "Unknown extract pkg result!")
                    nil)))))
 
-(defun %process-avgs (mon-items)
-  '(("FooItemAvg" . 1.1))
-  )
+(defun %process-avgs (mon-items avgs)
+  (format t "~%Current avgs: ~a~%" avgs)
+  (format t "Avg items: ~a~%" *avg-items*)
+  (format t "Mon items: ~a~%" mon-items)
+  (let ((mitems (utils:filter (lambda (mitem)
+                                (member (car mitem) *avg-items* :key #'car))
+                              mon-items)))
+    (format t "Filtered mon-items: ~a~%" mitems)
+    (car
+     (mapcar (lambda (mitem)
+               (format t "Processing mitem: ~a~%" mitem)
+               (let* ((mitem-val (cdr mitem))
+                      (avg-item (find (car mitem) *avg-items* :key #'car))
+                      (cadences (cdr avg-item)))
+                 (mapcar (lambda (cad)
+                           (let* ((cadence-name (car cad))
+                                  (cadence-secs (cdr cad))
+                                  (curr-avg (find cadence-name avgs :key #'car))
+                                  (curr-avg-val (if curr-avg
+                                                    (cdr curr-avg)
+                                                    0)))
+                             (format t "mitemval: ~a, avg-item: ~a, curr-avg: ~a~%" mitem-val avg-item curr-avg)
+                             `(,cadence-name . ,(if (= 0 curr-avg-val)
+                                                    mitem-val
+                                                    (/ (+ curr-avg-val mitem-val) 2.0)))))
+                         cadences)))
+             mitems))))
 
 (defun %handle-init (state)
   (cons
@@ -149,7 +173,7 @@ Returns monitor items."
                      (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
                   (if complete
                       (let* ((mon-items (%process-complete-pkg data))
-                             (new-avgs (%process-avgs mon-items)))
+                             (new-avgs (%process-avgs mon-items (actor-state-avgs new-state))))
                         (setf (actor-state-avgs new-state) new-avgs)
                         +new-empty-data+)
                       data))
