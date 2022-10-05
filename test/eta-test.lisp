@@ -137,8 +137,8 @@ A result will be visible when this function is called on the REPL."
 Naughty."
   (with-fixture init-destroy ()
     (with-mocks ()
-      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg" . 60)))))
-      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
+      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . 60) ("FooItemAvg2" . 120)))))
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post :ok))
 
@@ -149,7 +149,8 @@ Naughty."
       (let* ((state (eta::get-state))
              (avgs (eta::actor-state-avgs state))
              (readn *read-serial-called*))
-        (is (equalp avgs `(("FooItemAvg" . ,(/ (* readn 1.1) readn)))))))))
+        (is (equalp avgs `(("FooItemAvg1" . ,(/ (* readn 1.1) readn))
+                           ("FooItemAvg2" . ,(/ (* readn 1.1) readn)))))))))
 
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()

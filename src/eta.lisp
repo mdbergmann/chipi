@@ -145,15 +145,20 @@ Returns monitor items."
                            mon-item-val
                            (/ (+ curr-avg-val mon-item-val) 2.0)))))
 
-(defun %process-avgs (mon-items avgs)
-  "Calculates new avgs for monitor items."
+(defun %%make-new-avgs (mon-items avgs)
   (car
    (mapcar (lambda (mitem)
-             (let ((mitem-val (cdr mitem)))
-               (mapcar (lambda (cadence)
-                         (%%make-new-avg mitem-val cadence avgs))
-                       (%%find-cadences mitem))))
+             (mapcar (lambda (cadence)
+                       (%%make-new-avg (cdr mitem) cadence avgs))
+                     (%%find-cadences mitem)))
            (%%find-avg-mon-items mon-items))))
+
+(defun %process-avgs (mon-items avgs)
+  "Calculates new avgs for monitor items."
+  ;; todo: submit to openhab when due
+  ;; todo: check on recurring due time
+  (%%make-new-avgs mon-items avgs)
+  )
 
 (defun %handle-init (state)
   (cons
