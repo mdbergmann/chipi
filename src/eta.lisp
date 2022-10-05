@@ -121,33 +121,39 @@ Returns monitor items."
                    (log:info "Unknown extract pkg result!")
                    nil)))))
 
+(defun %%find-avg-mon-items (mon-items)
+  "Finds monitor items where avg definitions exist in `*avg-items*'."
+  (utils:filter (lambda (mitem)
+                  (member (car mitem) *avg-items* :key #'car))
+                mon-items))
+
+(defun %%find-cadences (mon-item)
+  "Finds cadences for the given monitor item in `*avg-items*'."
+    (let* ((avg-item (find (car mon-item) *avg-items* :key #'car))
+           (cadences (cdr avg-item)))
+      cadences))
+
+(defun %%make-new-avg (mon-item-val cadence avgs)
+  "Makes a new 'avg' item taking existing 'avg' item value and new monitor value into account."
+  (let* ((cadence-name (car cadence))
+         ;;(cadence-secs (cdr cadence))
+         (curr-avg (find cadence-name avgs :key #'car))
+         (curr-avg-val (if curr-avg
+                           (cdr curr-avg)
+                           0)))
+    `(,cadence-name . ,(if (= 0 curr-avg-val)
+                           mon-item-val
+                           (/ (+ curr-avg-val mon-item-val) 2.0)))))
+
 (defun %process-avgs (mon-items avgs)
-  (format t "~%Current avgs: ~a~%" avgs)
-  (format t "Avg items: ~a~%" *avg-items*)
-  (format t "Mon items: ~a~%" mon-items)
-  (let ((mitems (utils:filter (lambda (mitem)
-                                (member (car mitem) *avg-items* :key #'car))
-                              mon-items)))
-    (format t "Filtered mon-items: ~a~%" mitems)
-    (car
-     (mapcar (lambda (mitem)
-               (format t "Processing mitem: ~a~%" mitem)
-               (let* ((mitem-val (cdr mitem))
-                      (avg-item (find (car mitem) *avg-items* :key #'car))
-                      (cadences (cdr avg-item)))
-                 (mapcar (lambda (cad)
-                           (let* ((cadence-name (car cad))
-                                  (cadence-secs (cdr cad))
-                                  (curr-avg (find cadence-name avgs :key #'car))
-                                  (curr-avg-val (if curr-avg
-                                                    (cdr curr-avg)
-                                                    0)))
-                             (format t "mitemval: ~a, avg-item: ~a, curr-avg: ~a~%" mitem-val avg-item curr-avg)
-                             `(,cadence-name . ,(if (= 0 curr-avg-val)
-                                                    mitem-val
-                                                    (/ (+ curr-avg-val mitem-val) 2.0)))))
-                         cadences)))
-             mitems))))
+  "Calculates new avgs for monitor items."
+  (car
+   (mapcar (lambda (mitem)
+             (let ((mitem-val (cdr mitem)))
+               (mapcar (lambda (cadence)
+                         (%%make-new-avg mitem-val cadence avgs))
+                       (%%find-cadences mitem))))
+           (%%find-avg-mon-items mon-items))))
 
 (defun %handle-init (state)
   (cons
