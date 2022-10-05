@@ -152,6 +152,24 @@ Naughty."
         (is (equalp avgs `(("FooItemAvg1" . ,(/ (* readn 1.1) readn))
                            ("FooItemAvg2" . ,(/ (* readn 1.1) readn)))))))))
 
+(test start-record--complete--with-monitor--build-avg--submit-to-oh
+  (with-fixture init-destroy ()
+    (with-mocks ()
+      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . 1) ("FooItemAvg2" . 2)))))
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
+      (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
+      (answer (openhab:do-post res data)
+        (progn
+          (assert (or (equal res "FooItemAvg1") (equal res "FooItemAvg2")))
+          (assert (= data 1.1))
+          :ok))
+
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (and (> *read-serial-called* 20)
+                           (= (length (invocations 'openhab:do-post)) 2)))
+                5.0)))))
+
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
     (with-mocks ()

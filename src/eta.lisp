@@ -133,11 +133,11 @@ Returns monitor items."
            (cadences (cdr avg-item)))
       cadences))
 
-(defun %%make-new-avg (mon-item-val cadence avgs)
+(defun %%make-new-avg (mon-item-val cadence old-avgs)
   "Makes a new 'avg' item taking existing 'avg' item value and new monitor value into account."
   (let* ((cadence-name (car cadence))
          ;;(cadence-secs (cdr cadence))
-         (curr-avg (find cadence-name avgs :key #'car))
+         (curr-avg (find cadence-name old-avgs :key #'car))
          (curr-avg-val (if curr-avg
                            (cdr curr-avg)
                            0)))
@@ -145,20 +145,35 @@ Returns monitor items."
                            mon-item-val
                            (/ (+ curr-avg-val mon-item-val) 2.0)))))
 
-(defun %%make-new-avgs (mon-items avgs)
-  (car
-   (mapcar (lambda (mitem)
-             (mapcar (lambda (cadence)
-                       (%%make-new-avg (cdr mitem) cadence avgs))
-                     (%%find-cadences mitem)))
-           (%%find-avg-mon-items mon-items))))
+(defun %%make-new-avgs-with-cadences (mon-items old-avgs)
+  "Returns a list of plists with `:new-avg' and `:cadences' in each entry."
+  (let* ((mitems-with-cadences
+           (mapcar (lambda (mitem)
+                     `(,mitem . ,(%%find-cadences mitem)))
+                   (%%find-avg-mon-items mon-items)))
+         (new-avgs-with-cadences
+           (mapcar (lambda (mitem-with-cadences)
+                     (let* ((mitem (car mitem-with-cadences))
+                            (cadences (cdr mitem-with-cadences))
+                            (new-avg
+                              (mapcar (lambda (cadence)
+                                        (%%make-new-avg (cdr mitem) cadence old-avgs))
+                                      cadences)))
+                       `(:new-avg ,new-avg :cadences ,cadences)))
+                   mitems-with-cadences)))
+    new-avgs-with-cadences))
+
+(defun %%make-due-avgs (avgs)
+  )
 
 (defun %process-avgs (mon-items avgs)
   "Calculates new avgs for monitor items."
-  ;; todo: submit to openhab when due
+  ;; => todo: submit to openhab when due
   ;; todo: check on recurring due time
-  (%%make-new-avgs mon-items avgs)
-  )
+  (let ((new-avgs (%%make-new-avgs-with-cadences mon-items avgs)))
+    (format t "new-avgs: ~a~%" new-avgs)
+    (%%make-due-avgs new-avgs)
+    (car (mapcar (lambda (item) (getf item :new-avg)) new-avgs))))
 
 (defun %handle-init (state)
   (cons
