@@ -13,6 +13,8 @@
 
 (log:config '(sento) :warn)
 
+(defvar *start-time* (get-universal-time))
+
 (defvar *actor-system* nil)
 (defvar *serial-actor* nil)
 (defvar *serial-device* nil)
@@ -134,7 +136,8 @@ Returns monitor items."
       cadences))
 
 (defun %%make-new-avg (mon-item-val cadence old-avgs)
-  "Makes a new 'avg' item taking existing 'avg' item value and new monitor value into account."
+  "Makes a new 'avg' item taking existing 'avg' item value and new monitor value into account.
+Returns alist of cadence name and new avg value."
   (let* ((cadence-name (car cadence))
          ;;(cadence-secs (cdr cadence))
          (curr-avg (find cadence-name old-avgs :key #'car))
@@ -163,16 +166,31 @@ Returns monitor items."
                    mitems-with-cadences)))
     new-avgs-with-cadences))
 
-(defun %%make-due-avgs (avgs)
-  )
+(defun %%filter-due-avgs (avgs-with-cadences start-time)
+  "Filters avg values according to cadences.
+Returns list of plists with `:new-avg' and `:cadence' for all avg elements that satisfy cadence to current run time."
+  (utils:filter (lambda (avg-with-cadences)
+                  (let ((cadences (getf avg-with-cadences :cadences)))
+                    (some (lambda (cadence)
+                            (let ((cadence-secs (cdr cadence))
+                                  (run-time (- (get-universal-time) start-time)))
+                              (avgs:due-p run-time cadence-secs)))
+                          cadences)))
+                avgs-with-cadences))
+
+(defun %%report-due-avgs (due-avgs)
+  (dolist (avg due-avgs)
+    (let ((avg (getf due-avgs :new-avg)))
+      (let ((cadence-name (car avg))
+            (avg-val (cdr avg)))
+        (openhab:do-post cadence-name avg-val)))))
 
 (defun %process-avgs (mon-items avgs)
   "Calculates new avgs for monitor items."
-  ;; => todo: submit to openhab when due
   ;; todo: check on recurring due time
-  (let ((new-avgs (%%make-new-avgs-with-cadences mon-items avgs)))
-    (format t "new-avgs: ~a~%" new-avgs)
-    (%%make-due-avgs new-avgs)
+  (let* ((new-avgs (%%make-new-avgs-with-cadences mon-items avgs))
+         (due-avgs (%%filter-due-avgs new-avgs *start-time*)))
+    (%%report-due-avgs due-avgs)
     (car (mapcar (lambda (item) (getf item :new-avg)) new-avgs))))
 
 (defun %handle-init (state)
