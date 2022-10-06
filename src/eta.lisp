@@ -149,7 +149,7 @@ Returns alist of cadence name and new avg value."
                            (/ (+ curr-avg-val mon-item-val) 2.0)))))
 
 (defun %%make-new-avgs-with-cadences (mon-items old-avgs)
-  "Returns a list of plists with `:new-avg' and `:cadences' in each entry."
+  "Returns a list of plists with `:avg' and `:cadences' in each entry."
   (let* ((mitems-with-cadences
            (mapcar (lambda (mitem)
                      `(,mitem . ,(%%find-cadences mitem)))
@@ -162,13 +162,13 @@ Returns alist of cadence name and new avg value."
                               (mapcar (lambda (cadence)
                                         (%%make-new-avg (cdr mitem) cadence old-avgs))
                                       cadences)))
-                       `(:new-avg ,new-avg :cadences ,cadences)))
+                       `(:avg ,new-avg :cadences ,cadences)))
                    mitems-with-cadences)))
     new-avgs-with-cadences))
 
 (defun %%filter-due-avgs (avgs-with-cadences start-time)
   "Filters avg values according to cadences.
-Returns list of plists with `:new-avg' and `:cadence' for all avg elements that satisfy cadence to current run time."
+Returns list of plists with `:avg' and `:cadence' for all avg elements that satisfy cadence to current run time."
   (utils:filter (lambda (avg-with-cadences)
                   (let ((cadences (getf avg-with-cadences :cadences)))
                     (some (lambda (cadence)
@@ -180,7 +180,7 @@ Returns list of plists with `:new-avg' and `:cadence' for all avg elements that 
 
 (defun %%report-due-avgs (due-avgs)
   (dolist (avg due-avgs)
-    (let ((avg (getf due-avgs :new-avg)))
+    (let ((avg (getf due-avgs :avg)))
       (let ((cadence-name (car avg))
             (avg-val (cdr avg)))
         (openhab:do-post cadence-name avg-val)))))
@@ -191,7 +191,7 @@ Returns list of plists with `:new-avg' and `:cadence' for all avg elements that 
   (let* ((new-avgs (%%make-new-avgs-with-cadences mon-items avgs))
          (due-avgs (%%filter-due-avgs new-avgs *start-time*)))
     (%%report-due-avgs due-avgs)
-    (car (mapcar (lambda (item) (getf item :new-avg)) new-avgs))))
+    (car (mapcar (lambda (item) (getf item :avg)) new-avgs))))
 
 (defun %handle-init (state)
   (cons
