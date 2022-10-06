@@ -139,7 +139,6 @@ Returns monitor items."
   "Makes a new 'avg' item taking existing 'avg' item value and new monitor value into account.
 Returns alist of cadence name and new avg value."
   (let* ((cadence-name (car cadence))
-         ;;(cadence-secs (cdr cadence))
          (curr-avg (find cadence-name old-avgs :key #'car))
          (curr-avg-val (if curr-avg
                            (cdr curr-avg)
@@ -187,7 +186,8 @@ Returns list of plists with `:avg' and `:cadence' for all avg elements that sati
 
 (defun %process-avgs (mon-items avgs)
   "Calculates new avgs for monitor items."
-  ;; todo: check on recurring due time
+  ;; todo: move code to avgs package
+  ;; => todo: fully implement due-p
   (let* ((new-avgs (%%make-new-avgs-with-cadences mon-items avgs))
          (due-avgs (%%filter-due-avgs new-avgs *start-time*)))
     (%%report-due-avgs due-avgs)
