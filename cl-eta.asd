@@ -13,6 +13,7 @@
                 ((:file "openhab")
                  (:file "eta-ser-if")
                  (:file "eta-pkg")
+                 (:file "avgs")
                  (:file "eta"))))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
 
@@ -29,6 +30,7 @@
                 ((:file "all-tests")
                  (:file "eta-test")
                  (:file "eta-pkg-test")
+                 (:file "avgs-test")
                  (:file "eta-atest")
                  )))
   :description "Test system for cl-eta"
