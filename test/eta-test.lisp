@@ -119,7 +119,6 @@ A result will be visible when this function is called on the REPL."
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
-      (answer avgs:due-p nil)
       (answer (openhab:do-post res data)
         (progn
           (assert (equal res "FooItem"))
@@ -138,11 +137,9 @@ A result will be visible when this function is called on the REPL."
 Naughty."
   (with-fixture init-destroy ()
     (with-mocks ()
-      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . 60) ("FooItemAvg2" . 120)))))
+      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . nil) ("FooItemAvg2" . nil)))))
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
-      (answer avgs:due-p nil)
-      (answer openhab:do-post :ok)
 
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
@@ -153,26 +150,6 @@ Naughty."
              (readn *read-serial-called*))
         (is (equalp avgs `(("FooItemAvg1" . ,(/ (* readn 1.1) readn))
                            ("FooItemAvg2" . ,(/ (* readn 1.1) readn)))))))))
-
-(test start-record--complete--with-monitor--build-avg--submit-to-oh
-  (with-fixture init-destroy ()
-    (with-mocks ()
-      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . 1) ("FooItemAvg2" . 2)))))
-      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
-      (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
-      (answer avgs:due-p t)
-      (answer (openhab:do-post res data)
-        (progn
-          (assert (or (equal res "FooItemAvg1") (equal res "FooItemAvg2")))
-          (assert (= data 1.1))
-          :ok))
-
-      (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
-                (lambda ()
-                  (and (> *read-serial-called* 0)
-                       (= (length (invocations 'openhab:do-post)) 2)))
-                1.0)))))
 
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
@@ -205,4 +182,4 @@ Naughty."
                 (lambda () (= (length (eta-pkg:new-stop-record-pkg)) *write-serial-called*))
                 1.0))
       (sleep 0.5)
-      (is (< *read-serial-called* 3)))))
+      (is (< *read-serial-called* 5)))))

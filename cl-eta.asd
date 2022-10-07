@@ -6,6 +6,7 @@
                "sento"
                "cserial-port"
                "drakma"
+               "cl-cron"
                )
   :components ((:module "src"
                 :serial t
