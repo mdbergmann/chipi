@@ -16,4 +16,9 @@
 (test is-due
   "Tests marking avgs as due."
   (is-false (due-p 0 0))
+  (is-false (due-p 1 0))
+  (is-true (due-p 1 1))
+  (is-true (due-p 4 2))
+  (is-false (due-p 3 2))
+  (is-true (due-p 180 10))
   )
