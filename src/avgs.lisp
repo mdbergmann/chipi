@@ -8,4 +8,6 @@
 (defun due-p (run-secs cadence-secs)
   "`run-secs': runtime in secs from start
 `cadence-secs': cadence in seconds."
-  )
+  (if (= cadence-secs 0)
+      nil
+      t))

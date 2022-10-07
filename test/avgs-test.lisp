@@ -13,7 +13,7 @@
 
 ;; your test code here
 
-(test due-p
+(test is-due
   "Tests marking avgs as due."
-  
+  (is-false (due-p 0 0))
   )
