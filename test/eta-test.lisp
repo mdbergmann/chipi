@@ -182,3 +182,32 @@ A result will be visible when this function is called on the REPL."
                 1.0))
       (sleep 0.5)
       (is (< *read-serial-called* 5)))))
+
+(test report-avgs
+  (with-fixture init-destroy ()
+    (with-mocks ()
+      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . nil) ("FooItemAvg2" . nil)))))
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
+      (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
+      (answer (openhab:do-post res data)
+        (progn
+          (assert (or (equal res "FooItem")
+                      (equal res "FooItemAvg1")
+                      (equal res "FooItemAvg2")))
+          (assert (= data 1.1))
+          :ok))
+
+      (is (eq :ok (start-record)))
+      (is-true (utils:assert-cond
+                (lambda () (> *read-serial-called* 5))
+                1.0))
+      (is (eq :ok (report-avgs)))
+      (is-true (utils:assert-cond
+                (lambda ()
+                  (flet ((containsp (invocs item)
+                           (member item invocs :key #'second :test #'string=)))
+                    (let ((invocs (invocations 'openhab:do-post)))
+                      (not (null
+                            (and (containsp invocs "FooItemAvg1")
+                                 (containsp invocs "FooItemAvg2")))))))
+                1.0)))))

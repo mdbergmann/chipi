@@ -5,6 +5,7 @@
            #:close-serial
            #:start-record
            #:stop-record
+           #:report-avgs
            #:ensure-initialized
            #:ensure-shutdown
            #:*serial-proxy-impl*))
@@ -99,6 +100,12 @@ So we gotta trigger a read here as well."
   (multiple-value-bind (actor)
       (ensure-initialized)
     (act:ask-s actor '(:state . nil))))
+
+(defun report-avgs ()
+  (multiple-value-bind (actor)
+      (ensure-initialized)
+    (act:tell actor `(:report-avgs . nil)))
+  :ok)
 
 ;; ---------------------
 ;; actor handling
@@ -221,6 +228,12 @@ Returns alist of cadence name and new avg value."
 (defun %handle-get-state (state)
   (cons state state))
 
+(defun %handle-report-avgs (state)
+  (let ((avgs (actor-state-avgs state)))
+    (dolist (avg avgs)
+      (openhab:do-post (car avg) (cdr avg))))
+  (cons t state))
+
 (defun %serial-actor-receive (self msg state)
   (let ((resp
           (case (car msg)
@@ -230,5 +243,6 @@ Returns alist of cadence name and new avg value."
             (:read (%handle-read self state))
             (:start-read (%handle-start-read self state))
             (:stop-read (%handle-stop-read state))
-            (:state (%handle-get-state state)))))
+            (:state (%handle-get-state state))
+            (:report-avgs (%handle-report-avgs state)))))
     resp))
