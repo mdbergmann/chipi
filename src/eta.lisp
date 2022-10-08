@@ -217,6 +217,9 @@ Returns alist of cadence name and new avg value."
     (setf (actor-state-do-read-p new-state) nil)
     (cons t new-state)))
 
+(defun %handle-get-state (state)
+  (cons state state))
+
 (defun %serial-actor-receive (self msg state)
   (let ((resp
           (case (car msg)
@@ -226,5 +229,5 @@ Returns alist of cadence name and new avg value."
             (:read (%handle-read self state))
             (:start-read (%handle-start-read self state))
             (:stop-read (%handle-stop-read state))
-            (:state (cons state state)))))
+            (:state (%handle-get-state state)))))
     resp))

@@ -133,8 +133,7 @@ A result will be visible when this function is called on the REPL."
                 1.0)))))
 
 (test start-record--complete--with-monitor--build-avg
-  "We use some internal API to retrieve the state of the actor in order to check on the avgs.
-Naughty."
+  "We use `get-state' internal API to retrieve the state of the actor in order to check on the avgs."
   (with-fixture init-destroy ()
     (with-mocks ()
       (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . nil) ("FooItemAvg2" . nil)))))
