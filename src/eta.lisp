@@ -8,7 +8,7 @@
            #:report-avgs
            #:ensure-initialized
            #:ensure-shutdown
-           #:jobdef-to-cronjob
+           #:make-jobdefinition
            #:*serial-proxy-impl*))
 
 (in-package :cl-eta.eta)
@@ -108,8 +108,13 @@ So we gotta trigger a read here as well."
     (act:tell actor `(:report-avgs . nil)))
   :ok)
 
-(defun jobdef-to-cronjob (def)
-  )
+(defun make-jobdefinition (fun time-def)
+  (cron:make-cron-job fun
+                      :minute (getf time-def :m :every)
+                      :hour (getf time-def :h :every)
+                      :day-of-month (getf time-def :dom :every)
+                      :day-of-week (getf time-def :dow :every)
+                      :hash-key (getf time-def :name)))
 
 ;; ---------------------
 ;; actor handling

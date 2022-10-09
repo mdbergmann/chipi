@@ -213,5 +213,7 @@ A result will be visible when this function is called on the REPL."
 
 (test job-def-to-job
   "Tests conversion of avg job definition to cron-job"
-  (is (symbolp (jobdef-to-cronjob '(:mi 0 :d 0 :dow 0 :name "test")))))
+  (let ((job (make-jobdefinition (lambda ()) '(:m 0 :h 0 :d 0 :dow 0 :dom 0 :name test))))
+    (is (symbolp job))
+    (is (eq 'test job))))
   
