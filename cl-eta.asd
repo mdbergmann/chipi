@@ -59,7 +59,8 @@ OK - update atest with receive monitor package
 OK - 'stop-record'
 OK - 'shutdown-serial
 OK - implement real http server for more integration testing for http post call
-=> - calculate op hours and ignition avgs daily and weekly
+OK - calculate op hours and ignition avgs daily and weekly
+=> - report avgs
 - filter temp values for spikes
 - implement more receive package types (error, etc)
 |#

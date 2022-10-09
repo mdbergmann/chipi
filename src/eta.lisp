@@ -8,6 +8,7 @@
            #:report-avgs
            #:ensure-initialized
            #:ensure-shutdown
+           #:jobdef-to-cronjob
            #:*serial-proxy-impl*))
 
 (in-package :cl-eta.eta)
@@ -106,6 +107,9 @@ So we gotta trigger a read here as well."
       (ensure-initialized)
     (act:tell actor `(:report-avgs . nil)))
   :ok)
+
+(defun jobdef-to-cronjob (def)
+  )
 
 ;; ---------------------
 ;; actor handling

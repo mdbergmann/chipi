@@ -207,7 +207,11 @@ A result will be visible when this function is called on the REPL."
                   (flet ((containsp (invocs item)
                            (member item invocs :key #'second :test #'string=)))
                     (let ((invocs (invocations 'openhab:do-post)))
-                      (not (null
-                            (and (containsp invocs "FooItemAvg1")
-                                 (containsp invocs "FooItemAvg2")))))))
+                      (and (containsp invocs "FooItemAvg1")
+                           (containsp invocs "FooItemAvg2")))))
                 1.0)))))
+
+(test job-def-to-job
+  "Tests conversion of avg job definition to cron-job"
+  (is (symbolp (jobdef-to-cronjob '(:mi 0 :d 0 :dow 0 :name "test")))))
+  
