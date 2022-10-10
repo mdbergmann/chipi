@@ -215,8 +215,11 @@ Returns alist of cadence name and new avg value."
 
 (defun %process-avgs (mon-items avgs)
   "Calculates new avgs for monitor items."
+  (log:debug "Mon items: ~a" mon-items)
+  (log:debug "Old avgs: ~a" avgs)
   (let ((avgs (%%make-new-avgs mon-items avgs)))
-    (log:info "Avgs: ~a" avgs)))
+    (log:info "Avgs: ~a" avgs)
+    avgs))
 
 (defun %handle-init (state)
   (cons
@@ -233,16 +236,18 @@ Returns alist of cadence name and new avg value."
   (cons (eta-ser-if:write-serial *serial-proxy-impl* *serial-port* data) state))
 
 (defun %handle-read (actor state)
-  (let ((new-state (copy-structure state)))
+  (let* ((new-state (copy-structure state))
+         (serial-data (actor-state-serial-data new-state))
+         (avgs (actor-state-avgs new-state)))
     (let ((new-serial-data
             (handler-case
                 (multiple-value-bind (complete data)
                     (eta-pkg:collect-data
-                     (actor-state-serial-data new-state)
+                     serial-data
                      (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
                   (if complete
                       (let* ((mon-items (%process-complete-pkg data))
-                             (new-avgs (%process-avgs mon-items (actor-state-avgs new-state))))
+                             (new-avgs (%process-avgs mon-items avgs)))
                         (setf (actor-state-avgs new-state) new-avgs)
                         +new-empty-data+)
                       data))

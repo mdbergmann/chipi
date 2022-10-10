@@ -33,17 +33,21 @@
   (incf *read-serial-called*)
   #())
 
-(def-fixture init-destroy ()
+(def-fixture init-destroy (&optional avgs-items)
   (setf *open-serial-called* nil
         *write-serial-called* 0
         *read-serial-called* 0)
-  (unwind-protect
-       (progn
-         (eta:ensure-initialized)
-         (setf eta:*serial-proxy-impl* :test)
-         (&body))
-    (progn
-      (eta:ensure-shutdown))))
+  (let ((avgs-copy eta::*avg-items*))
+    (when avgs-items
+      (setf eta::*avg-items* avgs-items))
+    (unwind-protect
+         (progn
+           (eta:ensure-initialized)
+           (setf eta:*serial-proxy-impl* :test)
+           (&body))
+      (progn
+        (eta:ensure-shutdown)
+        (setf eta::*avg-items* avgs-copy)))))
 
 (test init-serial
   (with-fixture init-destroy ()
@@ -134,13 +138,15 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--complete--with-monitor--build-avg
   "We use `get-state' internal API to retrieve the state of the actor in order to check on the avgs."
-  (with-fixture init-destroy ()
+  (with-fixture init-destroy ('(("FooItem" .
+                                 (("FooItemAvg1" . nil)
+                                  ("FooItemAvg2" . nil)))))
     (with-mocks ()
-      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . nil) ("FooItemAvg2" . nil)))))
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
       (answer openhab:do-post :ok)
 
+      (is-true (null (eta::actor-state-avgs (eta::get-state))))
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (> *read-serial-called* 5))
@@ -184,9 +190,8 @@ A result will be visible when this function is called on the REPL."
       (is (< *read-serial-called* 5)))))
 
 (test report-avgs
-  (with-fixture init-destroy ()
+  (with-fixture init-destroy ('(("FooItem" . (("FooItemAvg1" . nil) ("FooItemAvg2" . nil)))))
     (with-mocks ()
-      (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . nil) ("FooItemAvg2" . nil)))))
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post res data)
@@ -224,22 +229,20 @@ A result will be visible when this function is called on the REPL."
   (let ((job (make-jobdefinition (lambda ()) '(:m 0 :h 0 :d 0 :dow 0 :dom 0 :name test))))
     (is (symbolp job))
     (is (eq 'test job))))
-  
+
 (test after-init-generates-the-cron-jobs-we-want
-  (setf eta::*avg-items* '(("FooItem" .
-                            (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
-                             ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
-  (with-fixture init-destroy ()
+  (with-fixture init-destroy ('(("FooItem" .
+                                 (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
+                                  ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
     (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
     (is (gethash 'fooitemavg1 cron::*cron-jobs-hash*))
     (is (gethash 'fooitemavg2 cron::*cron-jobs-hash*))
     (is (not (null cron::*cron-dispatcher-thread*)))))
 
 (test destroy-cleans-up
-  (setf eta::*avg-items* '(("FooItem" .
-                            (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
-                             ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
-  (with-fixture init-destroy ())
+  (with-fixture init-destroy ('(("FooItem" .
+                                 (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
+                                  ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2)))))))
   (is (= 0 (hash-table-count cron::*cron-jobs-hash*))))
 
 (test real-avgs
