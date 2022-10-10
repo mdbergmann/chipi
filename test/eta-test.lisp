@@ -224,4 +224,6 @@ A result will be visible when this function is called on the REPL."
                              ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
   (with-fixture init-destroy ()
     (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
+    (is (gethash 'fooitemavg1 cron::*cron-jobs-hash*))
+    (is (gethash 'fooitemavg2 cron::*cron-jobs-hash*))
     ))
