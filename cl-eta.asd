@@ -60,7 +60,8 @@ OK - 'stop-record'
 OK - 'shutdown-serial
 OK - implement real http server for more integration testing for http post call
 OK - calculate op hours and ignition avgs daily and weekly
-=> - report avgs
+OK - report avgs
+=> - define avgs
 - filter temp values for spikes
 - implement more receive package types (error, etc)
 |#

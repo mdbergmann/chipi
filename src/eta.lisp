@@ -15,8 +15,6 @@
 
 (log:config '(sento) :warn)
 
-(defvar *start-time* (get-universal-time))
-
 (defvar *actor-system* nil)
 (defvar *serial-actor* nil)
 (defvar *serial-device* nil)
@@ -46,20 +44,10 @@
                                                  (%serial-actor-receive self msg state))
                                       :init (lambda (self)
                                               (declare (ignore self))
-                                              (clrhash cron::*cron-jobs-hash*)
-                                              (dolist (item *avg-items*)
-                                                (let ((cadences (cdr item)))
-                                                  (dolist (cadence cadences)
-                                                    (let ((cadence-name (car cadence))
-                                                          (cadence-timedef (cdr cadence)))
-                                                      (make-jobdefinition
-                                                       (lambda () (report-avgs cadence-name))
-                                                       cadence-timedef)))))
-                                              (cron:start-cron))
+                                              (%init-actor))
                                       :destroy (lambda (self)
                                                  (declare (ignore self))
-                                                 (clrhash cron::*cron-jobs-hash*)
-                                                 (cron::stop-cron)))))
+                                                 (%destroy-actor)))))
   (values *serial-actor* *actor-system*))
 
 (defun ensure-shutdown ()
@@ -68,6 +56,22 @@
   (setf *actor-system* nil)
   (setf *serial-actor* nil)
   (setf *serial-proxy-impl* nil))
+
+(defun %init-actor ()
+  (clrhash cron::*cron-jobs-hash*)
+  (dolist (item *avg-items*)
+    (let ((cadences (cdr item)))
+      (dolist (cadence cadences)
+        (let ((cadence-name (car cadence))
+              (cadence-timedef (cdr cadence)))
+          (make-jobdefinition
+           (lambda () (report-avgs cadence-name))
+           cadence-timedef)))))
+  (cron:start-cron))
+
+(defun %destroy-actor ()
+  (clrhash cron::*cron-jobs-hash*)
+  (cron::stop-cron))
 
 ;; ---------------------
 ;; public functions
