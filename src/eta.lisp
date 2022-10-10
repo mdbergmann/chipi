@@ -173,12 +173,12 @@ Returns monitor items."
 (defun %%find-avg-mon-items (mon-items)
   "Finds monitor items where avg definitions exist in `*avg-items*'."
   (utils:filter (lambda (mitem)
-                  (member (car mitem) *avg-items* :key #'car))
+                  (member (car mitem) *avg-items* :key #'car :test #'string=))
                 mon-items))
 
 (defun %%find-cadences (mon-item)
   "Finds cadences for the given monitor item in `*avg-items*'."
-    (let* ((avg-item (find (car mon-item) *avg-items* :key #'car))
+    (let* ((avg-item (find (car mon-item) *avg-items* :key #'car :test #'string=))
            (cadences (cdr avg-item)))
       cadences))
 
@@ -186,7 +186,7 @@ Returns monitor items."
   "Makes a new 'avg' item taking existing 'avg' item value and new monitor value into account.
 Returns alist of cadence name and new avg value."
   (let* ((cadence-name (car cadence))
-         (curr-avg (find cadence-name old-avgs :key #'car))
+         (curr-avg (find cadence-name old-avgs :key #'car :test #'string=))
          (curr-avg-val (if curr-avg
                            (cdr curr-avg)
                            0)))
