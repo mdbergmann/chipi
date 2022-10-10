@@ -235,3 +235,9 @@ A result will be visible when this function is called on the REPL."
     (is (gethash 'fooitemavg2 cron::*cron-jobs-hash*))
     (is (not (null cron::*cron-dispatcher-thread*)))))
 
+(test destroy-cleans-up
+  (setf eta::*avg-items* '(("FooItem" .
+                            (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
+                             ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
+  (with-fixture init-destroy ())
+  (is (= 0 (hash-table-count cron::*cron-jobs-hash*))))
