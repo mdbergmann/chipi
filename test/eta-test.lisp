@@ -140,10 +140,12 @@ A result will be visible when this function is called on the REPL."
   "We use `get-state' internal API to retrieve the state of the actor in order to check on the avgs."
   (with-fixture init-destroy ('(("FooItem" .
                                  (("FooItemAvg1" . nil)
-                                  ("FooItemAvg2" . nil)))))
+                                  ("FooItemAvg2" . nil)))
+                                ("FooItem2" .
+                                 (("FooItem2Avg" . nil)))))
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
-      (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
+      (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1) ("FooItem2" . 2.2))))
       (answer openhab:do-post :ok)
 
       (is-true (null (eta::actor-state-avgs (eta::get-state))))
@@ -154,7 +156,8 @@ A result will be visible when this function is called on the REPL."
       (let* ((state (eta::get-state))
              (avgs (eta::actor-state-avgs state)))
         (is (equalp avgs `(("FooItemAvg1" . 1.1)
-                           ("FooItemAvg2" . 1.1))))))))
+                           ("FooItemAvg2" . 1.1)
+                           ("FooItem2Avg" . 2.2))))))))
 
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()

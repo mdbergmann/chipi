@@ -196,28 +196,26 @@ Returns alist of cadence name and new avg value."
 
 (defun %%make-new-avgs (mon-items old-avgs)
   "Returns a list of alists cadence-name and avg value in each entry."
-  (car
-   (let* ((mitems
-            (mapcar (lambda (mitem)
-                      `(,mitem . ,(%%find-cadences mitem)))
-                    (%%find-avg-mon-items mon-items)))
-          (new-avgs
-            (mapcar (lambda (mitem-with-cadences)
-                      (let* ((mitem (car mitem-with-cadences))
-                             (cadences (cdr mitem-with-cadences))
-                             (new-avg
-                               (mapcar (lambda (cadence)
-                                         (%%make-new-avg (cdr mitem) cadence old-avgs))
-                                       cadences)))
-                        new-avg))
-                    mitems)))
-     new-avgs)))
+  (let* ((mitems
+           (mapcar (lambda (mitem)
+                     `(,mitem . ,(%%find-cadences mitem)))
+                   (%%find-avg-mon-items mon-items)))
+         (new-avgs
+           (loop :for mitem-with-cadences :in mitems
+                 :for mitem = (car mitem-with-cadences)
+                 :for cadences = (cdr mitem-with-cadences)
+                 :for new-avg = (mapcar (lambda (cadence)
+                                          (%%make-new-avg (cdr mitem) cadence old-avgs))
+                                        cadences)
+                 :append new-avg)))
+    new-avgs))
 
 (defun %process-avgs (mon-items avgs)
   "Calculates new avgs for monitor items."
   (log:debug "Mon items: ~a" mon-items)
   (log:debug "Old avgs: ~a" avgs)
   (let ((avgs (%%make-new-avgs mon-items avgs)))
+    ;;(format t "Avgs: ~a~%" avgs)
     (log:info "Avgs: ~a" avgs)
     avgs))
 
