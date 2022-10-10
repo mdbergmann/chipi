@@ -215,7 +215,8 @@ Returns alist of cadence name and new avg value."
 
 (defun %process-avgs (mon-items avgs)
   "Calculates new avgs for monitor items."
-  (%%make-new-avgs mon-items avgs))
+  (let ((avgs (%%make-new-avgs mon-items avgs)))
+    (log:info "Avgs: ~a" avgs)))
 
 (defun %handle-init (state)
   (cons
