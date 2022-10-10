@@ -241,3 +241,9 @@ A result will be visible when this function is called on the REPL."
                              ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
   (with-fixture init-destroy ())
   (is (= 0 (hash-table-count cron::*cron-jobs-hash*))))
+
+(test real-avgs
+  (with-fixture init-destroy ()
+    (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
+    (is (not (null (gethash 'eta::heating-eta-op-hours-per-week cron::*cron-jobs-hash*))))
+    (is (not (null (gethash 'eta::heating-eta-ig-count-per-day cron::*cron-jobs-hash*))))))

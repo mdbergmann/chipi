@@ -23,17 +23,18 @@
 
 (defvar +new-empty-data+ #())
 
-(defvar *avg-items* '(("HeatingETAOperatingHours" . (("HeatingETAOpHoursPerWeek"
-                                                      .
-                                                      (:m 0
-                                                       :h 0
-                                                       :dow 0
-                                                       :name heating-eta-op-hours-per-week))))
-                      ("HeatingETAIgnitionCount" . (("HeatingETAIgCountPerDay"
-                                                     .
-                                                     (:m 0
-                                                      :h 0
-                                                      :name heating-eta-ig-count-per-day))))))
+(defparameter *avg-items*
+  '(("HeatingETAOperatingHours" . (("HeatingETAOpHoursPerWeek"
+                                    .
+                                    (:m 0
+                                     :h 0
+                                     :dow 0
+                                     :name heating-eta-op-hours-per-week))))
+    ("HeatingETAIgnitionCount" . (("HeatingETAIgCountPerDay"
+                                   .
+                                   (:m 0
+                                    :h 0
+                                    :name heating-eta-ig-count-per-day))))))
 
 ;; this should be part of actor state
 (defstruct actor-state
