@@ -207,7 +207,8 @@ A result will be visible when this function is called on the REPL."
                   (flet ((containsp (invocs item)
                            (member item invocs :key #'second :test #'string=)))
                     (let ((invocs (invocations 'openhab:do-post)))
-                      (containsp invocs "FooItemAvg1"))))
+                      (and (containsp invocs "FooItemAvg1")
+                           (not (containsp invocs "FooItemAvg2"))))))
                 1.0))
       (is (eq :ok (report-avgs "FooItemAvg2")))
       (is-true (utils:assert-cond
@@ -233,3 +234,4 @@ A result will be visible when this function is called on the REPL."
     (is (gethash 'fooitemavg1 cron::*cron-jobs-hash*))
     (is (gethash 'fooitemavg2 cron::*cron-jobs-hash*))
     (is (not (null cron::*cron-dispatcher-thread*)))))
+

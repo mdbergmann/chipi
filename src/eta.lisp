@@ -254,8 +254,9 @@ Returns alist of cadence name and new avg value."
   (cons state state))
 
 (defun %handle-report-avgs (state avg-to-report)
-  (let ((avgs (actor-state-avgs state)))
-    (dolist (avg avgs)
+  (let* ((avgs (actor-state-avgs state))
+         (filtered (utils:filter (lambda (avg) (string= (car avg) avg-to-report)) avgs)))
+    (dolist (avg filtered)
       (openhab:do-post (car avg) (cdr avg))))
   (cons t state))
 
