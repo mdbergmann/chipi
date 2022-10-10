@@ -276,6 +276,7 @@ Returns alist of cadence name and new avg value."
   (let* ((avgs (actor-state-avgs state))
          (filtered (utils:filter (lambda (avg) (string= (car avg) avg-to-report)) avgs)))
     (dolist (avg filtered)
+      (log:info "Posting avg:~a, value:~a" (car avg) (cdr avg))
       (openhab:do-post (car avg) (cdr avg))))
   (cons t state))
 
