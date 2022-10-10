@@ -139,16 +139,16 @@ A result will be visible when this function is called on the REPL."
       (setf eta::*avg-items* '(("FooItem" . (("FooItemAvg1" . nil) ("FooItemAvg2" . nil)))))
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
+      (answer openhab:do-post :ok)
 
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
                 (lambda () (> *read-serial-called* 5))
                 1.0))
       (let* ((state (eta::get-state))
-             (avgs (eta::actor-state-avgs state))
-             (readn *read-serial-called*))
-        (is (equalp avgs `(("FooItemAvg1" . ,(/ (* readn 1.1) readn))
-                           ("FooItemAvg2" . ,(/ (* readn 1.1) readn)))))))))
+             (avgs (eta::actor-state-avgs state)))
+        (is (equalp avgs `(("FooItemAvg1" . 1.1)
+                           ("FooItemAvg2" . 1.1))))))))
 
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
