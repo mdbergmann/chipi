@@ -43,7 +43,18 @@
                                       :name "ETA-serial-actor"
                                       :state (make-actor-state)
                                       :receive (lambda (self msg state)
-                                                 (%serial-actor-receive self msg state)))))
+                                                 (%serial-actor-receive self msg state))
+                                      :init (lambda (self)
+                                              (declare (ignore self))
+                                              (dolist (item *avg-items*)
+                                                (let ((cadences (cdr item)))
+                                                  (dolist (cadence cadences)
+                                                    (let ((cadence-name (car cadence))
+                                                          (cadence-timedef (cdr cadence)))
+                                                      (make-jobdefinition
+                                                       (lambda () (report-avgs cadence-name))
+                                                       cadence-timedef)))))
+                                              (cron:start-cron)))))
   (values *serial-actor* *actor-system*))
 
 (defun ensure-shutdown ()
@@ -102,10 +113,10 @@ So we gotta trigger a read here as well."
       (ensure-initialized)
     (act:ask-s actor '(:state . nil))))
 
-(defun report-avgs ()
+(defun report-avgs (avg-to-report)
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (act:tell actor `(:report-avgs . nil)))
+    (act:tell actor `(:report-avgs . ,avg-to-report)))
   :ok)
 
 (defun make-jobdefinition (fun time-def)
@@ -116,7 +127,7 @@ So we gotta trigger a read here as well."
                       :day-of-week (getf time-def :dow :every)
                       :hash-key (getf time-def :name)))
 
-;; ---------------------
+;; ---------------------a
 ;; actor handling
 ;; ---------------------
 
@@ -237,7 +248,7 @@ Returns alist of cadence name and new avg value."
 (defun %handle-get-state (state)
   (cons state state))
 
-(defun %handle-report-avgs (state)
+(defun %handle-report-avgs (state avg-to-report)
   (let ((avgs (actor-state-avgs state)))
     (dolist (avg avgs)
       (openhab:do-post (car avg) (cdr avg))))
@@ -253,5 +264,5 @@ Returns alist of cadence name and new avg value."
             (:start-read (%handle-start-read self state))
             (:stop-read (%handle-stop-read state))
             (:state (%handle-get-state state))
-            (:report-avgs (%handle-report-avgs state)))))
+            (:report-avgs (%handle-report-avgs state (cdr msg))))))
     resp))

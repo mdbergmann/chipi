@@ -217,3 +217,11 @@ A result will be visible when this function is called on the REPL."
     (is (symbolp job))
     (is (eq 'test job))))
   
+(test that-after-init-we-got-the-cron-jobs-we-want
+  (clrhash cron::*cron-jobs-hash*)
+  (setf eta::*avg-items* '(("FooItem" .
+                            (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
+                             ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
+  (with-fixture init-destroy ()
+    (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
+    ))
