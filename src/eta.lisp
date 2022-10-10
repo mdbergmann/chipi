@@ -46,6 +46,7 @@
                                                  (%serial-actor-receive self msg state))
                                       :init (lambda (self)
                                               (declare (ignore self))
+                                              (clrhash cron::*cron-jobs-hash*)
                                               (dolist (item *avg-items*)
                                                 (let ((cadences (cdr item)))
                                                   (dolist (cadence cadences)
@@ -54,7 +55,11 @@
                                                       (make-jobdefinition
                                                        (lambda () (report-avgs cadence-name))
                                                        cadence-timedef)))))
-                                              (cron:start-cron)))))
+                                              (cron:start-cron))
+                                      :destroy (lambda (self)
+                                                 (declare (ignore self))
+                                                 (clrhash cron::*cron-jobs-hash*)
+                                                 (cron::stop-cron)))))
   (values *serial-actor* *actor-system*))
 
 (defun ensure-shutdown ()

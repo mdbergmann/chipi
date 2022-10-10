@@ -201,14 +201,21 @@ A result will be visible when this function is called on the REPL."
       (is-true (utils:assert-cond
                 (lambda () (> *read-serial-called* 5))
                 1.0))
-      (is (eq :ok (report-avgs)))
+      (is (eq :ok (report-avgs "FooItemAvg1")))
       (is-true (utils:assert-cond
                 (lambda ()
                   (flet ((containsp (invocs item)
                            (member item invocs :key #'second :test #'string=)))
                     (let ((invocs (invocations 'openhab:do-post)))
-                      (and (containsp invocs "FooItemAvg1")
-                           (containsp invocs "FooItemAvg2")))))
+                      (containsp invocs "FooItemAvg1"))))
+                1.0))
+      (is (eq :ok (report-avgs "FooItemAvg2")))
+      (is-true (utils:assert-cond
+                (lambda ()
+                  (flet ((containsp (invocs item)
+                           (member item invocs :key #'second :test #'string=)))
+                    (let ((invocs (invocations 'openhab:do-post)))
+                      (containsp invocs "FooItemAvg2"))))
                 1.0)))))
 
 (test job-def-to-job
@@ -217,8 +224,7 @@ A result will be visible when this function is called on the REPL."
     (is (symbolp job))
     (is (eq 'test job))))
   
-(test that-after-init-we-got-the-cron-jobs-we-want
-  (clrhash cron::*cron-jobs-hash*)
+(test after-init-generates-the-cron-jobs-we-want
   (setf eta::*avg-items* '(("FooItem" .
                             (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
                              ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
@@ -226,4 +232,4 @@ A result will be visible when this function is called on the REPL."
     (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
     (is (gethash 'fooitemavg1 cron::*cron-jobs-hash*))
     (is (gethash 'fooitemavg2 cron::*cron-jobs-hash*))
-    ))
+    (is (not (null cron::*cron-dispatcher-thread*)))))
