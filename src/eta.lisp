@@ -218,7 +218,7 @@ Returns monitor items."
                                           (%%make-new-avg (cdr mitem) (car cadence) avgs))
                                         cadences)
                  :append new-avg)))
-    (format t "new-avgs: ~a~%" new-avgs)
+    (log:debug "New avgs: ~a" new-avgs)
     new-avgs))
 
 (defun %handle-init (state)
@@ -275,10 +275,14 @@ Returns monitor items."
 
 (defun %handle-report-avgs (state avg-to-report)
   (let* ((avgs (actor-state-avgs state))
-         (filtered (utils:filter (lambda (avg) (string= (car avg) avg-to-report)) avgs)))
+         (filtered (utils:filter (lambda (avg)
+                                   (string= (avg-record-cadence-name avg) avg-to-report))
+                                 avgs)))
     (dolist (avg filtered)
-      (log:info "Posting avg:~a, value:~a" (car avg) (cdr avg))
-      (openhab:do-post (car avg) (cdr avg))))
+      (log:info "Posting avg:~a" avg)
+      (openhab:do-post
+          (avg-record-cadence-name avg)
+        (avg-record-current-value avg))))
   (cons t state))
 
 (defun %serial-actor-receive (self msg state)

@@ -157,13 +157,17 @@ A result will be visible when this function is called on the REPL."
              (avgs (eta::actor-state-avgs state)))
         (is (= (length avgs) 3))
         (is (every (lambda (x) (typep x 'eta::avg-record)) avgs))
-        (is-true (find-if
-                  (lambda (x) (string= "FooItemAvg1" (eta::avg-record-cadence-name x)))
-                  avgs))
-        ;; (is (equalp avgs `(("FooItemAvg1" . 1.1)
-        ;;                    ("FooItemAvg2" . 1.1)
-        ;;                    ("FooItem2Avg" . 2.2))))
-        ))))
+        (flet ((assert-avg (name initial-value current-value initial-time current-time)
+                 (find-if
+                  (lambda (x) (and (string= name (eta::avg-record-cadence-name x))
+                              (= initial-value (eta::avg-record-initial-value x))
+                              (= current-value (eta::avg-record-current-value x))
+                              (> (eta::avg-record-initial-time x) initial-time)
+                              (> (eta::avg-record-current-time x) current-time)))
+                  avgs)))
+          (is-true (and (assert-avg "FooItemAvg1" 1.1 1.1 0 0)
+                        (assert-avg "FooItemAvg2" 1.1 1.1 0 0)
+                        (assert-avg "FooItem2Avg" 2.2 2.2 0 0))))))))
 
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
