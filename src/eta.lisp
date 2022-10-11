@@ -187,13 +187,20 @@ Returns monitor items."
            (cadences (cdr avg-item)))
       cadences))
 
-(defun %%make-new-avg (mitem-val cadence-name)
-  (make-avg-record
-   :initial-value 0
-   :current-value 0
-   :initial-time 0
-   :current-time 0
-   :cadence-name ""))
+(defun %%make-new-avg (mitem-val cadence-name old-avgs)
+  (let* ((old-avg
+           (find-if (lambda (avg)
+                      (string= cadence-name (avg-record-cadence-name avg)))
+                    old-avgs))
+         (new-avg (if old-avgs
+                      old-avg
+                      (make-avg-record
+                       :initial-value mitem-val
+                       :initial-time (get-universal-time)
+                       :cadence-name cadence-name))))
+    (setf (avg-record-current-value new-avg) mitem-val)
+    (setf (avg-record-current-time new-avg) (get-universal-time))
+    new-avg))
 
 (defun %process-avgs (mon-items avgs)
   "Calculates new avgs for monitor items."
@@ -208,7 +215,7 @@ Returns monitor items."
                  :for mitem = (car mitem-with-cadences)
                  :for cadences = (cdr mitem-with-cadences)
                  :for new-avg = (mapcar (lambda (cadence)
-                                          (%%make-new-avg (cdr mitem) cadence))
+                                          (%%make-new-avg (cdr mitem) (car cadence) avgs))
                                         cadences)
                  :append new-avg)))
     (format t "new-avgs: ~a~%" new-avgs)
