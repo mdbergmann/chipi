@@ -24,14 +24,12 @@
 (defvar +new-empty-data+ #())
 
 (defparameter *avg-items*
-  '(("HeatingETAOperatingHours" . (("HeatingETAOpHoursPerWeek"
-                                    .
+  '(("HeatingETAOperatingHours" . (("HeatingETAOpHoursPerWeek" .
                                     (:m 0
                                      :h 0
                                      :dow 0
                                      :name heating-eta-op-hours-per-week))))
-    ("HeatingETAIgnitionCount" . (("HeatingETAIgCountPerDay"
-                                   .
+    ("HeatingETAIgnitionCount" . (("HeatingETAIgCountPerDay" .
                                    (:m 0
                                     :h 0
                                     :name heating-eta-ig-count-per-day))))))
@@ -41,6 +39,13 @@
   (serial-data +new-empty-data+)
   (avgs nil)
   (do-read-p nil))
+
+(defstruct avg-record
+  (initial-value nil)
+  (current-value nil)
+  (initial-time nil)
+  (current-time nil)
+  (cadence-name nil))
 
 (defun ensure-initialized ()
   (unless *serial-proxy-impl*
@@ -182,20 +187,18 @@ Returns monitor items."
            (cadences (cdr avg-item)))
       cadences))
 
-(defun %%make-new-avg (mon-item-val cadence old-avgs)
-  "Makes a new 'avg' item taking existing 'avg' item value and new monitor value into account.
-Returns alist of cadence name and new avg value."
-  (let* ((cadence-name (car cadence))
-         (curr-avg (find cadence-name old-avgs :key #'car :test #'string=))
-         (curr-avg-val (if curr-avg
-                           (cdr curr-avg)
-                           0)))
-    `(,cadence-name . ,(if (= 0 curr-avg-val)
-                           mon-item-val
-                           (/ (+ curr-avg-val mon-item-val) 2.0)))))
+(defun %%make-new-avg (mitem-val cadence-name)
+  (make-avg-record
+   :initial-value 0
+   :current-value 0
+   :initial-time 0
+   :current-time 0
+   :cadence-name ""))
 
-(defun %%make-new-avgs (mon-items old-avgs)
-  "Returns a list of alists cadence-name and avg value in each entry."
+(defun %process-avgs (mon-items avgs)
+  "Calculates new avgs for monitor items."
+  (log:debug "Mon items: ~a" mon-items)
+  (log:debug "Old avgs: ~a" avgs)
   (let* ((mitems
            (mapcar (lambda (mitem)
                      `(,mitem . ,(%%find-cadences mitem)))
@@ -205,19 +208,11 @@ Returns alist of cadence name and new avg value."
                  :for mitem = (car mitem-with-cadences)
                  :for cadences = (cdr mitem-with-cadences)
                  :for new-avg = (mapcar (lambda (cadence)
-                                          (%%make-new-avg (cdr mitem) cadence old-avgs))
+                                          (%%make-new-avg (cdr mitem) cadence))
                                         cadences)
                  :append new-avg)))
+    (format t "new-avgs: ~a~%" new-avgs)
     new-avgs))
-
-(defun %process-avgs (mon-items avgs)
-  "Calculates new avgs for monitor items."
-  (log:debug "Mon items: ~a" mon-items)
-  (log:debug "Old avgs: ~a" avgs)
-  (let ((avgs (%%make-new-avgs mon-items avgs)))
-    ;;(format t "Avgs: ~a~%" avgs)
-    (log:info "Avgs: ~a" avgs)
-    avgs))
 
 (defun %handle-init (state)
   (cons
@@ -234,9 +229,8 @@ Returns alist of cadence name and new avg value."
   (cons (eta-ser-if:write-serial *serial-proxy-impl* *serial-port* data) state))
 
 (defun %handle-read (actor state)
-  (let* ((new-state (copy-structure state))
-         (serial-data (actor-state-serial-data new-state))
-         (avgs (actor-state-avgs new-state)))
+  (let ((serial-data (actor-state-serial-data state))
+        (avgs (actor-state-avgs state)))
     (let ((new-serial-data
             (handler-case
                 (multiple-value-bind (complete data)
@@ -246,17 +240,17 @@ Returns alist of cadence name and new avg value."
                   (if complete
                       (let* ((mon-items (%process-complete-pkg data))
                              (new-avgs (%process-avgs mon-items avgs)))
-                        (setf (actor-state-avgs new-state) new-avgs)
+                        (setf (actor-state-avgs state) new-avgs)
                         +new-empty-data+)
                       data))
               (error (c)
                 (progn
                   (log:warn "Error collecting data: ~a" c)
-                  new-state)))))
-      (setf (actor-state-serial-data new-state) new-serial-data)
-      (when (actor-state-do-read-p new-state)
+                  state)))))
+      (setf (actor-state-serial-data state) new-serial-data)
+      (when (actor-state-do-read-p state)
         (act:tell actor '(:read . nil)))
-      (cons t new-state))))
+      (cons t state))))
 
 (defun %handle-start-read (actor state)
   (act:tell actor '(:read . nil))
