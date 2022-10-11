@@ -209,11 +209,21 @@ A result will be visible when this function is called on the REPL."
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
       (answer (openhab:do-post res data)
         (progn
+          ;; all the possible parameter values
           (assert (or (equal res "FooItem")
                       (equal res "FooItemAvg1")
                       (equal res "FooItemAvg2")))
-          (assert (= data 1.1))
+          (assert (or (= data 1.1)
+                      (= data 1.2)
+                      (= data 2.1)))
           :ok))
+      (answer (eta::calculate-avg avg-item)
+        (cond
+          ((string= "FooItemAvg1" (eta::avg-record-cadence-name avg-item))
+           '("FooItemAvg1" . 1.2)) ; just something to distinguish
+          ((string= "FooItemAvg2" (eta::avg-record-cadence-name avg-item))
+           '("FooItemAvg2" . 2.1)) ; just something
+          (t (error "shouldn't be here!"))))
 
       (is (eq :ok (start-record)))
       (is-true (utils:assert-cond
@@ -235,9 +245,10 @@ A result will be visible when this function is called on the REPL."
                            (member item invocs :key #'second :test #'string=)))
                     (let ((invocs (invocations 'openhab:do-post)))
                       (containsp invocs "FooItemAvg2"))))
-                1.0)))))
+                1.0))
+      (is-true (= 2 (length (invocations 'eta::calculate-avg)))))))
 
-(test job-def-to-job
+(test jobdef-to-cronjob
   "Tests conversion of avg job definition to cron-job"
   (let ((job (make-jobdefinition (lambda ()) '(:m 0 :h 0 :d 0 :dow 0 :dom 0 :name test))))
     (is (symbolp job))

@@ -277,13 +277,15 @@ Returns monitor items."
   (let* ((avgs (actor-state-avgs state))
          (filtered (utils:filter (lambda (avg)
                                    (string= (avg-record-cadence-name avg) avg-to-report))
-                                 avgs)))
-    (dolist (avg filtered)
+                                 avgs))
+         (calculated (mapcar #'calculate-avg filtered)))
+    (dolist (avg calculated)
       (log:info "Posting avg:~a" avg)
-      (openhab:do-post
-          (avg-record-cadence-name avg)
-        (avg-record-current-value avg))))
+      (openhab:do-post (car avg) (cdr avg))))
   (cons t state))
+
+(defun calculate-avg (avg-item)
+  )
 
 (defun %serial-actor-receive (self msg state)
   (let ((resp
