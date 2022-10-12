@@ -226,8 +226,11 @@ A result will be visible when this function is called on the REPL."
           (t (error "shouldn't be here!"))))
 
       (is (eq :ok (start-record)))
+      (sleep 0.01)
+      ;; stop the read, otherwise reads are happening and again filling the avgs
+      (is (eq :ok (stop-record)))
       (is-true (utils:assert-cond
-                (lambda () (> *read-serial-called* 5))
+                (lambda () (> *read-serial-called* 1))
                 1.0))
       (flet ((containsp (invocs item)
                (member item invocs :key #'second :test #'string=)))
@@ -238,13 +241,15 @@ A result will be visible when this function is called on the REPL."
                       (and (containsp invocs "FooItemAvg1")
                            (not (containsp invocs "FooItemAvg2")))))
                   1.0))
+        
         (is (eq :ok (report-avgs "FooItemAvg2")))
         (is-true (utils:assert-cond
                   (lambda ()
                     (let ((invocs (invocations 'openhab:do-post)))
                       (containsp invocs "FooItemAvg2")))
-                  1.0))
-        (is-true (= 2 (length (invocations 'eta::%calculate-avg)))))
+                  1.0)))
+      (is-true (= 2 (length (invocations 'eta::%calculate-avg))))
+      (is-true (= 0 (length (eta::actor-state-avgs (eta::get-state)))))
       )))
 
 (test jobdef-to-cronjob
