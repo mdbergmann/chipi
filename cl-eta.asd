@@ -61,7 +61,8 @@ OK - 'shutdown-serial
 OK - implement real http server for more integration testing for http post call
 OK - calculate op hours and ignition avgs daily and weekly
 OK - report avgs
-=> - define avgs
+=> - calculate avgs
+- reset avg after report
 - filter temp values for spikes
 - implement more receive package types (error, etc)
 |#

@@ -222,7 +222,18 @@ Returns monitor items."
     new-avgs))
 
 (defun %calculate-avg (avg-item)
-  )
+  "Calculates the avg per day of the given avg."
+  (let ((day-in-secs (* 24 60 60))
+        (name (avg-record-cadence-name avg-item))
+        (ival (avg-record-initial-value avg-item))
+        (cval (avg-record-current-value avg-item))
+        (itime (avg-record-initial-time avg-item))
+        (ctime (avg-record-current-time avg-item)))
+    (let* ((time-diff-secs (- ctime itime))
+           (time-diff-days (float (/ time-diff-secs day-in-secs)))
+           (diff-value (- cval ival))
+           (per-day (/ diff-value time-diff-days)))
+      `(,name . ,per-day))))
 
 ;; ---------------------
 ;; actor handling

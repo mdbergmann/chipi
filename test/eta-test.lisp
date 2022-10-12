@@ -272,3 +272,16 @@ A result will be visible when this function is called on the REPL."
     (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
     (is (not (null (gethash 'eta::heating-eta-op-hours-per-week cron::*cron-jobs-hash*))))
     (is (not (null (gethash 'eta::heating-eta-ig-count-per-day cron::*cron-jobs-hash*))))))
+
+(test calculate-avg
+  (let* ((day-in-secs (* 24 60 60))
+         (now (get-universal-time))
+         (initial (- now (* 3 day-in-secs)))
+         (avg-item (eta::make-avg-record :initial-value 0
+                                         :current-value 5
+                                         :initial-time initial
+                                         :current-time now
+                                         :cadence-name "foo")))
+    (is (equalp `("foo" . ,(/ (- 5 0)
+                              (float (/ (- now initial) day-in-secs))))
+                (eta::%calculate-avg avg-item)))))
