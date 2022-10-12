@@ -192,7 +192,7 @@ Returns monitor items."
            (find-if (lambda (avg)
                       (string= cadence-name (avg-record-cadence-name avg)))
                     old-avgs))
-         (new-avg (if old-avgs
+         (new-avg (if old-avg
                       old-avg
                       (make-avg-record
                        :initial-value mitem-val

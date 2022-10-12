@@ -244,7 +244,8 @@ A result will be visible when this function is called on the REPL."
                     (let ((invocs (invocations 'openhab:do-post)))
                       (containsp invocs "FooItemAvg2")))
                   1.0))
-        (is-true (= 2 (length (invocations 'eta::%calculate-avg))))))))
+        (is-true (= 2 (length (invocations 'eta::%calculate-avg)))))
+      )))
 
 (test jobdef-to-cronjob
   "Tests conversion of avg job definition to cron-job"
