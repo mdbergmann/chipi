@@ -47,6 +47,10 @@
   (current-time nil)
   (cadence-name nil))
 
+;; ---------------------
+;; public functions
+;; ---------------------
+
 (defun ensure-initialized ()
   (unless *serial-proxy-impl*
     (setf *serial-proxy-impl* :prod))
@@ -72,26 +76,6 @@
   (setf *actor-system* nil)
   (setf *serial-actor* nil)
   (setf *serial-proxy-impl* nil))
-
-(defun %init-actor ()
-  (clrhash cron::*cron-jobs-hash*)
-  (dolist (item *avg-items*)
-    (let ((cadences (cdr item)))
-      (dolist (cadence cadences)
-        (let ((cadence-name (car cadence))
-              (cadence-timedef (cdr cadence)))
-          (make-jobdefinition
-           (lambda () (report-avgs cadence-name))
-           cadence-timedef)))))
-  (cron:start-cron))
-
-(defun %destroy-actor ()
-  (clrhash cron::*cron-jobs-hash*)
-  (cron::stop-cron))
-
-;; ---------------------
-;; public functions
-;; ---------------------
 
 (defun init-serial (device)
   (multiple-value-bind (actor)
@@ -152,9 +136,37 @@ So we gotta trigger a read here as well."
                       :day-of-week (getf time-def :dow :every)
                       :hash-key (getf time-def :name)))
 
-;; ---------------------a
-;; actor handling
 ;; ---------------------
+;; internal functions
+;; ---------------------
+
+(defun %init-actor ()
+  (clrhash cron::*cron-jobs-hash*)
+  (dolist (item *avg-items*)
+    (let ((cadences (cdr item)))
+      (dolist (cadence cadences)
+        (let ((cadence-name (car cadence))
+              (cadence-timedef (cdr cadence)))
+          (make-jobdefinition
+           (lambda () (report-avgs cadence-name))
+           cadence-timedef)))))
+  (cron:start-cron))
+
+(defun %destroy-actor ()
+  (clrhash cron::*cron-jobs-hash*)
+  (cron::stop-cron))
+
+(defun %%find-avg-mon-items (mon-items)
+  "Finds monitor items where avg definitions exist in `*avg-items*'."
+  (utils:filter (lambda (mitem)
+                  (member (car mitem) *avg-items* :key #'car :test #'string=))
+                mon-items))
+
+(defun %%find-cadences (mon-item)
+  "Finds cadences for the given monitor item in `*avg-items*'."
+    (let* ((avg-item (find (car mon-item) *avg-items* :key #'car :test #'string=))
+           (cadences (cdr avg-item)))
+      cadences))
 
 (defun %process-complete-pkg (pkg-data)
   "Transmits monitor items to openhab.
@@ -174,18 +186,6 @@ Returns monitor items."
       (otherwise (progn
                    (log:info "Unknown extract pkg result!")
                    nil)))))
-
-(defun %%find-avg-mon-items (mon-items)
-  "Finds monitor items where avg definitions exist in `*avg-items*'."
-  (utils:filter (lambda (mitem)
-                  (member (car mitem) *avg-items* :key #'car :test #'string=))
-                mon-items))
-
-(defun %%find-cadences (mon-item)
-  "Finds cadences for the given monitor item in `*avg-items*'."
-    (let* ((avg-item (find (car mon-item) *avg-items* :key #'car :test #'string=))
-           (cadences (cdr avg-item)))
-      cadences))
 
 (defun %%make-new-avg (mitem-val cadence-name old-avgs)
   (let* ((old-avg
@@ -220,6 +220,13 @@ Returns monitor items."
                  :append new-avg)))
     (log:debug "New avgs: ~a" new-avgs)
     new-avgs))
+
+(defun %calculate-avg (avg-item)
+  )
+
+;; ---------------------
+;; actor handling
+;; ---------------------
 
 (defun %handle-init (state)
   (cons
@@ -278,14 +285,11 @@ Returns monitor items."
          (filtered (utils:filter (lambda (avg)
                                    (string= (avg-record-cadence-name avg) avg-to-report))
                                  avgs))
-         (calculated (mapcar #'calculate-avg filtered)))
+         (calculated (mapcar #'%calculate-avg filtered)))
     (dolist (avg calculated)
       (log:info "Posting avg:~a" avg)
       (openhab:do-post (car avg) (cdr avg))))
   (cons t state))
-
-(defun calculate-avg (avg-item)
-  )
 
 (defun %serial-actor-receive (self msg state)
   (let ((resp

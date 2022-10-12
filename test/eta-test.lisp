@@ -217,7 +217,7 @@ A result will be visible when this function is called on the REPL."
                       (= data 1.2)
                       (= data 2.1)))
           :ok))
-      (answer (eta::calculate-avg avg-item)
+      (answer (eta::%calculate-avg avg-item)
         (cond
           ((string= "FooItemAvg1" (eta::avg-record-cadence-name avg-item))
            '("FooItemAvg1" . 1.2)) ; just something to distinguish
@@ -229,24 +229,22 @@ A result will be visible when this function is called on the REPL."
       (is-true (utils:assert-cond
                 (lambda () (> *read-serial-called* 5))
                 1.0))
-      (is (eq :ok (report-avgs "FooItemAvg1")))
-      (is-true (utils:assert-cond
-                (lambda ()
-                  (flet ((containsp (invocs item)
-                           (member item invocs :key #'second :test #'string=)))
+      (flet ((containsp (invocs item)
+               (member item invocs :key #'second :test #'string=)))
+        (is (eq :ok (report-avgs "FooItemAvg1")))
+        (is-true (utils:assert-cond
+                  (lambda ()
                     (let ((invocs (invocations 'openhab:do-post)))
                       (and (containsp invocs "FooItemAvg1")
-                           (not (containsp invocs "FooItemAvg2"))))))
-                1.0))
-      (is (eq :ok (report-avgs "FooItemAvg2")))
-      (is-true (utils:assert-cond
-                (lambda ()
-                  (flet ((containsp (invocs item)
-                           (member item invocs :key #'second :test #'string=)))
+                           (not (containsp invocs "FooItemAvg2")))))
+                  1.0))
+        (is (eq :ok (report-avgs "FooItemAvg2")))
+        (is-true (utils:assert-cond
+                  (lambda ()
                     (let ((invocs (invocations 'openhab:do-post)))
-                      (containsp invocs "FooItemAvg2"))))
-                1.0))
-      (is-true (= 2 (length (invocations 'eta::calculate-avg)))))))
+                      (containsp invocs "FooItemAvg2")))
+                  1.0))
+        (is-true (= 2 (length (invocations 'eta::%calculate-avg))))))))
 
 (test jobdef-to-cronjob
   "Tests conversion of avg job definition to cron-job"
