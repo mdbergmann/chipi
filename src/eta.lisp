@@ -218,7 +218,7 @@ Returns monitor items."
                                           (%%make-new-avg (cdr mitem) (car cadence) avgs))
                                         cadences)
                  :append new-avg)))
-    (log:debug "New avgs: ~a" new-avgs)
+    (log:info "Avgs: ~a" new-avgs)
     new-avgs))
 
 (defun %calculate-avg (avg-item)
