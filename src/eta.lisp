@@ -13,6 +13,7 @@
 
 (in-package :cl-eta.eta)
 
+(log:config :info :sane :daily "logs/app.log" :backup nil)
 (log:config '(sento) :warn)
 
 (defvar *actor-system* nil)
