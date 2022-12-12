@@ -89,9 +89,11 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
 
 (defun %to-int (upper lower)
   (let* ((is-neg (%is-negative upper))
-         (masked-upper (logand upper #x7))
+         (masked-upper (if is-neg
+                           (logand upper #x00)
+                           upper))
          (result (+ (ash masked-upper 8) lower)))
-    (if is-neg (* -1 result) result)))
+    (if is-neg (/ result -10) result)))
 
 (defun %to-vec (int)
   (vector (ash (mask-field (byte 16 8) int) -8)
