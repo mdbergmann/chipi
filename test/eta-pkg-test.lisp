@@ -37,6 +37,19 @@
                   2 33 ; value two byte (545) / divisor 10
                   125))))))
 
+(test extract-pkg--monitor--one-item--negative-value
+  (is (equalp (list :eta-monitor (list (cons "EtaBoilerUnten" -28.9)))
+              (multiple-value-list
+               (extract-pkg
+                #(123
+                  77 68 ; service identifier
+                  5 ; payload len
+                  3 ; checksum of payload
+                  0 ; node id
+                  0 167 ; monitor id two byte
+                  129 33 ; value two byte (545) / divisor 10
+                  125))))))
+
 (test extract-pkg--monitor--more-items
   (is (equalp (list :eta-monitor (list (cons "EtaBoilerUnten" 54.5)
                                    (cons "EtaBoiler" 12.4)))
