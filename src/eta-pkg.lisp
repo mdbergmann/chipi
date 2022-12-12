@@ -88,6 +88,8 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
   (> (mask-field (byte 8 7) byte) 0))
 
 (defun %to-int (upper lower)
+  "On negatve values the upper byte is sent as #xff
+and the lower byte contains the full value * 100."
   (let* ((is-neg (%is-negative upper))
          (masked-upper (if is-neg
                            (logand upper #x00)
