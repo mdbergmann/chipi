@@ -38,8 +38,8 @@
                   125))))))
 
 (test extract-pkg--monitor--one-item--negative-value
-  (is (equalp (list :eta-monitor (list (cons "EtaBoilerUnten" -2.5)
-                                       (cons "EtaBoiler" -2.3)))
+  (is (equalp (list :eta-monitor (list (cons "EtaBoilerUnten" -2.6)
+                                       (cons "EtaBoiler" -2.1)))
               (multiple-value-list
                (extract-pkg
                 #(123
@@ -48,10 +48,10 @@
                   3 ; checksum of payload
                   0 ; node id
                   0 167 ; monitor id two byte
-                  255 250 ; negative value two byte (-545) / divisor 10
+                  255 229 ; negative value two byte (-2.6) / divisor 10
                   0
                   0 21
-                  255 230 ; negative (-23)
+                  255 234 ; negative (-2.1)
                   125))))))
 
 #|

@@ -88,14 +88,14 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
   (> (mask-field (byte 8 7) byte) 0))
 
 (defun %to-int (upper lower)
-  "On negatve values the upper byte is sent as #xff
-and the lower byte contains the full value * 100."
-  (let* ((is-neg (%is-negative upper))
-         (masked-upper (if is-neg
-                           (logand upper #x00)
-                           upper))
-         (result (+ (ash masked-upper 8) lower)))
-    (if is-neg (/ result -10) result)))
+  "On negatve values the number is sent as two complement."
+  (let ((is-neg (%is-negative upper)))
+    (if is-neg
+        (let* ((number (logior (ash upper 8) lower))
+               (bit-vector (bitsmash:bits<- number))
+               (complement (bit-not bit-vector)))
+          (* -1 (bitsmash:int<- complement)))
+        (+ (ash upper 8) lower))))
 
 (defun %to-vec (int)
   (vector (ash (mask-field (byte 16 8) int) -8)

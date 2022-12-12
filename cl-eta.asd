@@ -7,6 +7,7 @@
                "cserial-port"
                "drakma"
                "cl-cron"
+               "bit-smasher"
                )
   :components ((:module "src"
                 :serial t
