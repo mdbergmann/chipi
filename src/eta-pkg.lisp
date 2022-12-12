@@ -84,13 +84,13 @@ If this is a partial package the return is: `(values nil <partial-package>)'."
 (defun check-sum (seq)
   (mod (reduce #'+ seq) 256))
 
-(defun %is-negative (byte)
+(defun %negative-p (byte)
   (> (mask-field (byte 8 7) byte) 0))
 
 (defun %to-int (upper lower)
   "On negatve values the number is sent as two complement."
-  (let ((is-neg (%is-negative upper)))
-    (if is-neg
+  (let ((neg-p (%negative-p upper)))
+    (if neg-p
         (let* ((number (logior (ash upper 8) lower))
                (bit-vector (bitsmash:bits<- number))
                (complement (bit-not bit-vector)))
