@@ -77,7 +77,7 @@
     ;; So we can expect that after calling `start-record' an http call will go out
     ;; to openHAB with data we expect to be sent.
     (is (eq :ok (start-record)))
-    (is-true (utils:assert-cond (lambda ()
+    (is-true (miscutils:assert-cond (lambda ()
                                   (and (string= *item-name* "HeatingETAOperatingHours")
                                        (string= *raw-data* "99.0")))
                                 0.2))))
@@ -89,7 +89,7 @@
     ;; the `stop-record' function is counterpart of the `start-record' function.
     ;; It will instruct the ETA to stop sending monitor data.
     (is (eq :ok (stop-record)))
-    (is-true (utils:assert-cond (lambda ()
+    (is-true (miscutils:assert-cond (lambda ()
                                   (> *stop-record-written-serial* 0))
                                 0.2))))
 

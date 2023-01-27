@@ -73,14 +73,14 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (= (length (eta-pkg:new-start-record-pkg)) *write-serial-called*))
                 1.0)))))
 
 (test start-record--serial-written--read-received--repeated
   (with-fixture init-destroy ()
     (is (eq :ok (start-record)))
-    (is-true (utils:assert-cond
+    (is-true (miscutils:assert-cond
               (lambda () (> *read-serial-called* 3))  ;; we check for 3
               1.0))))
 
@@ -90,7 +90,7 @@ A result will be visible when this function is called on the REPL."
       (answer eta-pkg:collect-data (values nil #()))
       
       (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
               (lambda () (and (> *read-serial-called* 0)
                          (> (length (invocations 'eta-pkg:collect-data)) 0)))
               1.0)))))
@@ -101,7 +101,7 @@ A result will be visible when this function is called on the REPL."
       (answer eta-pkg:collect-data (values nil `#(123 0 1 2 3)))
       
       (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
                            (> (length (invocations 'eta-pkg:collect-data)) 0)))
                 1.0)))))
@@ -113,7 +113,7 @@ A result will be visible when this function is called on the REPL."
       (answer eta-pkg:extract-pkg (values :eta-monitor '()))
 
       (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
                            (= (length (invocations 'eta-pkg:extract-pkg)) 1)))
                 1.0)))))
@@ -130,7 +130,7 @@ A result will be visible when this function is called on the REPL."
           :ok))
 
       (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
                            (= (length (invocations 'eta-pkg:extract-pkg)) 1)
                            (= (length (invocations 'openhab:do-post)) 1)))
@@ -150,7 +150,7 @@ A result will be visible when this function is called on the REPL."
 
       (is-true (null (eta::actor-state-avgs (eta::get-state))))
       (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (> *read-serial-called* 5))
                 1.0))
       (let* ((state (eta::get-state))
@@ -177,7 +177,7 @@ A result will be visible when this function is called on the REPL."
       (answer openhab:do-post nil)
 
       (is (eq :ok (start-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
                            (= (length (invocations 'eta-pkg:extract-pkg)) 1)))
                 1.0))
@@ -187,7 +187,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
       (is (eq :ok (stop-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (= (length (eta-pkg:new-stop-record-pkg)) *write-serial-called*))
                 1.0)))))
 
@@ -196,7 +196,7 @@ A result will be visible when this function is called on the REPL."
     (with-mocks ()
       (is (eq :ok (start-record)))
       (is (eq :ok (stop-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (= (length (eta-pkg:new-stop-record-pkg)) *write-serial-called*))
                 1.0))
       (sleep 0.5)
@@ -229,13 +229,13 @@ A result will be visible when this function is called on the REPL."
       (sleep 0.01)
       ;; stop the read, otherwise reads are happening and again filling the avgs
       (is (eq :ok (stop-record)))
-      (is-true (utils:assert-cond
+      (is-true (miscutils:assert-cond
                 (lambda () (> *read-serial-called* 1))
                 1.0))
       (flet ((containsp (invocs item)
                (member item invocs :key #'second :test #'string=)))
         (is (eq :ok (report-avgs "FooItemAvg1")))
-        (is-true (utils:assert-cond
+        (is-true (miscutils:assert-cond
                   (lambda ()
                     (let ((invocs (invocations 'openhab:do-post)))
                       (and (containsp invocs "FooItemAvg1")
@@ -243,13 +243,13 @@ A result will be visible when this function is called on the REPL."
                   1.0))
         
         (is (eq :ok (report-avgs "FooItemAvg2")))
-        (is-true (utils:assert-cond
+        (is-true (miscutils:assert-cond
                   (lambda ()
                     (let ((invocs (invocations 'openhab:do-post)))
                       (containsp invocs "FooItemAvg2")))
                   1.0)))
-      (is-true (= 2 (length (invocations 'eta::%calculate-avg))))
-      (is-true (= 0 (length (eta::actor-state-avgs (eta::get-state)))))
+      (is (= 2 (length (invocations 'eta::%calculate-avg))))
+      (is (= 0 (length (eta::actor-state-avgs (eta::get-state)))))
       )))
 
 (test jobdef-to-cronjob

@@ -1,6 +1,9 @@
 (defpackage :cl-eta.eta
   (:use :cl :sento-user)
   (:nicknames :eta)
+  (:import-from #:act
+                #:*state*
+                #:*self*)
   (:export #:init-serial
            #:close-serial
            #:start-record
@@ -61,8 +64,8 @@
     (setf *serial-actor* (ac:actor-of *actor-system*
                                       :name "ETA-serial-actor"
                                       :state (make-actor-state)
-                                      :receive (lambda (self msg state)
-                                                 (%serial-actor-receive self msg state))
+                                      :receive (lambda (msg)
+                                                 (%serial-actor-receive msg))
                                       :init (lambda (self)
                                               (declare (ignore self))
                                               (%init-actor))
@@ -159,9 +162,9 @@ So we gotta trigger a read here as well."
 
 (defun %%find-avg-mon-items (mon-items)
   "Finds monitor items where avg definitions exist in `*avg-items*'."
-  (utils:filter (lambda (mitem)
-                  (member (car mitem) *avg-items* :key #'car :test #'string=))
-                mon-items))
+  (miscutils:filter (lambda (mitem)
+                      (member (car mitem) *avg-items* :key #'car :test #'string=))
+                    mon-items))
 
 (defun %%find-cadences (mon-item)
   "Finds cadences for the given monitor item in `*avg-items*'."
@@ -240,19 +243,15 @@ Returns monitor items."
 ;; actor handling
 ;; ---------------------
 
-(defun %handle-init (state)
-  (cons
-   (setf *serial-port*
-         (eta-ser-if:open-serial *serial-proxy-impl* *serial-device*))
-   state))
+(defun %handle-init ()
+  (setf *serial-port*
+        (eta-ser-if:open-serial *serial-proxy-impl* *serial-device*)))
 
-(defun %handle-close (state)
-  (cons
-   (eta-ser-if:close-serial *serial-proxy-impl* *serial-port*)
-   state))
+(defun %handle-close ()
+  (eta-ser-if:close-serial *serial-proxy-impl* *serial-port*))
 
-(defun %handle-write (data state)
-  (cons (eta-ser-if:write-serial *serial-proxy-impl* *serial-port* data) state))
+(defun %handle-write (data)
+  (eta-ser-if:write-serial *serial-proxy-impl* *serial-port* data))
 
 (defun %handle-read (actor state)
   (let ((serial-data (actor-state-serial-data state))
@@ -276,25 +275,24 @@ Returns monitor items."
       (setf (actor-state-serial-data state) new-serial-data)
       (when (actor-state-do-read-p state)
         (act:tell actor '(:read . nil)))
-      (cons t state))))
+      t)))
 
 (defun %handle-start-read (actor state)
   (act:tell actor '(:read . nil))
-  (setf (actor-state-do-read-p state) t)
-  (cons t state))
+  (setf (actor-state-do-read-p state) t))
 
 (defun %handle-stop-read (state)
   (setf (actor-state-do-read-p state) nil)
-  (cons t state))
+  t)
 
 (defun %handle-get-state (state)
-  (cons state state))
+  state)
 
 (defun %handle-report-avgs (state avg-to-report)
   (let* ((avgs (actor-state-avgs state))
-         (filtered (utils:filter (lambda (avg)
-                                   (string= (avg-record-cadence-name avg) avg-to-report))
-                                 avgs))
+         (filtered (miscutils:filter (lambda (avg)
+                                       (string= (avg-record-cadence-name avg) avg-to-report))
+                                     avgs))
          (calculated (mapcar #'%calculate-avg filtered)))
     (flet ((remove-avg (avg-name)
              (delete-if (lambda (avg)
@@ -303,19 +301,20 @@ Returns monitor items."
       (dolist (calc calculated)
         (log:info "Posting avg:~a" calc)
         (openhab:do-post (car calc) (cdr calc))
-        (setf avgs (remove-avg (car calc)))))
-    (cons t state)))
+        (setf avgs (remove-avg (car calc)))
+        (setf (actor-state-avgs state) avgs)))
+    t))
 
-(defun %serial-actor-receive (self msg state)
+(defun %serial-actor-receive (msg)
   (let ((resp
           (case (car msg)
-            (:init (%handle-init state))
-            (:close (%handle-close state))
-            (:write (%handle-write (cdr msg) state))
-            (:read (%handle-read self state))
-            (:start-read (%handle-start-read self state))
-            (:stop-read (%handle-stop-read state))
-            (:state (%handle-get-state state))
-            (:report-avgs (%handle-report-avgs state (cdr msg))))))
+            (:init (%handle-init))
+            (:close (%handle-close))
+            (:write (%handle-write (cdr msg)))
+            (:read (%handle-read *self* *state*))
+            (:start-read (%handle-start-read *self* *state*))
+            (:stop-read (%handle-stop-read *state*))
+            (:state (%handle-get-state *state*))
+            (:report-avgs (%handle-report-avgs *state* (cdr msg))))))
     ;;(format t "msg:~a, resp:~a~%" msg resp)
     resp))
