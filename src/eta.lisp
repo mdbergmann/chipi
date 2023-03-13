@@ -46,6 +46,12 @@
   (do-read-p nil))
 
 (defstruct avg-record
+  "An average record.
+The first value reading will fill `initial-value' and `initial-time'.
+Subsequent value reads will fill `current-value' and `current-time'.
+When time is due to report (see `*avg-items*')
+then average values will be calculated, see `%calculate-avg'.
+`cadence-name' must match caadr of `*avg-items*'."
   (initial-value nil)
   (current-value nil)
   (initial-time nil)
