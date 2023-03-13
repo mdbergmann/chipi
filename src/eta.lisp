@@ -290,9 +290,10 @@ Returns monitor items."
 
 (defun %handle-report-avgs (state avg-to-report)
   (let* ((avgs (actor-state-avgs state))
-         (filtered (miscutils:filter (lambda (avg)
-                                       (string= (avg-record-cadence-name avg) avg-to-report))
-                                     avgs))
+         (filtered (miscutils:filter
+                    (lambda (avg)
+                      (string= (avg-record-cadence-name avg) avg-to-report))
+                    avgs))
          (calculated (mapcar #'%calculate-avg filtered)))
     (flet ((remove-avg (avg-name)
              (delete-if (lambda (avg)
@@ -300,9 +301,14 @@ Returns monitor items."
                         avgs)))
       (dolist (calc calculated)
         (log:info "Posting avg:~a" calc)
-        (openhab:do-post (car calc) (cdr calc))
-        (setf avgs (remove-avg (car calc)))
-        (setf (actor-state-avgs state) avgs)))
+        (handler-case
+            (let ((avg-name (car calc))
+                  (avg-value (cdr calc)))
+              (openhab:do-post avg-name avg-value)
+              (setf avgs (remove-avg avg-name))
+              (setf (actor-state-avgs state) avgs))
+          (error (c)
+            (log:warn "Error sending avgs: ~a" c)))))
     t))
 
 (defun %serial-actor-receive (msg)

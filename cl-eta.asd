@@ -64,6 +64,7 @@ OK - calculate op hours and ignition avgs daily and weekly
 OK - report avgs
 OK - calculate avgs
 OK - reset avg after report
+OK - error handling for drakma request
 - filter temp values for spikes
 - implement more receive package types (error, etc)
 |#

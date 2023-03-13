@@ -12,4 +12,5 @@
   (drakma:http-request (format nil "~a~a" *openhab-base-url* resource)
                        :method :post
                        :content (write-to-string data)
-                       :content-type "text/plain"))
+                       :content-type "text/plain")
+  :ok)

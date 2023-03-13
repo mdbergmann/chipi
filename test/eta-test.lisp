@@ -252,6 +252,38 @@ A result will be visible when this function is called on the REPL."
       (is (= 0 (length (eta::actor-state-avgs (eta::get-state)))))
       )))
 
+(test report-avgs--err-on-avg-http
+  (with-fixture init-destroy ('(("FooItem" . (("FooItemAvg1" . nil)))))
+    (with-mocks ()
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
+      (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
+      (answer (openhab:do-post res _)
+        (if (equal res "FooItem")
+            :ok
+            (error "Some condition!")))
+      (answer (eta::%calculate-avg avg-item)
+        (cond
+          ((string= "FooItemAvg1" (eta::avg-record-cadence-name avg-item))
+           '("FooItemAvg1" . 1.2)) ; just something to distinguish
+          (t (error "shouldn't be here!"))))
+
+      (is (eq :ok (start-record)))
+      (sleep 0.01)
+      ;; stop the read, otherwise reads are happening and again filling the avgs
+      (is (eq :ok (stop-record)))
+      (is-true (miscutils:assert-cond
+                (lambda () (> *read-serial-called* 1))
+                1.0))
+      (flet ((containsp (invocs item)
+               (member item invocs :key #'second :test #'string=)))
+        (is (eq :ok (report-avgs "FooItemAvg1")))
+        (is-true (miscutils:assert-cond
+                  (lambda ()
+                    (let ((invocs (invocations 'openhab:do-post)))
+                      (containsp invocs "FooItemAvg1")))
+                    1.0)))
+      (is (= 1 (length (eta::actor-state-avgs (eta::get-state))))))))
+
 (test jobdef-to-cronjob
   "Tests conversion of avg job definition to cron-job"
   (let ((job (make-jobdefinition (lambda ()) '(:m 0 :h 0 :d 0 :dow 0 :dom 0 :name test))))
