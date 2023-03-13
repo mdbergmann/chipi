@@ -36,6 +36,7 @@
     ("HeatingETAIgnitionCount" . (("HeatingETAIgCountPerDay" .
                                    (:m 0
                                     :h 0
+                                    :dow 0
                                     :name heating-eta-ig-count-per-day))))))
 
 ;; this should be part of actor state
