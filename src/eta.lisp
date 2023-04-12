@@ -63,6 +63,8 @@ then average values will be calculated, see `%calculate-avg'.
   (current-time nil)
   (cadence-name nil))
 
+;; Public functions
+
 (defun eta-init-serial (device)
   (multiple-value-bind (actor)
       (ensure-initialized)
@@ -325,6 +327,7 @@ Returns monitor items."
     (setf *eta-serial-proxy-impl* :prod))
   (unless *actor-system*
     (setf *actor-system* (asys:make-actor-system))
+    ;; separate dispatcher for tasks
     (asys:register-dispatcher *actor-system*
                               (disp:make-dispatcher *actor-system*
                                                     :tasks

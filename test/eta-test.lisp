@@ -303,7 +303,7 @@ A result will be visible when this function is called on the REPL."
                                   ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2)))))))
   (is (= 0 (hash-table-count cron::*cron-jobs-hash*))))
 
-(test real-avgs
+(test real-avgs--have-deployed-cron-jobs
   (with-fixture init-destroy ()
     (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
     (is (not (null (gethash 'eta::heating-eta-op-hours-per-week cron::*cron-jobs-hash*))))
@@ -314,10 +314,10 @@ A result will be visible when this function is called on the REPL."
          (now (get-universal-time))
          (initial (- now (* 3 day-in-secs)))
          (avg-item (eta::make-eta-avg-record :initial-value 0
-                                         :current-value 5
-                                         :initial-time initial
-                                         :current-time now
-                                         :cadence-name "foo")))
+                                             :current-value 5
+                                             :initial-time initial
+                                             :current-time now
+                                             :cadence-name "foo")))
     (is (equalp `("foo" . ,(/ (- 5 0)
                               (float (/ (- now initial) day-in-secs))))
                 (eta::%calculate-avg avg-item)))))
