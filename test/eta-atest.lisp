@@ -71,12 +71,12 @@
 (test start-record--success
   "Sends the record ETA interface package that will result in receiving data packages."
   (with-fixture init-destroy ()
-    (setf eta:*serial-proxy-impl* :atest-start-record)
+    (setf eta:*eta-serial-proxy-impl* :atest-start-record)
     ;; the `start-record' function is the trigger for the boiler to send monitor data,
     ;; which is eventually forwarded to openHAB.
     ;; So we can expect that after calling `start-record' an http call will go out
     ;; to openHAB with data we expect to be sent.
-    (is (eq :ok (start-record)))
+    (is (eq :ok (eta-start-record)))
     (is-true (miscutils:assert-cond (lambda ()
                                   (and (string= *item-name* "HeatingETAOperatingHours")
                                        (string= *raw-data* "99.0")))
@@ -85,10 +85,10 @@
 (test stop-record--success
   "Sends the serial command to stop sending record packages."
   (with-fixture init-destroy ()
-    (setf eta:*serial-proxy-impl* :atest-stop-record)
+    (setf eta:*eta-serial-proxy-impl* :atest-stop-record)
     ;; the `stop-record' function is counterpart of the `start-record' function.
     ;; It will instruct the ETA to stop sending monitor data.
-    (is (eq :ok (stop-record)))
+    (is (eq :ok (eta-stop-record)))
     (is-true (miscutils:assert-cond (lambda ()
                                   (> *stop-record-written-serial* 0))
                                 0.2))))

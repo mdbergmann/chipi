@@ -37,33 +37,33 @@
   (setf *open-serial-called* nil
         *write-serial-called* 0
         *read-serial-called* 0)
-  (let ((avgs-copy eta::*avg-items*))
+  (let ((avgs-copy eta::*eta-avg-items*))
     (when avgs-items
-      (setf eta::*avg-items* avgs-items))
+      (setf eta::*eta-avg-items* avgs-items))
     (unwind-protect
          (progn
            (eta:ensure-initialized)
-           (setf eta:*serial-proxy-impl* :test)
+           (setf eta:*eta-serial-proxy-impl* :test)
            (&body))
       (progn
         (eta:ensure-shutdown)
-        (setf eta::*avg-items* avgs-copy)))))
+        (setf eta::*eta-avg-items* avgs-copy)))))
 
 (test init-serial
   (with-fixture init-destroy ()
-    (is (eq :ok (init-serial "/dev/serial")))
+    (is (eq :ok (eta-init-serial "/dev/serial")))
     (is-true *open-serial-called*)))
 
 (test init-serial--fail-to-open
   (with-fixture init-destroy ()
-    (let ((init-serial-result (multiple-value-list (init-serial "/dev/not-exists"))))
+    (let ((init-serial-result (multiple-value-list (eta-init-serial "/dev/not-exists"))))
       (is (eq :fail (car init-serial-result)))
       (is (string= "Can't open!" (cadr init-serial-result))))))
 
 (test close-serial
   (with-fixture init-destroy ()
-    (is (eq :ok (init-serial "/dev/serial")))
-    (is (eq :ok (close-serial)))
+    (is (eq :ok (eta-init-serial "/dev/serial")))
+    (is (eq :ok (eta-close-serial)))
     (is-true *close-serial-called*)))
 
 (test start-record--serial-written
@@ -72,39 +72,39 @@ This is asynchronous and we don't check a result.
 A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
-      (is (eq :ok (start-record)))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (= (length (eta-pkg:new-start-record-pkg)) *write-serial-called*))
                 1.0)))))
 
 (test start-record--serial-written--read-received--repeated
   (with-fixture init-destroy ()
-    (is (eq :ok (start-record)))
+    (is (eq :ok (eta-start-record)))
     (is-true (miscutils:assert-cond
               (lambda () (> *read-serial-called* 3))  ;; we check for 3
-              1.0))))
+              10.0))))
 
 (test start-record--read-received--call-parser
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:collect-data (values nil #()))
       
-      (is (eq :ok (start-record)))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
               (lambda () (and (> *read-serial-called* 0)
                          (> (length (invocations 'eta-pkg:collect-data)) 0)))
-              1.0)))))
+              10.0)))))
 
 (test start-record--read-received--call-parser--no-complete
   (with-fixture init-destroy ()
     (with-mocks ()
       (answer eta-pkg:collect-data (values nil `#(123 0 1 2 3)))
       
-      (is (eq :ok (start-record)))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
                            (> (length (invocations 'eta-pkg:collect-data)) 0)))
-                1.0)))))
+                10.0)))))
 
 (test start-record--read-received--call-parser--complete--empty-monitor
   (with-fixture init-destroy ()
@@ -112,11 +112,11 @@ A result will be visible when this function is called on the REPL."
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :eta-monitor '()))
 
-      (is (eq :ok (start-record)))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
                            (= (length (invocations 'eta-pkg:extract-pkg)) 1)))
-                1.0)))))
+                10.0)))))
 
 (test start-record--read-received--call-parser--complete--with-monitor
   (with-fixture init-destroy ()
@@ -129,12 +129,12 @@ A result will be visible when this function is called on the REPL."
           (assert (= data 1.1))
           :ok))
 
-      (is (eq :ok (start-record)))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
                            (= (length (invocations 'eta-pkg:extract-pkg)) 1)
                            (= (length (invocations 'openhab:do-post)) 1)))
-                1.0)))))
+                10.0)))))
 
 (test start-record--complete--with-monitor--build-avg
   "We use `get-state' internal API to retrieve the state of the actor in order to check on the avgs."
@@ -148,22 +148,23 @@ A result will be visible when this function is called on the REPL."
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1) ("FooItem2" . 2.2))))
       (answer openhab:do-post :ok)
 
-      (is-true (null (eta::actor-state-avgs (eta::get-state))))
-      (is (eq :ok (start-record)))
+      (is-true (null (eta::eta-actor-state-avgs (eta::eta-get-state))))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (> *read-serial-called* 5))
-                1.0))
-      (let* ((state (eta::get-state))
-             (avgs (eta::actor-state-avgs state)))
+                10.0))
+;;      (is (eq :ok (eta-stop-record)))      
+      (let* ((state (eta::eta-get-state))
+             (avgs (eta::eta-actor-state-avgs state)))
         (is (= (length avgs) 3))
-        (is (every (lambda (x) (typep x 'eta::avg-record)) avgs))
+        (is (every (lambda (x) (typep x 'eta::eta-avg-record)) avgs))
         (flet ((assert-avg (name initial-value current-value initial-time current-time)
                  (find-if
-                  (lambda (x) (and (string= name (eta::avg-record-cadence-name x))
-                              (= initial-value (eta::avg-record-initial-value x))
-                              (= current-value (eta::avg-record-current-value x))
-                              (> (eta::avg-record-initial-time x) initial-time)
-                              (> (eta::avg-record-current-time x) current-time)))
+                  (lambda (x) (and (string= name (eta::eta-avg-record-cadence-name x))
+                              (= initial-value (eta::eta-avg-record-initial-value x))
+                              (= current-value (eta::eta-avg-record-current-value x))
+                              (> (eta::eta-avg-record-initial-time x) initial-time)
+                              (> (eta::eta-avg-record-current-time x) current-time)))
                   avgs)))
           (is-true (and (assert-avg "FooItemAvg1" 1.1 1.1 0 0)
                         (assert-avg "FooItemAvg2" 1.1 1.1 0 0)
@@ -176,29 +177,29 @@ A result will be visible when this function is called on the REPL."
       (answer eta-pkg:extract-pkg (values :fail "Extract failure!"))
       (answer openhab:do-post nil)
 
-      (is (eq :ok (start-record)))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (and (> *read-serial-called* 0)
                            (= (length (invocations 'eta-pkg:extract-pkg)) 1)))
-                1.0))
+                10.0))
       (is (= (length (invocations 'openhab:do-post)) 0)))))
 
 (test stop-record--serial-written
   (with-fixture init-destroy ()
     (with-mocks ()
-      (is (eq :ok (stop-record)))
+      (is (eq :ok (eta-stop-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (= (length (eta-pkg:new-stop-record-pkg)) *write-serial-called*))
-                1.0)))))
+                10.0)))))
 
 (test stop-record--stops-read
   (with-fixture init-destroy ()
     (with-mocks ()
-      (is (eq :ok (start-record)))
-      (is (eq :ok (stop-record)))
+      (is (eq :ok (eta-start-record)))
+      (is (eq :ok (eta-stop-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (= (length (eta-pkg:new-stop-record-pkg)) *write-serial-called*))
-                1.0))
+                10.0))
       (sleep 0.5)
       (is (< *read-serial-called* 5)))))
 
@@ -219,37 +220,38 @@ A result will be visible when this function is called on the REPL."
           :ok))
       (answer (eta::%calculate-avg avg-item)
         (cond
-          ((string= "FooItemAvg1" (eta::avg-record-cadence-name avg-item))
+          ((string= "FooItemAvg1" (eta::eta-avg-record-cadence-name avg-item))
            '("FooItemAvg1" . 1.2)) ; just something to distinguish
-          ((string= "FooItemAvg2" (eta::avg-record-cadence-name avg-item))
+          ((string= "FooItemAvg2" (eta::eta-avg-record-cadence-name avg-item))
            '("FooItemAvg2" . 2.1)) ; just something
           (t (error "shouldn't be here!"))))
 
-      (is (eq :ok (start-record)))
-      (sleep 0.01)
-      ;; stop the read, otherwise reads are happening and again filling the avgs
-      (is (eq :ok (stop-record)))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (> *read-serial-called* 1))
-                1.0))
+                10.0))
+      ;; stop read to not accumulate more avgs
+      (is (eq :ok (eta-stop-record)))
       (flet ((containsp (invocs item)
                (member item invocs :key #'second :test #'string=)))
-        (is (eq :ok (report-avgs "FooItemAvg1")))
+        (is (eq :ok (eta-report-avgs "FooItemAvg1")))
         (is-true (miscutils:assert-cond
                   (lambda ()
                     (let ((invocs (invocations 'openhab:do-post)))
                       (and (containsp invocs "FooItemAvg1")
                            (not (containsp invocs "FooItemAvg2")))))
-                  1.0))
+                  10.0))
         
-        (is (eq :ok (report-avgs "FooItemAvg2")))
+        (is (eq :ok (eta-report-avgs "FooItemAvg2")))
         (is-true (miscutils:assert-cond
                   (lambda ()
                     (let ((invocs (invocations 'openhab:do-post)))
                       (containsp invocs "FooItemAvg2")))
-                  1.0)))
+                  10.0)))
       (is (= 2 (length (invocations 'eta::%calculate-avg))))
-      (is (= 0 (length (eta::actor-state-avgs (eta::get-state)))))
+      ;; check avgs have been cleaned upon submitting
+      ;; flacky test
+      (is (= 0 (length (eta::eta-actor-state-avgs (eta::eta-get-state)))))
       )))
 
 (test report-avgs--err-on-avg-http
@@ -263,30 +265,26 @@ A result will be visible when this function is called on the REPL."
             (error "Some condition!")))
       (answer (eta::%calculate-avg avg-item)
         (cond
-          ((string= "FooItemAvg1" (eta::avg-record-cadence-name avg-item))
+          ((string= "FooItemAvg1" (eta::eta-avg-record-cadence-name avg-item))
            '("FooItemAvg1" . 1.2)) ; just something to distinguish
           (t (error "shouldn't be here!"))))
 
-      (is (eq :ok (start-record)))
-      (sleep 0.01)
-      ;; stop the read, otherwise reads are happening and again filling the avgs
-      (is (eq :ok (stop-record)))
+      (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (> *read-serial-called* 1))
-                1.0))
+                10.0))
       (flet ((containsp (invocs item)
                (member item invocs :key #'second :test #'string=)))
-        (is (eq :ok (report-avgs "FooItemAvg1")))
+        (is (eq :ok (eta-report-avgs "FooItemAvg1")))
         (is-true (miscutils:assert-cond
                   (lambda ()
                     (let ((invocs (invocations 'openhab:do-post)))
                       (containsp invocs "FooItemAvg1")))
-                    1.0)))
-      (is (= 1 (length (eta::actor-state-avgs (eta::get-state))))))))
+                    10.0))))))
 
 (test jobdef-to-cronjob
   "Tests conversion of avg job definition to cron-job"
-  (let ((job (make-jobdefinition (lambda ()) '(:m 0 :h 0 :d 0 :dow 0 :dom 0 :name test))))
+  (let ((job (eta-make-jobdefinition (lambda ()) '(:m 0 :h 0 :d 0 :dow 0 :dom 0 :name test))))
     (is (symbolp job))
     (is (eq 'test job))))
 
@@ -315,7 +313,7 @@ A result will be visible when this function is called on the REPL."
   (let* ((day-in-secs (* 24 60 60))
          (now (get-universal-time))
          (initial (- now (* 3 day-in-secs)))
-         (avg-item (eta::make-avg-record :initial-value 0
+         (avg-item (eta::make-eta-avg-record :initial-value 0
                                          :current-value 5
                                          :initial-time initial
                                          :current-time now

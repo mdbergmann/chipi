@@ -3,16 +3,17 @@
   (:nicknames :eta)
   (:import-from #:act
                 #:*state*
-                #:*self*)
-  (:export #:init-serial
-           #:close-serial
-           #:start-record
-           #:stop-record
-           #:report-avgs
+                #:*self*
+                #:!)
+  (:export #:eta-init-serial
+           #:eta-close-serial
+           #:eta-start-record
+           #:eta-stop-record
+           #:eta-report-avgs
+           #:eta-make-jobdefinition
+           #:*eta-serial-proxy-impl*
            #:ensure-initialized
-           #:ensure-shutdown
-           #:make-jobdefinition
-           #:*serial-proxy-impl*))
+           #:ensure-shutdown))
 
 (in-package :cl-eta.eta)
 
@@ -20,14 +21,18 @@
 (log:config '(sento) :warn)
 
 (defvar *actor-system* nil)
-(defvar *serial-actor* nil)
-(defvar *serial-device* nil)
-(defvar *serial-port* nil)
-(defvar *serial-proxy-impl* nil)
 
-(defvar +new-empty-data+ #())
+;; ---------------------
+;; eta-serial
+;; ---------------------
 
-(defparameter *avg-items*
+(defvar *eta-serial-actor* nil)
+(defvar *eta-serial-device* nil)
+(defvar *eta-serial-port* nil)
+(defvar *eta-serial-proxy-impl* nil)
+(defvar +eta-new-empty-data+ #())
+
+(defparameter *eta-avg-items*
   '(("HeatingETAOperatingHours" . (("HeatingETAOpHoursPerWeek" .
                                     (:m 0
                                      :h 0
@@ -40,58 +45,28 @@
                                     :name heating-eta-ig-count-per-day))))))
 
 ;; this should be part of actor state
-(defstruct actor-state
-  (serial-data +new-empty-data+)
+(defstruct eta-actor-state
+  (serial-data +eta-new-empty-data+)
   (avgs nil)
   (do-read-p nil))
 
-(defstruct avg-record
+(defstruct eta-avg-record
   "An average record.
 The first value reading will fill `initial-value' and `initial-time'.
 Subsequent value reads will fill `current-value' and `current-time'.
-When time is due to report (see `*avg-items*')
+When time is due to report (see `*eta-avg-items*')
 then average values will be calculated, see `%calculate-avg'.
-`cadence-name' must match caadr of `*avg-items*'."
+`cadence-name' must match caadr of `*eta-avg-items*'."
   (initial-value nil)
   (current-value nil)
   (initial-time nil)
   (current-time nil)
   (cadence-name nil))
 
-;; ---------------------
-;; public functions
-;; ---------------------
-
-(defun ensure-initialized ()
-  (unless *serial-proxy-impl*
-    (setf *serial-proxy-impl* :prod))
-  (unless *actor-system*
-    (setf *actor-system* (asys:make-actor-system)))
-  (unless *serial-actor*
-    (setf *serial-actor* (ac:actor-of *actor-system*
-                                      :name "ETA-serial-actor"
-                                      :state (make-actor-state)
-                                      :receive (lambda (msg)
-                                                 (%serial-actor-receive msg))
-                                      :init (lambda (self)
-                                              (declare (ignore self))
-                                              (%init-actor))
-                                      :destroy (lambda (self)
-                                                 (declare (ignore self))
-                                                 (%destroy-actor)))))
-  (values *serial-actor* *actor-system*))
-
-(defun ensure-shutdown ()
-  (when *actor-system*
-    (ac:shutdown *actor-system* :wait t))
-  (setf *actor-system* nil)
-  (setf *serial-actor* nil)
-  (setf *serial-proxy-impl* nil))
-
-(defun init-serial (device)
+(defun eta-init-serial (device)
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (setf *serial-device* device)
+    (setf *eta-serial-device* device)
     (let ((ask-result (act:ask-s actor '(:init . nil))))
       (cond
         ((listp ask-result)
@@ -100,7 +75,7 @@ then average values will be calculated, see `%calculate-avg'.
            (otherwise (values :ok))))
         (t (values :ok))))))
 
-(defun close-serial ()
+(defun eta-close-serial ()
   (multiple-value-bind (actor)
       (ensure-initialized)
     (let ((ask-result (act:ask-s actor '(:close . nil))))
@@ -111,35 +86,35 @@ then average values will be calculated, see `%calculate-avg'.
            (otherwise (values :ok))))
         (t (values :ok))))))
 
-(defun start-record ()
+(defun eta-start-record ()
   "Triggers the recording of data.
 Once this command is sent, the ETA will start to send monitor data packages.
 So we gotta trigger a read here as well."
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (act:tell actor `(:write . ,(eta-pkg:new-start-record-pkg)))
-    (act:tell actor '(:start-read . nil)))
+    (! actor `(:write . ,(eta-pkg:new-start-record-pkg)))
+    (! actor '(:start-read . nil)))
   :ok)
 
-(defun stop-record ()
+(defun eta-stop-record ()
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (act:ask-s actor '(:stop-read . nil))
+    (! actor '(:stop-read . nil))
     (act:ask-s actor `(:write . ,(eta-pkg:new-stop-record-pkg))))
   :ok)
 
-(defun get-state ()
+(defun eta-get-state ()
   (multiple-value-bind (actor)
       (ensure-initialized)
     (act:ask-s actor '(:state . nil))))
 
-(defun report-avgs (avg-to-report)
+(defun eta-report-avgs (avg-to-report)
   (multiple-value-bind (actor)
       (ensure-initialized)
-    (act:tell actor `(:report-avgs . ,avg-to-report)))
+    (! actor `(:report-avgs . ,avg-to-report)))
   :ok)
 
-(defun make-jobdefinition (fun time-def)
+(defun eta-make-jobdefinition (fun time-def)
   (cron:make-cron-job fun
                       :minute (getf time-def :m :every)
                       :hour (getf time-def :h :every)
@@ -147,35 +122,33 @@ So we gotta trigger a read here as well."
                       :day-of-week (getf time-def :dow :every)
                       :hash-key (getf time-def :name)))
 
-;; ---------------------
 ;; internal functions
-;; ---------------------
 
-(defun %init-actor ()
+(defun %eta-init-actor ()
   (clrhash cron::*cron-jobs-hash*)
-  (dolist (item *avg-items*)
+  (dolist (item *eta-avg-items*)
     (let ((cadences (cdr item)))
       (dolist (cadence cadences)
         (let ((cadence-name (car cadence))
               (cadence-timedef (cdr cadence)))
-          (make-jobdefinition
-           (lambda () (report-avgs cadence-name))
+          (eta-make-jobdefinition
+           (lambda () (eta-report-avgs cadence-name))
            cadence-timedef)))))
   (cron:start-cron))
 
-(defun %destroy-actor ()
+(defun %eta-destroy-actor ()
   (clrhash cron::*cron-jobs-hash*)
   (cron::stop-cron))
 
 (defun %%find-avg-mon-items (mon-items)
-  "Finds monitor items where avg definitions exist in `*avg-items*'."
+  "Finds monitor items where avg definitions exist in `*eta-avg-items*'."
   (miscutils:filter (lambda (mitem)
-                      (member (car mitem) *avg-items* :key #'car :test #'string=))
+                      (member (car mitem) *eta-avg-items* :key #'car :test #'string=))
                     mon-items))
 
 (defun %%find-cadences (mon-item)
-  "Finds cadences for the given monitor item in `*avg-items*'."
-    (let* ((avg-item (find (car mon-item) *avg-items* :key #'car :test #'string=))
+  "Finds cadences for the given monitor item in `*eta-avg-items*'."
+    (let* ((avg-item (find (car mon-item) *eta-avg-items* :key #'car :test #'string=))
            (cadences (cdr avg-item)))
       cadences))
 
@@ -201,16 +174,16 @@ Returns monitor items."
 (defun %%make-new-avg (mitem-val cadence-name old-avgs)
   (let* ((old-avg
            (find-if (lambda (avg)
-                      (string= cadence-name (avg-record-cadence-name avg)))
+                      (string= cadence-name (eta-avg-record-cadence-name avg)))
                     old-avgs))
          (new-avg (if old-avg
                       old-avg
-                      (make-avg-record
+                      (make-eta-avg-record
                        :initial-value mitem-val
                        :initial-time (get-universal-time)
                        :cadence-name cadence-name))))
-    (setf (avg-record-current-value new-avg) mitem-val)
-    (setf (avg-record-current-time new-avg) (get-universal-time))
+    (setf (eta-avg-record-current-value new-avg) mitem-val)
+    (setf (eta-avg-record-current-time new-avg) (get-universal-time))
     new-avg))
 
 (defun %process-avgs (mon-items avgs)
@@ -235,76 +208,83 @@ Returns monitor items."
 (defun %calculate-avg (avg-item)
   "Calculates the avg per day of the given avg."
   (let ((day-in-secs (* 24 60 60))
-        (name (avg-record-cadence-name avg-item))
-        (ival (avg-record-initial-value avg-item))
-        (cval (avg-record-current-value avg-item))
-        (itime (avg-record-initial-time avg-item))
-        (ctime (avg-record-current-time avg-item)))
+        (name (eta-avg-record-cadence-name avg-item))
+        (ival (eta-avg-record-initial-value avg-item))
+        (cval (eta-avg-record-current-value avg-item))
+        (itime (eta-avg-record-initial-time avg-item))
+        (ctime (eta-avg-record-current-time avg-item)))
     (let* ((time-diff-secs (- ctime itime))
            (time-diff-days (float (/ time-diff-secs day-in-secs)))
            (diff-value (- cval ival))
            (per-day (/ diff-value time-diff-days)))
       `(,name . ,per-day))))
 
-;; ---------------------
 ;; actor handling
-;; ---------------------
 
-(defun %handle-init ()
-  (setf *serial-port*
-        (eta-ser-if:open-serial *serial-proxy-impl* *serial-device*)))
+(defun %eta-handle-init ()
+  (setf *eta-serial-port*
+        (eta-ser-if:open-serial *eta-serial-proxy-impl* *eta-serial-device*)))
 
-(defun %handle-close ()
-  (eta-ser-if:close-serial *serial-proxy-impl* *serial-port*))
+(defun %eta-handle-close ()
+  (eta-ser-if:close-serial *eta-serial-proxy-impl* *eta-serial-port*))
 
-(defun %handle-write (data)
-  (eta-ser-if:write-serial *serial-proxy-impl* *serial-port* data))
+(defun %eta-handle-write (data)
+  (eta-ser-if:write-serial *eta-serial-proxy-impl* *eta-serial-port* data))
 
-(defun %handle-read (actor state)
-  (let ((serial-data (actor-state-serial-data state))
-        (avgs (actor-state-avgs state)))
+(defun %eta-handle-read (actor)
+  (tasks:with-context (actor :tasks)
+    (tasks:task-async
+     (lambda ()
+       (eta-ser-if:read-serial *eta-serial-proxy-impl* *eta-serial-port*))
+     :on-complete-fun
+     (lambda (result)
+       (log:debug "on-complete returned: ~a" result)
+       (! actor `(:did-read . ,result)))))
+  t)
+
+(defun %eta-handle-did-read (actor state read-data)
+  (let ((serial-data (eta-actor-state-serial-data state))
+        (avgs (eta-actor-state-avgs state)))
     (let ((new-serial-data
             (handler-case
                 (multiple-value-bind (complete data)
-                    (eta-pkg:collect-data
-                     serial-data
-                     (eta-ser-if:read-serial *serial-proxy-impl* *serial-port*))
+                    (eta-pkg:collect-data serial-data read-data)
                   (if complete
                       (let* ((mon-items (%process-complete-pkg data))
                              (new-avgs (%process-avgs mon-items avgs)))
-                        (setf (actor-state-avgs state) new-avgs)
-                        +new-empty-data+)
+                        (setf (eta-actor-state-avgs state) new-avgs)
+                        +eta-new-empty-data+)
                       data))
               (error (c)
                 (progn
                   (log:warn "Error collecting data: ~a" c)
                   state)))))
-      (setf (actor-state-serial-data state) new-serial-data)
-      (when (actor-state-do-read-p state)
-        (act:tell actor '(:read . nil)))
-      t)))
-
-(defun %handle-start-read (actor state)
-  (act:tell actor '(:read . nil))
-  (setf (actor-state-do-read-p state) t))
-
-(defun %handle-stop-read (state)
-  (setf (actor-state-do-read-p state) nil)
+      (setf (eta-actor-state-serial-data state) new-serial-data)
+      (when (eta-actor-state-do-read-p state)
+        (! actor '(:read . nil)))))
   t)
 
-(defun %handle-get-state (state)
+(defun %eta-handle-start-read (actor state)
+  (setf (eta-actor-state-do-read-p state) t)
+  (! actor '(:read . nil)))
+
+(defun %eta-handle-stop-read (state)
+  (setf (eta-actor-state-do-read-p state) nil)
+  t)
+
+(defun %eta-handle-get-state (state)
   state)
 
-(defun %handle-report-avgs (state avg-to-report)
-  (let* ((avgs (actor-state-avgs state))
+(defun %eta-handle-report-avgs (state avg-to-report)
+  (let* ((avgs (eta-actor-state-avgs state))
          (filtered (miscutils:filter
                     (lambda (avg)
-                      (string= (avg-record-cadence-name avg) avg-to-report))
+                      (string= (eta-avg-record-cadence-name avg) avg-to-report))
                     avgs))
          (calculated (mapcar #'%calculate-avg filtered)))
     (flet ((remove-avg (avg-name)
              (delete-if (lambda (avg)
-                          (string= avg-name (avg-record-cadence-name avg)))
+                          (string= avg-name (eta-avg-record-cadence-name avg)))
                         avgs)))
       (dolist (calc calculated)
         (log:info "Posting avg:~a" calc)
@@ -313,21 +293,62 @@ Returns monitor items."
                   (avg-value (cdr calc)))
               (openhab:do-post avg-name avg-value)
               (setf avgs (remove-avg avg-name))
-              (setf (actor-state-avgs state) avgs))
+              (setf (eta-actor-state-avgs state) avgs))
           (error (c)
             (log:warn "Error sending avgs: ~a" c)))))
     t))
 
-(defun %serial-actor-receive (msg)
-  (let ((resp
-          (case (car msg)
-            (:init (%handle-init))
-            (:close (%handle-close))
-            (:write (%handle-write (cdr msg)))
-            (:read (%handle-read *self* *state*))
-            (:start-read (%handle-start-read *self* *state*))
-            (:stop-read (%handle-stop-read *state*))
-            (:state (%handle-get-state *state*))
-            (:report-avgs (%handle-report-avgs *state* (cdr msg))))))
+(defun %eta-serial-actor-receive (msg)
+  (let* ((state *state*)
+         (self *self*)
+         (resp
+           (case (car msg)
+             (:init (%eta-handle-init))
+             (:close (%eta-handle-close))
+             (:write (%eta-handle-write (cdr msg)))
+             (:read (%eta-handle-read self))
+             (:did-read (%eta-handle-did-read self state (cdr msg)))
+             (:start-read (%eta-handle-start-read self state))
+             (:stop-read (%eta-handle-stop-read state))
+             (:state (%eta-handle-get-state state))
+             (:report-avgs (%eta-handle-report-avgs state (cdr msg))))))
     ;;(format t "msg:~a, resp:~a~%" msg resp)
     resp))
+
+
+;; ---------------------
+;; init functions
+;; ---------------------
+
+(defun ensure-initialized ()
+  (unless *eta-serial-proxy-impl*
+    (setf *eta-serial-proxy-impl* :prod))
+  (unless *actor-system*
+    (setf *actor-system* (asys:make-actor-system))
+    (asys:register-dispatcher *actor-system*
+                              (disp:make-dispatcher *actor-system*
+                                                    :tasks
+                                                    :workers 4
+                                                    :stragety :round-robin)))
+  (unless *eta-serial-actor*
+    (setf *eta-serial-actor*
+          (ac:actor-of *actor-system*
+                       :name "ETA-serial-actor"
+                       :dispatcher :shared
+                       :state (make-eta-actor-state)
+                       :receive (lambda (msg)
+                                  (%eta-serial-actor-receive msg))
+                       :init (lambda (self)
+                               (declare (ignore self))
+                               (%eta-init-actor))
+                       :destroy (lambda (self)
+                                  (declare (ignore self))
+                                  (%eta-destroy-actor)))))
+  (values *eta-serial-actor* *actor-system*))
+
+(defun ensure-shutdown ()
+  (when *actor-system*
+    (ac:shutdown *actor-system* :wait t))
+  (setf *actor-system* nil)
+  (setf *eta-serial-actor* nil)
+  (setf *eta-serial-proxy-impl* nil))
