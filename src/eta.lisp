@@ -325,19 +325,24 @@ Returns monitor items."
 
 
 ;; -----------------------------------
-;; ina219 (zisterne presure) functions
+;; ina219 (zisterne pressure) functions
 ;; -----------------------------------
 
 (defvar *ina-actor* nil)
 
 (defun ina-init ()
   (ensure-initialized)
+  (! *ina-actor* '(:init . nil))
   (values :ok))
-
 
 ;; actor handling
 
-(defun %ina-actor-receive (msg))
+(defun %ina-init ()
+  (ina219-if:init))
+
+(defun %ina-actor-receive (msg)
+  (case (car msg)
+    (:init (%ina-init))))
 
 ;; ---------------------
 ;; init functions
@@ -382,4 +387,5 @@ Returns monitor items."
     (ac:shutdown *actor-system* :wait t))
   (setf *actor-system* nil)
   (setf *eta-serial-actor* nil)
+  (setf *ina-actor* nil)
   (setf *eta-serial-proxy-impl* nil))
