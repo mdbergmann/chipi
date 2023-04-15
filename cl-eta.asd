@@ -8,6 +8,7 @@
                "drakma"
                "cl-cron"
                "bit-smasher"
+               "py4cl"
                )
   :components ((:module "src"
                 :serial t
