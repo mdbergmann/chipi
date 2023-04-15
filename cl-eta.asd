@@ -30,6 +30,7 @@
                 :components
                 ((:file "all-tests")
                  (:file "eta-test")
+                 (:file "ina-test")
                  (:file "eta-pkg-test")
                  (:file "eta-atest")
                  )))

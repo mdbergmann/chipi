@@ -12,6 +12,7 @@
            #:eta-report-avgs
            #:eta-make-jobdefinition
            #:*eta-serial-proxy-impl*
+           #:ina-init
            #:ensure-initialized
            #:ensure-shutdown))
 
@@ -42,7 +43,12 @@
                                    (:m 0
                                     :h 0
                                     :dow 0
-                                    :name heating-eta-ig-count-per-day))))))
+                                    :name heating-eta-ig-count-per-day)))))
+  "Items that report averages. Scheduling definitions:
+`:m' minutes
+`:h' hour
+`:dow' day of week
+`:name' name of scheduler entry")
 
 ;; this should be part of actor state
 (defstruct eta-actor-state
@@ -318,6 +324,21 @@ Returns monitor items."
     resp))
 
 
+;; -----------------------------------
+;; ina219 (zisterne presure) functions
+;; -----------------------------------
+
+(defvar *ina-actor* nil)
+
+(defun ina-init ()
+  (ensure-initialized)
+  (values :ok))
+
+
+;; actor handling
+
+(defun %ina-actor-receive (msg))
+
 ;; ---------------------
 ;; init functions
 ;; ---------------------
@@ -347,6 +368,13 @@ Returns monitor items."
                        :destroy (lambda (self)
                                   (declare (ignore self))
                                   (%eta-destroy-actor)))))
+  (unless *ina-actor*
+    (setf *ina-actor*
+          (ac:actor-of *actor-system*
+                       :name "INA219-cistern-actor"
+                       :dispatcher :shared
+                       :receive (lambda (msg)
+                                  (%ina-actor-receive msg)))))
   (values *eta-serial-actor* *actor-system*))
 
 (defun ensure-shutdown ()
