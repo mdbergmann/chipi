@@ -16,23 +16,34 @@
        (&body)
     (eta:ensure-shutdown)))
 
-(test foo
-  (is-true t))
 
 (test ina-initialization
   "Test that ina actor is up and running.
 Actor should call ina219 initialization."
   (with-fixture destroy ()
-
     (with-mocks ()
       (answer ina219-if:init (values :ok))
       
       (is-true (eq :ok (ina-init)))
       (is-true eta::*ina-actor*)
+      (is-true (await-cond 2.0
+                 (= 1 (length (invocations 'ina219-if:init)))))))
+  (is-false eta::*ina-actor*))
 
-      (is-true (await-cond 1.0
-                 (= 1 (length (invocations 'ina219-if:init))))))))
+(test ina-retrieves-currency
+  "Test that ina actor retrieves currency repeatedly every n (configurable) seconds."
+  (with-fixture destroy ()
+    (with-mocks ()
+      (answer ina219-if:init (values :ok))
+      (ina-init)
 
+      (answer ina219-if:read-currency (values :ok 1.23))
 
+      (setf eta:*ina-read-currency-delay-sec* 0.3)
+      (is (eq :ok (ina-start-read-currency)))
+      (is-true (await-cond 4.0
+                 (>= (length (invocations 'ina219-if:read-currency)) 2)))
+      ))
+  (is-false eta::*ina-read-scheduler-thread*))
 
 (run! 'ina-tests)

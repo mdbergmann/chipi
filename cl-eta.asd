@@ -13,6 +13,7 @@
                 :serial t
                 :components
                 ((:file "openhab")
+                 (:file "ina219-if")
                  (:file "eta-ser-if")
                  (:file "eta-pkg")
                  (:file "eta"))))

@@ -13,6 +13,8 @@
            #:eta-make-jobdefinition
            #:*eta-serial-proxy-impl*
            #:ina-init
+           #:ina-start-read-currency
+           #:*ina-read-currency-delay-sec*
            #:ensure-initialized
            #:ensure-shutdown))
 
@@ -132,7 +134,7 @@ So we gotta trigger a read here as well."
 
 ;; internal functions
 
-(defun %eta-init-actor ()
+(defun %eta-actor-init ()
   (clrhash cron::*cron-jobs-hash*)
   (dolist (item *eta-avg-items*)
     (let ((cadences (cdr item)))
@@ -144,7 +146,7 @@ So we gotta trigger a read here as well."
            cadence-timedef)))))
   (cron:start-cron))
 
-(defun %eta-destroy-actor ()
+(defun %eta-actor-destroy ()
   (clrhash cron::*cron-jobs-hash*)
   (cron::stop-cron))
 
@@ -329,23 +331,55 @@ Returns monitor items."
 ;; -----------------------------------
 
 (defvar *ina-actor* nil)
+(defvar *ina-read-currency-delay-sec* 60 "Seconds delay")
+(defvar *ina-read-scheduler-thread* nil)
 
 (defun ina-init ()
   (ensure-initialized)
   (! *ina-actor* '(:init . nil))
   (values :ok))
 
+(defun ina-start-read-currency ()
+  (ensure-initialized)
+  (! *ina-actor* '(:start-read . nil))
+  (values :ok))
+
 ;; actor handling
 
 (defun %ina-init ()
-  (ina219-if:init))
+  (ina219-if:init)
+  t)
+
+(defun %ina-start-read ()
+  (unless *ina-read-scheduler-thread*
+    (log:debug "Creating ina-read-scheduler thread")
+    (setf *ina-read-scheduler-thread*
+          (bt:make-thread (lambda ()
+                            (loop
+                              (! *ina-actor* '(:read . nil))
+                              (sleep *ina-read-currency-delay-sec*)))
+                          :name "ina-read-currency-scheduler")))
+  t)
+
+(defun %ina-read ()
+  (log:debug "Reading ina currency...")
+  (let ((currency (multiple-value-list (ina219-if:read-currency))))
+    (log:debug "Reading ina currency...done, value: ~a" currency))
+  t)
+
+(defun %ina-actor-destroy ()
+  (when *ina-read-scheduler-thread*
+    (bt:destroy-thread *ina-read-scheduler-thread*)
+    (setf *ina-read-scheduler-thread* nil)))
 
 (defun %ina-actor-receive (msg)
   (case (car msg)
-    (:init (%ina-init))))
+    (:init (%ina-init))
+    (:start-read (%ina-start-read))
+    (:read (%ina-read))))
 
 ;; ---------------------
-;; init functions
+;; global init functions
 ;; ---------------------
 
 (defun ensure-initialized ()
@@ -369,17 +403,20 @@ Returns monitor items."
                                   (%eta-serial-actor-receive msg))
                        :init (lambda (self)
                                (declare (ignore self))
-                               (%eta-init-actor))
+                               (%eta-actor-init))
                        :destroy (lambda (self)
                                   (declare (ignore self))
-                                  (%eta-destroy-actor)))))
+                                  (%eta-actor-destroy)))))
   (unless *ina-actor*
     (setf *ina-actor*
           (ac:actor-of *actor-system*
                        :name "INA219-cistern-actor"
                        :dispatcher :shared
                        :receive (lambda (msg)
-                                  (%ina-actor-receive msg)))))
+                                  (%ina-actor-receive msg))
+                       :destroy (lambda (self)
+                                  (declare (ignore self))
+                                  (%ina-actor-destroy)))))
   (values *eta-serial-actor* *actor-system*))
 
 (defun ensure-shutdown ()
