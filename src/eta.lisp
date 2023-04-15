@@ -333,6 +333,7 @@ Returns monitor items."
 (defvar *ina-actor* nil)
 (defvar *ina-read-currency-delay-sec* 60 "Seconds delay")
 (defvar *ina-read-scheduler-thread* nil)
+(defvar *openhab-cistern-currency-item* "ZistSensorCurrency")
 
 (defun ina-init ()
   (ensure-initialized)
@@ -363,20 +364,28 @@ Returns monitor items."
 
 (defun %ina-read ()
   (log:debug "Reading ina currency...")
-  (let ((currency (multiple-value-list (ina219-if:read-currency))))
-    (log:debug "Reading ina currency...done, value: ~a" currency))
+  (multiple-value-bind (stat currency)
+      (ina219-if:read-currency)
+    (log:debug "Reading ina currency...done, value: ~a" currency)
+    (case stat
+      (:ok
+       (if (numberp currency)
+           (openhab:do-post *openhab-cistern-currency-item* currency)
+           (log:warn "Currency not a number: ~a" currency)))
+      (otherwise
+       (log:warn "Read of ina not OK, value: ~a" currency))))
   t)
-
-(defun %ina-actor-destroy ()
-  (when *ina-read-scheduler-thread*
-    (bt:destroy-thread *ina-read-scheduler-thread*)
-    (setf *ina-read-scheduler-thread* nil)))
 
 (defun %ina-actor-receive (msg)
   (case (car msg)
     (:init (%ina-init))
     (:start-read (%ina-start-read))
     (:read (%ina-read))))
+
+(defun %ina-actor-destroy ()
+  (when *ina-read-scheduler-thread*
+    (bt:destroy-thread *ina-read-scheduler-thread*)
+    (setf *ina-read-scheduler-thread* nil)))
 
 ;; ---------------------
 ;; global init functions
