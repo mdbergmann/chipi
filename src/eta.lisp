@@ -353,7 +353,7 @@ Returns monitor items."
 
 (defun %ina-start-read ()
   (unless *ina-read-scheduler-thread*
-    (log:debug "Creating ina-read-scheduler thread")
+    (log:info "Creating ina-read-scheduler thread")
     (setf *ina-read-scheduler-thread*
           (bt:make-thread (lambda ()
                             (loop
@@ -366,7 +366,7 @@ Returns monitor items."
   (log:debug "Reading ina currency...")
   (multiple-value-bind (stat currency)
       (ina219-if:read-currency)
-    (log:debug "Reading ina currency...done, value: ~a" currency)
+    (log:info "Reading ina currency...done, value: ~a" currency)
     (case stat
       (:ok
        (if (numberp currency)
