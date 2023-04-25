@@ -9,6 +9,7 @@
                "cl-cron"
                "bit-smasher"
                "py4cl"
+               "com.inuoe.jzon"
                )
   :components ((:module "src"
                 :serial t
@@ -33,6 +34,7 @@
                 ((:file "all-tests")
                  (:file "eta-test")
                  (:file "ina-test")
+                 (:file "solar-test")
                  (:file "eta-pkg-test")
                  (:file "eta-atest")
                  )))
@@ -70,4 +72,7 @@ OK - reset avg after report
 OK - error handling for drakma request
 - filter temp values for spikes
 - implement more receive package types (error, etc)
+
+- add stop/shutdown to ina and solar
+
 |#

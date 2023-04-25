@@ -63,5 +63,3 @@ Actor should call ina219 initialization."
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'openhab:do-post)))))
       )))
-
-(run! 'ina-tests)

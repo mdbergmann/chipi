@@ -15,6 +15,9 @@
            #:ina-init
            #:ina-start-read-currency
            #:*ina-read-currency-delay-sec*
+           #:solar-init
+           #:solar-start-read
+           #:*solar-read-delay-sec*
            #:ensure-initialized
            #:ensure-shutdown))
 
@@ -387,6 +390,66 @@ Returns monitor items."
     (bt:destroy-thread *ina-read-scheduler-thread*)
     (setf *ina-read-scheduler-thread* nil)))
 
+;; -----------------------------------
+;; ina219 (zisterne pressure) functions
+;; -----------------------------------
+
+(defvar *solar-actor* nil)
+(defvar *solar-read-delay-sec* 5 "Seconds delay")
+(defvar *solar-read-scheduler-thread* nil)
+(defvar *openhab-solar-power-item* "SolarPowerMom")
+
+(defun solar-init ()
+  (ensure-initialized)
+  (! *solar-actor* '(:init . nil))
+  (values :ok))
+
+(defun solar-start-read ()
+  (ensure-initialized)
+  (! *solar-actor* '(:start-read . nil))
+  (values :ok))
+
+;; actor handling
+
+(defun %solar-init ()
+  t)
+
+(defun %solar-start-read ()
+  (unless *solar-read-scheduler-thread*
+    (log:info "Creating solar-read-scheduler thread")
+    (setf *solar-read-scheduler-thread*
+          (bt:make-thread (lambda ()
+                            (loop
+                              (! *solar-actor* '(:read . nil))
+                              (sleep *solar-read-delay-sec*)))
+                          :name "solar-read-currency-scheduler")))
+  t)
+
+(defun %solar-read ()
+  (log:debug "Reading solar power...")
+  (multiple-value-bind (stat power)
+      (solar-if:read-power)
+    (log:info "Reading solar power...done, value: ~a" power)
+    (case stat
+      (:ok
+       (if (numberp power)
+           (openhab:do-post *openhab-solar-power-item* power)
+           (log:warn "Power not a number: ~a" power)))
+      (otherwise
+       (log:warn "Read of solar not OK, value: ~a" power))))
+  t)
+
+(defun %solar-actor-receive (msg)
+  (case (car msg)
+    (:init (%solar-init))
+    (:start-read (%solar-start-read))
+    (:read (%solar-read))))
+
+(defun %solar-actor-destroy ()
+  (when *solar-read-scheduler-thread*
+    (bt:destroy-thread *solar-read-scheduler-thread*)
+    (setf *solar-read-scheduler-thread* nil)))
+
 ;; ---------------------
 ;; global init functions
 ;; ---------------------
@@ -426,6 +489,16 @@ Returns monitor items."
                        :destroy (lambda (self)
                                   (declare (ignore self))
                                   (%ina-actor-destroy)))))
+  (unless *solar-actor*
+    (setf *solar-actor*
+          (ac:actor-of *actor-system*
+                       :name "solar-actor"
+                       :dispatcher :shared
+                       :receive (lambda (msg)
+                                  (%solar-actor-receive msg))
+                       :destroy (lambda (self)
+                                  (declare (ignore self))
+                                  (%solar-actor-destroy)))))
   (values *eta-serial-actor* *actor-system*))
 
 (defun ensure-shutdown ()
@@ -434,4 +507,5 @@ Returns monitor items."
   (setf *actor-system* nil)
   (setf *eta-serial-actor* nil)
   (setf *ina-actor* nil)
+  (setf *solar-actor* nil)
   (setf *eta-serial-proxy-impl* nil))
