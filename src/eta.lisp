@@ -433,8 +433,9 @@ Returns monitor items."
     (case stat
       (:ok
        (if (and (numberp power) (> power 0))
-           (openhab:do-post *openhab-solar-power-item* power)
-           (log:warn "Power not a number or 0: ~a" power)))
+           (let ((rounded (round power)))
+             (openhab:do-post *openhab-solar-power-item* rounded)
+             (log:warn "Power not a number or 0: ~a" rounded))))
       (otherwise
        (log:warn "Read of solar not OK, value: ~a" power))))
   t)
