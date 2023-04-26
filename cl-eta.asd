@@ -1,5 +1,5 @@
 (defsystem "cl-eta"
-  :version "0.0.2"
+  :version "0.0.3"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
