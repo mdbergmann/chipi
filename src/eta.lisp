@@ -13,8 +13,8 @@
            #:eta-make-jobdefinition
            #:*eta-serial-proxy-impl*
            #:ina-init
-           #:ina-start-read-currency
-           #:*ina-read-currency-delay-sec*
+           #:ina-start-read
+           #:*ina-read-delay-sec*
            #:solar-init
            #:solar-start-read
            #:*solar-read-delay-sec*
@@ -334,16 +334,26 @@ Returns monitor items."
 ;; -----------------------------------
 
 (defvar *ina-actor* nil)
-(defvar *ina-read-currency-delay-sec* 60 "Seconds delay")
+(defvar *ina-read-delay-sec* 60 "Seconds delay")
 (defvar *ina-read-scheduler-thread* nil)
 (defvar *openhab-cistern-currency-item* "ZistSensorCurrency")
 
 (defun ina-init ()
-  (ensure-initialized)
-  (! *ina-actor* '(:init . nil))
+  (let ((asys (ensure-initialized)))
+    (unless *ina-actor*
+      (setf *ina-actor*
+            (ac:actor-of asys
+                         :name "INA219-cistern-actor"
+                         :dispatcher :shared
+                         :receive (lambda (msg)
+                                    (%ina-actor-receive msg))
+                         :destroy (lambda (self)
+                                    (declare (ignore self))
+                                    (%ina-actor-destroy)))))    
+    (! *ina-actor* '(:init . nil)))
   (values :ok))
 
-(defun ina-start-read-currency ()
+(defun ina-start-read ()
   (ensure-initialized)
   (! *ina-actor* '(:start-read . nil))
   (values :ok))
@@ -361,7 +371,7 @@ Returns monitor items."
           (bt:make-thread (lambda ()
                             (loop
                               (! *ina-actor* '(:read . nil))
-                              (sleep *ina-read-currency-delay-sec*)))
+                              (sleep *ina-read-delay-sec*)))
                           :name "ina-read-currency-scheduler")))
   t)
 
@@ -388,7 +398,8 @@ Returns monitor items."
 (defun %ina-actor-destroy ()
   (when *ina-read-scheduler-thread*
     (bt:destroy-thread *ina-read-scheduler-thread*)
-    (setf *ina-read-scheduler-thread* nil)))
+    (setf *ina-read-scheduler-thread* nil))
+  (setf *ina-actor* nil))
 
 ;; -----------------------------------
 ;; ina219 (zisterne pressure) functions
@@ -491,16 +502,6 @@ Returns monitor items."
                        :destroy (lambda (self)
                                   (declare (ignore self))
                                   (%eta-actor-destroy)))))
-  (unless *ina-actor*
-    (setf *ina-actor*
-          (ac:actor-of *actor-system*
-                       :name "INA219-cistern-actor"
-                       :dispatcher :shared
-                       :receive (lambda (msg)
-                                  (%ina-actor-receive msg))
-                       :destroy (lambda (self)
-                                  (declare (ignore self))
-                                  (%ina-actor-destroy)))))
   (values *actor-system*))
 
 (defun ensure-shutdown ()
@@ -508,5 +509,4 @@ Returns monitor items."
     (ac:shutdown *actor-system* :wait t))
   (setf *actor-system* nil)
   (setf *eta-serial-actor* nil)
-  (setf *ina-actor* nil)
   (setf *eta-serial-proxy-impl* nil))
