@@ -338,3 +338,10 @@ A result will be visible when this function is called on the REPL."
     (is (equalp `("foo" . ,(/ (- 5 0)
                               (float (/ (- now initial) day-in-secs))))
                 (eta::%calculate-avg avg-item)))))
+
+(test stop-stops-actor-and-serial
+  (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
+    (is (eq :ok (eta-stop)))
+    (is-false eta::*eta-serial-actor*)
+    (is-false eta::*eta-serial-device*)))

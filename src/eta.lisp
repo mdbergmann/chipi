@@ -6,6 +6,7 @@
                 #:*self*
                 #:!)
   (:export #:eta-init
+           #:eta-stop
            #:eta-close-serial
            #:eta-start-record
            #:eta-stop-record
@@ -80,8 +81,11 @@ then average values will be calculated, see `%calculate-avg'.
 ;; Public functions
 
 (defun eta-init ()
+  "High level start function. Counterpart to `eta-stop'."
   (multiple-value-bind (asys)
       (ensure-initialized)
+    (unless *eta-serial-proxy-impl*
+      (setf *eta-serial-proxy-impl* :prod))
     (unless *eta-serial-actor*
       (setf *eta-serial-actor*
             (ac:actor-of asys
@@ -104,13 +108,25 @@ then average values will be calculated, see `%calculate-avg'.
            (otherwise (values :ok))))
         (t (values :ok))))))
 
+(defun eta-stop ()
+  "High level stop function. Counterpart to `eta-start'."
+  (when *eta-serial-device*
+    (eta-close-serial)
+    (setf *eta-serial-device* nil))
+  (when *eta-serial-actor*
+    (ac:stop (act:context *eta-serial-actor*) *eta-serial-actor*)
+    (setf *eta-serial-actor* nil))
+  (values :ok))
+
 (defun eta-close-serial ()
   (let ((ask-result (act:ask-s *eta-serial-actor* '(:close . nil))))
     (cond
       ((listp ask-result)
        (case (car ask-result)
          (:handler-error (values :fail (format nil "~a" (cdr ask-result))))
-         (otherwise (values :ok))))
+         (otherwise (progn
+                      (setf *eta-serial-device* nil)
+                      (values :ok)))))
       (t (values :ok)))))
 
 (defun eta-start-record ()
@@ -486,8 +502,6 @@ Returns monitor items."
 ;; ---------------------
 
 (defun ensure-initialized ()
-  (unless *eta-serial-proxy-impl*
-    (setf *eta-serial-proxy-impl* :prod))
   (unless *actor-system*
     (setf *actor-system* (asys:make-actor-system))
     ;; separate dispatcher for tasks
