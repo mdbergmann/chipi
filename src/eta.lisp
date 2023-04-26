@@ -412,7 +412,7 @@ Returns monitor items."
 ;; -----------------------------------
 
 (defvar *solar-actor* nil)
-(defvar *solar-read-delay-sec* 10 "Seconds delay")
+(defvar *solar-read-delay-sec* 30 "Seconds delay")
 (defvar *solar-read-scheduler-thread* nil)
 (defvar *openhab-solar-power-item* "SolarPowerMom")
 
