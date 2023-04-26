@@ -63,3 +63,12 @@ Actor should call ina219 initialization."
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'openhab:do-post)))))
       )))
+
+(test ina-stop
+  "Tests that the ina actor is stopped."
+  (with-fixture destroy-finally ()
+    (with-mocks ()
+      (answer ina219-if:init (values :ok))
+      (is (eq :ok (ina-init)))
+      (is (eq :ok (ina-stop)))
+      (is-false eta::*ina-actor*))))

@@ -15,6 +15,7 @@
            #:*eta-serial-proxy-impl*
            #:*eta-serial-device*
            #:ina-init
+           #:ina-stop
            #:ina-start-read
            #:*ina-read-delay-sec*
            #:solar-init
@@ -363,6 +364,7 @@ Returns monitor items."
 (defvar *openhab-cistern-currency-item* "ZistSensorCurrency")
 
 (defun ina-init ()
+  "High level initialization of `ina'."
   (let ((asys (ensure-initialized)))
     (unless *ina-actor*
       (setf *ina-actor*
@@ -375,6 +377,13 @@ Returns monitor items."
                                     (declare (ignore self))
                                     (%ina-actor-destroy)))))    
     (! *ina-actor* '(:init . nil)))
+  (values :ok))
+
+(defun ina-stop ()
+  "High level stop of `ina'. Counterpart of `ina-start'."
+  (when *ina-actor*
+    (ac:stop (act:context *ina-actor*) *ina-actor*)
+    (setf *ina-actor* nil))
   (values :ok))
 
 (defun ina-start-read ()

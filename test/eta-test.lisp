@@ -340,6 +340,7 @@ A result will be visible when this function is called on the REPL."
                 (eta::%calculate-avg avg-item)))))
 
 (test stop-stops-actor-and-serial
+  "Tests that `stop' stops the actor and closes serial."
   (with-fixture init-destroy ()
     (is (eq :ok (eta-init)))
     (is (eq :ok (eta-stop)))
