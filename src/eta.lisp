@@ -20,7 +20,9 @@
            #:solar-start-read
            #:*solar-read-delay-sec*
            #:ensure-initialized
-           #:ensure-shutdown))
+           #:ensure-shutdown
+           #:start-all
+           #:stop-all))
 
 (in-package :cl-eta.eta)
 
@@ -500,3 +502,11 @@ Returns monitor items."
   (when *actor-system*
     (ac:shutdown *actor-system* :wait t))
   (setf *actor-system* nil))
+
+(defun start-all ()
+  (eta-init)
+  (ina-init)
+  (solar-init))
+
+(defun stop-all ()
+  )
