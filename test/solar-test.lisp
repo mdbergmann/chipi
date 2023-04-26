@@ -25,7 +25,7 @@
       (is-true eta::*solar-actor*)))
   (is-false eta::*solar-actor*))
 
-(test solar-retrieves-currency
+(test solar-retrieves-power
   "Test that solar actor retrieves power repeatedly every n (configurable) seconds."
   (with-fixture destroy-finally ()
     (with-mocks ()
@@ -54,5 +54,4 @@
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'solar-if:read-power)))))
       (is-true (await-cond 2.0
-                 (= 1 (length (invocations 'openhab:do-post)))))
-      )))
+                 (= 1 (length (invocations 'openhab:do-post))))))))

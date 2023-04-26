@@ -17,6 +17,7 @@
                 ((:file "openhab")
                  (:file "ina219-if")
                  (:file "eta-ser-if")
+                 (:file "solar-if")
                  (:file "eta-pkg")
                  (:file "eta"))))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))

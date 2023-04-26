@@ -400,8 +400,18 @@ Returns monitor items."
 (defvar *openhab-solar-power-item* "SolarPowerMom")
 
 (defun solar-init ()
-  (ensure-initialized)
-  (! *solar-actor* '(:init . nil))
+  (let ((asys (ensure-initialized)))
+    (unless *solar-actor*
+      (setf *solar-actor*
+            (ac:actor-of asys
+                         :name "solar-actor"
+                         :dispatcher :shared
+                         :receive (lambda (msg)
+                                    (%solar-actor-receive msg))
+                         :destroy (lambda (self)
+                                    (declare (ignore self))
+                                    (%solar-actor-destroy)))))
+    (! *solar-actor* '(:init . nil)))
   (values :ok))
 
 (defun solar-start-read ()
@@ -449,7 +459,8 @@ Returns monitor items."
 (defun %solar-actor-destroy ()
   (when *solar-read-scheduler-thread*
     (bt:destroy-thread *solar-read-scheduler-thread*)
-    (setf *solar-read-scheduler-thread* nil)))
+    (setf *solar-read-scheduler-thread* nil))
+  (setf *solar-actor* nil))
 
 ;; ---------------------
 ;; global init functions
@@ -490,17 +501,7 @@ Returns monitor items."
                        :destroy (lambda (self)
                                   (declare (ignore self))
                                   (%ina-actor-destroy)))))
-  (unless *solar-actor*
-    (setf *solar-actor*
-          (ac:actor-of *actor-system*
-                       :name "solar-actor"
-                       :dispatcher :shared
-                       :receive (lambda (msg)
-                                  (%solar-actor-receive msg))
-                       :destroy (lambda (self)
-                                  (declare (ignore self))
-                                  (%solar-actor-destroy)))))
-  (values *eta-serial-actor* *actor-system*))
+  (values *actor-system*))
 
 (defun ensure-shutdown ()
   (when *actor-system*
@@ -508,5 +509,4 @@ Returns monitor items."
   (setf *actor-system* nil)
   (setf *eta-serial-actor* nil)
   (setf *ina-actor* nil)
-  (setf *solar-actor* nil)
   (setf *eta-serial-proxy-impl* nil))
