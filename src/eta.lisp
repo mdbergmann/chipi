@@ -5,13 +5,14 @@
                 #:*state*
                 #:*self*
                 #:!)
-  (:export #:eta-init-serial
+  (:export #:eta-init
            #:eta-close-serial
            #:eta-start-record
            #:eta-stop-record
            #:eta-report-avgs
            #:eta-make-jobdefinition
            #:*eta-serial-proxy-impl*
+           #:*eta-serial-device*
            #:ina-init
            #:ina-start-read
            #:*ina-read-delay-sec*
@@ -33,7 +34,7 @@
 ;; ---------------------
 
 (defvar *eta-serial-actor* nil)
-(defvar *eta-serial-device* nil)
+(defvar *eta-serial-device* "/dev/ttyUSB0")
 (defvar *eta-serial-port* nil)
 (defvar *eta-serial-proxy-impl* nil)
 (defvar +eta-new-empty-data+ #())
@@ -76,11 +77,24 @@ then average values will be calculated, see `%calculate-avg'.
 
 ;; Public functions
 
-(defun eta-init-serial (device)
-  (multiple-value-bind (actor)
+(defun eta-init ()
+  (multiple-value-bind (asys)
       (ensure-initialized)
-    (setf *eta-serial-device* device)
-    (let ((ask-result (act:ask-s actor '(:init . nil))))
+    (unless *eta-serial-actor*
+      (setf *eta-serial-actor*
+            (ac:actor-of asys
+                         :name "ETA-serial-actor"
+                         :dispatcher :shared
+                         :state (make-eta-actor-state)
+                         :receive (lambda (msg)
+                                    (%eta-serial-actor-receive msg))
+                         :init (lambda (self)
+                                 (declare (ignore self))
+                                 (%eta-actor-init))
+                         :destroy (lambda (self)
+                                    (declare (ignore self))
+                                    (%eta-actor-destroy)))))
+    (let ((ask-result (act:ask-s *eta-serial-actor* '(:init . nil))))
       (cond
         ((listp ask-result)
          (case (car ask-result)
@@ -89,42 +103,32 @@ then average values will be calculated, see `%calculate-avg'.
         (t (values :ok))))))
 
 (defun eta-close-serial ()
-  (multiple-value-bind (actor)
-      (ensure-initialized)
-    (let ((ask-result (act:ask-s actor '(:close . nil))))
-      (cond
-        ((listp ask-result)
-         (case (car ask-result)
-           (:handler-error (values :fail (format nil "~a" (cdr ask-result))))
-           (otherwise (values :ok))))
-        (t (values :ok))))))
+  (let ((ask-result (act:ask-s *eta-serial-actor* '(:close . nil))))
+    (cond
+      ((listp ask-result)
+       (case (car ask-result)
+         (:handler-error (values :fail (format nil "~a" (cdr ask-result))))
+         (otherwise (values :ok))))
+      (t (values :ok)))))
 
 (defun eta-start-record ()
   "Triggers the recording of data.
 Once this command is sent, the ETA will start to send monitor data packages.
 So we gotta trigger a read here as well."
-  (multiple-value-bind (actor)
-      (ensure-initialized)
-    (! actor `(:write . ,(eta-pkg:new-start-record-pkg)))
-    (! actor '(:start-read . nil)))
+  (! *eta-serial-actor* `(:write . ,(eta-pkg:new-start-record-pkg)))
+  (! *eta-serial-actor* '(:start-read . nil))
   :ok)
 
 (defun eta-stop-record ()
-  (multiple-value-bind (actor)
-      (ensure-initialized)
-    (! actor '(:stop-read . nil))
-    (act:ask-s actor `(:write . ,(eta-pkg:new-stop-record-pkg))))
+  (! *eta-serial-actor* '(:stop-read . nil))
+  (act:ask-s *eta-serial-actor* `(:write . ,(eta-pkg:new-stop-record-pkg)))
   :ok)
 
 (defun eta-get-state ()
-  (multiple-value-bind (actor)
-      (ensure-initialized)
-    (act:ask-s actor '(:state . nil))))
+  (act:ask-s *eta-serial-actor* '(:state . nil)))
 
 (defun eta-report-avgs (avg-to-report)
-  (multiple-value-bind (actor)
-      (ensure-initialized)
-    (! actor `(:report-avgs . ,avg-to-report)))
+  (! *eta-serial-actor* `(:report-avgs . ,avg-to-report))
   :ok)
 
 (defun eta-make-jobdefinition (fun time-def)
@@ -151,7 +155,9 @@ So we gotta trigger a read here as well."
 
 (defun %eta-actor-destroy ()
   (clrhash cron::*cron-jobs-hash*)
-  (cron::stop-cron))
+  (cron::stop-cron)
+  (setf *eta-serial-actor* nil
+        *eta-serial-proxy-impl* nil))
 
 (defun %%find-avg-mon-items (mon-items)
   "Finds monitor items where avg definitions exist in `*eta-avg-items*'."
@@ -488,25 +494,9 @@ Returns monitor items."
                                                     :tasks
                                                     :workers 4
                                                     :stragety :round-robin)))
-  (unless *eta-serial-actor*
-    (setf *eta-serial-actor*
-          (ac:actor-of *actor-system*
-                       :name "ETA-serial-actor"
-                       :dispatcher :shared
-                       :state (make-eta-actor-state)
-                       :receive (lambda (msg)
-                                  (%eta-serial-actor-receive msg))
-                       :init (lambda (self)
-                               (declare (ignore self))
-                               (%eta-actor-init))
-                       :destroy (lambda (self)
-                                  (declare (ignore self))
-                                  (%eta-actor-destroy)))))
   (values *actor-system*))
 
 (defun ensure-shutdown ()
   (when *actor-system*
     (ac:shutdown *actor-system* :wait t))
-  (setf *actor-system* nil)
-  (setf *eta-serial-actor* nil)
-  (setf *eta-serial-proxy-impl* nil))
+  (setf *actor-system* nil))

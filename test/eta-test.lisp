@@ -44,6 +44,7 @@
          (progn
            (eta:ensure-initialized)
            (setf eta:*eta-serial-proxy-impl* :test)
+           (setf eta:*eta-serial-device* "/dev/serial")
            (&body))
       (progn
         (eta:ensure-shutdown)
@@ -51,18 +52,19 @@
 
 (test init-serial
   (with-fixture init-destroy ()
-    (is (eq :ok (eta-init-serial "/dev/serial")))
+    (is (eq :ok (eta-init)))
     (is-true *open-serial-called*)))
 
 (test init-serial--fail-to-open
   (with-fixture init-destroy ()
-    (let ((init-serial-result (multiple-value-list (eta-init-serial "/dev/not-exists"))))
+    (setf eta:*eta-serial-device* "/dev/not-exists")
+    (let ((init-serial-result (multiple-value-list (eta-init))))
       (is (eq :fail (car init-serial-result)))
       (is (string= "Can't open!" (cadr init-serial-result))))))
 
 (test close-serial
   (with-fixture init-destroy ()
-    (is (eq :ok (eta-init-serial "/dev/serial")))
+    (is (eq :ok (eta-init)))
     (is (eq :ok (eta-close-serial)))
     (is-true *close-serial-called*)))
 
@@ -72,6 +74,7 @@ This is asynchronous and we don't check a result.
 A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (with-mocks ()
+      (is (eq :ok (eta-init)))
       (is (eq :ok (eta-start-record)))
       (is-true (miscutils:assert-cond
                 (lambda () (= (length (eta-pkg:new-start-record-pkg)) *write-serial-called*))
@@ -79,6 +82,7 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--serial-written--read-received--repeated
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (is (eq :ok (eta-start-record)))
     (is-true (miscutils:assert-cond
               (lambda () (> *read-serial-called* 3))  ;; we check for 3
@@ -86,6 +90,7 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (answer eta-pkg:collect-data (values nil #()))
       
@@ -97,6 +102,7 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser--no-complete
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (answer eta-pkg:collect-data (values nil `#(123 0 1 2 3)))
       
@@ -108,6 +114,7 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser--complete--empty-monitor
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :eta-monitor '()))
@@ -120,6 +127,7 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser--complete--with-monitor
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
@@ -143,6 +151,7 @@ A result will be visible when this function is called on the REPL."
                                   ("FooItemAvg2" . nil)))
                                 ("FooItem2" .
                                  (("FooItem2Avg" . nil)))))
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1) ("FooItem2" . 2.2))))
@@ -172,6 +181,7 @@ A result will be visible when this function is called on the REPL."
 
 (test start-record--read-received--call-parser--complete--extract-fail
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
       (answer eta-pkg:extract-pkg (values :fail "Extract failure!"))
@@ -186,6 +196,7 @@ A result will be visible when this function is called on the REPL."
 
 (test stop-record--serial-written
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (is (eq :ok (eta-stop-record)))
       (is-true (miscutils:assert-cond
@@ -194,6 +205,7 @@ A result will be visible when this function is called on the REPL."
 
 (test stop-record--stops-read
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (is (eq :ok (eta-start-record)))
       (is (eq :ok (eta-stop-record)))
@@ -205,6 +217,7 @@ A result will be visible when this function is called on the REPL."
 
 (test report-avgs
   (with-fixture init-destroy ('(("FooItem" . (("FooItemAvg1" . nil) ("FooItemAvg2" . nil)))))
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
@@ -256,6 +269,7 @@ A result will be visible when this function is called on the REPL."
 
 (test report-avgs--err-on-avg-http
   (with-fixture init-destroy ('(("FooItem" . (("FooItemAvg1" . nil)))))
+    (is (eq :ok (eta-init)))
     (with-mocks ()
       (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))
       (answer eta-pkg:extract-pkg (values :eta-monitor '(("FooItem" . 1.1))))
@@ -292,6 +306,7 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ('(("FooItem" .
                                  (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
                                   ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
+    (is (eq :ok (eta-init)))
     (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
     (is (gethash 'fooitemavg1 cron::*cron-jobs-hash*))
     (is (gethash 'fooitemavg2 cron::*cron-jobs-hash*))
@@ -300,11 +315,13 @@ A result will be visible when this function is called on the REPL."
 (test destroy-cleans-up
   (with-fixture init-destroy ('(("FooItem" .
                                  (("FooItemAvg1" . (:m 0 :h 0 :dow 0 :name fooitemavg1))
-                                  ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2)))))))
+                                  ("FooItemAvg2" . (:m 0 :h 0 :dow 0 :name fooitemavg2))))))
+    (is (eq :ok (eta-init))))
   (is (= 0 (hash-table-count cron::*cron-jobs-hash*))))
 
 (test real-avgs--have-deployed-cron-jobs
   (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
     (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
     (is (not (null (gethash 'eta::heating-eta-op-hours-per-week cron::*cron-jobs-hash*))))
     (is (not (null (gethash 'eta::heating-eta-ig-count-per-day cron::*cron-jobs-hash*))))))
