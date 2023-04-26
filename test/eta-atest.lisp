@@ -61,6 +61,7 @@
                               :address "127.0.0.1"))
          (hunchentoot:start *http-server*)
          (eta:ensure-initialized)
+         (eta:eta-init)
          (&body))
     (progn
       (when *http-server*
