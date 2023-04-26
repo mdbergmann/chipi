@@ -435,7 +435,7 @@ Returns monitor items."
        (if (and (numberp power) (> power 0))
            (let ((rounded (round power)))
              (openhab:do-post *openhab-solar-power-item* rounded))
-           (log:warn "Power not a number or 0: ~a" rounded)))
+           (log:warn "Power not a number or 0: ~a" power)))
       (otherwise
        (log:warn "Read of solar not OK, value: ~a" power))))
   t)
