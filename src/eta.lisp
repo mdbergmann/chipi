@@ -446,7 +446,7 @@ Returns monitor items."
 (defparameter *openhab-solar-power-item* "SolarPowerMom")
 
 (defstruct solar-state
-  (total-wh 0 :type integer))
+  (total-wh-day 0 :type integer))
 
 (defun solar-init ()
   (let ((asys (ensure-initialized)))

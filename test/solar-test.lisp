@@ -35,12 +35,12 @@
        (progn
          (with-fixture destroy-finally ()
            (setf eta::*solar-state-file* #P"test-state")
-           (eta::%store-state (eta::make-solar-state :total-wh 123)
+           (eta::%store-state (eta::make-solar-state :total-wh-day 123)
                               #P"test-state")
            (is-true (eq :ok (solar-init)))
            (is (not (null (act-cell:state eta::*solar-actor*))))
            (is (= 123
-                  (eta::solar-state-total-wh (slot-value eta::*solar-actor* 'act-cell:state)))))
+                  (eta::solar-state-total-wh-day (slot-value eta::*solar-actor* 'act-cell:state)))))
          (is-false eta::*solar-actor*))
     (uiop:delete-file-if-exists #P"test-state")))
 
