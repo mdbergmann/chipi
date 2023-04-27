@@ -44,13 +44,20 @@
          (is-false eta::*solar-actor*))
     (uiop:delete-file-if-exists #P"test-state")))
 
+(test solar-initialization--deploys-cron-job
+  "Tests that solar-init creates a cron jobs that at midnight retrieves total wh."
+  (with-fixture destroy-finally ()
+    (is-true (eq :ok (solar-init)))
+    (is (= 1 (hash-table-count cron::*cron-jobs-hash*)))
+    (is-true (gethash 'eta::solar-totals-daily cron::*cron-jobs-hash*))))
+
 (test solar-retrieves-power
   "Test that solar actor retrieves power repeatedly every n (configurable) seconds."
   (with-fixture destroy-finally ()
     (with-mocks ()
       (solar-init)
 
-      (answer solar-if:read-power (values :ok 101.23))
+      (answer solar-if:read-power (values :ok 101.23 1234.56))
       (answer (openhab:do-post "SolarPowerMom" 101.23) :ok)
 
       (setf eta:*solar-read-delay-sec* 0.3)
@@ -69,6 +76,21 @@
       (answer (openhab:do-post "SolarPowerMom" 101.23) :ok)
       (setf eta:*solar-read-delay-sec* 10)
       (solar-start-read)
+
+      (is-true (await-cond 2.0
+                 (= 1 (length (invocations 'solar-if:read-power)))))
+      (is-true (await-cond 2.0
+                 (= 1 (length (invocations 'openhab:do-post))))))))
+
+(test solar-post-total-day-to-openhab
+  "Tests that the total per day power is posted to openhab."
+  (with-fixture destroy-finally ()
+    (with-mocks ()
+      (solar-init)
+
+      (answer solar-if:read-power (values :ok 101.23 1234.56))
+      (answer (openhab:do-post "SolarPowerTotalDay" 1234) :ok)
+      (act:! eta::*solar-actor* '(:read-total . nil))
 
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'solar-if:read-power)))))

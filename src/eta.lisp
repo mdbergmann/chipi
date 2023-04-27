@@ -442,8 +442,11 @@ Returns monitor items."
 (defvar *solar-actor* nil)
 (defvar *solar-read-delay-sec* 30 "Seconds delay")
 (defvar *solar-read-scheduler-thread* nil)
+(defparameter *solar-totals-cron-key* 'solar-totals-daily)
 (defparameter *solar-state-file* #P"solar-actor-state")
 (defparameter *openhab-solar-power-item* "SolarPowerMom")
+(defparameter *openhab-solar-power-day-total-item* "SolarPowerTotalDay")
+
 
 (defstruct solar-state
   (total-wh-day 0 :type integer))
@@ -476,6 +479,35 @@ Returns monitor items."
   (! *solar-actor* '(:start-read . nil))
   (values :ok))
 
+;; internal functions
+
+(defun %store-state (state filename)
+  (with-open-file (stream filename
+                          :direction :output
+                          :if-exists :overwrite
+                          :if-does-not-exist :create)
+    (print state stream)))
+
+(defun %read-state (filename)
+  (with-open-file (stream filename)
+    (read stream)))
+
+(defmacro %%read-solar-power ((stat power total) pred &body body)
+  `(progn
+     (log:debug "Reading solar...")
+     (multiple-value-bind (,stat ,power ,total)
+         (solar-if:read-power)
+       (log:info "Reading solar...done, value: ~a, total: ~a" ,power ,total)
+       (case ,stat
+         (:ok
+          (if ,pred
+              (progn
+                ,@body)
+              (log:warn "Invalid number!")))
+         (otherwise
+          (log:warn "Read of solar not OK!"))))
+     t))
+
 ;; actor handling
 
 (defun %solar-init ()
@@ -493,48 +525,45 @@ Returns monitor items."
   t)
 
 (defun %solar-read ()
-  (log:debug "Reading solar power...")
-  (multiple-value-bind (stat power)
-      (solar-if:read-power)
-    (log:info "Reading solar power...done, value: ~a" power)
-    (case stat
-      (:ok
-       (if (and (numberp power) (> power 0))
-           (let ((rounded (round power)))
-             (openhab:do-post *openhab-solar-power-item* rounded))
-           (log:warn "Power not a number or 0: ~a" power)))
-      (otherwise
-       (log:warn "Read of solar not OK, value: ~a" power))))
-  t)
+  (%%read-solar-power (stat power _total)
+                      (and (numberp power) (> power 0))
+    (let ((rounded (round power)))
+      (openhab:do-post *openhab-solar-power-item* rounded))))
+
+(defun %solar-read-total (state)
+  (%%read-solar-power (stat _power total)
+                      (and (numberp total) (> total 0))
+    (let* ((rounded (round total))
+           (old-daily (solar-state-total-wh-day state))
+           (new-daily (- rounded old-daily)))
+      (openhab:do-post *openhab-solar-power-day-total-item* new-daily)
+      (setf (solar-state-total-wh-day state) new-daily))))
 
 (defun %solar-actor-receive (msg)
   (case (car msg)
     (:init (%solar-init))
     (:start-read (%solar-start-read))
-    (:read (%solar-read))))
+    (:read (%solar-read))
+    (:read-total (%solar-read-total *state*))))
 
 (defun %solar-actor-init (actor)
   (when (uiop:file-exists-p *solar-state-file*)
     (log:info "State file exists, applying it!")
     (setf (slot-value actor 'act-cell:state)
-          (%read-state *solar-state-file*))))
+          (%read-state *solar-state-file*)))
+  (cron:make-cron-job (lambda ()
+                        (! actor '(:read-total . nil)))
+                      :minute 50
+                      :hour 23
+                      :day-of-month :every
+                      :day-of-week :every
+                      :hash-key *solar-totals-cron-key*))
 
 (defun %solar-actor-destroy ()
   (when *solar-read-scheduler-thread*
     (bt:destroy-thread *solar-read-scheduler-thread*)
     (setf *solar-read-scheduler-thread* nil))
   (setf *solar-actor* nil))
-
-(defun %store-state (state filename)
-  (with-open-file (stream filename
-                          :direction :output
-                          :if-exists :overwrite
-                          :if-does-not-exist :create)
-    (print state stream)))
-
-(defun %read-state (filename)
-  (with-open-file (stream filename)
-    (read stream)))
 
 ;; ---------------------
 ;; global init functions
@@ -563,7 +592,8 @@ Returns monitor items."
   (cron:start-cron))
 
 (defun cron-stop ()
-  (cron:stop-cron))
+  (cron:stop-cron)
+  (clrhash cron::*cron-jobs-hash*))
 
 (defun start-all ()
   (cron-init)
