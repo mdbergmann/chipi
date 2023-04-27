@@ -537,7 +537,8 @@ Returns monitor items."
            (old-daily (solar-state-total-wh-day state))
            (new-daily (- rounded old-daily)))
       (openhab:do-post *openhab-solar-power-day-total-item* new-daily)
-      (setf (solar-state-total-wh-day state) new-daily))))
+      (setf (solar-state-total-wh-day state) new-daily)
+      (%store-state state *solar-state-file*))))
 
 (defun %solar-actor-receive (msg)
   (case (car msg)
@@ -601,6 +602,11 @@ Returns monitor items."
   (ina-init)
   (solar-init)
   (cron-start))
+
+(defun start-read-all ()
+  (eta-start-record)
+  (ina-start-read)
+  (solar-start-read))
 
 (defun stop-all ()
   (cron-stop)
