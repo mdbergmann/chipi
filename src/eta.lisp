@@ -538,4 +538,6 @@ Returns monitor items."
   (solar-init))
 
 (defun stop-all ()
-  )
+  (eta-stop)
+  (ina-stop)
+  (solar-stop))
