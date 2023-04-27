@@ -76,6 +76,6 @@ OK - error handling for drakma request
 - implement more receive package types (error, etc)
 
 OK - add stop/shutdown to eta, ina and solar
-- allow actors to register cron jobs via post-start event via event-stream
+=> - allow actors to register cron jobs via post-start event via event-stream
 
 |#

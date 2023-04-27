@@ -24,6 +24,9 @@
            #:*solar-read-delay-sec*
            #:ensure-initialized
            #:ensure-shutdown
+           #:cron-init
+           #:cron-start
+           #:cron-stop
            #:start-all
            #:stop-all))
 
@@ -152,6 +155,7 @@ So we gotta trigger a read here as well."
   :ok)
 
 (defun eta-make-jobdefinition (fun time-def)
+  "Creates and registers the cron job."
   (cron:make-cron-job fun
                       :minute (getf time-def :m :every)
                       :hour (getf time-def :h :every)
@@ -160,24 +164,6 @@ So we gotta trigger a read here as well."
                       :hash-key (getf time-def :name)))
 
 ;; internal functions
-
-(defun %eta-actor-init ()
-  (clrhash cron::*cron-jobs-hash*)
-  (dolist (item *eta-avg-items*)
-    (let ((cadences (cdr item)))
-      (dolist (cadence cadences)
-        (let ((cadence-name (car cadence))
-              (cadence-timedef (cdr cadence)))
-          (eta-make-jobdefinition
-           (lambda () (eta-report-avgs cadence-name))
-           cadence-timedef)))))
-  (cron:start-cron))
-
-(defun %eta-actor-destroy ()
-  (clrhash cron::*cron-jobs-hash*)
-  (cron::stop-cron)
-  (setf *eta-serial-actor* nil
-        *eta-serial-proxy-impl* nil))
 
 (defun %%find-avg-mon-items (mon-items)
   "Finds monitor items where avg definitions exist in `*eta-avg-items*'."
@@ -259,6 +245,20 @@ Returns monitor items."
       `(,name . ,per-day))))
 
 ;; actor handling
+
+(defun %eta-actor-init ()
+  (dolist (item *eta-avg-items*)
+    (let ((cadences (cdr item)))
+      (dolist (cadence cadences)
+        (let ((cadence-name (car cadence))
+              (cadence-timedef (cdr cadence)))
+          (eta-make-jobdefinition
+           (lambda () (eta-report-avgs cadence-name))
+           cadence-timedef))))))
+
+(defun %eta-actor-destroy ()
+  (setf *eta-serial-actor* nil
+        *eta-serial-proxy-impl* nil))
 
 (defun %eta-handle-init ()
   (setf *eta-serial-port*
@@ -532,12 +532,25 @@ Returns monitor items."
     (ac:shutdown *actor-system* :wait t))
   (setf *actor-system* nil))
 
+(defun cron-init ()
+  (clrhash cron::*cron-jobs-hash*))
+
+(defun cron-start ()
+  (cron:start-cron))
+
+(defun cron-stop ()
+  (cron:stop-cron)
+  (clrhash cron::*cron-jobs-hash*))
+
 (defun start-all ()
+  (cron-init)
   (eta-init)
   (ina-init)
-  (solar-init))
+  (solar-init)
+  (cron-start))
 
 (defun stop-all ()
+  (cron-stop)
   (eta-stop)
   (ina-stop)
   (solar-stop))

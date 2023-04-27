@@ -42,11 +42,13 @@
       (setf eta::*eta-avg-items* avgs-items))
     (unwind-protect
          (progn
+           (eta:cron-init)
            (eta:ensure-initialized)
            (setf eta:*eta-serial-proxy-impl* :test)
            (setf eta:*eta-serial-device* "/dev/serial")
            (&body))
       (progn
+        (eta:cron-stop)
         (eta:ensure-shutdown)
         (setf eta::*eta-avg-items* avgs-copy)))))
 
@@ -309,8 +311,7 @@ A result will be visible when this function is called on the REPL."
     (is (eq :ok (eta-init)))
     (is (= 2 (hash-table-count cron::*cron-jobs-hash*)))
     (is (gethash 'fooitemavg1 cron::*cron-jobs-hash*))
-    (is (gethash 'fooitemavg2 cron::*cron-jobs-hash*))
-    (is (not (null cron::*cron-dispatcher-thread*)))))
+    (is (gethash 'fooitemavg2 cron::*cron-jobs-hash*))))
 
 (test destroy-cleans-up
   (with-fixture init-destroy ('(("FooItem" .
