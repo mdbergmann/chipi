@@ -13,17 +13,36 @@
 
 (def-fixture destroy-finally ()
   (unwind-protect
-       (&body)
-    (eta:ensure-shutdown)))
+       (progn
+         (eta:cron-init)
+         (&body))
+    (progn
+      (eta:ensure-shutdown)
+      (eta:cron-stop))))
 
 
 (test solar-initialization
   "Test that solar actor is up and running."
   (with-fixture destroy-finally ()
-    (with-mocks ()
-      (is-true (eq :ok (solar-init)))
-      (is-true eta::*solar-actor*)))
+    (is-true (eq :ok (solar-init)))
+    (is-true eta::*solar-actor*)
+    (is (not (null (act-cell:state eta::*solar-actor*)))))
   (is-false eta::*solar-actor*))
+
+(test solar-initialization--init-from-file-state
+  "Test that solar actor is up and running."
+  (unwind-protect
+       (progn
+         (with-fixture destroy-finally ()
+           (setf eta::*solar-state-file* #P"test-state")
+           (eta::%store-state (eta::make-solar-state :total-wh 123)
+                              #P"test-state")
+           (is-true (eq :ok (solar-init)))
+           (is (not (null (act-cell:state eta::*solar-actor*))))
+           (is (= 123
+                  (eta::solar-state-total-wh (slot-value eta::*solar-actor* 'act-cell:state)))))
+         (is-false eta::*solar-actor*))
+    (uiop:delete-file-if-exists #P"test-state")))
 
 (test solar-retrieves-power
   "Test that solar actor retrieves power repeatedly every n (configurable) seconds."

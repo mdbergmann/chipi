@@ -442,7 +442,11 @@ Returns monitor items."
 (defvar *solar-actor* nil)
 (defvar *solar-read-delay-sec* 30 "Seconds delay")
 (defvar *solar-read-scheduler-thread* nil)
-(defvar *openhab-solar-power-item* "SolarPowerMom")
+(defparameter *solar-state-file* #P"solar-actor-state")
+(defparameter *openhab-solar-power-item* "SolarPowerMom")
+
+(defstruct solar-state
+  (total-wh 0 :type integer))
 
 (defun solar-init ()
   (let ((asys (ensure-initialized)))
@@ -451,8 +455,11 @@ Returns monitor items."
             (ac:actor-of asys
                          :name "solar-actor"
                          :dispatcher :shared
+                         :state (make-solar-state)
                          :receive (lambda (msg)
                                     (%solar-actor-receive msg))
+                         :init (lambda (self)
+                                 (%solar-actor-init self))
                          :destroy (lambda (self)
                                     (declare (ignore self))
                                     (%solar-actor-destroy)))))
@@ -506,11 +513,28 @@ Returns monitor items."
     (:start-read (%solar-start-read))
     (:read (%solar-read))))
 
+(defun %solar-actor-init (actor)
+  (when (uiop:file-exists-p *solar-state-file*)
+    (log:info "State file exists, applying it!")
+    (setf (slot-value actor 'act-cell:state)
+          (%read-state *solar-state-file*))))
+
 (defun %solar-actor-destroy ()
   (when *solar-read-scheduler-thread*
     (bt:destroy-thread *solar-read-scheduler-thread*)
     (setf *solar-read-scheduler-thread* nil))
   (setf *solar-actor* nil))
+
+(defun %store-state (state filename)
+  (with-open-file (stream filename
+                          :direction :output
+                          :if-exists :overwrite
+                          :if-does-not-exist :create)
+    (print state stream)))
+
+(defun %read-state (filename)
+  (with-open-file (stream filename)
+    (read stream)))
 
 ;; ---------------------
 ;; global init functions
@@ -539,8 +563,7 @@ Returns monitor items."
   (cron:start-cron))
 
 (defun cron-stop ()
-  (cron:stop-cron)
-  (clrhash cron::*cron-jobs-hash*))
+  (cron:stop-cron))
 
 (defun start-all ()
   (cron-init)
