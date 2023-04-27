@@ -71,4 +71,5 @@ Actor should call ina219 initialization."
       (answer ina219-if:init (values :ok))
       (is (eq :ok (ina-init)))
       (is (eq :ok (ina-stop)))
-      (is-false eta::*ina-actor*))))
+      (is-false eta::*ina-actor*)))
+  (is-false eta::*ina-read-scheduler-thread*))

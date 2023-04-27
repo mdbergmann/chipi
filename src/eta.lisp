@@ -19,6 +19,7 @@
            #:ina-start-read
            #:*ina-read-delay-sec*
            #:solar-init
+           #:solar-stop
            #:solar-start-read
            #:*solar-read-delay-sec*
            #:ensure-initialized
@@ -456,6 +457,11 @@ Returns monitor items."
                                     (declare (ignore self))
                                     (%solar-actor-destroy)))))
     (! *solar-actor* '(:init . nil)))
+  (values :ok))
+
+(defun solar-stop ()
+  (when *solar-actor*
+    (ac:stop (act:context *solar-actor*) *solar-actor*))
   (values :ok))
 
 (defun solar-start-read ()

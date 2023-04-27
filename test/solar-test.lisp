@@ -55,3 +55,11 @@
                  (= 1 (length (invocations 'solar-if:read-power)))))
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'openhab:do-post))))))))
+
+(test solar-stop
+  "Tests that `stop' will stop the actor."
+  (with-fixture destroy-finally ()
+    (is (eq :ok (solar-init)))
+    (is (eq :ok (solar-stop)))
+    (is-false eta::*solar-actor*))
+  (is-false eta::*solar-read-scheduler-thread*))
