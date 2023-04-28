@@ -45,7 +45,7 @@
   (log:debug "Persisting state: ~a, to: ~a" state filename)
   (with-open-file (stream filename
                           :direction :output
-                          :if-exists :overwrite
+                          :if-exists :supersede
                           :if-does-not-exist :create)
     (print state stream)))
 
