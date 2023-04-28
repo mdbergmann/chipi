@@ -27,7 +27,7 @@
            #:cron-init
            #:cron-start
            #:cron-stop
-           #:start-all
+           #:init-all
            #:stop-all))
 
 (in-package :cl-eta.eta)
@@ -605,7 +605,14 @@ Returns monitor items."
   (cron:stop-cron)
   (clrhash cron::*cron-jobs-hash*))
 
-(defun start-all ()
+(defun cron-show-jobs ()
+  (format t "Cron jobs:~%")
+  (loop :for k
+          :being the hash-key
+            :using (hash-value v) :of cron::*cron-jobs-hash*
+        :do (format t "- ~a: ~a~%" k v)))
+
+(defun init-all ()
   (cron-init)
   (eta-init)
   (ina-init)
@@ -622,3 +629,12 @@ Returns monitor items."
   (eta-stop)
   (ina-stop)
   (solar-stop))
+
+(defun help ()
+  (format t "Welcome to cl-eta version: ~a~%~%" (asdf:component-version (asdf:find-system "cl-eta")))
+  (format t "Operations:~%")
+  (format t "INIT-ALL                    : Initialize all (asys, cron, actors)~%")
+  (format t "STOP-ALL                    : Stops actors and cron, not asys~%")
+  (format t "START-READ-ALL              : Starts reading values for all sensors~%")
+  (format t "CRON-SHOW-JOBS              : Show cron jobs~%"))
+
