@@ -18,7 +18,8 @@
          (&body))
     (progn
       (eta:ensure-shutdown)
-      (eta:cron-stop))))
+      (eta:cron-stop)
+      (uiop:delete-file-if-exists #P"test-state"))))
 
 
 (test solar-initialization
@@ -35,14 +36,13 @@
        (progn
          (with-fixture destroy-finally ()
            (setf eta::*solar-state-file* #P"test-state")
-           (eta::%store-state (eta::make-solar-state :total-wh-day 123)
-                              #P"test-state")
+           (eta::%persist-actor-state (eta::make-solar-state :total-wh-day 123)
+                                      #P"test-state")
            (is-true (eq :ok (solar-init)))
            (is (not (null (act-cell:state eta::*solar-actor*))))
            (is (= 123
                   (eta::solar-state-total-wh-day (slot-value eta::*solar-actor* 'act-cell:state)))))
-         (is-false eta::*solar-actor*))
-    (uiop:delete-file-if-exists #P"test-state")))
+         (is-false eta::*solar-actor*))))
 
 (test solar-initialization--deploys-cron-job
   "Tests that solar-init creates a cron jobs that at midnight retrieves total wh."

@@ -42,6 +42,7 @@
       (setf eta::*eta-avg-items* avgs-items))
     (unwind-protect
          (progn
+           (uiop:delete-file-if-exists eta::*eta-state-file*)
            (eta:cron-init)
            (eta:ensure-initialized)
            (setf eta:*eta-serial-proxy-impl* :test)
@@ -50,7 +51,8 @@
       (progn
         (eta:cron-stop)
         (eta:ensure-shutdown)
-        (setf eta::*eta-avg-items* avgs-copy)))))
+        (setf eta::*eta-avg-items* avgs-copy)
+        (uiop:delete-file-if-exists eta::*eta-state-file*)))))
 
 (test init-eta
   (with-fixture init-destroy ()

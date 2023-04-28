@@ -1,5 +1,5 @@
 (defsystem "cl-eta"
-  :version "0.0.3"
+  :version "0.1.0"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
@@ -74,7 +74,7 @@ OK - reset avg after report
 OK - error handling for drakma request
 OK - add stop/shutdown to eta, ina and solar
 OK - allow actors to register cron jobs via post-start event via event-stream
-=> - store and load state of eta actor
+OK - store and load state of eta actor
 
 - filter temp values for spikes
 - implement more receive package types (error, etc)

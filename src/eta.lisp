@@ -42,6 +42,7 @@
 ;; ---------------------
 
 (defun %persist-actor-state (state filename)
+  (log:debug "Persisting state: ~a, to: ~a" state filename)
   (with-open-file (stream filename
                           :direction :output
                           :if-exists :overwrite
@@ -60,6 +61,7 @@
 (defvar *eta-serial-device* "/dev/ttyUSB0")
 (defvar *eta-serial-port* nil)
 (defvar *eta-serial-proxy-impl* nil)
+(defvar *eta-state-file* #P"eta-actor-state")
 (defvar +eta-new-empty-data+ #())
 
 (defparameter *eta-avg-items*
@@ -115,8 +117,7 @@ then average values will be calculated, see `%calculate-avg'.
                          :receive (lambda (msg)
                                     (%eta-serial-actor-receive msg))
                          :init (lambda (self)
-                                 (declare (ignore self))
-                                 (%eta-actor-init))
+                                 (%eta-actor-init self))
                          :destroy (lambda (self)
                                     (declare (ignore self))
                                     (%eta-actor-destroy)))))
@@ -261,7 +262,11 @@ Returns monitor items."
 
 ;; actor handling
 
-(defun %eta-actor-init ()
+(defun %eta-actor-init (actor)
+  (when (uiop:file-exists-p *eta-state-file*)
+    (log:info "State file exists, applying it!")
+    (setf (slot-value actor 'act-cell:state)
+          (%read-actor-state *eta-state-file*)))
   (dolist (item *eta-avg-items*)
     (let ((cadences (cdr item)))
       (dolist (cadence cadences)
@@ -366,7 +371,7 @@ Returns monitor items."
              (:stop-read (%eta-handle-stop-read state))
              (:state (%eta-handle-get-state state))
              (:report-avgs (%eta-handle-report-avgs state (cdr msg))))))
-    ;;(format t "msg:~a, resp:~a~%" msg resp)
+    (%persist-actor-state state *eta-state-file*)
     resp))
 
 
