@@ -345,5 +345,5 @@ A result will be visible when this function is called on the REPL."
   (with-fixture init-destroy ()
     (is (eq :ok (eta-init)))
     (is (eq :ok (eta-stop)))
-    (is-false eta::*eta-serial-actor*)
+    (is-false eta::*eta-actor*)
     (is-false eta::*eta-serial-device*)))

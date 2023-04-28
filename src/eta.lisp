@@ -56,7 +56,7 @@
 ;; eta-serial
 ;; ---------------------
 
-(defvar *eta-serial-actor* nil)
+(defvar *eta-actor* nil)
 (defvar *eta-serial-device* "/dev/ttyUSB0")
 (defvar *eta-serial-port* nil)
 (defvar *eta-serial-proxy-impl* nil)
@@ -106,8 +106,8 @@ then average values will be calculated, see `%calculate-avg'.
       (ensure-initialized)
     (unless *eta-serial-proxy-impl*
       (setf *eta-serial-proxy-impl* :prod))
-    (unless *eta-serial-actor*
-      (setf *eta-serial-actor*
+    (unless *eta-actor*
+      (setf *eta-actor*
             (ac:actor-of asys
                          :name "ETA-serial-actor"
                          :dispatcher :shared
@@ -120,7 +120,7 @@ then average values will be calculated, see `%calculate-avg'.
                          :destroy (lambda (self)
                                     (declare (ignore self))
                                     (%eta-actor-destroy)))))
-    (let ((ask-result (act:ask-s *eta-serial-actor* '(:init . nil))))
+    (let ((ask-result (act:ask-s *eta-actor* '(:init . nil))))
       (cond
         ((listp ask-result)
          (case (car ask-result)
@@ -133,13 +133,13 @@ then average values will be calculated, see `%calculate-avg'.
   (when *eta-serial-device*
     (eta-close-serial)
     (setf *eta-serial-device* nil))
-  (when *eta-serial-actor*
-    (ac:stop (act:context *eta-serial-actor*) *eta-serial-actor*)
-    (setf *eta-serial-actor* nil))
+  (when *eta-actor*
+    (ac:stop (act:context *eta-actor*) *eta-actor*)
+    (setf *eta-actor* nil))
   (values :ok))
 
 (defun eta-close-serial ()
-  (let ((ask-result (act:ask-s *eta-serial-actor* '(:close . nil))))
+  (let ((ask-result (act:ask-s *eta-actor* '(:close . nil))))
     (cond
       ((listp ask-result)
        (case (car ask-result)
@@ -153,20 +153,20 @@ then average values will be calculated, see `%calculate-avg'.
   "Triggers the recording of data.
 Once this command is sent, the ETA will start to send monitor data packages.
 So we gotta trigger a read here as well."
-  (! *eta-serial-actor* `(:write . ,(eta-pkg:new-start-record-pkg)))
-  (! *eta-serial-actor* '(:start-read . nil))
+  (! *eta-actor* `(:write . ,(eta-pkg:new-start-record-pkg)))
+  (! *eta-actor* '(:start-read . nil))
   :ok)
 
 (defun eta-stop-record ()
-  (! *eta-serial-actor* '(:stop-read . nil))
-  (act:ask-s *eta-serial-actor* `(:write . ,(eta-pkg:new-stop-record-pkg)))
+  (! *eta-actor* '(:stop-read . nil))
+  (act:ask-s *eta-actor* `(:write . ,(eta-pkg:new-stop-record-pkg)))
   :ok)
 
 (defun eta-get-state ()
-  (act:ask-s *eta-serial-actor* '(:state . nil)))
+  (act:ask-s *eta-actor* '(:state . nil)))
 
 (defun eta-report-avgs (avg-to-report)
-  (! *eta-serial-actor* `(:report-avgs . ,avg-to-report))
+  (! *eta-actor* `(:report-avgs . ,avg-to-report))
   :ok)
 
 (defun eta-make-jobdefinition (fun time-def)
@@ -272,7 +272,7 @@ Returns monitor items."
            cadence-timedef))))))
 
 (defun %eta-actor-destroy ()
-  (setf *eta-serial-actor* nil
+  (setf *eta-actor* nil
         *eta-serial-proxy-impl* nil))
 
 (defun %eta-handle-init ()
