@@ -38,6 +38,21 @@
 (defvar *actor-system* nil)
 
 ;; ---------------------
+;; common internal functions
+;; ---------------------
+
+(defun %persist-actor-state (state filename)
+  (with-open-file (stream filename
+                          :direction :output
+                          :if-exists :overwrite
+                          :if-does-not-exist :create)
+    (print state stream)))
+
+(defun %read-actor-state (filename)
+  (with-open-file (stream filename)
+    (read stream)))
+
+;; ---------------------
 ;; eta-serial
 ;; ---------------------
 
@@ -481,17 +496,6 @@ Returns monitor items."
 
 ;; internal functions
 
-(defun %store-state (state filename)
-  (with-open-file (stream filename
-                          :direction :output
-                          :if-exists :overwrite
-                          :if-does-not-exist :create)
-    (print state stream)))
-
-(defun %read-state (filename)
-  (with-open-file (stream filename)
-    (read stream)))
-
 (defmacro %%read-solar-power ((stat power total) pred &body body)
   `(progn
      (log:debug "Reading solar...")
@@ -538,7 +542,7 @@ Returns monitor items."
            (new-daily (- rounded old-daily)))
       (openhab:do-post *openhab-solar-power-day-total-item* new-daily)
       (setf (solar-state-total-wh-day state) new-daily)
-      (%store-state state *solar-state-file*))))
+      (%persist-actor-state state *solar-state-file*))))
 
 (defun %solar-actor-receive (msg)
   (case (car msg)
@@ -551,7 +555,7 @@ Returns monitor items."
   (when (uiop:file-exists-p *solar-state-file*)
     (log:info "State file exists, applying it!")
     (setf (slot-value actor 'act-cell:state)
-          (%read-state *solar-state-file*)))
+          (%read-actor-state *solar-state-file*)))
   (cron:make-cron-job (lambda ()
                         (! actor '(:read-total . nil)))
                       :minute 50

@@ -52,12 +52,12 @@
         (eta:ensure-shutdown)
         (setf eta::*eta-avg-items* avgs-copy)))))
 
-(test init-serial
+(test init-eta
   (with-fixture init-destroy ()
     (is (eq :ok (eta-init)))
     (is-true *open-serial-called*)))
 
-(test init-serial--fail-to-open
+(test init-eta--serial-fail-to-open
   (with-fixture init-destroy ()
     (setf eta:*eta-serial-device* "/dev/not-exists")
     (let ((init-serial-result (multiple-value-list (eta-init))))

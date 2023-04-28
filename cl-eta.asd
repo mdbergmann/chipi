@@ -72,10 +72,10 @@ OK - report avgs
 OK - calculate avgs
 OK - reset avg after report
 OK - error handling for drakma request
+OK - add stop/shutdown to eta, ina and solar
+OK - allow actors to register cron jobs via post-start event via event-stream
+=> - store and load state of eta actor
+
 - filter temp values for spikes
 - implement more receive package types (error, etc)
-
-OK - add stop/shutdown to eta, ina and solar
-=> - allow actors to register cron jobs via post-start event via event-stream
-
 |#
