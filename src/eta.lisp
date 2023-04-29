@@ -545,8 +545,8 @@ Returns monitor items."
     (let* ((rounded (round total))
            (old-daily (solar-state-total-wh-day state))
            (new-daily (- rounded old-daily)))
-      (openhab:do-post *openhab-solar-power-day-total-item* new-daily)
       (setf (solar-state-total-wh-day state) new-daily)
+      (openhab:do-post *openhab-solar-power-day-total-item* new-daily)
       (%persist-actor-state state *solar-state-file*))))
 
 (defun %solar-actor-receive (msg)

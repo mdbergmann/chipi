@@ -14,12 +14,13 @@
 (def-fixture destroy-finally ()
   (unwind-protect
        (progn
+         (uiop:delete-file-if-exists eta::*solar-state-file*)
          (eta:cron-init)
          (&body))
     (progn
       (eta:ensure-shutdown)
       (eta:cron-stop)
-      (uiop:delete-file-if-exists #P"test-state"))))
+      (uiop:delete-file-if-exists eta::*solar-state-file*))))
 
 
 (test solar-initialization
@@ -35,13 +36,13 @@
   (unwind-protect
        (progn
          (with-fixture destroy-finally ()
-           (setf eta::*solar-state-file* #P"test-state")
            (eta::%persist-actor-state (eta::make-solar-state :total-wh-day 123)
-                                      #P"test-state")
+                                      eta::*solar-state-file*)
            (is-true (eq :ok (solar-init)))
            (is (not (null (act-cell:state eta::*solar-actor*))))
            (is (= 123
-                  (eta::solar-state-total-wh-day (slot-value eta::*solar-actor* 'act-cell:state)))))
+                  (eta::solar-state-total-wh-day
+                   (slot-value eta::*solar-actor* 'act-cell:state)))))
          (is-false eta::*solar-actor*))))
 
 (test solar-initialization--deploys-cron-job
@@ -82,11 +83,13 @@
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'openhab:do-post))))))))
 
-(test solar-post-total-day-to-openhab
-  "Tests that the total per day power is posted to openhab."
+(test solar-post-total-day-to-openhab--with-update-internal-state
+  "Tests that the total per day power is posted to openhab and state of actor is updated."
   (with-fixture destroy-finally ()
     (with-mocks ()
       (solar-init)
+      (is (= 0 (eta::solar-state-total-wh-day
+                (act-cell:state eta::*solar-actor*))))
 
       (answer solar-if:read-power (values :ok 101.23 1234.56))
       (answer (openhab:do-post "SolarPowerTotalDay" 1234) :ok)
@@ -95,7 +98,11 @@
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'solar-if:read-power)))))
       (is-true (await-cond 2.0
-                 (= 1 (length (invocations 'openhab:do-post))))))))
+                 (= 1 (length (invocations 'openhab:do-post)))))
+      (is (= 1235 (eta::solar-state-total-wh-day
+                   (act-cell:state eta::*solar-actor*))))
+      (is (= 1235 (eta::solar-state-total-wh-day
+                   (eta::%read-actor-state eta::*solar-state-file*)))))))
 
 (test solar-stop
   "Tests that `stop' will stop the actor."
