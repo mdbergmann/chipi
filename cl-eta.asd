@@ -9,7 +9,7 @@
                "cl-cron"
                "bit-smasher"
                "py4cl"
-               "com.inuoe.jzon"
+               "yason"
                )
   :components ((:module "src"
                 :serial t

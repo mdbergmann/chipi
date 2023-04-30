@@ -117,7 +117,8 @@ then average values will be calculated, see `%calculate-avg'.
                          :receive (lambda (msg)
                                     (%eta-serial-actor-receive msg))
                          :init (lambda (self)
-                                 (%eta-actor-init self))
+                                 (declare (ignore self))
+                                 (%eta-actor-init))
                          :destroy (lambda (self)
                                     (declare (ignore self))
                                     (%eta-actor-destroy)))))
@@ -262,11 +263,10 @@ Returns monitor items."
 
 ;; actor handling
 
-(defun %eta-actor-init (actor)
+(defun %eta-actor-init ()
   (when (uiop:file-exists-p *eta-state-file*)
     (log:info "State file exists, applying it!")
-    (setf (slot-value actor 'act-cell:state)
-          (%read-actor-state *eta-state-file*)))
+    (setf *state* (%read-actor-state *eta-state-file*)))
   (dolist (item *eta-avg-items*)
     (let ((cadences (cdr item)))
       (dolist (cadence cadences)
@@ -546,8 +546,8 @@ Returns monitor items."
            (old-daily (solar-state-total-wh-day state))
            (new-daily (- rounded old-daily)))
       (setf (solar-state-total-wh-day state) new-daily)
-      (openhab:do-post *openhab-solar-power-day-total-item* new-daily)
-      (%persist-actor-state state *solar-state-file*))))
+      (%persist-actor-state state *solar-state-file*)
+      (openhab:do-post *openhab-solar-power-day-total-item* new-daily))))
 
 (defun %solar-actor-receive (msg)
   (case (car msg)
@@ -559,8 +559,7 @@ Returns monitor items."
 (defun %solar-actor-init (actor)
   (when (uiop:file-exists-p *solar-state-file*)
     (log:info "State file exists, applying it!")
-    (setf (slot-value actor 'act-cell:state)
-          (%read-actor-state *solar-state-file*)))
+    (setf *state* (%read-actor-state *solar-state-file*)))
   (cron:make-cron-job (lambda ()
                         (! actor '(:read-total . nil)))
                       :minute 50
