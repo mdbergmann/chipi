@@ -1,5 +1,6 @@
 (defpackage :cl-eta.eta-test
   (:use :cl :fiveam :cl-mock :cl-eta.eta)
+  (:nicknames :eta-test)
   (:export #:run!
            #:all-tests
            #:nil))

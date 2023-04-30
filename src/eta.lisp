@@ -32,7 +32,7 @@
 
 (in-package :cl-eta.eta)
 
-(log:config :info :sane :this-console :daily "logs/app.log" :backup nil)
+(log:config :info :sane :this-console :daily "logs/app.log")
 (log:config '(sento) :warn)
 
 (defvar *actor-system* nil)
