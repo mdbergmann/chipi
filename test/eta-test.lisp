@@ -199,6 +199,25 @@ A result will be visible when this function is called on the REPL."
                 10.0))
       (is (= (length (invocations 'openhab:do-post)) 0)))))
 
+(test start-record--read-received--complete--extract-fail--preserve-avgs
+  (with-fixture init-destroy ()
+    (is (eq :ok (eta-init)))
+    (with-mocks ()
+      ;; set a fake avg record
+      (setf (eta::eta-actor-state-avgs (act-cell:state eta::*eta-actor*))
+            (list (eta::make-eta-avg-record :initial-value 1
+                                            :current-value 2)))
+      (answer eta-pkg:collect-data (values t #(123 0 1 2 3 125)))      
+      (answer eta-pkg:extract-pkg (values :fail "Extract failure!"))
+      (answer openhab:do-post nil)
+
+      (is (eq :ok (eta-start-record)))
+      (is-true (miscutils:assert-cond
+                (lambda () (and (> *read-serial-called* 0)
+                           (= (length (invocations 'eta-pkg:extract-pkg)) 1)))
+                10.0))
+      (is-true (eta::eta-actor-state-avgs (act-cell:state eta::*eta-actor*))))))
+
 (test stop-record--serial-written
   (with-fixture init-destroy ()
     (is (eq :ok (eta-init)))

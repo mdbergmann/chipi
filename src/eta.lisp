@@ -310,7 +310,8 @@ Returns monitor items."
                     (eta-pkg:collect-data serial-data read-data)
                   (if complete
                       (let* ((mon-items (%process-complete-pkg data))
-                             (new-avgs (%process-avgs mon-items avgs)))
+                             (new-avgs (or (%process-avgs mon-items avgs)
+                                           avgs)))
                         (setf (eta-actor-state-avgs state) new-avgs)
                         +eta-new-empty-data+)
                       data))
@@ -559,7 +560,8 @@ Returns monitor items."
 (defun %solar-actor-init (actor)
   (when (uiop:file-exists-p *solar-state-file*)
     (log:info "State file exists, applying it!")
-    (setf *state* (%read-actor-state *solar-state-file*)))
+    (setf *state* (%read-actor-state *solar-state-file*))
+    (log:info "Solar state from file: " *state*))
   (cron:make-cron-job (lambda ()
                         (! actor '(:read-total . nil)))
                       :minute 50
