@@ -457,7 +457,7 @@ Returns monitor items."
   (setf *ina-actor* nil))
 
 ;; -----------------------------------
-;; ina219 (zisterne pressure) functions
+;; solar power functions
 ;; -----------------------------------
 
 (defvar *solar-actor* nil)

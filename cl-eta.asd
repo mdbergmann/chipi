@@ -20,7 +20,9 @@
                  (:file "eta-ser-if")
                  (:file "solar-if")
                  (:file "eta-pkg")
-                 (:file "eta"))))
+                 (:file "eta")
+                 (:file "hab")
+                 )))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
 
 (defsystem "cl-eta/tests"
@@ -39,6 +41,7 @@
                  (:file "solar-test")
                  (:file "eta-pkg-test")
                  (:file "eta-atest")
+                 (:file "hab-test")
                  )))
   :description "Test system for cl-eta"
   :perform (test-op (op c) (symbol-call :fiveam :run!
