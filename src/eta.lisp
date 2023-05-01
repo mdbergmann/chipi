@@ -469,7 +469,7 @@ Returns monitor items."
 
 
 (defstruct solar-state
-  (total-wh-day 0 :type integer))
+  (total-wh 0 :type integer))
 
 (defun solar-init ()
   (let ((asys (ensure-initialized)))
@@ -542,10 +542,10 @@ Returns monitor items."
 (defun %solar-read-total (state)
   (%%read-solar-power (stat _power total)
                       (and (numberp total) (> total 0))
-    (let* ((rounded (round total))
-           (old-daily (solar-state-total-wh-day state))
-           (new-daily (- rounded old-daily)))
-      (setf (solar-state-total-wh-day state) new-daily)
+    (let* ((new-rounded-total (round total))
+           (old-total (solar-state-total-wh state))
+           (new-daily (- new-rounded-total old-total)))
+      (setf (solar-state-total-wh state) new-rounded-total)
       (%persist-actor-state state *solar-state-file*)
       (openhab:do-post *openhab-solar-power-day-total-item* new-daily))))
 

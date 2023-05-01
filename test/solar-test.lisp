@@ -36,12 +36,12 @@
   (unwind-protect
        (progn
          (with-fixture destroy-finally ()
-           (eta::%persist-actor-state (eta::make-solar-state :total-wh-day 123)
+           (eta::%persist-actor-state (eta::make-solar-state :total-wh 123)
                                       eta::*solar-state-file*)
            (is-true (eq :ok (solar-init)))
            (is (not (null (act-cell:state eta::*solar-actor*))))
            (is (= 123
-                  (eta::solar-state-total-wh-day
+                  (eta::solar-state-total-wh
                    (slot-value eta::*solar-actor* 'act-cell:state)))))
          (is-false eta::*solar-actor*))))
 
@@ -88,20 +88,25 @@
   (with-fixture destroy-finally ()
     (with-mocks ()
       (solar-init)
-      (is (= 0 (eta::solar-state-total-wh-day
+      (is (= 0 (eta::solar-state-total-wh
                 (act-cell:state eta::*solar-actor*))))
+      ;; set some to show the calculation
+      (setf (eta::solar-state-total-wh
+             (act-cell:state eta::*solar-actor*)) 100)
 
       (answer solar-if:read-power (values :ok 101.23 1234.56))
-      (answer (openhab:do-post "SolarPowerTotalDay" 1234) :ok)
+      (answer (openhab:do-post "SolarPowerTotalDay" value)
+        (assert (= value 1135))
+        :ok)
       (act:! eta::*solar-actor* '(:read-total . nil))
 
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'solar-if:read-power)))))
       (is-true (await-cond 2.0
                  (= 1 (length (invocations 'openhab:do-post)))))
-      (is (= 1235 (eta::solar-state-total-wh-day
+      (is (= 1235 (eta::solar-state-total-wh
                    (act-cell:state eta::*solar-actor*))))
-      (is (= 1235 (eta::solar-state-total-wh-day
+      (is (= 1235 (eta::solar-state-total-wh
                    (eta::%read-actor-state eta::*solar-state-file*)))))))
 
 (test solar-stop
