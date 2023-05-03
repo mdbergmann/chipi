@@ -40,13 +40,35 @@
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item
                            :binding (make-function-binding
+                                     :retrieve nil))))
+      (is-true (binding item)))))
+
+(test make-item--initial-delay-0
+  "`initial-delay' = 0 means execute `retrieve' function after bind."
+  (with-fixture init-destroy-isys ()
+    (let ((item (make-item 'my-item
+                           :binding (make-function-binding
                                      :retrieve (lambda () 123)
-                                     :onbind t))))
+                                     :initial-delay 0))))
       (is-true (binding item))
       (sleep 0.1)  ;; otherwise we'll get the initial value
       (let ((item-value (get-value item)))
         (is-true (await-cond 2
                    (eq (future:fresult item-value) 123)))))))
+
+(test make-item--initial-delay-nil
+  "`initial-delay' = nil means don't execute `retrieve' function after bind."
+  (with-fixture init-destroy-isys ()
+    (let ((item (make-item 'my-item
+                           :binding (make-function-binding
+                                     :retrieve (lambda () 123)
+                                     :initial-delay nil))))
+      (is-true (binding item))
+      (sleep 0.1)  ;; otherwise we'll get the initial value
+      (let ((item-value (get-value item)))
+        (sleep 0.5)
+        (is-true (await-cond 2
+                   (eq (future:fresult item-value) t)))))))
 
 ;; add binding test for initial delay, delay (if recurring)
 ;; add item test for raising event about changed item.

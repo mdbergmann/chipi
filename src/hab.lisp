@@ -90,10 +90,11 @@
                 :documentation "The bound items. On operation the value will be updated to each item.")
    (retrieve-fun :initarg :retrieve-fun
                  :initform (error "Must be set!")
+                 :type function
                  :documentation "The function that retrieves the value.")
-   (onbind :initarg :onbind
-           :initform t
-           :documentation "Flag indicating that `retrieve-fun' should be called and the item state updated immediately after binding to the item.")))
+   (initial-delay :initarg :initial-delay
+                  :initform nil
+                  :documentation "Initial delay in seconds where `retrieve-fun' is executed. `NIL' means disabled.")))
 
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
@@ -101,17 +102,19 @@
       (format stream "binding")
       (get-output-stream-string string-stream))))
 
-(defun make-function-binding (&key retrieve (onbind t))
+(defun make-function-binding (&key retrieve (initial-delay nil))
   (make-instance 'binding
                  :retrieve-fun retrieve
-                 :onbind onbind))
+                 :initial-delay initial-delay))
 
 (defun bind-item (binding item)
-  (with-slots (bound-items retrieve-fun onbind) binding
+  (with-slots (bound-items retrieve-fun initial-delay) binding
     (setf bound-items (cons item bound-items))
-    (when onbind
-      (tasks:task-async retrieve-fun
-                        :on-complete-fun
-                        (lambda (result)
-                          (set-value item result))))))
+    (when initial-delay
+      ;; todo: replace with scheduler
+      (bt:make-thread (lambda ()
+                        (sleep initial-delay)
+                        (let ((result (funcall retrieve-fun)))
+                          (set-value item result)))
+                      :name "Binding: initial-delay"))))
 
