@@ -40,14 +40,15 @@
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item
                            :binding (make-function-binding
-                                     :retrieve (lambda () 0)
+                                     :retrieve (lambda () 123)
                                      :onbind t))))
-      (print item)
       (is-true (binding item))
+      (sleep 0.1)  ;; otherwise we'll get the initial value
       (let ((item-value (get-value item)))
         (is-true (await-cond 2
-                   (eq (future:fresult item-value) 0)))))))
+                   (eq (future:fresult item-value) 123)))))))
 
-;; add test for initial delay, delay (if recurring)
+;; add binding test for initial delay, delay (if recurring)
+;; add item test for raising event about changed item.
 
 (run! 'hab-tests)

@@ -26,12 +26,16 @@
                                    *isys*
                                    :tasks
                                    :workers 4
-                                   :stragety :round-robin)))))
+                                   :stragety :round-robin))
+        (setf tasks:*task-context* *isys*
+              tasks:*task-dispatcher* :tasks))))
 
 (defun shutdown-isys ()
   (when *isys*
     (ac:shutdown *isys* :wait t)
-    (setf *isys* nil)
+    (setf *isys* nil
+          tasks:*task-context* nil
+          tasks:*task-dispatcher* nil)
     t))
 
 (defclass item (act:actor)
@@ -50,6 +54,7 @@
                 :type 'item
                 :state (make-item-state)
                 :receive (lambda (msg)
+                           (log:debug "Received msg: " msg)
                            (case (car msg)
                              (:get-state
                               (act:reply (slot-value act:*state* 'value)))
@@ -105,8 +110,8 @@
   (with-slots (bound-items retrieve-fun onbind) binding
     (setf bound-items (cons item bound-items))
     (when onbind
-      (tasks:with-context (*isys* :tasks)
-        (tasks:task-async retrieve-fun
-                          :on-complete-fun (lambda (result)
-                                             (set-value item result)))))))
-  
+      (tasks:task-async retrieve-fun
+                        :on-complete-fun
+                        (lambda (result)
+                          (set-value item result))))))
+
