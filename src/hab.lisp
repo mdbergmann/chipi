@@ -111,10 +111,12 @@
   (with-slots (bound-items retrieve-fun initial-delay) binding
     (setf bound-items (cons item bound-items))
     (when initial-delay
-      ;; todo: replace with scheduler
-      (bt:make-thread (lambda ()
-                        (sleep initial-delay)
-                        (let ((result (funcall retrieve-fun)))
-                          (set-value item result)))
-                      :name "Binding: initial-delay"))))
+      (make-scheduler-thread (lambda ()
+                               (sleep initial-delay)
+                               (let ((result (funcall retrieve-fun)))
+                                 (set-value item result)))))))
 
+(defun make-scheduler-thread (fun)
+  ;; todo: replace with scheduler
+  (bt:make-thread fun
+                  :name "Binding: scheduler thread"))
