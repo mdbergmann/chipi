@@ -43,7 +43,7 @@
                                      :retrieve nil))))
       (is-true (binding item)))))
 
-(test make-item--initial-delay-0
+(test make-item--initial-delay-0--execute-retrieve
   "`initial-delay' = 0 means execute `retrieve' function after bind."
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item
@@ -56,7 +56,7 @@
         (is-true (await-cond 2
                    (eq (future:fresult item-value) 123)))))))
 
-(test make-item--initial-delay-nil
+(test make-item--initial-delay-nil--no-execute-retrieve
   "`initial-delay' = nil means don't execute `retrieve' function after bind."
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item
@@ -69,6 +69,23 @@
         (sleep 0.5)
         (is-true (await-cond 2
                    (eq (future:fresult item-value) t)))))))
+
+(test item-delay-recuring
+  "`delay' to reperatedly execute `retrieve'."
+  (with-fixture init-destroy-isys ()
+    (let* ((call-count 0)
+           (item (make-item 'my-item
+                            :binding (make-function-binding
+                                      :retrieve (lambda () (incf call-count))
+                                      :delay 0.3))))
+      (sleep 1.0)
+      (let ((item-value (get-value item)))
+        (is-true (await-cond 2
+                   (let ((result (future:fresult item-value)))
+                     (format t "result: ~a~%" result)
+                     (case result
+                       (:not-ready nil)
+                       (otherwise (> result 1))))))))))
 
 ;; add binding test for initial delay, delay (if recurring)
 ;; add item test for raising event about changed item.

@@ -53,6 +53,11 @@
                 :name (symbol-name id)
                 :type 'item
                 :state (make-item-state)
+                :destroy (lambda (self)
+                           (when (binding self)
+                             (with-slots (delay-thread) (binding self)
+                               (when delay-thread
+                                 (bt:destroy-thread delay-thread)))))
                 :receive (lambda (msg)
                            (log:debug "Received msg: " msg)
                            (case (car msg)
@@ -94,27 +99,40 @@
                  :documentation "The function that retrieves the value.")
    (initial-delay :initarg :initial-delay
                   :initform nil
-                  :documentation "Initial delay in seconds where `retrieve-fun' is executed. `NIL' means disabled.")))
+                  :documentation "Initial delay in seconds where `RETRIEVE-FUN' is executed. `NIL' means disabled.")
+   (delay :initarg :delay
+          :initform nil
+          :documentation "Recurring delay. Calls `RETRIEVE-FUN' repeatedly. `NIL' or `0' means disabled.")
+   (delay-thread :initform nil)))
 
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (format stream "binding")
+      (with-slots (initial-delay delay) obj
+        (format stream "initial-delay: ~a, delay: ~a" initial-delay delay))
       (get-output-stream-string string-stream))))
 
-(defun make-function-binding (&key retrieve (initial-delay nil))
+(defun make-function-binding (&key retrieve (initial-delay nil) (delay nil))
   (make-instance 'binding
                  :retrieve-fun retrieve
-                 :initial-delay initial-delay))
+                 :initial-delay initial-delay
+                 :delay delay))
 
 (defun bind-item (binding item)
-  (with-slots (bound-items retrieve-fun initial-delay) binding
+  (with-slots (bound-items retrieve-fun initial-delay delay delay-thread) binding
     (setf bound-items (cons item bound-items))
     (when initial-delay
       (make-scheduler-thread (lambda ()
                                (sleep initial-delay)
                                (let ((result (funcall retrieve-fun)))
-                                 (set-value item result)))))))
+                                 (set-value item result)))))
+    (when (and delay (> delay 0))
+      (setf delay-thread
+            (make-scheduler-thread (lambda ()
+                                     (loop
+                                       (sleep delay)
+                                       (let ((result (funcall retrieve-fun)))
+                                         (set-value item result)))))))))
 
 (defun make-scheduler-thread (fun)
   ;; todo: replace with scheduler
