@@ -102,7 +102,7 @@
       (set-value item 1)
       (is-true (await-cond 0.5
                  ev-received))
-      (is (eq (hab:item-changed-event-item ev-received) item))
+      (is (eq (item-changed-event-item ev-received) item))
       (is (= 1 (hab::item-state-value (act-cell:state item)))))))
 
 (run! 'hab-tests)

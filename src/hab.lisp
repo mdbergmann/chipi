@@ -1,6 +1,11 @@
 (defpackage :cl-eta.hab
-  (:use :cl :sento-user)
+  (:use :cl)
   (:nicknames :hab)
+  (:import-from #:act
+                #:*self*
+                #:*state*
+                #:!
+                #:?)
   (:export #:shutdown-isys
            ;; item
            #:make-item
@@ -67,12 +72,12 @@
                            (log:debug "Received msg: " msg)
                            (case (car msg)
                              (:get-state
-                              (act:reply (slot-value act:*state* 'value)))
+                              (act:reply (slot-value *state* 'value)))
                              (:set-state
                               (prog1
-                                  (setf (slot-value act:*state* 'value) (cdr msg))
-                                (ev:publish act:*self* (make-item-changed-event
-                                                        :item act:*self*)))))))))
+                                  (setf (slot-value *state* 'value) (cdr msg))
+                                (ev:publish *self* (make-item-changed-event
+                                                    :item *self*)))))))))
     (when binding
       (setf (slot-value item 'binding) binding)
       (bind-item binding item))
@@ -87,10 +92,10 @@
       (get-output-stream-string string-stream))))
 
 (defun get-value (item)
-  (act:? item '(:get-state . nil)))
+  (? item '(:get-state . nil)))
 
 (defun set-value (item value)
-  (act:! item `(:set-state . ,value)))
+  (! item `(:set-state . ,value)))
 
 ;; -------------------------
 ;; bindings
