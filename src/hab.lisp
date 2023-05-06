@@ -102,7 +102,7 @@
                   :documentation "Initial delay in seconds where `RETRIEVE-FUN' is executed. `NIL' means disabled.")
    (delay :initarg :delay
           :initform nil
-          :documentation "Recurring delay. Calls `RETRIEVE-FUN' repeatedly. `NIL' or `0' means disabled.")
+          :documentation "Recurring delay. Calls `RETRIEVE-FUN' repeatedly. `NIL' means disabled.")
    (delay-thread :initform nil)))
 
 (defmethod print-object ((obj binding) stream)
@@ -126,7 +126,7 @@
                                (sleep initial-delay)
                                (let ((result (funcall retrieve-fun)))
                                  (set-value item result)))))
-    (when (and delay (> delay 0))
+    (when delay
       (setf delay-thread
             (make-scheduler-thread (lambda ()
                                      (loop
