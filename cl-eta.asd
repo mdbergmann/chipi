@@ -81,4 +81,16 @@ OK - store and load state of eta actor
 
 - filter temp values for spikes
 - implement more receive package types (error, etc)
+
+hab:
+
+- separate bindings, create bindings folder
+- place function-binding there
+- create http-binding
+- binding more abstract, method protocol?
+- separate item
+- dsl for creating items with or withour bindings
+- how to handle item changes, what and where to register scripts?
+
+
 |#

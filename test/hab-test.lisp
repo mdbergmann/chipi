@@ -104,5 +104,3 @@
                  ev-received))
       (is (eq (item-changed-event-item ev-received) item))
       (is (= 1 (hab::item-state-value (act-cell:state item)))))))
-
-(run! 'hab-tests)
