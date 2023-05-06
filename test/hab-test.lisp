@@ -82,12 +82,27 @@
       (let ((item-value (get-value item)))
         (is-true (await-cond 2
                    (let ((result (future:fresult item-value)))
-                     (format t "result: ~a~%" result)
                      (case result
                        (:not-ready nil)
                        (otherwise (> result 1))))))))))
 
-;; add binding test for initial delay, delay (if recurring)
-;; add item test for raising event about changed item.
+(test item-raises-changed-event-when-changed
+  "When item value is changed it should raise event."
+  (with-fixture init-destroy-isys ()
+    (let ((item (make-item 'my-item))
+          (ev-received))
+      (ac:actor-of hab::*isys*
+                   :init (lambda (self)
+                           (ev:subscribe self self 'hab:item-changed-event))
+                   :receive (lambda (msg)
+                              (format t "received event...~%")
+                              (cond
+                                ((typep msg 'hab:item-changed-event)
+                                 (setf ev-received msg)))))
+      (set-value item 1)
+      (is-true (await-cond 0.5
+                 ev-received))
+      (is (eq (hab:item-changed-event-item ev-received) item))
+      (is (= 1 (hab::item-state-value (act-cell:state item)))))))
 
 (run! 'hab-tests)

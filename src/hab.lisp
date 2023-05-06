@@ -8,6 +8,9 @@
            #:get-value
            #:set-value
            #:binding
+           ;; events
+           #:item-changed-event
+           #:item-changed-event-item
            ;; binding
            #:make-function-binding)
   )
@@ -38,6 +41,8 @@
           tasks:*task-dispatcher* nil)
     t))
 
+(defstruct item-changed-event item)
+
 (defclass item (act:actor)
   ((binding :initform nil
             :reader binding
@@ -64,7 +69,10 @@
                              (:get-state
                               (act:reply (slot-value act:*state* 'value)))
                              (:set-state
-                              (setf (slot-value act:*state* 'value) (cdr msg))))))))
+                              (prog1
+                                  (setf (slot-value act:*state* 'value) (cdr msg))
+                                (ev:publish act:*self* (make-item-changed-event
+                                                        :item act:*self*)))))))))
     (when binding
       (setf (slot-value item 'binding) binding)
       (bind-item binding item))
