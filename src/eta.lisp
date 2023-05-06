@@ -507,6 +507,8 @@ Returns monitor items."
      (log:debug "Reading solar...")
      (multiple-value-bind (,stat ,power ,total)
          (solar-if:read-power)
+       (setf ,power (abs ,power)
+             ,total (abs ,total))
        (log:info "Reading solar...done, value: ~a, total: ~a" ,power ,total)
        (case ,stat
          (:ok

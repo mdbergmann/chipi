@@ -59,7 +59,7 @@
       (solar-init)
 
       (answer solar-if:read-power (values :ok 101.23 1234.56))
-      (answer (openhab:do-post "SolarPowerMom" 101.23) :ok)
+      (answer (openhab:do-post "SolarPowerMom" 101) :ok)
 
       (setf eta:*solar-read-delay-sec* 0.3)
       (is (eq :ok (solar-start-read)))
@@ -73,8 +73,8 @@
     (with-mocks ()
       (solar-init)
 
-      (answer solar-if:read-power (values :ok 101.23))
-      (answer (openhab:do-post "SolarPowerMom" 101.23) :ok)
+      (answer solar-if:read-power (values :ok -101.23 1234.56))  ;; test with negative value
+      (answer (openhab:do-post "SolarPowerMom" 101) :ok)
       (setf eta:*solar-read-delay-sec* 10)
       (solar-start-read)
 
