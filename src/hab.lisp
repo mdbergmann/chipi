@@ -7,6 +7,7 @@
                 #:!
                 #:?)
   (:export #:shutdown-isys
+           #:shutdown-timer
            ;; item
            #:make-item
            #:item
@@ -17,12 +18,14 @@
            #:item-changed-event
            #:item-changed-event-item
            ;; binding
-           #:make-function-binding)
+           #:make-function-binding
+           #:bind-item)
   )
 
 (in-package :cl-eta.hab)
 
 (defvar *isys* nil)
+(defvar *timer* nil)
 
 (defun ensure-isys ()
   (or *isys*
@@ -46,28 +49,29 @@
           tasks:*task-dispatcher* nil)
     t))
 
+(defun ensure-timer ()
+  (or *timer*
+      (setf *timer* (wt:make-wheel-timer :max-size 300 :resolution 100))))
+
+(defun shutdown-timer ()
+  (when *timer*
+    (wt:shutdown-wheel-timer *timer*)
+    (setf *timer* nil))
+  t)
+
 (defstruct item-changed-event item)
 
-(defclass item (act:actor)
-  ((binding :initform nil
-            :reader binding
-            :documentation "The binding of the item. This is where the item value comes from.")))
-
+(defclass item (act:actor) ())
 (defstruct item-state
   (value t))
 
-(defun make-item (id &key (binding nil))
+(defun make-item (id)
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys
                 :name (symbol-name id)
                 :type 'item
                 :state (make-item-state)
-                :destroy (lambda (self)
-                           (when (binding self)
-                             (with-slots (delay-thread) (binding self)
-                               (when delay-thread
-                                 (bt:destroy-thread delay-thread)))))
                 :receive (lambda (msg)
                            (log:debug "Received msg: " msg)
                            (case (car msg)
@@ -78,17 +82,14 @@
                                   (setf (slot-value *state* 'value) (cdr msg))
                                 (ev:publish *self* (make-item-changed-event
                                                     :item *self*)))))))))
-    (when binding
-      (setf (slot-value item 'binding) binding)
-      (bind-item binding item))
     item))
 
 (defmethod print-object ((obj item) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (format stream "name: ~a, binding: ~a"
+      (format stream "name: ~a, value: ~a"
               (act-cell:name obj)
-              (binding obj))
+              (act-cell:state obj))
       (get-output-stream-string string-stream))))
 
 (defun get-value (item)
@@ -105,6 +106,7 @@
 
 (defclass binding ()
   ((bound-items :initform '()
+                :reader bound-items
                 :documentation "The bound items. On operation the value will be updated to each item.")
    (retrieve-fun :initarg :retrieve-fun
                  :initform (error "Must be set!")
@@ -115,8 +117,7 @@
                   :documentation "Initial delay in seconds where `RETRIEVE-FUN' is executed. `NIL' means disabled.")
    (delay :initarg :delay
           :initform nil
-          :documentation "Recurring delay. Calls `RETRIEVE-FUN' repeatedly. `NIL' means disabled.")
-   (delay-thread :initform nil)))
+          :documentation "Recurring delay. Calls `RETRIEVE-FUN' repeatedly. `NIL' means disabled.")))
 
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
@@ -134,20 +135,17 @@
 (defun bind-item (binding item)
   (with-slots (bound-items retrieve-fun initial-delay delay delay-thread) binding
     (setf bound-items (cons item bound-items))
-    (when initial-delay
-      (make-scheduler-thread (lambda ()
-                               (sleep initial-delay)
-                               (let ((result (funcall retrieve-fun)))
-                                 (set-value item result)))))
-    (when delay
-      (setf delay-thread
-            (make-scheduler-thread (lambda ()
-                                     (loop
-                                       (sleep delay)
-                                       (let ((result (funcall retrieve-fun)))
-                                         (set-value item result)))))))))
-
-(defun make-scheduler-thread (fun)
-  ;; todo: replace with scheduler
-  (bt:make-thread fun
-                  :name "Binding: scheduler thread"))
+    (let ((timer-fun (lambda ()
+                       ;; maybe execute with using tasks
+                       (let ((result (funcall retrieve-fun)))
+                         (set-value item result)))))
+      (when initial-delay
+        (sched:schedule initial-delay timer-fun))
+      
+      (when delay
+        (let (recurring-timer-fun)
+          (setf recurring-timer-fun
+                (lambda ()
+                  (funcall timer-fun)
+                  (wt:schedule *timer* delay recurring-timer-fun)))
+          (sched:schedule delay recurring-timer-fun))))))

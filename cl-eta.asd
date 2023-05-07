@@ -10,6 +10,7 @@
                "bit-smasher"
                "py4cl"
                "yason"
+               "timer-wheel"
                )
   :components ((:module "src"
                 :serial t
@@ -21,6 +22,7 @@
                  (:file "solar-if")
                  (:file "eta-pkg")
                  (:file "eta")
+                 (:file "scheduler")
                  (:file "hab")
                  )))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
@@ -84,6 +86,8 @@ OK - store and load state of eta actor
 
 hab:
 
+=> - bind-item-delay should set value to all bound items
+- initialize item with multiple bindings?
 - separate bindings, create bindings folder
 - place function-binding there
 - create http-binding

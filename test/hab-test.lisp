@@ -13,8 +13,8 @@
 
 (def-fixture init-destroy-isys ()
   (unwind-protect
-       (&body)
-    (shutdown-isys)))
+       (&body))
+    (shutdown-isys))
 
 (test make-item
   (unwind-protect
@@ -36,56 +36,6 @@
                    (eq (future:fresult item-value) 123)))        
         ))))
 
-(test make-item--with-function-binding
-  (with-fixture init-destroy-isys ()
-    (let ((item (make-item 'my-item
-                           :binding (make-function-binding
-                                     :retrieve nil))))
-      (is-true (binding item)))))
-
-(test make-item--initial-delay-0--execute-retrieve
-  "`initial-delay' = 0 means execute `retrieve' function after bind."
-  (with-fixture init-destroy-isys ()
-    (let ((item (make-item 'my-item
-                           :binding (make-function-binding
-                                     :retrieve (lambda () 123)
-                                     :initial-delay 0))))
-      (is-true (binding item))
-      (sleep 0.1)  ;; otherwise we'll get the initial value
-      (let ((item-value (get-value item)))
-        (is-true (await-cond 2
-                   (eq (future:fresult item-value) 123)))))))
-
-(test make-item--initial-delay-nil--no-execute-retrieve
-  "`initial-delay' = nil means don't execute `retrieve' function after bind."
-  (with-fixture init-destroy-isys ()
-    (let ((item (make-item 'my-item
-                           :binding (make-function-binding
-                                     :retrieve (lambda () 123)
-                                     :initial-delay nil))))
-      (is-true (binding item))
-      (sleep 0.1)  ;; otherwise we'll get the initial value
-      (let ((item-value (get-value item)))
-        (sleep 0.5)
-        (is-true (await-cond 2
-                   (eq (future:fresult item-value) t)))))))
-
-(test item-delay-recuring
-  "`delay' to reperatedly execute `retrieve'."
-  (with-fixture init-destroy-isys ()
-    (let* ((call-count 0)
-           (item (make-item 'my-item
-                            :binding (make-function-binding
-                                      :retrieve (lambda () (incf call-count))
-                                      :delay 0.3))))
-      (sleep 1.0)
-      (let ((item-value (get-value item)))
-        (is-true (await-cond 2
-                   (let ((result (future:fresult item-value)))
-                     (case result
-                       (:not-ready nil)
-                       (otherwise (> result 1))))))))))
-
 (test item-raises-changed-event-when-changed
   "When item value is changed it should raise event."
   (with-fixture init-destroy-isys ()
@@ -104,3 +54,54 @@
                  ev-received))
       (is (eq (item-changed-event-item ev-received) item))
       (is (= 1 (hab::item-state-value (act-cell:state item)))))))
+
+
+(def-fixture init-destroy-timer ()
+  (unwind-protect
+       (progn
+         (hab::ensure-timer)
+         (&body))
+    (shutdown-timer)))
+
+(test binding--bind-item
+  (let ((binding (make-function-binding :retrieve nil)))
+    (bind-item binding 'fake-item)
+    (is (eq 'fake-item (car (hab::bound-items binding))))))
+
+(test binding--initial-delay->0--execute-retrieve
+  "`initial-delay' >= 0 means execute `retrieve' function after bind."
+  (with-fixture init-destroy-timer ()
+    (with-mocks ()
+      (let ((binding (make-function-binding
+                      :retrieve (lambda () 123)
+                      :initial-delay 0.1)))
+        (answer (hab:set-value _ value)
+          (assert (= value 123)))
+        (bind-item binding 'my-fake-item)
+        (is-true (await-cond 0.5
+                   (= 1 (length (invocations 'hab:set-value)))))))))
+
+(test binding--initial-delay-nil--no-execute-retrieve
+  "`initial-delay' = nil means don't execute `retrieve' function after bind."
+  (with-fixture init-destroy-timer ()
+    (with-mocks ()
+      (let ((binding (make-function-binding
+                      :retrieve (lambda () 123)
+                      :initial-delay nil)))
+        (bind-item binding 'my-fake-item)
+        (sleep 0.5)
+        (is (= 0 (length (invocations 'hab:set-value))))))))
+
+(test binding--delay-recurring
+  "`delay' to reperatedly execute `retrieve'."
+  (with-fixture init-destroy-timer ()
+    (with-mocks ()
+      (let* ((call-count 0)
+             (binding (make-function-binding
+                       :retrieve (lambda () (incf call-count)
+                                   :delay 0.1))))
+        (answer (hab:set-value _ value)
+          (assert (>= value 0)))
+        (bind-item binding 'my-fake-item)
+        (is-true (await-cond 0.3
+                   (>= 2 (length (invocations 'hab:set-value)))))))))
