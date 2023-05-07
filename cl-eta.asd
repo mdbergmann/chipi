@@ -23,6 +23,9 @@
                  (:file "eta-pkg")
                  (:file "eta")
                  (:file "scheduler")
+                 ((:module "bindings"
+                   :components
+                   ((:file "base-binding"))))
                  (:file "hab")
                  )))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
@@ -43,6 +46,7 @@
                  (:file "solar-test")
                  (:file "eta-pkg-test")
                  (:file "eta-atest")
+                 (:file "binding-test")
                  (:file "hab-test")
                  )))
   :description "Test system for cl-eta"
@@ -86,13 +90,13 @@ OK - store and load state of eta actor
 
 hab:
 
-=> - bind-item-delay should set value to all bound items
-- initialize item with multiple bindings?
-- separate bindings, create bindings folder
-- place function-binding there
+OK - bind-item-delay should set value to all bound items
+OK - separate bindings, create bindings folder
+OK - place function-binding there
+- more pipeline functions: transform of 'retrieved' value
 - create http-binding
 - binding more abstract, method protocol?
-- separate item
+=> - separate item
 - dsl for creating items with or withour bindings
 - how to handle item changes, what and where to register scripts?
 

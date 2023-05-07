@@ -13,13 +13,9 @@
            #:item
            #:get-value
            #:set-value
-           #:binding
            ;; events
            #:item-changed-event
-           #:item-changed-event-item
-           ;; binding
-           #:make-function-binding
-           #:bind-item)
+           #:item-changed-event-item)
   )
 
 (in-package :cl-eta.hab)
@@ -97,55 +93,3 @@
 
 (defun set-value (item value)
   (! item `(:set-state . ,value)))
-
-;; -------------------------
-;; bindings
-;; -------------------------
-
-;; bindings should be able to attach to multiple items
-
-(defclass binding ()
-  ((bound-items :initform '()
-                :reader bound-items
-                :documentation "The bound items. On operation the value will be updated to each item.")
-   (retrieve-fun :initarg :retrieve-fun
-                 :initform (error "Must be set!")
-                 :type function
-                 :documentation "The function that retrieves the value.")
-   (initial-delay :initarg :initial-delay
-                  :initform nil
-                  :documentation "Initial delay in seconds where `RETRIEVE-FUN' is executed. `NIL' means disabled.")
-   (delay :initarg :delay
-          :initform nil
-          :documentation "Recurring delay. Calls `RETRIEVE-FUN' repeatedly. `NIL' means disabled.")))
-
-(defmethod print-object ((obj binding) stream)
-  (print-unreadable-object (obj stream :type t)
-    (let ((string-stream (make-string-output-stream)))
-      (with-slots (initial-delay delay) obj
-        (format stream "initial-delay: ~a, delay: ~a" initial-delay delay))
-      (get-output-stream-string string-stream))))
-
-(defun make-function-binding (&key retrieve (initial-delay nil) (delay nil))
-  (make-instance 'binding
-                 :retrieve-fun retrieve
-                 :initial-delay initial-delay
-                 :delay delay))
-
-(defun bind-item (binding item)
-  (with-slots (bound-items retrieve-fun initial-delay delay delay-thread) binding
-    (setf bound-items (cons item bound-items))
-    (let ((timer-fun (lambda ()
-                       ;; maybe execute with using tasks
-                       (let ((result (funcall retrieve-fun)))
-                         (set-value item result)))))
-      (when initial-delay
-        (sched:schedule initial-delay timer-fun))
-      
-      (when delay
-        (let (recurring-timer-fun)
-          (setf recurring-timer-fun
-                (lambda ()
-                  (funcall timer-fun)
-                  (wt:schedule *timer* delay recurring-timer-fun)))
-          (sched:schedule delay recurring-timer-fun))))))
