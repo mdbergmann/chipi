@@ -5,7 +5,7 @@
 
 (in-package :cl-eta.solar-if)
 
-(defparameter *solar-url* "http://192.168.50.222/rpc")
+(defparameter *solar-url* "http://192.168.50.190/rpc")
 
 (defun read-power ()
   (multiple-value-bind (body stat)
