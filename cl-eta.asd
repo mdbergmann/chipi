@@ -93,12 +93,15 @@ hab:
 OK - bind-item-delay should set value to all bound items
 OK - separate bindings, create bindings folder
 OK - place function-binding there
+- cron for binding
 - more pipeline functions: transform of 'retrieved' value
 - create http-binding
 - binding more abstract, method protocol?
 => - separate item
 - dsl for creating items with or withour bindings
 - how to handle item changes, what and where to register scripts?
+
+- persistence?
 
 
 |#
