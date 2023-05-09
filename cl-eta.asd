@@ -23,8 +23,9 @@
                  (:file "eta-pkg")
                  (:file "eta")
                  (:file "hab")
-                 (:file "item")
                  (:file "scheduler")
+                 (:file "binding-api")
+                 (:file "item")
                  (:module "bindings"
                   :components
                   ((:file "base-binding")))
@@ -96,12 +97,12 @@ OK - bind-item-delay should set value to all bound items
 OK - separate bindings, create bindings folder
 OK - place function-binding there
 OK - separate item
-=> - item should be able to push to binding (item needs reference to binding)
+OK - item should be able to push to binding (item needs reference to binding)
+=> - dsl for creating items with or withour bindings
 - cron for binding
 - more pipeline functions: transform of 'retrieved' value
 - create http-binding
 - binding more abstract, method protocol?
-- dsl for creating items with or withour bindings
 - how to handle item changes, what and where to register scripts?
 
 - persistence?

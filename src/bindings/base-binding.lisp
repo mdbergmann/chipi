@@ -1,11 +1,3 @@
-(defpackage :cl-eta.binding
-  (:use :cl)
-  (:nicknames :binding)
-  (:export #:make-function-binding
-           #:bind-item
-           #:exec-retrieve
-           #:exec-push))
-
 (in-package :cl-eta.binding)
 
 (defclass binding ()
@@ -47,7 +39,7 @@
 (defun exec-retrieve (binding)
   (log:debug "Retrieving value...")
   (with-slots (bound-items retrieve-fun) binding
-    ;; maybe execute with using tasks
+    ;; maybe execute using tasks
     (let ((result (funcall retrieve-fun)))
       (dolist (item bound-items)
         (item:set-value item result)))))
@@ -55,6 +47,7 @@
 (defun exec-push (binding value)
   (log:debug "Pushing value: " value)
   (with-slots (push-fun) binding
+    ;; maybe execute using tasks
     (when push-fun
       (funcall push-fun value))))
 
