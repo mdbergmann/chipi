@@ -1,1 +1,5 @@
 *.dx64fsl
+*.fasl
+*.64yfasl
+/src/cl-cron.log
+*.64xfasl
