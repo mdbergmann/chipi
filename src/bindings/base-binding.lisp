@@ -3,7 +3,8 @@
   (:nicknames :binding)
   (:export #:make-function-binding
            #:bind-item
-           #:exec-retrieve))
+           #:exec-retrieve
+           #:exec-push))
 
 (in-package :cl-eta.binding)
 
@@ -15,6 +16,9 @@
                  :initform (error "Must be set!")
                  :type function
                  :documentation "The function that retrieves the value.")
+   (push-fun :initarg :push-fun
+             :initform nil
+             :documentation "Function to push the item values to some receiver.")
    (initial-delay :initarg :initial-delay
                   :initform nil
                   :documentation "Initial delay in seconds where `RETRIEVE-FUN' is executed. `NIL' means disabled.")
@@ -29,9 +33,14 @@
         (format stream "initial-delay: ~a, delay: ~a" initial-delay delay))
       (get-output-stream-string string-stream))))
 
-(defun make-function-binding (&key retrieve (initial-delay nil) (delay nil))
+(defun make-function-binding (&key
+                                retrieve
+                                (push nil)
+                                (initial-delay nil)
+                                (delay nil))
   (make-instance 'binding
                  :retrieve-fun retrieve
+                 :push-fun push
                  :initial-delay initial-delay
                  :delay delay))
 
@@ -42,6 +51,12 @@
     (let ((result (funcall retrieve-fun)))
       (dolist (item bound-items)
         (item:set-value item result)))))
+
+(defun exec-push (binding value)
+  (log:debug "Pushing value: " value)
+  (with-slots (push-fun) binding
+    (when push-fun
+      (funcall push-fun value))))
 
 (defun bind-item (binding item)
   (with-slots (bound-items initial-delay delay) binding

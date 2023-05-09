@@ -42,11 +42,15 @@
                              (:get-state
                               (reply (item-state-value *state*)))
                              (:set-state
-                              (prog1
-                                  (setf (item-state-value *state*) (cdr msg))
-                                (let ((self *self*))
+                              (let ((new-value (cdr msg))
+                                    (self *self*))
+                                (prog1
+                                    (setf (item-state-value *state*) new-value)
                                   (ev:publish self (make-item-changed-event
-                                                    :item self))))))))))
+                                                    :item self))
+                                  (with-slots (bindings) self
+                                    (dolist (binding bindings)
+                                      (binding:exec-push binding new-value)))))))))))
     item))
 
 (defmethod print-object ((obj item) stream)

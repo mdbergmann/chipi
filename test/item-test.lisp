@@ -69,3 +69,16 @@
                  (let ((item-value (get-value item)))
                    (await-cond 0.3
                      (eq (future:fresult item-value) 1))))))))
+
+(test item--push-to-binding-on-value-change
+  "Tests that the push function of the binding is called from values updates to the item."
+  (with-fixture init-destroy-isys ()
+    (let* ((item (make-item 'my-item))
+           (pushed-value)
+           (binding (binding:make-function-binding
+                     :retrieve (lambda ())
+                     :push (lambda (value) (setf pushed-value value)))))
+      (add-binding item binding)
+      (set-value item "Foo")
+      (is-true (await-cond 0.5
+                 (equal pushed-value "Foo"))))))
