@@ -30,11 +30,11 @@
       (let ((binding (make-function-binding
                       :retrieve (lambda () 123)
                       :initial-delay 0.1)))
-        (answer (hab:set-value _ value)
+        (answer (item:set-value _ value)
           (assert (= value 123)))
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.5
-                   (= 1 (length (invocations 'hab:set-value)))))))))
+                   (= 1 (length (invocations 'item:set-value)))))))))
 
 (test binding--initial-delay-nil--no-execute-retrieve
   "`initial-delay' = nil means don't execute `retrieve' function after bind."
@@ -45,7 +45,7 @@
                       :initial-delay nil)))
         (bind-item binding 'my-fake-item)
         (sleep 0.5)
-        (is (= 0 (length (invocations 'hab:set-value))))))))
+        (is (= 0 (length (invocations 'item:set-value))))))))
 
 (test binding--delay-recurring
   "`delay' to reperatedly execute `retrieve'."
@@ -55,11 +55,11 @@
              (binding (make-function-binding
                        :retrieve (lambda () (incf call-count)
                                    :delay 0.1))))
-        (answer (hab:set-value _ value)
+        (answer (item:set-value _ value)
           (assert (>= value 0)))
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.3
-                   (>= 2 (length (invocations 'hab:set-value)))))))))
+                   (>= 2 (length (invocations 'item:set-value)))))))))
 
 (test binding--delay-calls-to-all-bound-items
   "`retrieved' value should be set on all bound items."
@@ -69,7 +69,7 @@
             (binding (make-function-binding
                       :retrieve (lambda () 123)
                       :delay 0.2)))
-        (answer (hab:set-value item _)
+        (answer (item:set-value item _)
           (setf called-items (cons item called-items)))
         (bind-item binding 'my-fake-item)
         (bind-item binding 'my-fake-item2)

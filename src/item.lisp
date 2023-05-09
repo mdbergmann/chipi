@@ -39,8 +39,9 @@
                              (:set-state
                               (prog1
                                   (setf (slot-value *state* 'value) (cdr msg))
-                                (ev:publish *self* (make-item-changed-event
-                                                    :item *self*)))))))))
+                                (let ((self *self*))
+                                  (ev:publish self (make-item-changed-event
+                                                    :item self))))))))))
     item))
 
 (defmethod print-object ((obj item) stream)

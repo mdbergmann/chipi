@@ -14,7 +14,7 @@
 (def-fixture init-destroy-isys ()
   (unwind-protect
        (&body))
-    (shutdown-isys))
+    (hab:shutdown-isys))
 
 (test make-item
   (unwind-protect
@@ -53,4 +53,4 @@
       (is-true (await-cond 0.5
                  ev-received))
       (is (eq (item-changed-event-item ev-received) item))
-      (is (= 1 (hab::item-state-value (act-cell:state item)))))))
+      (is (= 1 (item::item-state-value (act-cell:state item)))))))

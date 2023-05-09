@@ -22,11 +22,12 @@
                  (:file "solar-if")
                  (:file "eta-pkg")
                  (:file "eta")
-                 (:file "scheduler")
-                 ((:module "bindings"
-                   :components
-                   ((:file "base-binding"))))
                  (:file "hab")
+                 (:file "item")
+                 (:file "scheduler")
+                 (:module "bindings"
+                  :components
+                  ((:file "base-binding")))
                  )))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
 
@@ -47,6 +48,7 @@
                  (:file "eta-pkg-test")
                  (:file "eta-atest")
                  (:file "binding-test")
+                 (:file "item-test")
                  (:file "hab-test")
                  )))
   :description "Test system for cl-eta"
@@ -93,11 +95,12 @@ hab:
 OK - bind-item-delay should set value to all bound items
 OK - separate bindings, create bindings folder
 OK - place function-binding there
+OK - separate item
+=> - item should be able to push to binding (item needs reference to binding)
 - cron for binding
 - more pipeline functions: transform of 'retrieved' value
 - create http-binding
 - binding more abstract, method protocol?
-=> - separate item
 - dsl for creating items with or withour bindings
 - how to handle item changes, what and where to register scripts?
 
