@@ -13,8 +13,9 @@
 
 (def-fixture init-destroy-isys ()
   (unwind-protect
-       (&body))
-    (hab:shutdown-isys))
+       (progn 
+         (&body))
+    (hab:shutdown-isys)))
 
 (test make-item
   (unwind-protect
@@ -54,3 +55,17 @@
                  ev-received))
       (is (eq (item-changed-event-item ev-received) item))
       (is (= 1 (item::item-state-value (act-cell:state item)))))))
+
+(test item--retrieve-value-from-added-binding
+  "Binding that provides the value updates to the item."
+  (with-fixture init-destroy-isys ()
+    (let ((item (make-item 'my-item))
+          (item-value)
+          (binding (binding:make-function-binding
+                    :retrieve (lambda () 1)
+                    :initial-delay 0.1)))
+      (add-binding item binding)
+      (is-true (await-cond 2
+                 (let ((item-value (get-value item)))
+                   (await-cond 0.3
+                     (eq (future:fresult item-value) 1))))))))

@@ -6,12 +6,14 @@
   (:import-from #:act
                 #:*self*
                 #:*state*
+                #:reply
                 #:!
                 #:?)
   (:export #:make-item
            #:item
            #:get-value
            #:set-value
+           #:add-binding
            ;; events
            #:item-changed-event
            #:item-changed-event-item))
@@ -20,7 +22,10 @@
 
 (defstruct item-changed-event item)
 
-(defclass item (act:actor) ())
+(defclass item (act:actor)
+  ((bindings :initform '()
+             :reader bindings
+             :documentation "The items bindings")))
 (defstruct item-state
   (value t))
 
@@ -35,10 +40,10 @@
                            (log:debug "Received msg: " msg)
                            (case (car msg)
                              (:get-state
-                              (act:reply (slot-value *state* 'value)))
+                              (reply (item-state-value *state*)))
                              (:set-state
                               (prog1
-                                  (setf (slot-value *state* 'value) (cdr msg))
+                                  (setf (item-state-value *state*) (cdr msg))
                                 (let ((self *self*))
                                   (ev:publish self (make-item-changed-event
                                                     :item self))))))))))
@@ -57,3 +62,9 @@
 
 (defun set-value (item value)
   (! item `(:set-state . ,value)))
+
+(defun add-binding (item binding)
+  (with-slots (bindings) item
+    (setf bindings (cons binding bindings))
+    (binding:bind-item binding item))
+  item)

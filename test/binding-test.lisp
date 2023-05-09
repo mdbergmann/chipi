@@ -14,7 +14,6 @@
 (def-fixture init-destroy-timer ()
   (unwind-protect
        (progn
-         (hab::ensure-timer)
          (&body))
     (hab:shutdown-timer)))
 
@@ -53,8 +52,8 @@
     (with-mocks ()
       (let* ((call-count 0)
              (binding (make-function-binding
-                       :retrieve (lambda () (incf call-count)
-                                   :delay 0.1))))
+                       :retrieve (lambda () (incf call-count))
+                       :delay 0.1)))
         (answer (item:set-value _ value)
           (assert (>= value 0)))
         (bind-item binding 'my-fake-item)

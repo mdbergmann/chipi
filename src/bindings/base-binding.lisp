@@ -2,7 +2,8 @@
   (:use :cl)
   (:nicknames :binding)
   (:export #:make-function-binding
-           #:bind-item))
+           #:bind-item
+           #:exec-retrieve))
 
 (in-package :cl-eta.binding)
 
@@ -34,16 +35,21 @@
                  :initial-delay initial-delay
                  :delay delay))
 
+(defun exec-retrieve (binding)
+  (log:debug "Retrieving value...")
+  (with-slots (bound-items retrieve-fun) binding
+    ;; maybe execute with using tasks
+    (let ((result (funcall retrieve-fun)))
+      (dolist (item bound-items)
+        (item:set-value item result)))))
+
 (defun bind-item (binding item)
-  (with-slots (bound-items retrieve-fun initial-delay delay) binding
+  (with-slots (bound-items initial-delay delay) binding
     (log:info "Binding item: " item)
     (setf bound-items (cons item bound-items))
-    (let ((timer-fun (lambda ()
-                       ;; maybe execute with using tasks
-                       (let ((result (funcall retrieve-fun)))
-                         (dolist (item (bound-items binding))
-                           (item:set-value item result))))))
+    (let ((timer-fun (lambda () (exec-retrieve binding))))
       (when initial-delay
+        (log:info "Scheduling initial delay: " initial-delay)
         (sched:schedule initial-delay timer-fun))
 
       ;; only on binding the first item we schedule
