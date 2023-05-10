@@ -60,8 +60,7 @@
                                  (:set-state
                                   (apply-new-value)
                                   (push-to-bindings)))))))))
-    (with-slots (label) item
-      (setf label label))
+    (setf (slot-value item 'label) label)
     item))
 
 (defmethod print-object ((obj item) stream)
