@@ -15,14 +15,14 @@
   (unwind-protect
        (progn 
          (&body))
-    (hab:shutdown-isys)))
+    (envi:shutdown-isys)))
 
 (test make-item
   (unwind-protect
-       (let ((item (make-item 'my-item)))
+       (let ((item (make-item 'my-item "label")))
          (is-true item)
          (is-true (typep item 'item)))
-    (hab:shutdown-isys)))
+    (envi:shutdown-isys)))
 
 (test make-item--with-state--get--set
   (with-fixture init-destroy-isys ()
@@ -36,7 +36,7 @@
         (is-true (await-cond 2
                    (eq (future:fresult item-value) 123)))))))
 
-(test make-item--with-state--set-internal
+(test item--set-internal
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item)))
       (is-true (item::set-value--internal item 123))
@@ -44,12 +44,25 @@
       (is-true (await-cond 2
                  (eq (future:fresult item-value) 123))))))
 
+(test item--set-value-pushes-to-binding
+  "Tests that the push function of the binding is called from values updates to the item."
+  (with-fixture init-destroy-isys ()
+    (let* ((item (make-item 'my-item))
+           (pushed-value)
+           (binding (binding:make-function-binding
+                     :pull (lambda ())
+                     :push (lambda (value) (setf pushed-value value)))))
+      (add-binding item binding)
+      (set-value item "Foo")
+      (is-true (await-cond 0.5
+                 (equal pushed-value "Foo"))))))
+
 (test item-raises-changed-event-when-changed
   "When item value is changed it should raise event."
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item))
           (ev-received))
-      (ac:actor-of (hab:ensure-isys)
+      (ac:actor-of (envi:ensure-isys)
                    :init (lambda (self)
                            (ev:subscribe self self 'item-changed-event))
                    :receive (lambda (msg)
@@ -58,8 +71,7 @@
                                 ((typep msg 'item-changed-event)
                                  (setf ev-received msg)))))
       (set-value item 1)
-      (is-true (await-cond 0.5
-                 ev-received))
+      (is-true (await-cond 0.5 ev-received))
       (is (eq (item-changed-event-item ev-received) item))
       (is (= 1 (item::item-state-value (act-cell:state item)))))))
 
@@ -76,16 +88,3 @@
                  (let ((item-value (get-value item)))
                    (await-cond 0.3
                      (eq (future:fresult item-value) 1))))))))
-
-(test item--push-to-binding-on-value-change
-  "Tests that the push function of the binding is called from values updates to the item."
-  (with-fixture init-destroy-isys ()
-    (let* ((item (make-item 'my-item))
-           (pushed-value)
-           (binding (binding:make-function-binding
-                     :pull (lambda ())
-                     :push (lambda (value) (setf pushed-value value)))))
-      (add-binding item binding)
-      (set-value item "Foo")
-      (is-true (await-cond 0.5
-                 (equal pushed-value "Foo"))))))

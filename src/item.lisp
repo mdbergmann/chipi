@@ -1,7 +1,7 @@
 (defpackage :cl-eta.item
   (:use :cl)
   (:nicknames :item)
-  (:import-from #:hab
+  (:import-from #:envi
                 #:ensure-isys)
   (:import-from #:act
                 #:*self*
@@ -23,13 +23,16 @@
 (defstruct item-changed-event item)
 
 (defclass item (act:actor)
-  ((bindings :initform '()
+  ((label :initform nil
+          :reader label
+          :documentation "An explanatory label.")
+   (bindings :initform '()
              :reader bindings
              :documentation "The items bindings")))
 (defstruct item-state
   (value t))
 
-(defun make-item (id)
+(defun make-item (id &optional (label nil))
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys
@@ -57,13 +60,16 @@
                                  (:set-state
                                   (apply-new-value)
                                   (push-to-bindings)))))))))
+    (with-slots (label) item
+      (setf label label))
     item))
 
 (defmethod print-object ((obj item) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (format stream "name: ~a, value: ~a"
+      (format stream "name: ~a, label: ~a, value: ~a"
               (act-cell:name obj)
+              (label obj)
               (act-cell:state obj))
       (get-output-stream-string string-stream))))
 
