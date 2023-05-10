@@ -1,44 +1,23 @@
 (defpackage :cl-eta.hab
   (:use :cl)
   (:nicknames :hab)
-  (:export #:ensure-isys
-           #:ensure-timer
-           #:shutdown-isys
-           #:shutdown-timer))
+  (:export #:*items*
+           #:defitems
+           #:item)
+  )
 
 (in-package :cl-eta.hab)
 
-(defvar *isys* nil)
-(defvar *timer* nil)
+(defvar *items* nil "All items")
 
-(defun ensure-isys ()
-  (or *isys*
-      (prog1
-          (setf *isys* (asys:make-actor-system))
-        ;; separate dispatcher for tasks
-        (asys:register-dispatcher *isys*
-                                  (disp:make-dispatcher
-                                   *isys*
-                                   :tasks
-                                   :workers 4
-                                   :stragety :round-robin))
-        (setf tasks:*task-context* *isys*
-              tasks:*task-dispatcher* :tasks))))
+(defmacro defitems (&body body)
+  (let ((items (gensym "items")))
+    `(progn
+       (setf ,items (list ,@body))
+       (setf *items* (alexandria:alist-plist ,items)))))
 
-(defun shutdown-isys ()
-  (when *isys*
-    (ac:shutdown *isys* :wait t)
-    (setf *isys* nil
-          tasks:*task-context* nil
-          tasks:*task-dispatcher* nil)
-    t))
-
-(defun ensure-timer ()
-  (or *timer*
-      (setf *timer* (wt:make-wheel-timer :max-size 300 :resolution 100))))
-
-(defun shutdown-timer ()
-  (when *timer*
-    (wt:shutdown-wheel-timer *timer*)
-    (setf *timer* nil))
-  t)
+(defmacro item (id label)
+  (let ((item (gensym "item")))
+    `(progn
+       (setf ,item (item:make-item ,id ,label))
+       (cons ,id ,item))))
