@@ -1,7 +1,7 @@
 (defpackage :cl-eta.scheduler
   (:use :cl)
   (:nicknames :sched)
-  (:import-from #:hab
+  (:import-from #:envi
                 #:ensure-timer)
   (:export #:schedule))
 

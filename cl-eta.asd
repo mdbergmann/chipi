@@ -22,13 +22,14 @@
                  (:file "solar-if")
                  (:file "eta-pkg")
                  (:file "eta")
-                 (:file "hab")
+                 (:file "env")
                  (:file "scheduler")
                  (:file "binding-api")
                  (:file "item")
                  (:module "bindings"
                   :components
                   ((:file "base-binding")))
+                 (:file "hab")
                  )))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
 
@@ -98,7 +99,7 @@ OK - separate bindings, create bindings folder
 OK - place function-binding there
 OK - separate item
 OK - item should be able to push to binding (item needs reference to binding)
-=> - binding can be either pull or push or both
+OK - binding can be either pull or push or both
 - dsl for creating items with or without bindings
 - cron for binding
 - more pipeline functions: transform of 'retrieved' value
