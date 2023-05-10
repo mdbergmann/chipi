@@ -56,13 +56,13 @@
       (is (eq (item-changed-event-item ev-received) item))
       (is (= 1 (item::item-state-value (act-cell:state item)))))))
 
-(test item--retrieve-value-from-added-binding
+(test item--pull-value-from-added-binding
   "Binding that provides the value updates to the item."
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item))
           (item-value)
           (binding (binding:make-function-binding
-                    :retrieve (lambda () 1)
+                    :pull (lambda () 1)
                     :initial-delay 0.1)))
       (add-binding item binding)
       (is-true (await-cond 2
@@ -76,7 +76,7 @@
     (let* ((item (make-item 'my-item))
            (pushed-value)
            (binding (binding:make-function-binding
-                     :retrieve (lambda ())
+                     :pull (lambda ())
                      :push (lambda (value) (setf pushed-value value)))))
       (add-binding item binding)
       (set-value item "Foo")

@@ -3,5 +3,5 @@
   (:nicknames :binding)
   (:export #:make-function-binding
            #:bind-item
-           #:exec-retrieve
+           #:exec-pull
            #:exec-push))

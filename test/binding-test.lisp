@@ -18,16 +18,30 @@
     (hab:shutdown-timer)))
 
 (test binding--bind-item
-  (let ((binding (make-function-binding :retrieve nil)))
+  (let ((binding (make-function-binding)))
     (bind-item binding 'fake-item)
     (is (eq 'fake-item (car (binding::bound-items binding))))))
 
-(test binding--initial-delay->0--execute-retrieve
-  "`initial-delay' >= 0 means execute `retrieve' function after bind."
+(test binding--pull-and-push
+  "Test that binding can pull and push when both functions are given."
+  (with-fixture init-destroy-timer ()
+    (with-mocks ()
+      (let* ((pull-called)
+             (push-called)
+             (binding (make-function-binding
+                       :pull (lambda () (setf pull-called t))
+                       :push (lambda (value) (setf push-called value)))))
+        (exec-pull binding)
+        (is-true pull-called)
+        (exec-push binding "Foo")
+        (is (equal "Foo" push-called))))))
+
+(test binding--initial-delay->0--execute-pull
+  "`initial-delay' >= 0 means execute `pull' function after bind."
   (with-fixture init-destroy-timer ()
     (with-mocks ()
       (let ((binding (make-function-binding
-                      :retrieve (lambda () 123)
+                      :pull (lambda () 123)
                       :initial-delay 0.1)))
         (answer (item:set-value _ value)
           (assert (= value 123)))
@@ -35,24 +49,24 @@
         (is-true (await-cond 0.5
                    (= 1 (length (invocations 'item:set-value)))))))))
 
-(test binding--initial-delay-nil--no-execute-retrieve
-  "`initial-delay' = nil means don't execute `retrieve' function after bind."
+(test binding--initial-delay-nil--no-execute-pull
+  "`initial-delay' = nil means don't execute `pull' function after bind."
   (with-fixture init-destroy-timer ()
     (with-mocks ()
       (let ((binding (make-function-binding
-                      :retrieve (lambda () 123)
+                      :pull (lambda () 123)
                       :initial-delay nil)))
         (bind-item binding 'my-fake-item)
         (sleep 0.5)
         (is (= 0 (length (invocations 'item:set-value))))))))
 
 (test binding--delay-recurring
-  "`delay' to reperatedly execute `retrieve'."
+  "`delay' to reperatedly execute `pull'."
   (with-fixture init-destroy-timer ()
     (with-mocks ()
       (let* ((call-count 0)
              (binding (make-function-binding
-                       :retrieve (lambda () (incf call-count))
+                       :pull (lambda () (incf call-count))
                        :delay 0.1)))
         (answer (item:set-value _ value)
           (assert (>= value 0)))
@@ -61,12 +75,12 @@
                    (>= 2 (length (invocations 'item:set-value)))))))))
 
 (test binding--delay-calls-to-all-bound-items
-  "`retrieved' value should be set on all bound items."
+  "`pulled' value should be set on all bound items."
   (with-fixture init-destroy-timer ()
     (with-mocks ()
       (let ((called-items nil)
             (binding (make-function-binding
-                      :retrieve (lambda () 123)
+                      :pull (lambda () 123)
                       :delay 0.2)))
         (answer (item:set-value item _)
           (setf called-items (cons item called-items)))

@@ -98,7 +98,8 @@ OK - separate bindings, create bindings folder
 OK - place function-binding there
 OK - separate item
 OK - item should be able to push to binding (item needs reference to binding)
-=> - dsl for creating items with or withour bindings
+=> - binding can be either pull or push or both
+- dsl for creating items with or without bindings
 - cron for binding
 - more pipeline functions: transform of 'retrieved' value
 - create http-binding
