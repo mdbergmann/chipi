@@ -38,19 +38,25 @@
                 :state (make-item-state)
                 :receive (lambda (msg)
                            (log:debug "Received msg: " msg)
-                           (case (car msg)
-                             (:get-state
-                              (reply (item-state-value *state*)))
-                             (:set-state
-                              (let ((new-value (cdr msg))
-                                    (self *self*))
-                                (prog1
-                                    (setf (item-state-value *state*) new-value)
-                                  (ev:publish self (make-item-changed-event
-                                                    :item self))
-                                  (with-slots (bindings) self
-                                    (dolist (binding bindings)
-                                      (binding:exec-push binding new-value)))))))))))
+                           (let ((new-value (cdr msg))
+                                 (self *self*))
+                             (flet ((apply-new-value ()
+                                      (prog1
+                                          (setf (item-state-value *state*) new-value)
+                                        (ev:publish self (make-item-changed-event
+                                                          :item self))))
+                                    (push-to-bindings ()
+                                      (with-slots (bindings) self
+                                        (dolist (binding bindings)
+                                          (binding:exec-push binding new-value)))))
+                               (case (car msg)
+                                 (:get-state
+                                  (reply (item-state-value *state*)))
+                                 (:set-state--silent
+                                  (apply-new-value))
+                                 (:set-state
+                                  (apply-new-value)
+                                  (push-to-bindings)))))))))
     item))
 
 (defmethod print-object ((obj item) stream)
@@ -65,7 +71,12 @@
   (? item '(:get-state . nil)))
 
 (defun set-value (item value)
+  "Updates item value with push to bindings."
   (! item `(:set-state . ,value)))
+
+(defun set-value--internal (item value)
+  "Updates item value without push to bindings."
+  (! item `(:set-state--silent . ,value)))
 
 (defun add-binding (item binding)
   (with-slots (bindings) item

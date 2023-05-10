@@ -44,7 +44,7 @@ Beware that `pull' will implicitly call `push'. Make sure you do the right thing
     (when pull-fun
       (let ((result (funcall pull-fun)))
         (dolist (item bound-items)
-          (item:set-value item result))))))
+          (item::set-value--internal item result))))))
 
 (defun exec-push (binding value)
   (log:debug "Pushing value: " value)

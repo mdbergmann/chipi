@@ -34,8 +34,15 @@
         (is-true (set-value item 123))
         (setf item-value (get-value item))
         (is-true (await-cond 2
-                   (eq (future:fresult item-value) 123)))        
-        ))))
+                   (eq (future:fresult item-value) 123)))))))
+
+(test make-item--with-state--set-internal
+  (with-fixture init-destroy-isys ()
+    (let ((item (make-item 'my-item)))
+      (is-true (item::set-value--internal item 123))
+      (setf item-value (get-value item))
+      (is-true (await-cond 2
+                 (eq (future:fresult item-value) 123))))))
 
 (test item-raises-changed-event-when-changed
   "When item value is changed it should raise event."

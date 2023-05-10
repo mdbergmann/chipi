@@ -43,11 +43,11 @@
       (let ((binding (make-function-binding
                       :pull (lambda () 123)
                       :initial-delay 0.1)))
-        (answer (item:set-value _ value)
+        (answer (item::set-value--internal _ value)
           (assert (= value 123)))
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.5
-                   (= 1 (length (invocations 'item:set-value)))))))))
+                   (= 1 (length (invocations 'item::set-value--internal)))))))))
 
 (test binding--initial-delay-nil--no-execute-pull
   "`initial-delay' = nil means don't execute `pull' function after bind."
@@ -68,11 +68,11 @@
              (binding (make-function-binding
                        :pull (lambda () (incf call-count))
                        :delay 0.1)))
-        (answer (item:set-value _ value)
+        (answer (item::set-value--internal _ value)
           (assert (>= value 0)))
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.3
-                   (>= 2 (length (invocations 'item:set-value)))))))))
+                   (>= 2 (length (invocations 'item::set-value--internal)))))))))
 
 (test binding--delay-calls-to-all-bound-items
   "`pulled' value should be set on all bound items."
@@ -82,7 +82,7 @@
             (binding (make-function-binding
                       :pull (lambda () 123)
                       :delay 0.2)))
-        (answer (item:set-value item _)
+        (answer (item::set-value--internal item _)
           (setf called-items (cons item called-items)))
         (bind-item binding 'my-fake-item)
         (bind-item binding 'my-fake-item2)
