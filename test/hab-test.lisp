@@ -11,20 +11,27 @@
 
 (in-suite hab-tests)
 
-(test define-items
-  (envi:ensure-isys)
+(def-fixture clean-after ()
   (unwind-protect
        (progn
-         (defitems
-           (item 'tempA "Temperatur A")
-           (item 'tempB "Temperatur B"))
-         
-         (print *items*)
-         (is (= 4 (length hab:*items*)))
-         (is (typep (getf *items* 'tempA) 'item:item))
-         (is (typep (getf *items* 'tempB) 'item:item))
-         )
-    (progn
-      (envi:shutdown-isys))))
+         (&body))
+       (shutdown)))
+
+(test define-config
+  (with-fixture clean-after ()
+    (defconfig
+      (defitems
+        (item 'temp-a "Temperatur A")
+        (item 'temp-b "Temperatur B"
+          (<->
+           :initial-delay 0.1
+           :pull (lambda ()
+                   (format t "Calling pull.~%"))))))
+    (print *items*)
+    (is (= 2 (hash-table-count hab:*items*)))
+    (is (typep (gethash 'temp-a *items*) 'item:item))
+    (is (typep (gethash 'temp-b *items*) 'item:item))
+    )
+  (is (= 0 (hash-table-count *items*))))
 
 (run! 'hab-tests)
