@@ -23,7 +23,7 @@
       (defitems
         (item 'temp-a "Temperatur A")
         (item 'temp-b "Temperatur B"
-          (<->
+          (<fun>
            :initial-delay 0.1
            :pull (lambda ()
                    (format t "Calling pull.~%"))))))

@@ -101,6 +101,7 @@ OK - separate item
 OK - item should be able to push to binding (item needs reference to binding)
 OK - binding can be either pull or push or both
 OK - dsl for creating items with or without bindings
+- control if set-value of 'pull' should be passed through to 'push'.
 - cron for binding
 - more pipeline functions: transform of 'retrieved' value
 - create http-binding
