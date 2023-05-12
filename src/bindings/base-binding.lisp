@@ -6,12 +6,15 @@
                 :documentation "The bound items. On operation the value will be updated to each item.")
    (pull-fun :initarg :pull-fun
              :initform nil
-             :type function
              :documentation "The function that retrieves the value.")
    (push-fun :initarg :push-fun
              :initform nil
              :documentation "Function to push the item values to some receiver.
 Beware that `pull' will implicitly call `push'. Make sure you do the right thing in `pull-fun'.")
+   (pull-passthrough :initarg :pull-passthrough
+                     :initform nil
+                     :reader pull-passthrough
+                     :documentation "defines whether the value of 'pull' will be passed through to 'push', after the transformation chain has been executed and the value been set to the item.")
    (initial-delay :initarg :initial-delay
                   :initform nil
                   :documentation "Initial delay in seconds where `RETRIEVE-FUN' is executed. `NIL' means disabled.")
@@ -22,20 +25,23 @@ Beware that `pull' will implicitly call `push'. Make sure you do the right thing
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (with-slots (initial-delay delay) obj
-        (format stream "initial-delay: ~a, delay: ~a" initial-delay delay))
+      (with-slots (initial-delay delay pull-passthrough) obj
+        (format stream "initial-delay: ~a, delay: ~a, pull-passthrough: ~a"
+                initial-delay delay pull-passthrough))
       (get-output-stream-string string-stream))))
 
 (defun make-function-binding (&key
                                 (pull nil)
                                 (push nil)
                                 (initial-delay nil)
-                                (delay nil))
+                                (delay nil)
+                                (pull-passthrough nil))
   (make-instance 'binding
                  :pull-fun pull
                  :push-fun push
                  :initial-delay initial-delay
-                 :delay delay))
+                 :delay delay
+                 :pull-passthrough pull-passthrough))
 
 (defun exec-pull (binding)
   (log:debug "Retrieving value...")
@@ -44,7 +50,7 @@ Beware that `pull' will implicitly call `push'. Make sure you do the right thing
     (when pull-fun
       (let ((result (funcall pull-fun)))
         (dolist (item bound-items)
-          (item::set-value--internal item result))))))
+          (item:set-value item result))))))
 
 (defun exec-push (binding value)
   (log:debug "Pushing value: " value)

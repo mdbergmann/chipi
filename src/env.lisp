@@ -15,7 +15,8 @@
 
 (defun ensure-env ()
   (ensure-isys)
-  (ensure-timer))
+  (ensure-timer)
+  t)
 
 (defun ensure-isys ()
   (or *isys*
@@ -41,7 +42,8 @@
 
 (defun shutdown-env ()
   (shutdown-isys)
-  (shutdown-timer))
+  (shutdown-timer)
+  t)
 
 (defun ensure-timer ()
   (or *timer*

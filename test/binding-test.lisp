@@ -36,6 +36,22 @@
         (exec-push binding "Foo")
         (is (equal "Foo" push-called))))))
 
+(test binding--passthrough-pull-to-push
+  "Test that bindings is eventually passed through to push (after transformations)."
+  (with-fixture init-destroy-timer ()
+    (with-mocks ()
+      (unwind-protect
+           (let* ((item (item:make-item 'my-item))
+                  (push-value)
+                  (binding (make-function-binding
+                            :pull (lambda () 123)
+                            :push (lambda (value) (setf push-value value))
+                            :pull-passthrough t)))
+             (item:add-binding item binding)
+             (exec-pull binding)
+             (is-true (await-cond 0.5 (eq 123 push-value))))
+        (envi:shutdown-env)))))
+
 (test binding--initial-delay->0--execute-pull
   "`initial-delay' >= 0 means execute `pull' function after bind."
   (with-fixture init-destroy-timer ()

@@ -4,4 +4,5 @@
   (:export #:make-function-binding
            #:bind-item
            #:exec-pull
-           #:exec-push))
+           #:exec-push
+           #:pull-passthrough))

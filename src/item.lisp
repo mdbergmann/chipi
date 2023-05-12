@@ -50,16 +50,18 @@
                                                           :item self))))
                                     (push-to-bindings ()
                                       (with-slots (bindings) self
+                                        (log:debug "Processing ~a binding(s)." (length bindings))
                                         (dolist (binding bindings)
-                                          (binding:exec-push binding new-value)))))
+                                          (when (binding:pull-passthrough binding)
+                                            (binding:exec-push binding new-value))))))
                                (case (car msg)
                                  (:get-state
                                   (reply (item-state-value *state*)))
-                                 (:set-state--silent
-                                  (apply-new-value))
                                  (:set-state
-                                  (apply-new-value)
-                                  (push-to-bindings)))))))))
+                                  (progn
+                                    (log:debug "set-state: ~a" new-value)
+                                    (apply-new-value)
+                                    (push-to-bindings))))))))))
     (setf (slot-value item 'label) label)
     item))
 
@@ -78,10 +80,6 @@
 (defun set-value (item value)
   "Updates item value with push to bindings."
   (! item `(:set-state . ,value)))
-
-(defun set-value--internal (item value)
-  "Updates item value without push to bindings."
-  (! item `(:set-state--silent . ,value)))
 
 (defun add-binding (item binding)
   (with-slots (bindings) item
