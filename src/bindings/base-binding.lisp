@@ -11,6 +11,11 @@
              :initform nil
              :documentation "Function to push the item values to some receiver.
 Beware that `pull' will implicitly call `push'. Make sure you do the right thing in `pull-fun'.")
+   (transform-fun :initarg :transform-fun
+                  :initform nil
+                  :documentation "A function transforming an input value to an output value.
+The input value comes from `pull-fun'.
+The output value will be set on the item, should an item be attached.")
    (pull-passthrough :initarg :pull-passthrough
                      :initform nil
                      :reader pull-passthrough
@@ -33,22 +38,26 @@ Beware that `pull' will implicitly call `push'. Make sure you do the right thing
 (defun make-function-binding (&key
                                 (pull nil)
                                 (push nil)
+                                (transform nil)
                                 (initial-delay nil)
                                 (delay nil)
                                 (pull-passthrough nil))
   (make-instance 'binding
                  :pull-fun pull
                  :push-fun push
+                 :transform-fun transform
                  :initial-delay initial-delay
                  :delay delay
                  :pull-passthrough pull-passthrough))
 
 (defun exec-pull (binding)
   (log:debug "Retrieving value...")
-  (with-slots (bound-items pull-fun) binding
+  (with-slots (bound-items pull-fun transform-fun) binding
     ;; maybe execute using tasks
     (when pull-fun
       (let ((result (funcall pull-fun)))
+        (when transform-fun
+          (setf result (funcall transform-fun result)))
         (dolist (item bound-items)
           (item:set-value item result))))))
 

@@ -25,32 +25,46 @@
 (test binding--pull-and-push
   "Test that binding can pull and push when both functions are given."
   (with-fixture init-destroy-timer ()
-    (with-mocks ()
-      (let* ((pull-called)
-             (push-called)
-             (binding (make-function-binding
-                       :pull (lambda () (setf pull-called t))
-                       :push (lambda (value) (setf push-called value)))))
-        (exec-pull binding)
-        (is-true pull-called)
-        (exec-push binding "Foo")
-        (is (equal "Foo" push-called))))))
+    (let* ((pull-called)
+           (push-called)
+           (binding (make-function-binding
+                     :pull (lambda () (setf pull-called t))
+                     :push (lambda (value) (setf push-called value)))))
+      (exec-pull binding)
+      (is-true pull-called)
+      (exec-push binding "Foo")
+      (is (equal "Foo" push-called)))))
 
 (test binding--passthrough-pull-to-push
   "Test that bindings is eventually passed through to push (after transformations)."
   (with-fixture init-destroy-timer ()
-    (with-mocks ()
-      (unwind-protect
-           (let* ((item (item:make-item 'my-item))
-                  (push-value)
-                  (binding (make-function-binding
-                            :pull (lambda () 123)
-                            :push (lambda (value) (setf push-value value))
-                            :pull-passthrough t)))
-             (item:add-binding item binding)
-             (exec-pull binding)
-             (is-true (await-cond 0.5 (eq 123 push-value))))
-        (envi:shutdown-env)))))
+    (unwind-protect
+         (let* ((item (item:make-item 'my-item))
+                (push-value)
+                (binding (make-function-binding
+                          :pull (lambda () 123)
+                          :push (lambda (value) (setf push-value value))
+                          :pull-passthrough t)))
+           (item:add-binding item binding)
+           (exec-pull binding)
+           (is-true (await-cond 0.5 (eq 123 push-value))))
+      (envi:shutdown-env))))
+
+(test binding--transform-between-after-pull
+  "Tests that binding calls transform function to transform the pulled value."
+  (with-fixture init-destroy-timer ()
+    (unwind-protect
+         (let* ((item (item:make-item 'my-item))
+                (push-value)
+                (binding (make-function-binding
+                          :pull (lambda () 123)
+                          :transform (lambda (value) (1+ value))
+                          :push (lambda (value) (setf push-value value))
+                          :pull-passthrough t)))
+           (item:add-binding item binding)
+           (exec-pull binding)
+           (is-true (await-cond 0.5 (eq 124 push-value))))
+      (envi:shutdown-env))))
 
 (test binding--initial-delay->0--execute-pull
   "`initial-delay' >= 0 means execute `pull' function after bind."
@@ -59,11 +73,11 @@
       (let ((binding (make-function-binding
                       :pull (lambda () 123)
                       :initial-delay 0.1)))
-        (answer (item::set-value--internal _ value)
+        (answer (item:set-value _ value)
           (assert (= value 123)))
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.5
-                   (= 1 (length (invocations 'item::set-value--internal)))))))))
+                   (= 1 (length (invocations 'item:set-value)))))))))
 
 (test binding--initial-delay-nil--no-execute-pull
   "`initial-delay' = nil means don't execute `pull' function after bind."
@@ -84,11 +98,11 @@
              (binding (make-function-binding
                        :pull (lambda () (incf call-count))
                        :delay 0.1)))
-        (answer (item::set-value--internal _ value)
+        (answer (item:set-value _ value)
           (assert (>= value 0)))
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.3
-                   (>= 2 (length (invocations 'item::set-value--internal)))))))))
+                   (>= 2 (length (invocations 'item:set-value)))))))))
 
 (test binding--delay-calls-to-all-bound-items
   "`pulled' value should be set on all bound items."
@@ -98,7 +112,7 @@
             (binding (make-function-binding
                       :pull (lambda () 123)
                       :delay 0.2)))
-        (answer (item::set-value--internal item _)
+        (answer (item:set-value item _)
           (setf called-items (cons item called-items)))
         (bind-item binding 'my-fake-item)
         (bind-item binding 'my-fake-item2)

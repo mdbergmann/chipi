@@ -101,14 +101,15 @@ OK - separate item
 OK - item should be able to push to binding (item needs reference to binding)
 OK - binding can be either pull or push or both
 OK - dsl for creating items with or without bindings
-- control if set-value of 'pull' should be passed through to 'push'.
+OK - control if set-value of 'pull' should be passed through to 'push'.
+OK - more pipeline functions: transform of 'retrieved' value
+- how to handle item changes, test listening one item on the other.
 - cron for binding
-- more pipeline functions: transform of 'retrieved' value
-- create http-binding
+- cron for scripts?
 - binding more abstract, method protocol?
-- how to handle item changes, what and where to register scripts?
-
-- persistence?
+- create http-binding
+- scripts also a dedicated actor with custom dsl for registering to cron and item changes
+- persistence based on items: :load :save, :load called on init, :save called on each item value change
 
 
 |#
