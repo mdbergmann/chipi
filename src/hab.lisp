@@ -5,7 +5,7 @@
            #:defconfig
            #:defitems
            #:item
-           #:<fun>
+           #:<b>
            #:shutdown)
   )
 
@@ -33,7 +33,7 @@
          (item:add-binding ,item ,binding))
        (cons ,id ,item))))
 
-(defmacro <fun> (&rest keys)
+(defmacro <b> (&rest keys)
   `(binding:make-function-binding ,@keys))
 
 (defun shutdown ()

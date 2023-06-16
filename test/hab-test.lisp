@@ -23,11 +23,14 @@
       (defitems
         (item 'temp-a "Temperatur A")
         (item 'temp-b "Temperatur B"
-          (<fun>
+          (<b>
            :initial-delay 0.1
            :pull (lambda ()
-                   (format t "Calling pull.~%")))
-          )))
+                   (format t "Calling pull.~%")))))
+
+      (defscripts
+          )
+      )
     (print *items*)
     (is (= 2 (hash-table-count hab:*items*)))
     (is (typep (gethash 'temp-a *items*) 'item:item))
