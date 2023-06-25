@@ -5,7 +5,7 @@
            #:defconfig
            #:defitems
            #:item
-           #:<b>
+           #:binding
            #:shutdown)
   )
 
@@ -33,8 +33,18 @@
          (item:add-binding ,item ,binding))
        (cons ,id ,item))))
 
-(defmacro <b> (&rest keys)
+(defmacro binding (&rest keys)
   `(binding:make-function-binding ,@keys))
+
+(defmacro defrules (&body body)
+  (let ((rules (gensym "rules")))
+    `(let ((,rules (list ,@body)))
+       (setf *rules* (alexandria:alist-hash-table ,rules)))))
+
+(defmacro rule (name &key when-cron when-item-change do)
+  (let ((rule (gensym "rule")))
+    `(let ((,rule (rule:make-rule ,name ,when-cron ,when-item-change ,do)))
+       (cons ,name ,rule))))
 
 (defun shutdown ()
   (envi:shutdown-env)

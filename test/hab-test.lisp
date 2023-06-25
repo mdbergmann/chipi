@@ -23,13 +23,17 @@
       (defitems
         (item 'temp-a "Temperatur A")
         (item 'temp-b "Temperatur B"
-          (<b>
+          (binding
            :initial-delay 0.1
            :pull (lambda ()
                    (format t "Calling pull.~%")))))
 
-      (defscripts
-          )
+      (defrules
+          (rule "example foo"
+                :when-cron '(:minute 10 :hour 0)
+                :when-item-change '(temp-a 'temp-b)
+                :do
+                (format t "My rule code!")))
       )
     (print *items*)
     (is (= 2 (hash-table-count hab:*items*)))
