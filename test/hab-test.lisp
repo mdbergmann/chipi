@@ -26,12 +26,15 @@
           (binding
            :initial-delay 0.1
            :pull (lambda ()
-                   (format t "Calling pull.~%")))))
+                   (format t "Calling pull.~%")
+                   1 ;; return 1
+                   ))))
 
       (defrules
           (rule "example foo"
                 :when-cron '(:minute 10 :hour 0)
-                :when-item-change '(temp-a 'temp-b)
+                :when-item-change 'temp-a
+                :when-item-change 'temp-b
                 :do
                 (format t "My rule code!")))
       )
@@ -39,7 +42,13 @@
     (is (= 2 (hash-table-count hab:*items*)))
     (is (typep (gethash 'temp-a *items*) 'item:item))
     (is (typep (gethash 'temp-b *items*) 'item:item))
+
+    (print *rules*)
+    (is (= 1 (length *rules*)))
+    (is (typep (gethash "example foo" *rules*) 'rule:rule))
     )
-  (is (= 0 (hash-table-count *items*))))
+  (is (= 0 (hash-table-count *items*)))
+  (is (= 0 (hash-table-count *rules*)))
+  )
 
 (run! 'hab-tests)

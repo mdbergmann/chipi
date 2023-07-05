@@ -2,6 +2,7 @@
   (:use :cl)
   (:nicknames :hab)
   (:export #:*items*
+           #:*rules*
            #:defconfig
            #:defitems
            #:item
@@ -12,6 +13,7 @@
 (in-package :cl-eta.hab)
 
 (defvar *items* nil "All items")
+(defvar *rules* nil "All rules")
 
 (defmacro defconfig (&body body)
   `(progn
@@ -41,11 +43,12 @@
     `(let ((,rules (list ,@body)))
        (setf *rules* (alexandria:alist-hash-table ,rules)))))
 
-(defmacro rule (name &key when-cron when-item-change do)
+(defmacro rule (name &rest keys)
   (let ((rule (gensym "rule")))
-    `(let ((,rule (rule:make-rule ,name ,when-cron ,when-item-change ,do)))
+    `(let ((,rule (rule:make-rule ,name ,@keys)))
        (cons ,name ,rule))))
 
 (defun shutdown ()
   (envi:shutdown-env)
-  (clrhash *items*))
+  (clrhash *items*)
+  (clrhash *rules*))
