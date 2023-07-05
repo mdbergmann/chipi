@@ -11,16 +11,26 @@
 
 (in-suite rule-tests)
 
-;; your test code here
+(def-fixture init-destroy-isys ()
+  (unwind-protect
+       (progn 
+         (&body))
+    (envi:shutdown-env)))
 
-(test make-rule
-  "Tests making a rule"
-  (let ((rule (make-rule "test rule"
-                         :when-cron '(:minute 0 :hour 1)
-                         :when-item-change 'item1
-                         :do
-                         (format t "done"))))
-    (is-true rule)
-    ))
+(test make-rule--when-item-changed
+  "Tests rule that fires event when item value changed."
+  (with-fixture init-destroy-isys ()
+    (let* ((item (item:make-item 'item1))
+           (expected)
+           (rule (make-rule "test rule"
+                            :when-item-change 'item1
+                            :do (lambda () (format t "done")
+                                  (setf expected t)))))
+      (is-true rule)
+      (is (typep rule 'rule))
+      (item:set-value item 1)
+      (is-true (miscutils:await-cond 0.5
+                 (eq expected t)))
+      )))
 
 (run! 'rule-tests)
