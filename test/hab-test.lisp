@@ -35,8 +35,8 @@
                 :when-cron '(:minute 10 :hour 0)
                 :when-item-change 'temp-a
                 :when-item-change 'temp-b
-                :do (lambda ()
-                      (format t "My rule code!"))))
+                :do (lambda (trigger)
+                      (format t "My rule code: ~a~%" trigger))))
       )
     (print *items*)
     (is (= 2 (hash-table-count hab:*items*)))

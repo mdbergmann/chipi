@@ -24,12 +24,14 @@
            (expected)
            (rule (make-rule "test rule"
                             :when-item-change 'item1
-                            :do (lambda () (format t "done")
-                                  (setf expected t)))))
+                            :do (lambda (trigger)
+                                  (assert (eq (car trigger) :item))
+                                  (setf expected (cdr trigger))))))
       (is-true rule)
       (is (typep rule 'rule))
       (item:set-value item 1)
-      (is-true (miscutils:await-cond 0.5 expected)))))
+      (is-true (miscutils:await-cond 0.5
+                 (eq expected item))))))
 
 (test make-rule--do-only-for-subscribed-item
   "Tests rule that fires event when item changed, but only for subscribed item."
@@ -38,7 +40,7 @@
            (expected)
            (rule (make-rule "test rule"
                             :when-item-change 'not-exists
-                            :do (lambda () (format t "done")
+                            :do (lambda (trigger)
                                   (setf expected t)))))
       (item:set-value item 1)
       (sleep 0.5)
@@ -50,10 +52,13 @@
     (let* ((expected)
            (rule (make-rule "test rule"
                             :when-cron '(:boot-only t)
-                            :do (lambda () (format t "done")
-                                  (setf expected t)))))
+                            :do (lambda (trigger)
+                                  (assert (eq (car trigger) :cron))
+                                  (setf expected (cdr trigger))))))
       (is-true rule)
       (is (typep rule 'rule))
-      (is-true (miscutils:await-cond 1 expected)))))
+      (print expected)
+      (is-true (miscutils:await-cond 0.5
+                 (eq expected '(:boot-only t)))))))
 
 (run! 'rule-tests)

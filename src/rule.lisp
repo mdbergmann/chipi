@@ -34,15 +34,15 @@
                 (log:debug "Received msg: " msg)
                 (when do-fun
                   (when (typep msg 'item:item-changed-event)
-                    (let ((item-name (act-cell:name
-                                      (item:item-changed-event-item msg))))
+                    (let* ((item (item:item-changed-event-item msg))
+                           (item-name (act-cell:name item)))
                       (when (member item-name
                                     item-names
                                     :test #'equal)
-                        (funcall do-fun))))
+                        (funcall do-fun `(:item . ,item)))))
                   (when (and (listp msg)
                              (eq (car msg) 'cron-triggered))
-                    (funcall do-fun))))
+                    (funcall do-fun `(:cron . ,(second msg))))))
      :init (lambda (self)
              (when (car item-changes)
                (ev:subscribe self self 'item:item-changed-event))
