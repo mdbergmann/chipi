@@ -3,19 +3,23 @@
   (:nicknames :envi)
   (:export #:ensure-isys
            #:ensure-timer
+           #:ensure-cron
            #:ensure-env
            #:shutdown-isys
            #:shutdown-timer
+           #:shutdown-cron
            #:shutdown-env))
 
 (in-package :cl-eta.env)
 
 (defvar *isys* nil)
 (defvar *timer* nil)
+(defvar *cron* nil)
 
 (defun ensure-env ()
   (ensure-isys)
   (ensure-timer)
+  (ensure-cron)
   t)
 
 (defun ensure-isys ()
@@ -54,3 +58,13 @@
     (wt:shutdown-wheel-timer *timer*)
     (setf *timer* nil))
   t)
+
+(defun ensure-cron ()
+  (or *cron*
+      (setf *cron* (cl-cron:start-cron))))
+
+(defun shutdown-cron ()
+  (when *cron*
+    (cl-cron:stop-cron)
+    (setf *cron* nil))
+    t)

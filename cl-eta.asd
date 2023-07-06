@@ -11,6 +11,7 @@
                "py4cl"
                "yason"
                "timer-wheel"
+               "cl-cron"
                )
   :components ((:module "src"
                 :serial t
@@ -26,6 +27,7 @@
                  (:file "scheduler")
                  (:file "binding-api")
                  (:file "item")
+                 (:file "cl-cron-overrides")
                  (:file "rule")
                  (:module "bindings"
                   :components
