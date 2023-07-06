@@ -36,7 +36,8 @@
                                              :test #'equal)
                                  (funcall do-fun)))))
                 :init (lambda (self)
-                        (loop :for item :in item-changes
-                              :do (ev:subscribe self self 'item:item-changed-event)))
-                        )))
+                        (when (car item-changes)
+                          (ev:subscribe self self 'item:item-changed-event)))
+                :destroy (lambda (self)
+                           (ev:unsubscribe self self)))))
     rule))
