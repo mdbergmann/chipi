@@ -25,7 +25,7 @@
                 :name name
                 :type 'rule
                 :receive (lambda (msg)
-                           (log:debug "Received msg: " msg)
+                           (log:debug "Received item change: " msg)
                            (when (and
                                   do-fun
                                   (typep msg 'item:item-changed-event))

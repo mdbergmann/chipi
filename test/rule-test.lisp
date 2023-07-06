@@ -29,8 +29,7 @@
       (is-true rule)
       (is (typep rule 'rule))
       (item:set-value item 1)
-      (is-true (miscutils:await-cond 0.5
-                 (eq expected t))))))
+      (is-true (miscutils:await-cond 0.5 expected)))))
 
 (test make-rule--do-only-for-subscribed-item
   "Tests rule that fires event when item changed, but only for subscribed item."
