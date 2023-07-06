@@ -17,7 +17,7 @@
          (&body))
     (envi:shutdown-env)))
 
-(test make-rule--when-item-changed
+(test make-rule--do-when-item-changed
   "Tests rule that fires event when item value changed."
   (with-fixture init-destroy-isys ()
     (let* ((item (item:make-item 'item1))
@@ -31,5 +31,18 @@
       (item:set-value item 1)
       (is-true (miscutils:await-cond 0.5
                  (eq expected t))))))
+
+(test make-rule--do-only-for-subscribed-item
+  "Tests rule that fires event when item changed, but only for subscribed item."
+  (with-fixture init-destroy-isys ()
+    (let* ((item (item:make-item 'item1))
+           (expected)
+           (rule (make-rule "test rule"
+                            :when-item-change 'not-exists
+                            :do (lambda () (format t "done")
+                                  (setf expected t)))))
+      (item:set-value item 1)
+      (sleep 0.5)
+      (is-false expected))))
 
 (run! 'rule-tests)

@@ -26,6 +26,7 @@
                  (:file "scheduler")
                  (:file "binding-api")
                  (:file "item")
+                 (:file "rule")
                  (:module "bindings"
                   :components
                   ((:file "base-binding")))
@@ -51,6 +52,7 @@
                  (:file "eta-atest")
                  (:file "binding-test")
                  (:file "item-test")
+                 (:file "rule-test")
                  (:file "hab-test")
                  )))
   :description "Test system for cl-eta"
