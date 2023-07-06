@@ -35,8 +35,8 @@
                 :when-cron '(:minute 10 :hour 0)
                 :when-item-change 'temp-a
                 :when-item-change 'temp-b
-                :do
-                (format t "My rule code!")))
+                :do (lambda ()
+                      (format t "My rule code!"))))
       )
     (print *items*)
     (is (= 2 (hash-table-count hab:*items*)))
@@ -44,7 +44,7 @@
     (is (typep (gethash 'temp-b *items*) 'item:item))
 
     (print *rules*)
-    (is (= 1 (length *rules*)))
+    (is (= 1 (hash-table-count *rules*)))
     (is (typep (gethash "example foo" *rules*) 'rule:rule))
     )
   (is (= 0 (hash-table-count *items*)))

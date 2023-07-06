@@ -7,6 +7,8 @@
            #:defitems
            #:item
            #:binding
+           #:defrules
+           #:rule
            #:shutdown)
   )
 
@@ -41,7 +43,7 @@
 (defmacro defrules (&body body)
   (let ((rules (gensym "rules")))
     `(let ((,rules (list ,@body)))
-       (setf *rules* (alexandria:alist-hash-table ,rules)))))
+       (setf *rules* (alexandria:alist-hash-table ,rules :test #'equalp)))))
 
 (defmacro rule (name &rest keys)
   (let ((rule (gensym "rule")))

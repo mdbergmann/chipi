@@ -30,7 +30,6 @@
       (is (typep rule 'rule))
       (item:set-value item 1)
       (is-true (miscutils:await-cond 0.5
-                 (eq expected t)))
-      )))
+                 (eq expected t))))))
 
 (run! 'rule-tests)
