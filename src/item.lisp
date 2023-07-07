@@ -41,27 +41,30 @@
                 :state (make-item-state)
                 :receive (lambda (msg)
                            (log:debug "Received msg: " msg)
-                           (let ((new-value (cdr msg))
-                                 (self *self*))
-                             (flet ((apply-new-value ()
+                           (let ((self *self*))
+                             (flet ((apply-new-value (new-value)
                                       (prog1
                                           (setf (item-state-value *state*) new-value)
                                         (ev:publish self (make-item-changed-event
                                                           :item self))))
-                                    (push-to-bindings ()
+                                    (push-to-bindings (new-value push) 
                                       (with-slots (bindings) self
                                         (log:debug "Processing ~a binding(s)." (length bindings))
                                         (dolist (binding bindings)
-                                          (when (binding:pull-passthrough binding)
-                                            (binding:exec-push binding new-value))))))
+                                          (let ((eff-push (if push 
+                                                              (binding:pull-passthrough binding)
+                                                              nil)))
+                                            (when eff-push
+                                              (binding:exec-push binding new-value)))))))
                                (case (car msg)
                                  (:get-state
                                   (reply (item-state-value *state*)))
                                  (:set-state
-                                  (progn
-                                    (log:debug "set-state: ~a" new-value)
-                                    (apply-new-value)
-                                    (push-to-bindings))))))))))
+                                  (let ((val (cadr msg))
+                                        (push (cddr msg)))
+                                    (log:debug "set-state: ~a" val)
+                                    (apply-new-value val)
+                                    (push-to-bindings val push))))))))))
     (setf (slot-value item 'label) label)
     item))
 
@@ -77,9 +80,10 @@
 (defun get-value (item)
   (? item '(:get-state . nil)))
 
-(defun set-value (item value)
-  "Updates item value with push to bindings."
-  (! item `(:set-state . ,value)))
+(defun set-value (item value &key (push t))
+  "Updates item value with push to bindings.
+If ALWAYS-PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
+  (! item `(:set-state . (,value . ,push))))
 
 (defun add-binding (item binding)
   (with-slots (bindings) item

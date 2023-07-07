@@ -36,8 +36,22 @@
         (is-true (await-cond 2
                    (eq (future:fresult item-value) 123)))))))
 
-(test item--set-value-pushes-to-binding
-  "Tests that the push function of the binding is called from values updates to the item."
+(test item--set-value-pushes-to-binding--with-passthrough
+  "Tests that set-value pushes to binding."
+  (with-fixture init-destroy-isys ()
+    (let* ((item (make-item 'my-item))
+           (pushed-value)
+           (binding (binding:make-function-binding
+                     :pull (lambda ())
+                     :pull-passthrough t
+                     :push (lambda (value) (setf pushed-value value)))))
+      (add-binding item binding)
+      (set-value item "Foo")
+      (is-true (await-cond 0.5
+                 (equal pushed-value "Foo"))))))
+
+(test item--set-value-does-no-push
+  "Tests that set-value does not push to binding if :push key is false."
   (with-fixture init-destroy-isys ()
     (let* ((item (make-item 'my-item))
            (pushed-value)
@@ -45,9 +59,23 @@
                      :pull (lambda ())
                      :push (lambda (value) (setf pushed-value value)))))
       (add-binding item binding)
-      (set-value item "Foo")
-      (is-true (await-cond 0.5
-                 (equal pushed-value "Foo"))))))
+      (set-value item "Foo" :push nil)
+      (sleep 0.3)
+      (is-false (equal pushed-value "Foo")))))
+
+(test item--set-value-does-no-push-even-with-passthrough--push-has-precedence
+  "Tests that set-value does not push to binding if :push key is false."
+  (with-fixture init-destroy-isys ()
+    (let* ((item (make-item 'my-item))
+           (pushed-value)
+           (binding (binding:make-function-binding
+                     :pull (lambda ())
+                     :pull-passthrough t
+                     :push (lambda (value) (setf pushed-value value)))))
+      (add-binding item binding)
+      (set-value item "Foo" :push nil)
+      (sleep 0.3)
+      (is-false (equal pushed-value "Foo")))))
 
 (test item-raises-changed-event-when-changed
   "When item value is changed it should raise event."
