@@ -1,13 +1,13 @@
-(defpackage :cl-eta.item-test
-  (:use :cl :fiveam :cl-mock :miscutils :cl-eta.item)
+(defpackage :cl-hab.item-test
+  (:use :cl :fiveam :cl-mock :miscutils :cl-hab.item)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-eta.item-test)
+(in-package :cl-hab.item-test)
 
 (def-suite item-tests
   :description "Item tests"
-  :in cl-eta.tests:test-suite)
+  :in cl-hab.tests:test-suite)
 
 (in-suite item-tests)
 
@@ -35,14 +35,6 @@
         (setf item-value (get-value item))
         (is-true (await-cond 2
                    (eq (future:fresult item-value) 123)))))))
-
-(test item--set-internal
-  (with-fixture init-destroy-isys ()
-    (let ((item (make-item 'my-item)))
-      (is-true (item::set-value--internal item 123))
-      (setf item-value (get-value item))
-      (is-true (await-cond 2
-                 (eq (future:fresult item-value) 123))))))
 
 (test item--set-value-pushes-to-binding
   "Tests that the push function of the binding is called from values updates to the item."
@@ -79,7 +71,6 @@
   "Binding that provides the value updates to the item."
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item))
-          (item-value)
           (binding (binding:make-function-binding
                     :pull (lambda () 1)
                     :initial-delay 0.1)))

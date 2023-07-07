@@ -1,4 +1,4 @@
-(defpackage :cl-eta.rule
+(defpackage :cl-hab.rule
   (:use :cl)
   (:nicknames :rule)
   (:import-from #:envi
@@ -8,10 +8,9 @@
                 #:actor
                 #:!)
   (:export #:rule
-           #:make-rule
-           ))
+           #:make-rule))
 
-(in-package :cl-eta.rule)
+(in-package :cl-hab.rule)
 
 (defclass rule (actor) ())
 

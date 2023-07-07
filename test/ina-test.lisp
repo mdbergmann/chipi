@@ -7,7 +7,7 @@
 
 (def-suite ina-tests
   :description "INA219 currency digitizer tests"
-  :in cl-eta.tests:test-suite)
+  :in cl-hab.tests:test-suite)
 
 (in-suite ina-tests)
 

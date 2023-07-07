@@ -2,16 +2,12 @@
   :version "0.1.0"
   :author "Manfred Bergmann"
   :license "Apache-2"
-  :depends-on ("alexandria"
-               "sento"
+  :depends-on ("cl-hab"
                "cserial-port"
                "drakma"
-               "cl-cron"
                "bit-smasher"
                "py4cl"
                "yason"
-               "timer-wheel"
-               "cl-cron"
                )
   :components ((:module "src"
                 :serial t
@@ -23,16 +19,6 @@
                  (:file "solar-if")
                  (:file "eta-pkg")
                  (:file "eta")
-                 (:file "env")
-                 (:file "scheduler")
-                 (:file "binding-api")
-                 (:file "item")
-                 (:file "cl-cron-overrides")
-                 (:file "rule")
-                 (:module "bindings"
-                  :components
-                  ((:file "base-binding")))
-                 (:file "hab")
                  )))
   :in-order-to ((test-op (test-op "cl-eta/tests"))))
 
@@ -52,10 +38,6 @@
                  (:file "solar-test")
                  (:file "eta-pkg-test")
                  (:file "eta-atest")
-                 (:file "binding-test")
-                 (:file "item-test")
-                 (:file "rule-test")
-                 (:file "hab-test")
                  )))
   :description "Test system for cl-eta"
   :perform (test-op (op c) (symbol-call :fiveam :run!
@@ -63,9 +45,6 @@
                                                            '#:cl-eta.tests))))
 ;; load system
 ;; (asdf:load-system "cl-eta")
-;;
-;; test system
-;; (asdf:test-system "cl-gserver/tests")
 ;;
 
 #|
@@ -95,24 +74,4 @@ OK - store and load state of eta actor
 
 - filter temp values for spikes
 - implement more receive package types (error, etc)
-
-hab:
-
-OK - bind-item-delay should set value to all bound items
-OK - separate bindings, create bindings folder
-OK - place function-binding there
-OK - separate item
-OK - item should be able to push to binding (item needs reference to binding)
-OK - binding can be either pull or push or both
-OK - dsl for creating items with or without bindings
-OK - control if set-value of 'pull' should be passed through to 'push'.
-OK - more pipeline functions: transform of 'retrieved' value
-=> - scripts also a dedicated actor with custom dsl for registering to cron and item changes
-- cron for binding
-- cron for scripts?
-- binding more abstract, method protocol?
-- create http-binding?
-- persistence based on items: :load :save, :load called on init, :save called on each item value changed
-
-
-|#
+#|

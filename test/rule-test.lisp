@@ -1,13 +1,13 @@
-(defpackage :cl-eta.rule-test
-  (:use :cl :fiveam :cl-eta.rule)
+(defpackage :cl-hab.rule-test
+  (:use :cl :fiveam :cl-hab.rule)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-eta.rule-test)
+(in-package :cl-hab.rule-test)
 
 (def-suite rule-tests
   :description "Tests for rules"
-  :in cl-eta.tests:test-suite)
+  :in cl-hab.tests:test-suite)
 
 (in-suite rule-tests)
 
@@ -36,12 +36,13 @@
 (test make-rule--do-only-for-subscribed-item
   "Tests rule that fires event when item changed, but only for subscribed item."
   (with-fixture init-destroy-env ()
-    (let* ((item (item:make-item 'item1))
-           (expected)
-           (rule (make-rule "test rule"
-                            :when-item-change 'not-exists
-                            :do (lambda (trigger)
-                                  (setf expected t)))))
+    (let ((item (item:make-item 'item1))
+          (expected))
+      (make-rule "test rule"
+                 :when-item-change 'not-exists
+                 :do (lambda (trigger)
+                       (declare (ignore trigger))
+                       (setf expected t)))
       (item:set-value item 1)
       (sleep 0.5)
       (is-false expected))))
@@ -60,5 +61,3 @@
       (print expected)
       (is-true (miscutils:await-cond 0.5
                  (eq expected '(:boot-only t)))))))
-
-(run! 'rule-tests)

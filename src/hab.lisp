@@ -1,4 +1,4 @@
-(defpackage :cl-eta.hab
+(defpackage :cl-hab.hab
   (:use :cl)
   (:nicknames :hab)
   (:export #:*items*
@@ -12,7 +12,7 @@
            #:shutdown)
   )
 
-(in-package :cl-eta.hab)
+(in-package :cl-hab.hab)
 
 (defvar *items* nil "All items")
 (defvar *rules* nil "All rules")

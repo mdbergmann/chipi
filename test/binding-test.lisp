@@ -1,13 +1,13 @@
-(defpackage :cl-eta.binding-test
-  (:use :cl :fiveam :cl-mock :miscutils :cl-eta.binding)
+(defpackage :cl-hab.binding-test
+  (:use :cl :fiveam :cl-mock :miscutils :cl-hab.binding)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-eta.binding-test)
+(in-package :cl-hab.binding-test)
 
 (def-suite binding-tests
   :description "Tests for bindings"
-  :in cl-eta.tests:test-suite)
+  :in cl-hab.tests:test-suite)
 
 (in-suite binding-tests)
 

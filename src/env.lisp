@@ -1,4 +1,4 @@
-(defpackage :cl-eta.env
+(defpackage :cl-hab.env
   (:use :cl)
   (:nicknames :envi)
   (:export #:ensure-isys
@@ -10,7 +10,7 @@
            #:shutdown-cron
            #:shutdown-env))
 
-(in-package :cl-eta.env)
+(in-package :cl-hab.env)
 
 (defvar *isys* nil)
 (defvar *timer* nil)

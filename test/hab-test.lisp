@@ -1,13 +1,13 @@
-(defpackage :cl-eta.hab-test
-  (:use :cl :fiveam :cl-eta.hab :miscutils)
+(defpackage :cl-hab.hab-test
+  (:use :cl :fiveam :cl-hab.hab :miscutils)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-eta.hab-test)
+(in-package :cl-hab.hab-test)
 
 (def-suite hab-tests
   :description "House automation bus"
-  :in cl-eta.tests:test-suite)
+  :in cl-hab.tests:test-suite)
 
 (in-suite hab-tests)
 
@@ -50,5 +50,3 @@
   (is (= 0 (hash-table-count *items*)))
   (is (= 0 (hash-table-count *rules*)))
   )
-
-(run! 'hab-tests)

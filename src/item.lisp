@@ -1,4 +1,4 @@
-(defpackage :cl-eta.item
+(defpackage :cl-hab.item
   (:use :cl)
   (:nicknames :item)
   (:import-from #:envi
@@ -18,7 +18,7 @@
            #:item-changed-event
            #:item-changed-event-item))
 
-(in-package :cl-eta.item)
+(in-package :cl-hab.item)
 
 (defstruct item-changed-event item)
 

@@ -1,4 +1,4 @@
-(in-package :cl-eta.binding)
+(in-package :cl-hab.binding)
 
 (defclass binding ()
   ((bound-items :initform '()
