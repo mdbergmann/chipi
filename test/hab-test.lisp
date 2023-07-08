@@ -34,6 +34,22 @@
     (is (typep (gethash 'temp-b *items*) 'item:item)))
   (is (= 0 (hash-table-count *items*))))
 
+(test define-rules
+  "Tests defining rules."
+  (with-fixture clean-after ()
+    (defconfig ())
+    (rule "example foo"
+          :when-cron '(:minute 10 :hour 0)
+          :when-item-change 'temp-a
+          :when-item-change 'temp-b
+          :do (lambda (trigger)
+                (format t "My rule code: ~a~%" trigger)))
+    ;; make sure we can evaluate the same rule again
+    (rule "example foo")
+    (is (= 1 (hash-table-count *rules*)))
+    (is (typep (gethash "example foo" *rules*) 'rule:rule)))
+  (is (= 0 (hash-table-count *rules*))))
+
 ;; (test define-config
 ;;   (with-fixture clean-after ()
 ;;     (defconfig

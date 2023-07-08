@@ -19,9 +19,9 @@
 (defmacro defconfig (&body body)
   `(progn
      (envi:ensure-env)
-     (when (null *items*)
+     (unless *items*
        (setf *items* (make-hash-table)))
-     (when (null *rules*)
+     (unless *rules*
        (setf *rules* (make-hash-table :test #'equal)))
      ,@body))
 
@@ -45,15 +45,17 @@
 (defmacro binding (&rest keys)
   `(binding:make-function-binding ,@keys))
 
-(defmacro defrules (&body body)
-  (let ((rules (gensym "rules")))
-    `(let ((,rules (list ,@body)))
-       (setf *rules* (alexandria:alist-hash-table ,rules :test #'equalp)))))
-
 (defmacro rule (name &rest keys)
-  (let ((rule (gensym "rule")))
-    `(let ((,rule (rule:make-rule ,name ,@keys)))
-       (cons ,name ,rule))))
+  (let ((rule (gensym "rule"))
+        (old-rule (gensym "old-rule")))
+    `(progn
+       (when (and *rules* (gethash ,name *rules*))
+         (log:info "Cleaning old rule: " ,name)
+         (let ((,old-rule (gethash ,name *rules*)))
+           (ac:stop (act:context ,old-rule) ,old-rule :wait t)
+           (remhash ,name *rules*)))
+       (let ((,rule (rule:make-rule ,name ,@keys)))
+         (setf (gethash ,name *rules*) ,rule)))))
 
 (defun shutdown ()
   (envi:shutdown-env)
