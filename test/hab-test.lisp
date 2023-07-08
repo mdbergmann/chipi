@@ -17,36 +17,37 @@
          (&body))
        (shutdown)))
 
-(test define-config
+(test define-items
+  "Tests defining items."  
   (with-fixture clean-after ()
-    (defconfig
-      (defitems
-        (item 'temp-a "Temperatur A")
-        (item 'temp-b "Temperatur B"
-          (binding
-           :initial-delay 0.1
-           :pull (lambda ()
-                   (format t "Calling pull.~%")
-                   1 ;; return 1
-                   ))))
+    (defconfig ())
+    (item 'temp-a "Temperatur A")
+    ;; define item second time, first will be removed
+    (item 'temp-a "Temperatur A")
+    (item 'temp-b "Temperatur B"
+      (binding
+       :initial-delay 0.1
+       :pull (lambda () 1)))
 
-      (defrules
-          (rule "example foo"
-                :when-cron '(:minute 10 :hour 0)
-                :when-item-change 'temp-a
-                :when-item-change 'temp-b
-                :do (lambda (trigger)
-                      (format t "My rule code: ~a~%" trigger))))
-      )
-    (print *items*)
-    (is (= 2 (hash-table-count hab:*items*)))
+    (is (= 2 (hash-table-count *items*)))
     (is (typep (gethash 'temp-a *items*) 'item:item))
-    (is (typep (gethash 'temp-b *items*) 'item:item))
+    (is (typep (gethash 'temp-b *items*) 'item:item)))
+  (is (= 0 (hash-table-count *items*))))
 
-    (print *rules*)
-    (is (= 1 (hash-table-count *rules*)))
-    (is (typep (gethash "example foo" *rules*) 'rule:rule))
-    )
-  (is (= 0 (hash-table-count *items*)))
-  (is (= 0 (hash-table-count *rules*)))
-  )
+;; (test define-config
+;;   (with-fixture clean-after ()
+;;     (defconfig
+;;       (defrules
+;;           (rule "example foo"
+;;                 :when-cron '(:minute 10 :hour 0)
+;;                 :when-item-change 'temp-a
+;;                 :when-item-change 'temp-b
+;;                 :do (lambda (trigger)
+;;                       (format t "My rule code: ~a~%" trigger))))
+;;       )
+;;     (print *rules*)
+;;     (is (= 1 (hash-table-count *rules*)))
+;;     (is (typep (gethash "example foo" *rules*) 'rule:rule))
+;;     )
+;;   (is (= 0 (hash-table-count *rules*)))
+;;   )

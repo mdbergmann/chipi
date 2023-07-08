@@ -4,7 +4,6 @@
   (:export #:*items*
            #:*rules*
            #:defconfig
-           #:defitems
            #:item
            #:binding
            #:defrules
@@ -20,22 +19,28 @@
 (defmacro defconfig (&body body)
   `(progn
      (envi:ensure-env)
+     (when (null *items*)
+       (setf *items* (make-hash-table)))
+     (when (null *rules*)
+       (setf *rules* (make-hash-table :test #'equal)))
      ,@body))
-
-(defmacro defitems (&body body)
-  (let ((items (gensym "items")))
-    `(let ((,items (list ,@body)))
-       (setf *items* (alexandria:alist-hash-table ,items)))))
 
 (defmacro item (id label &body body)
   (let ((item (gensym "item"))
+        (old-item (gensym "old-item"))
         (bindings (gensym "bindn"))
         (binding (gensym "bind")))
-    `(let ((,item (item:make-item ,id ,label))
-           (,bindings (list ,@body)))
-       (dolist (,binding ,bindings)
-         (item:add-binding ,item ,binding))
-       (cons ,id ,item))))
+    `(progn
+       (when (and *items* (gethash ,id *items*))
+         (log:info "Cleaning old item: " ,id)
+         (let ((,old-item (gethash ,id *items*)))
+           (ac:stop (act:context ,old-item) ,old-item :wait t)
+           (remhash ,id *items*)))
+       (let ((,item (item:make-item ,id ,label))
+             (,bindings (list ,@body)))
+         (dolist (,binding ,bindings)
+           (item:add-binding ,item ,binding))
+         (setf (gethash ,id *items*) ,item)))))
 
 (defmacro binding (&rest keys)
   `(binding:make-function-binding ,@keys))

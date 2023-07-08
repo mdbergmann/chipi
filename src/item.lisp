@@ -82,7 +82,7 @@
 
 (defun set-value (item value &key (push t))
   "Updates item value with push to bindings.
-If ALWAYS-PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
+If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
   (! item `(:set-state . (,value . ,push))))
 
 (defun add-binding (item binding)

@@ -47,6 +47,7 @@
 (defun shutdown-env ()
   (shutdown-isys)
   (shutdown-timer)
+  (shutdown-cron)
   t)
 
 (defun ensure-timer ()
