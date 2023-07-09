@@ -1,5 +1,1 @@
-This project is an adapter between an ETA boiler serial interface and [[https://www.openhab.org][openHAB]].
-
-The serial interface definition is copyright by ETA. The definitions shown here are not to be used elsewhere except you have permission from ETA.
-
-There is a [[http://retro-style.software-by-mabe.com/blog/House+automation+tooling+-+Part+1+-+CL+on+MacOSX+Tiger][blog]] about this project.
+Project for house automation in Common Lisp
