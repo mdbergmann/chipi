@@ -5,4 +5,5 @@
            #:bind-item
            #:exec-pull
            #:exec-push
-           #:pull-passthrough))
+           #:pull-passthrough
+           #:destroy))

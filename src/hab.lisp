@@ -6,7 +6,6 @@
            #:defconfig
            #:item
            #:binding
-           #:defrules
            #:rule
            #:shutdown)
   )

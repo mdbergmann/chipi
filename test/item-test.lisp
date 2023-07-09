@@ -15,14 +15,14 @@
   (unwind-protect
        (progn 
          (&body))
-    (envi:shutdown-isys)))
+    (envi:shutdown-env)))
 
 (test make-item
   (unwind-protect
        (let ((item (make-item 'my-item "label")))
          (is-true item)
          (is-true (typep item 'item)))
-    (envi:shutdown-isys)))
+    (envi:shutdown-env)))
 
 (test make-item--with-state--get--set
   (with-fixture init-destroy-isys ()
@@ -107,3 +107,16 @@
                  (let ((item-value (get-value item)))
                    (await-cond 0.3
                      (eq (future:fresult item-value) 1))))))))
+
+(test item--cleanup-on-destroy
+  "Tests that item cleans up bindings on destroy."
+  (with-fixture init-destroy-isys ()
+    (let ((item (make-item 'my-item))
+          (binding (binding:make-function-binding
+                    :pull (lambda () 1)
+                    :initial-delay 0.1)))
+      (add-binding item binding)
+      (with-mocks ()
+        (answer (binding:destroy _) t)
+        (destroy item)
+        (is (= 1 (length (invocations 'binding:destroy))))))))

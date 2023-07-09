@@ -25,7 +25,9 @@ The output value will be set on the item, should an item be attached.")
                   :documentation "Initial delay in seconds where `RETRIEVE-FUN' is executed. `NIL' means disabled.")
    (delay :initarg :delay
           :initform nil
-          :documentation "Recurring delay in seconds. Calls `RETRIEVE-FUN' repeatedly. `NIL' means disabled.")))
+          :documentation "Recurring delay in seconds. Calls `RETRIEVE-FUN' repeatedly. `NIL' means disabled.")
+   (timers :initform '()
+           :documentation "The timers that are scheduled for this binding.")))
 
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
@@ -75,8 +77,7 @@ The output value will be set on the item, should an item be attached.")
     (let ((timer-fun (lambda () (exec-pull binding))))
       (when initial-delay
         (log:info "Scheduling initial delay: " initial-delay)
-        (sched:schedule initial-delay timer-fun))
-
+        (add-timer binding (sched:schedule initial-delay timer-fun)))
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
         (log:info "Scheduling delay: " delay)
@@ -84,5 +85,18 @@ The output value will be set on the item, should an item be attached.")
           (setf recurring-timer-fun
                 (lambda ()
                   (funcall timer-fun)
-                  (sched:schedule delay recurring-timer-fun)))
-          (sched:schedule delay recurring-timer-fun))))))
+                  (add-timer binding
+                             (sched:schedule delay recurring-timer-fun))))
+          (add-timer binding
+                     (sched:schedule delay recurring-timer-fun)))))))
+
+(defun add-timer (binding timer)
+  (with-slots (timers) binding
+    (log:debug "Adding timer: " timer)
+    (setf timers (cons timer timers))))
+
+(defun destroy (binding)
+  (log:info "Destroying binding: " binding)
+  (dolist (timer (timers binding))
+    (sched:cancel timer))
+  (setf (slot-value binding 'timers) '()))

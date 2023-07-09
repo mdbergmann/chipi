@@ -14,6 +14,7 @@
            #:get-value
            #:set-value
            #:add-binding
+           #:destroy
            ;; events
            #:item-changed-event
            #:item-changed-event-item))
@@ -64,7 +65,11 @@
                                         (push (cddr msg)))
                                     (log:debug "set-state: ~a" val)
                                     (apply-new-value val)
-                                    (push-to-bindings val push))))))))))
+                                    (push-to-bindings val push)))))))
+                :destroy (lambda (self)
+                           (with-slots (bindings) self
+                             (dolist (binding bindings)
+                               (binding:destroy binding)))))))
     (setf (slot-value item 'label) label)
     item))
 
@@ -90,3 +95,6 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
     (setf bindings (cons binding bindings))
     (binding:bind-item binding item))
   item)
+
+(defun destroy (item)
+  (ac:stop (act:context item) item :wait t))
