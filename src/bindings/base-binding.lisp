@@ -10,7 +10,8 @@
    (push-fun :initarg :push-fun
              :initform nil
              :documentation "Function to push the item values to some receiver.
-Beware that `pull' will implicitly call `push'. Make sure you do the right thing in `pull-fun'.")
+Beware that `pull' will only call `push' when `pull-passthrough' is set.
+Make sure you do the right thing in `pull-fun'.")
    (transform-fun :initarg :transform-fun
                   :initform nil
                   :documentation "A function transforming an input value to an output value.
@@ -27,7 +28,9 @@ The output value will be set on the item, should an item be attached.")
           :initform nil
           :documentation "Recurring delay in seconds. Calls `RETRIEVE-FUN' repeatedly. `NIL' means disabled.")
    (timers :initform '()
-           :documentation "The timers that are scheduled for this binding.")))
+           :documentation "The timers that are scheduled for this binding.")
+   (destroyed :initform nil
+              :documentation "Whether the binding has been destroyed.")))
 
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
@@ -84,9 +87,10 @@ The output value will be set on the item, should an item be attached.")
         (let (recurring-timer-fun)
           (setf recurring-timer-fun
                 (lambda ()
-                  (funcall timer-fun)
-                  (add-timer binding
-                             (sched:schedule delay recurring-timer-fun))))
+                  (unless (slot-value binding 'destroyed)
+                    (funcall timer-fun)
+                    (add-timer binding
+                               (sched:schedule delay recurring-timer-fun)))))
           (add-timer binding
                      (sched:schedule delay recurring-timer-fun)))))))
 
@@ -97,7 +101,9 @@ The output value will be set on the item, should an item be attached.")
 
 (defun destroy (binding)
   (log:info "Destroying binding: " binding)
-  (with-slots (timers) binding
+  (with-slots (destroyed timers) binding
+    (setf destroyed t)  ;; prevent further scheduling
     (dolist (timer timers)
+      (log:debug "Cancelling timer: " timer)
       (sched:cancel timer))
     (setf (slot-value binding 'timers) '())))

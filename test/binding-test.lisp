@@ -121,3 +121,20 @@
         (print called-items)
         (is-true (and (member 'my-fake-item called-items)
                       (member 'my-fake-item2 called-items)))))))
+
+(test binding--destroy-cancels-timers
+  "Destroying a binding should cancel all timers."
+  (with-fixture init-destroy-timer ()
+    (with-mocks ()
+      (let ((binding (make-function-binding
+                      :pull (lambda () 123)
+                      :initial-delay 0.1
+                      :delay 0.1)))
+        (answer (item:set-value _ _) t)
+        (bind-item binding 'my-fake-item)
+        (is-true (await-cond 0.5
+                   (>= 1 (length (invocations 'item:set-value)))))
+        (answer (sched:cancel _) t)
+        (destroy binding)
+        (is-true (await-cond 0.5
+                   (= 2 (length (invocations 'sched:cancel)))))))))
