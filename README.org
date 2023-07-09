@@ -1,1 +1,1 @@
-WIP: Project for house automation in Common Lisp
+WIP: Project for house automation in Common Lisp: House automation bus (hab)
