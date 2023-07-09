@@ -97,6 +97,7 @@ The output value will be set on the item, should an item be attached.")
 
 (defun destroy (binding)
   (log:info "Destroying binding: " binding)
-  (dolist (timer (timers binding))
-    (sched:cancel timer))
-  (setf (slot-value binding 'timers) '()))
+  (with-slots (timers) binding
+    (dolist (timer timers)
+      (sched:cancel timer))
+    (setf (slot-value binding 'timers) '())))
