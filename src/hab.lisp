@@ -33,7 +33,7 @@
        (when (and *items* (gethash ,id *items*))
          (log:info "Cleaning old item: " ,id)
          (let ((,old-item (gethash ,id *items*)))
-           (ac:stop (act:context ,old-item) ,old-item :wait t)
+           (item:destroy ,old-item)
            (remhash ,id *items*)))
        (let ((,item (item:make-item ,id ,label))
              (,bindings (list ,@body)))

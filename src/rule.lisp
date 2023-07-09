@@ -15,6 +15,29 @@
 (defclass rule (actor) ())
 
 (defun make-rule (name &rest keys)
+  "Create a rule actor with the given NAME and KEYS.
+KEYS can be: `:when-item-change', `:when-cron', `:do'.
+`:when-item-change' is a list of items to subscribe to.
+`:when-cron' is a cron expression. See `cl-cron' for details.
+`:do' is a function that will be called when the rule is triggered.
+It will be called with a single argument, an alist with either
+`:item' or `:cron' as the key, depending on what triggered the rule.
+`:item' will be the item that triggered the rule, and `:cron' will
+be the cron expression that triggered the rule.
+
+Example:
+  (make-rule 'my-rule
+             :when-item-change 'my-item
+             :when-cron '(:minute 0 :hour 0)
+             :do (lambda (trigger)
+                   (case (car trigger)
+                     (:item (log:info \"Item changed: \" (cdr trigger)))
+                     (:cron (log:info \"Cron triggered: \" (cdr trigger))))))
+
+This will create a rule that will be triggered when `my-item' changes,
+or when the cron expression (:minute 0 :hour 0) is triggered.
+When triggered, the rule will log a message to the info log.
+"
   (let* ((isys (ensure-isys))
          (item-changes (loop :for (key val) :on keys :by #'cddr
                              :if (eq key :when-item-change)
