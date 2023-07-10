@@ -61,3 +61,4 @@
       (print expected)
       (is-true (miscutils:await-cond 0.5
                  (eq expected '(:boot-only t)))))))
+

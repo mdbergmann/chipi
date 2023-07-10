@@ -41,10 +41,10 @@
            (item:add-binding ,item ,binding))
          (setf (gethash ,id *items*) ,item)))))
 
-(defmacro binding (&rest keys)
-  `(binding:make-function-binding ,@keys))
+(defmacro binding (&rest args)
+  `(binding:make-function-binding ,@args))
 
-(defmacro rule (name &rest keys)
+(defmacro rule (name &rest args)
   (let ((rule (gensym "rule"))
         (old-rule (gensym "old-rule")))
     `(progn
@@ -53,7 +53,7 @@
          (let ((,old-rule (gethash ,name *rules*)))
            (ac:stop (act:context ,old-rule) ,old-rule :wait t)
            (remhash ,name *rules*)))
-       (let ((,rule (rule:make-rule ,name ,@keys)))
+       (let ((,rule (rule:make-rule ,name ,@args)))
          (setf (gethash ,name *rules*) ,rule)))))
 
 (defun shutdown ()

@@ -22,6 +22,14 @@
   (ensure-cron)
   t)
 
+(defun shutdown-env ()
+  (shutdown-isys)
+  (shutdown-timer)
+  (shutdown-cron)
+  t)
+
+;; actor system
+
 (defun ensure-isys ()
   (or *isys*
       (prog1
@@ -44,11 +52,7 @@
           tasks:*task-dispatcher* nil)
     t))
 
-(defun shutdown-env ()
-  (shutdown-isys)
-  (shutdown-timer)
-  (shutdown-cron)
-  t)
+;; timer
 
 (defun ensure-timer ()
   (or *timer*
@@ -59,6 +63,8 @@
     (wt:shutdown-wheel-timer *timer*)
     (setf *timer* nil))
   t)
+
+;; cron
 
 (defun ensure-cron ()
   (or *cron*
