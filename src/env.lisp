@@ -68,10 +68,10 @@
 
 (defun ensure-cron ()
   (or *cron*
-      (setf *cron* (cl-cron:start-cron))))
+      (setf *cron* (cr:initialize))))
 
 (defun shutdown-cron ()
   (when *cron*
-    (cl-cron:stop-cron)
+    (cr:shutdown)
     (setf *cron* nil))
     t)

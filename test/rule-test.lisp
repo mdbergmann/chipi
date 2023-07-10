@@ -62,3 +62,14 @@
       (is-true (miscutils:await-cond 0.5
                  (eq expected '(:boot-only t)))))))
 
+(test rule--cancel-cron-tasks-on-destroy
+  "Tests rule that cancels cron tasks on destroy."
+  (with-fixture init-destroy-env ()
+    (let ((rule (make-rule "test rule"
+                           :when-cron '(:minute 0 :hour 0)
+                           :do (lambda (trigger)
+                                 (declare (ignore trigger))))))
+      (is (= 1 (cr:num-jobs)))
+      (destroy rule)
+      (is (= 0 (cr:num-jobs)))
+      )))

@@ -8,11 +8,14 @@
                 #:actor
                 #:!)
   (:export #:rule
-           #:make-rule))
+           #:make-rule
+           #:destroy))
 
 (in-package :cl-hab.rule)
 
-(defclass rule (actor) ())
+(defclass rule (actor)
+  ((cron-hashes :initform nil
+                :documentation "A list of cron hashes for this rule.")))
 
 (defun make-rule (name &rest keys)
   "Create a rule actor with the given NAME and KEYS.
@@ -70,14 +73,26 @@ When triggered, the rule will log a message to the info log.
                (ev:subscribe self self 'item:item-changed-event))
              (when (car crons)
                (loop :for cron :in crons
-                     :do (cron:make-cron-job
-                          (lambda ()
-                            (! self `(cron-triggered ,cron)))
-                          :minute (getf cron :minute :every)
-                          :hour (getf cron :hour :every)
-                          :day-of-month (getf cron :day-of-month :every)
-                          :month (getf cron :month :every)
-                          :day-of-week (getf cron :day-of-week :every)
-                          :boot-only (getf cron :boot-only nil)))))
+                     :for cron-hash = (cr:make-cron-job
+                                       (lambda ()
+                                         (! self `(cron-triggered ,cron)))
+                                       :minute (getf cron :minute :every)
+                                       :hour (getf cron :hour :every)
+                                       :day-of-month (getf cron :day-of-month :every)
+                                       :month (getf cron :month :every)
+                                       :day-of-week (getf cron :day-of-week :every)
+                                       :boot-only (getf cron :boot-only nil))
+                     :do (%add-cron-hash self cron-hash))))
      :destroy (lambda (self)
-                (ev:unsubscribe self self)))))
+                (ev:unsubscribe self self)
+                (loop :for cron-hash :in (slot-value self 'cron-hashes)
+                      :do (cr:cancel-job cron-hash))
+                (setf (slot-value self 'cron-hashes) nil)))))
+
+(defun %add-cron-hash (rule hash)
+  "Add the given `HASH' to the list of cron hashes for the given `RULE'."
+  (push hash (slot-value rule 'cron-hashes)))
+
+(defun destroy (rule)
+  "Destroy the given `RULE'."
+  (ac:stop (act:context rule) rule :wait t))

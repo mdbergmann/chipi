@@ -51,7 +51,7 @@
        (when (and *rules* (gethash ,name *rules*))
          (log:info "Cleaning old rule: " ,name)
          (let ((,old-rule (gethash ,name *rules*)))
-           (ac:stop (act:context ,old-rule) ,old-rule :wait t)
+           (rule:destroy ,old-rule)
            (remhash ,name *rules*)))
        (let ((,rule (rule:make-rule ,name ,@args)))
          (setf (gethash ,name *rules*) ,rule)))))
