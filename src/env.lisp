@@ -2,30 +2,24 @@
   (:use :cl)
   (:nicknames :envi)
   (:export #:ensure-isys
-           #:ensure-timer
-           #:ensure-cron
            #:ensure-env
            #:shutdown-isys
-           #:shutdown-timer
-           #:shutdown-cron
            #:shutdown-env))
 
 (in-package :cl-hab.env)
 
 (defvar *isys* nil)
-(defvar *timer* nil)
-(defvar *cron* nil)
 
 (defun ensure-env ()
   (ensure-isys)
-  (ensure-timer)
-  (ensure-cron)
+  (sched:ensure-timer)
+  (cr:ensure-cron)
   t)
 
 (defun shutdown-env ()
   (shutdown-isys)
-  (shutdown-timer)
-  (shutdown-cron)
+  (sched:shutdown-timer)
+  (cr:shutdown-cron)
   t)
 
 ;; actor system
@@ -51,27 +45,3 @@
           tasks:*task-context* nil
           tasks:*task-dispatcher* nil)
     t))
-
-;; timer
-
-(defun ensure-timer ()
-  (or *timer*
-      (setf *timer* (wt:make-wheel-timer :max-size 300 :resolution 100))))
-
-(defun shutdown-timer ()
-  (when *timer*
-    (wt:shutdown-wheel-timer *timer*)
-    (setf *timer* nil))
-  t)
-
-;; cron
-
-(defun ensure-cron ()
-  (or *cron*
-      (setf *cron* (cr:initialize))))
-
-(defun shutdown-cron ()
-  (when *cron*
-    (cr:shutdown)
-    (setf *cron* nil))
-    t)

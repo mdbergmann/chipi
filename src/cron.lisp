@@ -1,25 +1,28 @@
 (defpackage :cl-hab.cron
   (:use :cl)
   (:nicknames :cr)
-  (:import-from #:envi
-                #:ensure-cron)
-  (:export #:initialize
-           #:shutdown
+  (:export #:ensure-cron
+           #:shutdown-cron
            #:num-jobs
            #:make-cron-job
            #:cancel-job))
 
 (in-package :cl-hab.cron)
 
-(defun initialize ()
-  (setf cl-cron::*cron-jobs-hash* (make-hash-table))
-  (cl-cron:start-cron)
-  t)
+(defvar *cron* nil)
 
-(defun shutdown ()
-  (cl-cron:stop-cron)
-  (setf cl-cron::*cron-jobs-hash* (make-hash-table))
-  t)
+(defun ensure-cron ()
+  (or *cron*
+      (progn
+        (setf cl-cron::*cron-jobs-hash* (make-hash-table))
+        (cl-cron:start-cron)
+        (setf *cron* t))))
+
+(defun shutdown-cron ()
+  (when *cron*
+    (cl-cron:stop-cron)
+    (setf cl-cron::*cron-jobs-hash* (make-hash-table))
+    (setf *cron* nil)))
 
 (defun num-jobs ()
   (ensure-cron)

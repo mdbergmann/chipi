@@ -58,9 +58,8 @@
                                   (setf expected (cdr trigger))))))
       (is-true rule)
       (is (typep rule 'rule))
-      (print expected)
       (is-true (miscutils:await-cond 0.5
-                 (eq expected '(:boot-only t)))))))
+                 (equalp expected '(:boot-only t)))))))
 
 (test rule--cancel-cron-tasks-on-destroy
   "Tests rule that cancels cron tasks on destroy."

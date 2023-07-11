@@ -15,7 +15,7 @@
   (unwind-protect
        (progn
          (&body))
-    (envi:shutdown-timer)))
+    (envi:shutdown-env)))
 
 (test binding--bind-item
   (let ((binding (make-function-binding)))

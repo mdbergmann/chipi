@@ -2,7 +2,8 @@
   (:use :cl)
   (:nicknames :rule)
   (:import-from #:envi
-                #:ensure-isys
+                #:ensure-isys)
+  (:import-from #:cr
                 #:ensure-cron)
   (:import-from #:act
                 #:actor
@@ -82,7 +83,8 @@ When triggered, the rule will log a message to the info log.
                                        :month (getf cron :month :every)
                                        :day-of-week (getf cron :day-of-week :every)
                                        :boot-only (getf cron :boot-only nil))
-                     :do (%add-cron-hash self cron-hash))))
+                     :do (unless (getf cron :boot-only)
+                           (%add-cron-hash self cron-hash)))))
      :destroy (lambda (self)
                 (ev:unsubscribe self self)
                 (loop :for cron-hash :in (slot-value self 'cron-hashes)

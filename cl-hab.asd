@@ -9,11 +9,12 @@
   :components ((:module "src"
                 :serial t
                 :components
-                ((:file "env")
+                ((:file "cron")
+                 (:file "cl-cron-overrides")
                  (:file "scheduler")
+                 (:file "env")
                  (:file "binding-api")
                  (:file "item")
-                 (:file "cl-cron-overrides")
                  (:file "rule")
                  (:module "bindings"
                   :components
@@ -56,11 +57,11 @@ OK - control if set-value of 'pull' should be passed through to 'push'.
 OK - more pipeline functions: transform of 'retrieved' value
 OK - scripts also a dedicated actor with custom dsl for registering to cron and item changes
 OK - cron for scripts/rulos?
+OK - make item macro to be called on top-level so that it can be evaluated repeatedly and can take changes on runtime info account
+OK - do proper cleanup of item with bindings and rules
+- execute `exec-pull/push' using tasks?
 - binding more abstract, method protocol?
 - create http-binding?
-- persistence based on items: :load :save, :load called on init, :save called on each item value changed
-OK - make item macro to be called on top-level so that it can be evaluated repeatedly and can take changes on runtime info account
-- execute `exec-pull/push' using tasks?
-=> - do proper cleanup of item with bindings and rules
+=> - persistence based on items: :load :save, :load called on init, :save called on each item value changed
 
 |#
