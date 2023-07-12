@@ -11,7 +11,7 @@
                 :components
                 ((:file "cron")
                  (:file "cl-cron-overrides")
-                 (:file "scheduler")
+                 (:file "timer")
                  (:file "env")
                  (:file "binding-api")
                  (:file "item")
