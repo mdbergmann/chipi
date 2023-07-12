@@ -1,7 +1,7 @@
 (defpackage :cl-hab.rule
   (:use :cl)
   (:nicknames :rule)
-  (:import-from #:envi
+  (:import-from #:isys
                 #:ensure-isys)
   (:import-from #:act
                 #:actor

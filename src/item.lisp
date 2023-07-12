@@ -1,7 +1,7 @@
 (defpackage :cl-hab.item
   (:use :cl)
   (:nicknames :item)
-  (:import-from #:envi
+  (:import-from #:isys
                 #:ensure-isys)
   (:import-from #:act
                 #:*self*

@@ -1,7 +1,8 @@
 (defpackage :cl-hab.isys
   (:use :cl)
   (:nicknames :isys)
-  (:export #:))
+  (:export #:ensure-isys
+           #:shutdown-isys))
 
 (in-package :cl-hab.isys)
 

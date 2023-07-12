@@ -82,7 +82,7 @@
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item))
           (ev-received))
-      (ac:actor-of (envi:ensure-isys)
+      (ac:actor-of (isys:ensure-isys)
                    :init (lambda (self)
                            (ev:subscribe self self 'item-changed-event))
                    :receive (lambda (msg)
