@@ -134,7 +134,7 @@
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.5
                    (>= 1 (length (invocations 'item:set-value)))))
-        (answer (sched:cancel _) t)
+        (answer (timer:cancel _) t)
         (destroy binding)
         (is-true (await-cond 0.5
-                   (= 2 (length (invocations 'sched:cancel)))))))))
+                   (= 2 (length (invocations 'timer:cancel)))))))))

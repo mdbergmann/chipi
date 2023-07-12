@@ -3,8 +3,6 @@
   (:nicknames :rule)
   (:import-from #:envi
                 #:ensure-isys)
-  (:import-from #:cr
-                #:ensure-cron)
   (:import-from #:act
                 #:actor
                 #:!)
@@ -51,7 +49,6 @@ When triggered, the rule will log a message to the info log.
                         :collect val))
          (item-names (mapcar #'symbol-name item-changes))
          (do-fun (getf keys :do)))
-    (ensure-cron)
     (ac:actor-of
      isys
      :name name

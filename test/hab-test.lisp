@@ -51,3 +51,8 @@
     (is (= 1 (hash-table-count *rules*)))
     (is (typep (gethash "example foo" *rules*) 'rule:rule)))
   (is (= 0 (hash-table-count *rules*))))
+
+(test define-persistence
+  "Tests defining persistence."
+  
+  )

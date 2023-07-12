@@ -1,18 +1,21 @@
-(defpackage :cl-hab.scheduler
+(defpackage :cl-hab.timer
+  (:documentation "A simple timer package
+  This package provides a simple timer that can be used to schedule functions.")
   (:use :cl)
-  (:nicknames :sched)
+  (:nicknames :timer)
   (:export #:ensure-timer
            #:shutdown-timer
            #:schedule
            #:cancel))
 
-(in-package :cl-hab.scheduler)
+(in-package :cl-hab.timer)
 
 (defvar *timer* nil)
 
 (defun ensure-timer ()
-  (or *timer*
-      (setf *timer* (wt:make-wheel-timer :max-size 300 :resolution 100))))
+  "Ensure that a timer is running."
+  (unless *timer*
+    (setf *timer* (wt:make-wheel-timer :max-size 300 :resolution 100))))
 
 (defun shutdown-timer ()
   (when *timer*
@@ -22,11 +25,11 @@
 
 (defun schedule (delay fun)
   "Schedule a function to be called after a delay in seconds"
-  (let ((timer-wheel (ensure-timer)))
-    (wt:schedule timer-wheel delay fun)))
+  (ensure-timer)
+  (wt:schedule *timer* delay fun))
 
 (defun cancel (timer)
   "Cancel a timer"
-  (let ((timer-wheel (ensure-timer)))
-    (wt:cancel timer-wheel timer)))
+  (ensure-timer)
+  (wt:cancel *timer* timer))
  

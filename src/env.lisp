@@ -12,13 +12,13 @@
 
 (defun ensure-env ()
   (ensure-isys)
-  (sched:ensure-timer)
+  (timer:ensure-timer)
   (cr:ensure-cron)
   t)
 
 (defun shutdown-env ()
   (shutdown-isys)
-  (sched:shutdown-timer)
+  (timer:shutdown-timer)
   (cr:shutdown-cron)
   t)
 

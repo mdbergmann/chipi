@@ -80,7 +80,7 @@ The output value will be set on the item, should an item be attached.")
     (let ((timer-fun (lambda () (exec-pull binding))))
       (when initial-delay
         (log:info "Scheduling initial delay: " initial-delay)
-        (%add-timer binding (sched:schedule initial-delay timer-fun)))
+        (%add-timer binding (timer:schedule initial-delay timer-fun)))
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
         (log:info "Scheduling delay: " delay)
@@ -90,9 +90,9 @@ The output value will be set on the item, should an item be attached.")
                   (unless (slot-value binding 'destroyed)
                     (funcall timer-fun)
                     (%add-timer binding
-                               (sched:schedule delay recurring-timer-fun)))))
+                               (timer:schedule delay recurring-timer-fun)))))
           (%add-timer binding
-                     (sched:schedule delay recurring-timer-fun)))))))
+                     (timer:schedule delay recurring-timer-fun)))))))
 
 (defun %add-timer (binding timer)
   (with-slots (timers) binding
@@ -105,5 +105,5 @@ The output value will be set on the item, should an item be attached.")
     (setf destroyed t)  ;; prevent further scheduling
     (dolist (timer timers)
       (log:debug "Cancelling timer: " timer)
-      (sched:cancel timer))
+      (timer:cancel timer))
     (setf (slot-value binding 'timers) '())))
