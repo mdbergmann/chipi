@@ -1,12 +1,16 @@
 (defpackage :cl-hab.hab
   (:use :cl)
   (:nicknames :hab)
+  (:import-from #:miscutils
+                #:filter)
   (:export #:*items*
            #:*rules*
+           #:*persistences*
            #:defconfig
            #:item
            #:binding
            #:rule
+           #:persistence
            #:shutdown)
   )
 
@@ -14,6 +18,7 @@
 
 (defvar *items* nil "All items")
 (defvar *rules* nil "All rules")
+(defvar *persistences* nil "All persistences")
 
 (defmacro defconfig (&body body)
   `(progn
@@ -22,13 +27,22 @@
        (setf *items* (make-hash-table)))
      (unless *rules*
        (setf *rules* (make-hash-table :test #'equal)))
+     (unless *persistences*
+       (setf *persistences* (make-hash-table :test #'eq)))
      ,@body))
+
+(defun shutdown ()
+  (envi:shutdown-env)
+  (clrhash *items*)
+  (clrhash *rules*)
+  (clrhash *persistences*))
 
 (defmacro item (id label &body body)
   (let ((item (gensym "item"))
         (old-item (gensym "old-item"))
         (bindings (gensym "bindn"))
-        (binding (gensym "bind")))
+        (binding (gensym "bind"))
+        (persistences (gensym "persn")))
     `(progn
        (when (and *items* (gethash ,id *items*))
          (log:info "Cleaning old item: " ,id)
@@ -36,7 +50,9 @@
            (item:destroy ,old-item)
            (remhash ,id *items*)))
        (let ((,item (item:make-item ,id ,label))
-             (,bindings (list ,@body)))
+             (,bindings (filter (lambda (x)
+                                  (if (typep x 'binding::binding) x))
+                                (list ,@body))))
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
          (setf (gethash ,id *items*) ,item)))))
@@ -56,7 +72,14 @@
        (let ((,rule (rule:make-rule ,name ,@args)))
          (setf (gethash ,name *rules*) ,rule)))))
 
-(defun shutdown ()
-  (envi:shutdown-env)
-  (clrhash *items*)
-  (clrhash *rules*))
+(defmacro persistence (&key id type)
+  (let ((persistence (gensym "persistence"))
+        (old-persistence (gensym "old-persistence")))
+    `(progn
+       (when (and *persistences* (gethash ,id *persistences*))
+         (log:info "Cleaning old persistence: " ,id)
+         (let ((,old-persistence (gethash ,id *persistences*)))
+           (persp:destroy ,old-persistence)
+           (remhash ,id *persistences*)))
+       (let ((,persistence (persp:make-persistence ,id ,type)))
+         (setf (gethash ,id *persistences*) ,persistence)))))

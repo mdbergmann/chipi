@@ -69,7 +69,8 @@
                 :destroy (lambda (self)
                            (with-slots (bindings) self
                              (dolist (binding bindings)
-                               (binding:destroy binding)))))))
+                               (ignore-errors
+                                (binding:destroy binding))))))))
     (setf (slot-value item 'label) label)
     item))
 

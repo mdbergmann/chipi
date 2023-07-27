@@ -54,5 +54,16 @@
 
 (test define-persistence
   "Tests defining persistence."
-  
-  )
+  (with-fixture clean-after ()
+    (defconfig ())
+    (persistence :id :default
+                 :type 'map)
+    ;; (item 'temp-a "Temperatur A"
+    ;;   :persistence '(:default))
+
+    (is (= 1 (hash-table-count *persistences*)))
+    (is (typep (gethash :default *persistences*) 'persp:persistence))
+
+    ;; item contains persistence
+    
+    ))

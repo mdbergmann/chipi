@@ -17,6 +17,7 @@
                  (:file "binding-api")
                  (:file "item")
                  (:file "rule")
+                 (:file "persistence")
                  (:module "bindings"
                   :components
                   ((:file "base-binding")))
