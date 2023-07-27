@@ -11,3 +11,16 @@
 
 (in-suite persistence-tests)
 
+(def-fixture init-destroy-env ()
+  (unwind-protect
+       (progn 
+         (&body))
+    (envi:shutdown-env)))
+
+(test make-persistence--map
+  "Make a `map` persistence"
+  (with-fixture init-destroy-env ()
+    (let ((persistence (make-persistence :persp-map :map)))
+      (is-true persistence)
+      (is (typep persistence 'persp::map-persistence))
+      )))

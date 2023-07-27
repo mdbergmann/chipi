@@ -28,7 +28,7 @@ It will be called with a single argument, an alist with either
 be the cron expression that triggered the rule.
 
 Example:
-  (make-rule 'my-rule
+  (make-rule \"my-rule\"
              :when-item-change 'my-item
              :when-cron '(:minute 0 :hour 0)
              :do (lambda (trigger)
