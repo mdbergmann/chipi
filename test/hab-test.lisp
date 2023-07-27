@@ -57,7 +57,8 @@
   (with-fixture clean-after ()
     (defconfig ())
     (persistence :id :default
-                 :type 'map)
+                 :type :map
+                 :frequency :every-change)
     ;; (item 'temp-a "Temperatur A"
     ;;   :persistence '(:default))
 

@@ -15,7 +15,7 @@
 
 (defclass map-persistence (persistence) ())
 
-(defun make-persistence (id type)
+(defun make-persistence (id type frequency)
   (let ((isys (isys:ensure-isys))
         (type (ccase type
                 (:map 'map-persistence))))

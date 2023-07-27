@@ -20,7 +20,7 @@
 (test make-persistence--map
   "Make a `map` persistence"
   (with-fixture init-destroy-env ()
-    (let ((persistence (make-persistence :persp-map :map)))
-      (is-true persistence)
-      (is (typep persistence 'persp::map-persistence))
+    (let ((cut (make-persistence :persp-map :map :every-change)))
+      (is-true cut)
+      (is (typep cut 'persp::map-persistence))
       )))
