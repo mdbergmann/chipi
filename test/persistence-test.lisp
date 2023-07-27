@@ -17,10 +17,23 @@
          (&body))
     (envi:shutdown-env)))
 
-(test make-persistence--map
-  "Make a `map` persistence"
+(test make-persistence--simple
+  "Make a `simple` persistence."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-persistence :persp-map :map :every-change)))
+    (let ((cut (make-persistence :persp-map :simple :every-change)))
+      (print cut)
       (is-true cut)
-      (is (typep cut 'persp::map-persistence))
+      (is (typep cut 'persp::simple-persistence)))))
+
+(test simple-persistence--store-and-fetch
+  "Store a value in a `simple` persistence."
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-persistence :persp-map :simple :every-change))
+          (item (item:make-item 'foo)))
+      (item:set-value item "foobar")
+      (persp:store cut item)
+      (sleep 0.3)
+      (let ((fetched (persp:fetch cut item)))
+        (is-true (miscutils:await-cond 0.5
+                   (equal (future:fresult fetched) "foobar"))))
       )))

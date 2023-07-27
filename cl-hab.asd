@@ -37,6 +37,7 @@
                  (:file "binding-test")
                  (:file "item-test")
                  (:file "rule-test")
+                 (:file "persistence-test")
                  (:file "hab-test")
                  )))
   :description "Test system for cl-hab"
