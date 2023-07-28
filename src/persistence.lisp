@@ -22,7 +22,16 @@
 (defclass persistence (actor) ()
   (:documentation "This persistence just writes the value of an actor to file."))
 
-(defclass simple-persistence (persistence) ())
+(defclass simple-persistence (persistence)
+  ((storage-root-path :initform #P""
+                      :documentation "The root path where item values are stored.")))
+
+(defgeneric initialize (persistence)
+  (:documentation "Initializes the persistence."))
+(defmethod initialize ((persistence simple-persistence))
+  (log:debug "Initializing persistence: ~a" persistence)
+  (with-slots (storage-root-path) persistence
+    (uiop:ensure-all-directories-exist (list storage-root-path))))
 
 (defgeneric persist (persistence item value)
   (:documentation "Stores the value of an item to file."))
@@ -42,7 +51,7 @@
 
 ;; ---------------------------------------------------------------------------
 
-(defun make-persistence (id type frequency)
+(defun make-persistence (id &rest other-args &key type frequency &allow-other-keys)
   (declare (ignore frequency))
   (let ((isys (isys:ensure-isys))
         (type (ccase type
@@ -54,7 +63,14 @@
                             (log:debug "Received: ~a, msg: ~a" (car msg) msg)
                             (case (car msg)
                               (:store (persist *self* (cadr msg) (cddr msg)))
-                              (:fetch (reply (retrieve *self* (cdr msg)))))))))
+                              (:fetch (reply (retrieve *self* (cdr msg))))))
+                 :init (lambda (self)
+                         (typecase self
+                           (simple-persistence
+                            (setf (slot-value self 'storage-root-path)
+                                  (uiop:ensure-directory-pathname
+                                   (getf other-args :storage-root-path #P"")))))
+                         (initialize self)))))
 
 (defun store (persistence item)
   (future:fcompleted

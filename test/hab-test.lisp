@@ -56,8 +56,8 @@
   "Tests defining persistence."
   (with-fixture clean-after ()
     (defconfig ())
-    (persistence :id :default
-                 :type :map
+    (persistence :default
+                 :type :simple
                  :frequency :every-change)
     ;; (item 'temp-a "Temperatur A"
     ;;   :persistence '(:default))

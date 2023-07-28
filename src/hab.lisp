@@ -72,7 +72,7 @@
        (let ((,rule (rule:make-rule ,name ,@args)))
          (setf (gethash ,name *rules*) ,rule)))))
 
-(defmacro persistence (&key id type)
+(defmacro persistence (id &rest args)
   (let ((persistence (gensym "persistence"))
         (old-persistence (gensym "old-persistence")))
     `(progn
@@ -81,5 +81,5 @@
          (let ((,old-persistence (gethash ,id *persistences*)))
            (persp:destroy ,old-persistence)
            (remhash ,id *persistences*)))
-       (let ((,persistence (persp:make-persistence ,id ,type)))
+       (let ((,persistence (persp:make-persistence ,id ,@args)))
          (setf (gethash ,id *persistences*) ,persistence)))))

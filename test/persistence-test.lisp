@@ -15,20 +15,30 @@
   (unwind-protect
        (progn 
          (&body))
-    (envi:shutdown-env)))
+    (progn
+      (envi:shutdown-env)
+      (uiop:delete-directory-tree
+       (uiop:ensure-directory-pathname #P"/tmp/cl-hab")
+       :validate t
+       :if-does-not-exist :ignore))))
 
 (test make-persistence--simple
   "Make a `simple` persistence."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-persistence :persp-map :simple :every-change)))
+    (let ((cut (make-persistence :persp-map
+                                 :type :simple
+                                 :frequency :every-change
+                                 :storage-root-path #P"/tmp/cl-hab/persistence-test")))
       (print cut)
+      (is-true (miscutils:await-cond 0.5
+                 (uiop:directory-exists-p #P"/tmp/cl-hab/persistence-test")))
       (is-true cut)
       (is (typep cut 'persp::simple-persistence)))))
 
 (test simple-persistence--store-and-fetch
   "Store a value in a `simple` persistence."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-persistence :persp-map :simple :every-change))
+    (let ((cut (make-persistence :persp-map :type :simple :frequency :every-change))
           (item (item:make-item 'foo)))
       (item:set-value item "foobar")
       (persp:store cut item)
@@ -37,3 +47,5 @@
         (is-true (miscutils:await-cond 0.5
                    (equal (future:fresult fetched) "foobar"))))
       )))
+
+;; TODO: destroy
