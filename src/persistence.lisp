@@ -36,18 +36,25 @@
 (defgeneric persist (persistence item value)
   (:documentation "Stores the value of an item to file."))
 (defmethod persist ((persistence simple-persistence) item value)
-  (log:debug "Persisting: ~a" item)
-  (with-open-file (stream (format nil "~a.store" (act-cell:name item))
-                          :direction :output
-                          :if-exists :supersede
-                          :if-does-not-exist :create)
-    (print value stream)))
+  (with-slots (storage-root-path) persistence
+    (let ((path (merge-pathnames (format nil "~a.store" (act-cell:name item))
+                                 storage-root-path)))
+      (log:debug "Persisting to file: ~a, item: ~a" path item)
+      (with-open-file (stream path
+                              :direction :output
+                              :if-exists :supersede
+                              :if-does-not-exist :create)
+        (print value stream)))))
 
 (defgeneric retrieve (persistence item)
   (:documentation "Fetches the value of an item from file."))
 (defmethod retrieve ((persistence simple-persistence) item)
-  (with-open-file (stream (format nil "~a.store" (act-cell:name item)))
-    (read stream)))
+  (with-slots (storage-root-path) persistence
+    (let ((path (merge-pathnames (format nil "~a.store" (act-cell:name item))
+                                 storage-root-path)))
+      (log:debug "Reading from file: ~a, item: ~a" path item)
+      (with-open-file (stream path)
+        (read stream)))))
 
 ;; ---------------------------------------------------------------------------
 
