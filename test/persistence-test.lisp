@@ -27,7 +27,6 @@
   (with-fixture init-destroy-env ()
     (let ((cut (make-persistence :persp-map
                                  :type :simple
-                                 :frequency :every-change
                                  :storage-root-path #P"/tmp/cl-hab/persistence-test")))
       (print cut)
       (is-true (miscutils:await-cond 0.5
@@ -38,7 +37,7 @@
 (test simple-persistence--store-and-fetch
   "Store a value in a `simple` persistence."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-persistence :persp-map :type :simple :frequency :every-change
+    (let ((cut (make-persistence :persp-map :type :simple
                                             :storage-root-path #P"/tmp/cl-hab/persistence-test"))
           (item (item:make-item 'foo)))
       (item:set-value item "foobar")
@@ -49,5 +48,3 @@
         (is-true (miscutils:await-cond 0.5
                    (equal (future:fresult fetched) "foobar"))))
       )))
-
-;; TODO: destroy

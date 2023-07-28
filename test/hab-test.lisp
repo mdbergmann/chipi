@@ -57,10 +57,10 @@
   (with-fixture clean-after ()
     (defconfig ())
     (persistence :default
-                 :type :simple
-                 :frequency :every-change)
+                 :type :simple)
     ;; (item 'temp-a "Temperatur A"
-    ;;   :persistence '(:default))
+    ;;   :persistence '(:id :default :frequency :every-change)
+    ;;   :persistence '(:id :foo :frquency :every-3minutes))
 
     (is (= 1 (hash-table-count *persistences*)))
     (is (typep (gethash :default *persistences*) 'persp:persistence))

@@ -14,7 +14,9 @@
            #:fetch
            ;; generic functions
            #:persist
-           #:retrieve)
+           #:retrieve
+           #:initialize
+           #:shutdown)
   )
 
 (in-package :cl-hab.persistence)
@@ -32,6 +34,11 @@
   (log:debug "Initializing persistence: ~a" persistence)
   (with-slots (storage-root-path) persistence
     (uiop:ensure-all-directories-exist (list storage-root-path))))
+
+(defgeneric shutdown (persistence)
+  (:documentation "Shuts down the persistence."))
+(defmethod shutdown ((persistence simple-persistence))
+  (log:debug "Shutting down persistence: ~a" persistence))
 
 (defgeneric persist (persistence item value)
   (:documentation "Stores the value of an item to file."))
@@ -58,8 +65,7 @@
 
 ;; ---------------------------------------------------------------------------
 
-(defun make-persistence (id &rest other-args &key type frequency &allow-other-keys)
-  (declare (ignore frequency))
+(defun make-persistence (id &rest other-args &key type &allow-other-keys)
   (let ((isys (isys:ensure-isys))
         (type (ccase type
                 (:simple 'simple-persistence))))
@@ -77,7 +83,9 @@
                             (setf (slot-value self 'storage-root-path)
                                   (uiop:ensure-directory-pathname
                                    (getf other-args :storage-root-path #P"")))))
-                         (initialize self)))))
+                         (initialize self))
+                 :destroy (lambda (self)
+                            (shutdown self)))))
 
 (defun store (persistence item)
   (future:fcompleted
@@ -90,4 +98,4 @@
   (? persistence `(:fetch . ,item)))
 
 (defun destroy (persistence)
-  nil)
+  (ac:stop (act:context persistence) persistence :wait t))
