@@ -15,6 +15,8 @@
                  (:file "isys")
                  (:file "env")
                  (:file "binding-api")
+                 (:file "persistence-api")
+                 (:file "persistence-simple")
                  (:file "item")
                  (:file "rule")
                  (:file "persistence")
