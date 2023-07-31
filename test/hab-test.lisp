@@ -11,11 +11,19 @@
 
 (in-suite hab-tests)
 
+(defun delete-folder (path)
+  (uiop:delete-directory-tree
+   (uiop:ensure-directory-pathname path)
+   :validate t
+   :if-does-not-exist :ignore))
+
 (def-fixture clean-after ()
   (unwind-protect
        (progn
          (&body))
-       (shutdown)))
+    (progn 
+      (shutdown)
+      (delete-folder #P"/tmp/hab-test"))))
 
 ;; test for `CONFIG'
 
@@ -57,14 +65,21 @@
   (with-fixture clean-after ()
     (defconfig ())
     (persistence :default
-                 :type :simple)
-    ;; (item 'temp-a "Temperatur A"
-    ;;   :persistence '(:id :default :frequency :every-change)
-    ;;   :persistence '(:id :foo :frquency :every-3minutes))
+                 (lambda (id)
+                   (simple-persistence:make-simple-persistence
+                    id :storage-root-path #P"/tmp/hab-test")))
+    (persistence :foo
+                 (lambda (id)
+                   (simple-persistence:make-simple-persistence
+                    id :storage-root-path #P"/tmp/hab-test")))
+    (item 'temp-a "Temperatur A"
+      :persistence '(:id :default :frequency :every-change)
+      :persistence '(:id :foo :frequency :every-3minutes))
 
-    (is (= 1 (hash-table-count *persistences*)))
+    (is (= 2 (hash-table-count *persistences*)))
     (is (typep (gethash :default *persistences*) 'persp:persistence))
 
     ;; item contains persistence
-    
-    ))
+    (is (= 2 (length (item::persistences (gethash 'temp-a *items*)))))))
+
+;; TODO: redefine persistence.

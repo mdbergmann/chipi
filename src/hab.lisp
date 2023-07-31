@@ -42,7 +42,9 @@
         (old-item (gensym "old-item"))
         (bindings (gensym "bindn"))
         (binding (gensym "bind"))
-        (persistences (gensym "persn")))
+        (p-rep (gensym "p-rep"))
+        (p-reps (gensym "p-reps"))
+        (persp (gensym "persp")))
     `(progn
        (when (and *items* (gethash ,id *items*))
          (log:info "Cleaning old item: " ,id)
@@ -52,9 +54,16 @@
        (let ((,item (item:make-item ,id ,label))
              (,bindings (filter (lambda (x)
                                   (if (typep x 'binding::binding) x))
-                                (list ,@body))))
+                                (list ,@body)))
+             (,p-reps (loop :for (k v) :on (list ,@body)
+                            :if (eq k :persistence)
+                              :collect v)))
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
+         (dolist (,p-rep ,p-reps)
+           (let ((,persp (gethash (getf ,p-rep :id) *persistences*)))
+             (when ,persp
+               (item:add-persistence ,item ,persp ,p-rep))))
          (setf (gethash ,id *items*) ,item)))))
 
 (defmacro binding (&rest args)
@@ -72,7 +81,7 @@
        (let ((,rule (rule:make-rule ,name ,@args)))
          (setf (gethash ,name *rules*) ,rule)))))
 
-(defmacro persistence (id &rest args)
+(defmacro persistence (id factory)
   (let ((persistence (gensym "persistence"))
         (old-persistence (gensym "old-persistence")))
     `(progn
@@ -81,6 +90,5 @@
          (let ((,old-persistence (gethash ,id *persistences*)))
            (persp:destroy ,old-persistence)
            (remhash ,id *persistences*)))
-       ;; TODO
-       (let ((,persistence (persp::make-persistence ,id ,@args)))
+       (let ((,persistence (funcall ,factory ,id)))
          (setf (gethash ,id *persistences*) ,persistence)))))

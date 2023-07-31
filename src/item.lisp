@@ -124,6 +124,9 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
   item)
 
 (defun add-persistence (item persistence &rest other-args)
+  ;; unwrap a list in list
+  (when (listp (car other-args))
+    (setf other-args (car other-args)))
   (with-slots (persistences) item
     (let ((item-persp (make-item-persistence
                        :persp persistence
