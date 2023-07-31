@@ -1,5 +1,5 @@
 (defpackage :cl-hab.item-test
-  (:use :cl :fiveam :cl-mock :miscutils :cl-hab.item)
+  (:use :cl :fiveam :cl-mock :miscutils :cl-hab.item :cl-hab.simple-persistence)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -11,11 +11,19 @@
 
 (in-suite item-tests)
 
+(defun delete-folder (path)
+  (uiop:delete-directory-tree
+   (uiop:ensure-directory-pathname path)
+   :validate t
+   :if-does-not-exist :ignore))
+
 (def-fixture init-destroy-isys ()
   (unwind-protect
        (progn 
          (&body))
-    (envi:shutdown-env)))
+    (progn 
+      (envi:shutdown-env)
+      (delete-folder #P"/tmp/cl-hab"))))
 
 (test make-item
   (unwind-protect
@@ -120,3 +128,26 @@
         (answer (binding:destroy _) t)
         (destroy item)
         (is (= 1 (length (invocations 'binding:destroy))))))))
+
+(test item--with-simple-persistence
+  "Tests that item persists its value."
+  (with-fixture init-destroy-isys ()
+    (let* ((persp (make-simple-persistence :simple
+                                           :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+           (item (make-item 'my-item)))
+      (add-persistence item persp
+                       :frequency :every-change)  ;; default
+      (set-value item 1)
+      (is-true (await-cond 2
+                 (uiop:file-exists-p
+                  (merge-pathnames #P"MY-ITEM.store"
+                                   #P"/tmp/cl-hab/persistence-test/"))))
+      ;; make load item on startup
+      (destroy item)
+      (let ((item (make-item 'my-item)))
+        (add-persistence item persp :load-on-start t)
+        (is-true (await-cond 2
+                   (let ((item-value (get-value item)))
+                     (await-cond 0.3
+                       (equal (future:fresult item-value) 1)))))))))
+  

@@ -14,6 +14,7 @@
            #:get-value
            #:set-value
            #:add-binding
+           #:add-persistence
            #:destroy
            ;; events
            #:item-changed-event
@@ -29,9 +30,23 @@
           :documentation "An explanatory label.")
    (bindings :initform '()
              :reader bindings
-             :documentation "The items bindings")))
+             :documentation "The items bindings")
+   (persistences :initform '()
+                 :reader persistences
+                 :documentation "The items persistences")))
 (defstruct item-state
   (value t))
+
+(defstruct item-persistence
+  (persp nil :type (or null persp:persistence))
+  (frequency :every-change)
+  (load-on-start t))
+
+(defun %filter-frequency (list freq)
+  (remove-if-not
+   (lambda (p)
+     (eq (item-persistence-frequency p) freq))
+   list))
 
 (defun make-item (id &optional (label nil))
   (let* ((isys (ensure-isys))
@@ -56,7 +71,13 @@
                                                               (binding:pull-passthrough binding)
                                                               nil)))
                                             (when eff-push
-                                              (binding:exec-push binding new-value)))))))
+                                              (binding:exec-push binding new-value))))))
+                                    (apply-persistences ()
+                                      (with-slots (persistences) self
+                                        (dolist (persp (%filter-frequency persistences :every-change))
+                                          (persp:store
+                                           (item-persistence-persp persp)
+                                           self)))))
                                (case (car msg)
                                  (:get-state
                                   (reply (item-state-value *state*)))
@@ -65,7 +86,8 @@
                                         (push (cddr msg)))
                                     (log:debug "set-state: ~a" val)
                                     (apply-new-value val)
-                                    (push-to-bindings val push)))))))
+                                    (push-to-bindings val push)
+                                    (apply-persistences)))))))
                 :destroy (lambda (self)
                            (with-slots (bindings) self
                              (dolist (binding bindings)
@@ -93,9 +115,21 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
 
 (defun add-binding (item binding)
   (with-slots (bindings) item
-    (setf bindings (cons binding bindings))
+    (push binding bindings)
     (binding:bind-item binding item))
   item)
+
+(defun add-persistence (item persistence &rest other-args)
+  (with-slots (persistences) item
+    (let ((item-persp (make-item-persistence
+                       :persp persistence
+                       :frequency (getf other-args :frequency)
+                       :load-on-start (getf other-args :load-on-start))))
+      (push item-persp persistences)
+      (when (item-persistence-load-on-start item-persp)
+        (future:fcompleted (persp:fetch persistence item)
+            (result)
+          (set-value item result :push nil))))))
 
 (defun destroy (item)
   (ac:stop (act:context item) item :wait t))
