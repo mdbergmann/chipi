@@ -122,18 +122,23 @@
     (let ((item (make-item 'my-item))
           (binding (binding:make-function-binding
                     :pull (lambda () 1)
-                    :initial-delay 0.1)))
+                    :initial-delay 0.1))
+          (persp (make-simple-persistence :foo
+                  :storage-root-path #P"/tmp/cl-hab/persistence-test")))
       (add-binding item binding)
+      (add-persistence item persp)
       (with-mocks ()
         (answer (binding:destroy _) t)
+        (answer (persp:destroy _) t)
         (destroy item)
-        (is (= 1 (length (invocations 'binding:destroy))))))))
+        (is (= 1 (length (invocations 'binding:destroy))))
+        (is (= 1 (length (invocations 'persp:destroy))))))))
 
 (test item--with-simple-persistence
   "Tests that item persists its value."
   (with-fixture init-destroy-isys ()
-    (let* ((persp (make-simple-persistence :simple
-                                           :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+    (let* ((persp (make-simple-persistence :foo
+                   :storage-root-path #P"/tmp/cl-hab/persistence-test"))
            (item (make-item 'my-item)))
       (add-persistence item persp
                        :frequency :every-change)  ;; default

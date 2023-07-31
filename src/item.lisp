@@ -89,10 +89,14 @@
                                     (push-to-bindings val push)
                                     (apply-persistences)))))))
                 :destroy (lambda (self)
-                           (with-slots (bindings) self
+                           (with-slots (bindings persistences) self
                              (dolist (binding bindings)
                                (ignore-errors
-                                (binding:destroy binding))))))))
+                                (binding:destroy binding)))
+                             (dolist (persp persistences)
+                               (ignore-errors
+                                (persp:destroy
+                                 (item-persistence-persp persp)))))))))
     (setf (slot-value item 'label) label)
     item))
 
