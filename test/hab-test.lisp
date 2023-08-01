@@ -87,4 +87,3 @@
     ;; item contains persistence
     (is (= 2 (length (item::persistences (gethash 'temp-a *items*)))))))
 
-;; TODO: redefine persistence.
