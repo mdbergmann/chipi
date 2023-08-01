@@ -1,8 +1,6 @@
 (defpackage :cl-hab.hab
   (:use :cl)
   (:nicknames :hab)
-  (:import-from #:miscutils
-                #:filter)
   (:export #:*items*
            #:*rules*
            #:*persistences*

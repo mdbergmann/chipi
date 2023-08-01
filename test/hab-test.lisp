@@ -72,6 +72,11 @@
                  (lambda (id)
                    (simple-persistence:make-simple-persistence
                     id :storage-root-path #P"/tmp/hab-test")))
+    ;; redefining same persistence to check if possible
+    (persistence :default
+                 (lambda (id)
+                   (simple-persistence:make-simple-persistence
+                    id :storage-root-path #P"/tmp/hab-test")))
     (item 'temp-a "Temperatur A"
       :persistence '(:id :default :frequency :every-change)
       :persistence '(:id :foo :frequency :every-3minutes))
