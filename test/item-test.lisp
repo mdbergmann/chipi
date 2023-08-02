@@ -129,10 +129,8 @@
       (add-persistence item persp)
       (with-mocks ()
         (answer (binding:destroy _) t)
-        (answer (persp:destroy _) t)
         (destroy item)
-        (is (= 1 (length (invocations 'binding:destroy))))
-        (is (= 1 (length (invocations 'persp:destroy))))))))
+        (is (= 1 (length (invocations 'binding:destroy))))))))
 
 (test item--with-simple-persistence
   "Tests that item persists its value."

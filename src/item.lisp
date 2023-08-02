@@ -92,11 +92,7 @@
                            (with-slots (bindings persistences) self
                              (dolist (binding bindings)
                                (ignore-errors
-                                (binding:destroy binding)))
-                             (dolist (persp persistences)
-                               (ignore-errors
-                                (persp:destroy
-                                 (item-persistence-persp persp)))))))))
+                                (binding:destroy binding))))))))
     (setf (slot-value item 'label) label)
     item))
 
@@ -134,6 +130,7 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
                        :load-on-start (getf other-args :load-on-start))))
       (push item-persp persistences)
       (when (item-persistence-load-on-start item-persp)
+        (log:debug "Loading item value from persp: ~a" persistence)
         (future:fcompleted (persp:fetch persistence item)
             (result)
           (set-value item result :push nil))))))
