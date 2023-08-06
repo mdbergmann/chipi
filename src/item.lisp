@@ -18,6 +18,9 @@
            #:add-binding
            #:add-persistence
            #:destroy
+           #:item-state
+           #:item-state-value
+           #:item-state-timestamp
            ;; events
            #:item-changed-event
            #:item-changed-event-item))
@@ -61,12 +64,13 @@
                 :receive (lambda (msg)
                            (log:debug "Received msg: " msg)
                            (let ((self *self*))
-                             (flet ((apply-new-value (new-value)
-                                      (prog1
-                                          (setf (item-state-value *state*) new-value
-                                                (item-state-timestamp *state*) (get-universal-time))
-                                        (ev:publish self (make-item-changed-event
-                                                          :item self))))
+                             (flet ((apply-new-value (new-value timestamp)
+                                      (let ((timestamp (or timestamp (get-universal-time))))
+                                        (prog1
+                                            (setf (item-state-value *state*) new-value
+                                                  (item-state-timestamp *state*) timestamp)
+                                          (ev:publish self (make-item-changed-event
+                                                            :item self)))))
                                     (push-to-bindings (new-value push) 
                                       (with-slots (bindings) self
                                         (log:debug "Processing ~a binding(s)." (length bindings))
@@ -86,10 +90,11 @@
                                  (:get-state
                                   (reply (item-state-value *state*)))
                                  (:set-state
-                                  (let ((val (cadr msg))
-                                        (push (cddr msg)))
+                                  (let ((val (getf (cdr msg) :value))
+                                        (push (getf (cdr msg) :push))
+                                        (timestamp (getf (cdr msg) :timestamp)))
                                     (log:debug "set-state: ~a" val)
-                                    (apply-new-value val)
+                                    (apply-new-value val timestamp)
                                     (push-to-bindings val push)
                                     (apply-persistences)))))))
                 :destroy (lambda (self)
@@ -112,10 +117,10 @@
 (defun get-value (item)
   (? item '(:get-state . nil)))
 
-(defun set-value (item value &key (push t))
+(defun set-value (item value &key (push t) (timestamp nil))
   "Updates item value with push to bindings.
 If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
-  (! item `(:set-state . (,value . ,push))))
+  (! item `(:set-state . (:value ,value :push ,push :timestamp ,timestamp))))
 
 (defun get-item-stateq (item)
   (act-cell:state item))
@@ -143,8 +148,9 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
         (log:debug "Loading item value from persp: ~a" persistence)
         (future:fcompleted (persp:fetch persistence item)
             (result)
-          ;; result is pair with value and timestamp
-          (set-value item (car result) :push nil))))))
+          (set-value item (persp:persisted-item-value result)
+                     :push nil
+                     :timestamp (persp:persisted-item-timestamp result)))))))
 
 (defun destroy (item)
   (ac:stop (act:context item) item :wait t))

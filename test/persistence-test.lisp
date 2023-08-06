@@ -47,5 +47,5 @@
         (is-true (miscutils:await-cond 0.5
                    (let ((resolved (future:fresult fetched)))
                      (and (not (equal resolved :not-ready))
-                        (equal (car resolved) "foobar"))))))
+                          (equal (persisted-item-value resolved) "foobar"))))))
       )))

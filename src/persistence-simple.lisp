@@ -35,7 +35,7 @@
 (defmethod shutdown ((persistence simple-persistence))
   (log:debug "Shutting down persistence: ~a" persistence))
 
-(defmethod persist ((persistence simple-persistence) item value)
+(defmethod persist ((persistence simple-persistence) item)
   (with-slots (storage-root-path) persistence
     (let ((path (merge-pathnames (format nil "~a.store" (act-cell:name item))
                                  storage-root-path)))
@@ -44,10 +44,11 @@
                                               :if-exists :supersede
                                               :if-does-not-exist :create)
         (yason:with-output (stream)
-          (yason:encode-plist `("value"
-                                ,value
-                                "timestamp"
-                                ,(item:get-universal-timestamp item))))))))
+          (let ((item-state (item:get-item-stateq item)))
+            (yason:encode-plist `("value"
+                                  ,(item:item-state-value item-state)
+                                  "timestamp"
+                                  ,(item:item-state-timestamp item-state)))))))))
 
 (defmethod retrieve ((persistence simple-persistence) item)
   (with-slots (storage-root-path) persistence
@@ -56,5 +57,7 @@
       (log:debug "Reading from file: ~a, item: ~a" path item)
       (with-open-file (stream path)
         (let ((alist (yason:parse stream :object-as :alist)))
-          (values (cdr (assoc "value" alist :test #'equal))
-                  (cdr (assoc "timestamp" alist :test #'equal))))))))
+          (make-persisted-item :value
+                               (cdr (assoc "value" alist :test #'equal))
+                               :timestamp
+                               (cdr (assoc "timestamp" alist :test #'equal))))))))

@@ -17,8 +17,8 @@
                  (:file "env")
                  (:file "binding-api")
                  (:file "persistence-api")
-                 (:file "persistence-simple")
                  (:file "item")
+                 (:file "persistence-simple")
                  (:file "rule")
                  (:file "persistence")
                  (:module "bindings"
@@ -69,6 +69,7 @@ OK - do proper cleanup of item with bindings and rules
 - binding more abstract, method protocol?
 - create http-binding?
 OK - persistence based on items: :load :save, :load called on init, :save called on each item value changed
-=> - store item value along with timestamp (universal-time)
+OK - store item value along with timestamp (universal-time)
+- should restored timestamp be set on restored item? => stream line interface.
 
 |#

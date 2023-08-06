@@ -1,8 +1,9 @@
 (in-package :cl-hab.persistence)
 
-(shadowing-import '(act:!
-                    act:?
-                    act:reply))
+(eval-when (:compile-toplevel)
+  (shadowing-import '(act:!
+                      act:?
+                      act:reply)))
 
 (defun make-persistence (id &rest other-args &key type &allow-other-keys)
   "Creates a persistence actor with the given `id' and `other-args'.
@@ -19,11 +20,8 @@ This constructor is not public, subclasses should provide their own constructor 
                  :receive (lambda (msg)
                             (log:debug "Received: ~a, msg: ~a" (car msg) msg)
                             (case (car msg)
-                              (:store (persist act:*self* (cadr msg) (cddr msg)))
-                              (:fetch (reply
-                                       (multiple-value-bind (value timestamp)
-                                           (retrieve act:*self* (cdr msg))
-                                         `(,value . ,timestamp))))))
+                              (:store (persist act:*self* (cadr msg)))
+                              (:fetch (reply (retrieve act:*self* (cdr msg))))))
                  :init (lambda (self)
                          (initialize self))
                  :destroy (lambda (self)
@@ -42,7 +40,7 @@ The actual persistence method called as a result is `persp:persist'."
 (defun fetch (persistence item)
   "Triggers the 'fetch' procedure of the persistence actor.
 The actual persistence method called as a result is `persp:retrieve'.
-Returns a pair with value and timestamp."
+Returns a `persisted-item' instance."
   (? persistence `(:fetch . ,item)))
 
 (defun destroy (persistence)
