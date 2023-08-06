@@ -45,5 +45,7 @@
                  (uiop:file-exists-p #P"/tmp/cl-hab/persistence-test/FOO.store")))
       (let ((fetched (persp:fetch cut item)))
         (is-true (miscutils:await-cond 0.5
-                   (equal (future:fresult fetched) "foobar"))))
+                   (let ((resolved (future:fresult fetched)))
+                     (and (not (equal resolved :not-ready))
+                        (equal (car resolved) "foobar"))))))
       )))

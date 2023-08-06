@@ -40,11 +40,14 @@
     (let ((path (merge-pathnames (format nil "~a.store" (act-cell:name item))
                                  storage-root-path)))
       (log:debug "Persisting to file: ~a, item: ~a" path item)
-      (with-open-file (stream path
-                              :direction :output
-                              :if-exists :supersede
-                              :if-does-not-exist :create)
-        (print value stream)))))
+      (alexandria:with-output-to-file (stream path
+                                              :if-exists :supersede
+                                              :if-does-not-exist :create)
+        (yason:with-output (stream)
+          (yason:encode-plist `("value"
+                                ,value
+                                "timestamp"
+                                ,(item:get-universal-timestamp item))))))))
 
 (defmethod retrieve ((persistence simple-persistence) item)
   (with-slots (storage-root-path) persistence
@@ -52,4 +55,6 @@
                                  storage-root-path)))
       (log:debug "Reading from file: ~a, item: ~a" path item)
       (with-open-file (stream path)
-        (read stream)))))
+        (let ((alist (yason:parse stream :object-as :alist)))
+          (values (cdr (assoc "value" alist :test #'equal))
+                  (cdr (assoc "timestamp" alist :test #'equal))))))))

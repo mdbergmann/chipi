@@ -14,6 +14,7 @@
            #:get-value
            #:set-value
            #:get-item-stateq
+           #:get-universal-timestamp
            #:add-binding
            #:add-persistence
            #:destroy
@@ -119,6 +120,9 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
 (defun get-item-stateq (item)
   (act-cell:state item))
 
+(defun get-universal-timestamp (item)
+  (item-state-timestamp (get-item-stateq item)))
+
 (defun add-binding (item binding)
   (with-slots (bindings) item
     (push binding bindings)
@@ -139,7 +143,8 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
         (log:debug "Loading item value from persp: ~a" persistence)
         (future:fcompleted (persp:fetch persistence item)
             (result)
-          (set-value item result :push nil))))))
+          ;; result is pair with value and timestamp
+          (set-value item (car result) :push nil))))))
 
 (defun destroy (item)
   (ac:stop (act:context item) item :wait t))
