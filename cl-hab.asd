@@ -5,7 +5,8 @@
   :depends-on ("alexandria"
                "sento"
                "timer-wheel"
-               "cl-cron")
+               "cl-cron"
+               "yason")
   :components ((:module "src"
                 :serial t
                 :components
@@ -67,6 +68,7 @@ OK - do proper cleanup of item with bindings and rules
 - execute `exec-pull/push' using tasks?
 - binding more abstract, method protocol?
 - create http-binding?
-=> - persistence based on items: :load :save, :load called on init, :save called on each item value changed
+OK - persistence based on items: :load :save, :load called on init, :save called on each item value changed
+=> - store item value along with timestamp (universal-time)
 
 |#

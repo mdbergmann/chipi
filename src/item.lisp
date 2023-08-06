@@ -13,6 +13,7 @@
            #:item
            #:get-value
            #:set-value
+           #:get-item-stateq
            #:add-binding
            #:add-persistence
            #:destroy
@@ -35,7 +36,8 @@
                  :reader persistences
                  :documentation "The items persistences")))
 (defstruct item-state
-  (value t))
+  (value t)
+  (timestamp (get-universal-time)))
 
 (defstruct item-persistence
   (persp nil :type (or null persp:persistence))
@@ -60,7 +62,8 @@
                            (let ((self *self*))
                              (flet ((apply-new-value (new-value)
                                       (prog1
-                                          (setf (item-state-value *state*) new-value)
+                                          (setf (item-state-value *state*) new-value
+                                                (item-state-timestamp *state*) (get-universal-time))
                                         (ev:publish self (make-item-changed-event
                                                           :item self))))
                                     (push-to-bindings (new-value push) 
@@ -112,6 +115,9 @@
   "Updates item value with push to bindings.
 If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
   (! item `(:set-state . (,value . ,push))))
+
+(defun get-item-stateq (item)
+  (act-cell:state item))
 
 (defun add-binding (item binding)
   (with-slots (bindings) item

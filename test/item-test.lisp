@@ -36,13 +36,20 @@
   (with-fixture init-destroy-isys ()
     (let ((item (make-item 'my-item)))
       (is-true item)
-      (let ((item-value (get-value item)))
+      (let ((item-value (get-value item))
+            (item-timestamp))
         (is-true (await-cond 2
                    (eq (future:fresult item-value) t)))
+        (setf item-timestamp (item::item-state-timestamp (get-item-stateq item)))
+        (is-true item-timestamp)
+        (sleep 1)
         (is-true (set-value item 123))
-        (setf item-value (get-value item))
         (is-true (await-cond 2
-                   (eq (future:fresult item-value) 123)))))))
+                   (let ((item-value (get-value item)))
+                     (await-cond 0.5 
+                       (eq (future:fresult item-value) 123)))))
+        (is (> (item::item-state-timestamp (get-item-stateq item))
+               item-timestamp))))))
 
 (test item--set-value-pushes-to-binding--with-passthrough
   "Tests that set-value pushes to binding."
