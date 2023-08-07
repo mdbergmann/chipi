@@ -5,10 +5,10 @@
            #:*rules*
            #:*persistences*
            #:defconfig
-           #:item
+           #:defitem
            #:binding
-           #:rule
-           #:persistence
+           #:defrule
+           #:defpersistence
            #:shutdown)
   )
 
@@ -35,7 +35,7 @@
   (clrhash *rules*)
   (clrhash *persistences*))
 
-(defmacro item (id label &body body)
+(defmacro defitem (id label &body body)
   (let ((item (gensym "item"))
         (old-item (gensym "old-item"))
         (bindings (gensym "bindn"))
@@ -67,7 +67,7 @@
 (defmacro binding (&rest args)
   `(binding:make-function-binding ,@args))
 
-(defmacro rule (name &rest args)
+(defmacro defrule (name &rest args)
   (let ((rule (gensym "rule"))
         (old-rule (gensym "old-rule")))
     `(progn
@@ -79,7 +79,7 @@
        (let ((,rule (rule:make-rule ,name ,@args)))
          (setf (gethash ,name *rules*) ,rule)))))
 
-(defmacro persistence (id factory)
+(defmacro defpersistence (id factory)
   (let ((persistence (gensym "persistence"))
         (old-persistence (gensym "old-persistence")))
     `(progn

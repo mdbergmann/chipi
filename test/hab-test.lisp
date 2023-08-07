@@ -25,16 +25,14 @@
       (shutdown)
       (delete-folder #P"/tmp/hab-test"))))
 
-;; test for `CONFIG'
-
 (test define-items
   "Tests defining items."  
   (with-fixture clean-after ()
     (defconfig ())
-    (item 'temp-a "Temperatur A")
+    (defitem 'temp-a "Temperatur A")
     ;; define item second time, first will be removed
-    (item 'temp-a "Temperatur A")
-    (item 'temp-b "Temperatur B"
+    (defitem 'temp-a "Temperatur A")
+    (defitem 'temp-b "Temperatur B"
       (binding
        :initial-delay 0.1
        :pull (lambda () 1)))
@@ -48,14 +46,14 @@
   "Tests defining rules."
   (with-fixture clean-after ()
     (defconfig ())
-    (rule "example foo"
-          :when-cron '(:minute 10 :hour 0)
-          :when-item-change 'temp-a
-          :when-item-change 'temp-b
-          :do (lambda (trigger)
-                (format t "My rule code: ~a~%" trigger)))
+    (defrule "example foo"
+      :when-cron '(:minute 10 :hour 0)
+      :when-item-change 'temp-a
+      :when-item-change 'temp-b
+      :do (lambda (trigger)
+            (format t "My rule code: ~a~%" trigger)))
     ;; make sure we can evaluate the same rule again
-    (rule "example foo")
+    (defrule "example foo")
     (is (= 1 (hash-table-count *rules*)))
     (is (typep (gethash "example foo" *rules*) 'rule:rule)))
   (is (= 0 (hash-table-count *rules*))))
@@ -64,26 +62,26 @@
   "Tests defining persistence."
   (with-fixture clean-after ()
     (defconfig ())
-    (persistence :default
+    (defpersistence :default
                  (lambda (id)
                    (simple-persistence:make-simple-persistence
                     id :storage-root-path #P"/tmp/hab-test")))
-    (persistence :foo
+    (defpersistence :foo
                  (lambda (id)
                    (simple-persistence:make-simple-persistence
                     id :storage-root-path #P"/tmp/hab-test")))
     ;; redefining same persistence to check if possible
-    (persistence :default
+    (defpersistence :default
                  (lambda (id)
                    (simple-persistence:make-simple-persistence
                     id :storage-root-path #P"/tmp/hab-test")))
-    (item 'temp-a "Temperatur A"
+    (defitem 'temp-a "Temperatur A"
       :persistence '(:id :default :frequency :every-change)
       :persistence '(:id :foo :frequency :every-3minutes))
 
     (is (= 2 (hash-table-count *persistences*)))
     (is (typep (gethash :default *persistences*) 'persp:persistence))
 
-    ;; item contains persistence
+    ;; item contains defpersistence
     (is (= 2 (length (item::persistences (gethash 'temp-a *items*)))))))
 

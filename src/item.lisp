@@ -122,6 +122,7 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
   (! item `(:set-state . (:value ,value :push ,push :timestamp ,timestamp))))
 
 (defun get-item-stateq (item)
+  "Returns the item state `item-state'."
   (act-cell:state item))
 
 (defun add-binding (item binding)
