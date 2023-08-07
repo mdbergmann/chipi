@@ -14,7 +14,6 @@
            #:get-value
            #:set-value
            #:get-item-stateq
-           #:get-universal-timestamp
            #:add-binding
            #:add-persistence
            #:destroy
@@ -124,9 +123,6 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
 
 (defun get-item-stateq (item)
   (act-cell:state item))
-
-(defun get-universal-timestamp (item)
-  (item-state-timestamp (get-item-stateq item)))
 
 (defun add-binding (item binding)
   (with-slots (bindings) item

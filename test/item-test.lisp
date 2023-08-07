@@ -38,17 +38,19 @@
       (is-true item)
       (let ((item-value (get-value item))
             (item-timestamp))
-        (is-true (await-cond 2
+        (flet ((get-timestamp (item)
+                 (item-state-timestamp (get-item-stateq item))))
+          (is-true (await-cond 2
                    (eq (future:fresult item-value) t)))
-        (setf item-timestamp (get-universal-timestamp item))
-        (is-true item-timestamp)
-        (sleep 1)
-        (is-true (set-value item 123))
-        (is-true (await-cond 2
-                   (let ((item-value (get-value item)))
-                     (await-cond 0.5 
-                       (eq (future:fresult item-value) 123)))))
-        (is (> (get-universal-timestamp item) item-timestamp))))))
+          (setf item-timestamp (get-timestamp item))
+          (is-true item-timestamp)
+          (sleep 1)
+          (is-true (set-value item 123))
+          (is-true (await-cond 2
+                     (let ((item-value (get-value item)))
+                       (await-cond 0.5 
+                         (eq (future:fresult item-value) 123)))))
+          (is (> (get-timestamp item) item-timestamp)))))))
 
 (test item--set-value-pushes-to-binding--with-passthrough
   "Tests that set-value pushes to binding."
