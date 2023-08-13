@@ -88,7 +88,9 @@
                                            self)))))
                                (case (car msg)
                                  (:get-state
-                                  (reply (item-state-value *state*)))
+                                  (let ((state-value (item-state-value *state*)))
+                                    (log:debug "Current state value: ~a" state-value)
+                                    (reply state-value)))
                                  (:set-state
                                   (let ((val (getf (cdr msg) :value))
                                         (push (getf (cdr msg) :push))
@@ -102,7 +104,7 @@
                              (dolist (binding bindings)
                                (ignore-errors
                                 (binding:destroy binding))))
-                           (log:debug "Item ~a destroyed!" id)))))
+                           (log:info "Item '~a' destroyed!" id)))))
     (setf (slot-value item 'label) label)
     item))
 

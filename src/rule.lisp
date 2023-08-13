@@ -82,13 +82,13 @@ When triggered, the rule will log a message to the info log.
                                        :boot-only (getf cron :boot-only nil))
                      :do (unless (getf cron :boot-only)
                            (%add-cron-hash self cron-hash))))
-             (log:info "Rule ~a initialized." name))
+             (log:info "Rule '~a' initialized." name))
      :destroy (lambda (self)
                 (ev:unsubscribe self self)
                 (loop :for cron-hash :in (slot-value self 'cron-hashes)
                       :do (cr:cancel-job cron-hash))
                 (setf (slot-value self 'cron-hashes) nil)
-                (log:info "Rule ~a destroyed." name)))))
+                (log:info "Rule '~a' destroyed." name)))))
 
 (defun %add-cron-hash (rule hash)
   "Add the given `HASH' to the list of cron hashes for the given `RULE'."
