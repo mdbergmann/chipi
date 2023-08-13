@@ -23,11 +23,11 @@ The output value will be set on the item, should an item be attached.")
                      :documentation "defines whether the value of 'pull' will be passed through to 'push', after the transformation chain has been executed and the value been set to the item.")
    (initial-delay :initarg :initial-delay
                   :initform nil
-                  :documentation "Initial delay in seconds where `RETRIEVE-FUN' is executed. `NIL' means disabled.")
+                  :documentation "Initial delay in seconds where `PULL-FUN' is executed. `NIL' means disabled.")
    (delay :initarg :delay
           :initform nil
-          :documentation "Recurring delay in seconds. Calls `RETRIEVE-FUN' repeatedly. `NIL' means disabled.")
-   (timers :initform '()
+          :documentation "Recurring delay in seconds. Calls `PULL-FUN' repeatedly. `NIL' means disabled.")
+   (timers :initform (make-hash-table :test #'eq)
            :documentation "The timers that are scheduled for this binding.")
    (destroyed :initform nil
               :documentation "Whether the binding has been destroyed.")))
@@ -80,7 +80,9 @@ The output value will be set on the item, should an item be attached.")
     (let ((timer-fun (lambda () (exec-pull binding))))
       (when initial-delay
         (log:info "Scheduling initial delay: " initial-delay)
-        (%add-timer binding (timer:schedule initial-delay timer-fun)))
+        (%add-timer binding
+                    (timer:schedule initial-delay timer-fun)
+                    :initial-delay))
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
         (log:info "Scheduling delay: " delay)
@@ -90,20 +92,24 @@ The output value will be set on the item, should an item be attached.")
                   (unless (slot-value binding 'destroyed)
                     (funcall timer-fun)
                     (%add-timer binding
-                               (timer:schedule delay recurring-timer-fun)))))
+                                (timer:schedule delay recurring-timer-fun)
+                                :delay))))
           (%add-timer binding
-                     (timer:schedule delay recurring-timer-fun)))))))
+                      (timer:schedule delay recurring-timer-fun)
+                      :delay))))))
 
-(defun %add-timer (binding timer)
+(defun %add-timer (binding timer timer-type)
   (with-slots (timers) binding
     (log:debug "Adding timer: " timer)
-    (setf timers (cons timer timers))))
+    (setf (gethash timer-type timers) timer)))
 
 (defun destroy (binding)
   (log:info "Destroying binding: " binding)
   (with-slots (destroyed timers) binding
     (setf destroyed t)  ;; prevent further scheduling
-    (dolist (timer timers)
-      (log:debug "Cancelling timer: " timer)
-      (timer:cancel timer))
-    (setf (slot-value binding 'timers) '())))
+    (maphash (lambda (key timer)
+               (declare (ignore key))
+               (log:debug "Cancelling timer: " timer)
+               (timer:cancel timer))
+             timers)
+    (clrhash timers)))
