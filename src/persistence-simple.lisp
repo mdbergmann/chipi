@@ -28,12 +28,12 @@
   (call-next-method))
 
 (defmethod initialize ((persistence simple-persistence))
-  (log:debug "Initializing persistence: ~a" persistence)
+  (log:info "Initializing persistence: ~a" persistence)
   (with-slots (storage-root-path) persistence
     (uiop:ensure-all-directories-exist (list storage-root-path))))
 
 (defmethod shutdown ((persistence simple-persistence))
-  (log:debug "Shutting down persistence: ~a" persistence))
+  (log:info "Shutting down persistence: ~a" persistence))
 
 (defmethod persist ((persistence simple-persistence) item)
   (with-slots (storage-root-path) persistence

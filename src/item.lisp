@@ -81,6 +81,7 @@
                                               (binding:exec-push binding new-value))))))
                                     (apply-persistences ()
                                       (with-slots (persistences) self
+                                        (log:debug "Processing ~a persistence(s)." (length persistences))
                                         (dolist (persp (%filter-frequency persistences :every-change))
                                           (persp:store
                                            (item-persistence-persp persp)
@@ -100,7 +101,8 @@
                            (with-slots (bindings persistences) self
                              (dolist (binding bindings)
                                (ignore-errors
-                                (binding:destroy binding))))))))
+                                (binding:destroy binding))))
+                           (log:debug "Item ~a destroyed!" id)))))
     (setf (slot-value item 'label) label)
     item))
 
@@ -126,6 +128,7 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
   (act-cell:state item))
 
 (defun add-binding (item binding)
+  (log:info "Adding binding: ~a to item: ~a" binding item)
   (with-slots (bindings) item
     (push binding bindings)
     (binding:bind-item binding item))
@@ -133,6 +136,7 @@ If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
 
 (defun add-persistence (item persistence &rest other-args)
   ;; unwrap a list in list
+  (log:info "Adding persistence: ~a to item: ~a" persistence item)
   (when (listp (car other-args))
     (setf other-args (car other-args)))
   (with-slots (persistences) item
