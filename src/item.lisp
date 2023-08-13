@@ -75,7 +75,7 @@
                                         (log:debug "Processing ~a binding(s)." (length bindings))
                                         (dolist (binding bindings)
                                           (let ((eff-push (if push 
-                                                              (binding:pull-passthrough binding)
+                                                              (binding:do-push binding)
                                                               nil)))
                                             (when eff-push
                                               (binding:exec-push binding new-value))))))
@@ -122,7 +122,7 @@
 
 (defun set-value (item value &key (push t) (timestamp nil))
   "Updates item value with push to bindings.
-If PUSH is non-nil, bindings will be pushed regardsless of :pull-passthrough."
+If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
   (! item `(:set-state . (:value ,value :push ,push :timestamp ,timestamp))))
 
 (defun get-item-stateq (item)

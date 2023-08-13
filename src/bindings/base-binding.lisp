@@ -10,17 +10,17 @@
    (push-fun :initarg :push-fun
              :initform nil
              :documentation "Function to push the item values to some receiver.
-Beware that `pull' will only call `push' when `pull-passthrough' is set.
+Beware that `pull' will only call `push' when `call-push-p' is set.
 Make sure you do the right thing in `pull-fun'.")
    (transform-fun :initarg :transform-fun
                   :initform nil
                   :documentation "A function transforming an input value to an output value.
 The input value comes from `pull-fun'.
 The output value will be set on the item, should an item be attached.")
-   (pull-passthrough :initarg :pull-passthrough
-                     :initform nil
-                     :reader pull-passthrough
-                     :documentation "defines whether the value of 'pull' will be passed through to 'push', after the transformation chain has been executed and the value been set to the item.")
+   (call-push-p :initarg :call-push-p
+                :initform nil
+                :reader call-push-p
+                :documentation "defines whether setting a new value (`item:set-value') will be passed through to 'push', after the transformation chain has been executed.")
    (initial-delay :initarg :initial-delay
                   :initform nil
                   :documentation "Initial delay in seconds where `PULL-FUN' is executed. `NIL' means disabled.")
@@ -35,9 +35,9 @@ The output value will be set on the item, should an item be attached.")
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (with-slots (initial-delay delay pull-passthrough) obj
-        (format stream "initial-delay: ~a, delay: ~a, pull-passthrough: ~a"
-                initial-delay delay pull-passthrough))
+      (with-slots (initial-delay delay call-push-p) obj
+        (format stream "initial-delay: ~a, delay: ~a, call-push-p: ~a"
+                initial-delay delay call-push-p))
       (get-output-stream-string string-stream))))
 
 (defun make-function-binding (&key
@@ -46,14 +46,14 @@ The output value will be set on the item, should an item be attached.")
                                 (transform nil)
                                 (initial-delay nil)
                                 (delay nil)
-                                (pull-passthrough nil))
+                                (call-push-p nil))
   (make-instance 'binding
                  :pull-fun pull
                  :push-fun push
                  :transform-fun transform
                  :initial-delay initial-delay
                  :delay delay
-                 :pull-passthrough pull-passthrough))
+                 :call-push-p call-push-p))
 
 (defun exec-pull (binding)
   (log:debug "Retrieving value...")
