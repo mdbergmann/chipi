@@ -35,7 +35,7 @@
       (exec-push binding "Foo")
       (is (equal "Foo" push-called)))))
 
-(test binding--passthrough-pull-to-push
+(test binding--call-push-after-setting-value
   "Test that bindings is eventually passed through to push (after transformations)."
   (with-fixture init-destroy-timer ()
     (unwind-protect
@@ -44,7 +44,7 @@
                 (binding (make-function-binding
                           :pull (lambda () 123)
                           :push (lambda (value) (setf push-value value))
-                          :pull-passthrough t)))
+                          :call-push-p t)))
            (item:add-binding item binding)
            (exec-pull binding)
            (is-true (await-cond 0.5 (eq 123 push-value))))
@@ -60,7 +60,7 @@
                           :pull (lambda () 123)
                           :transform (lambda (value) (1+ value))
                           :push (lambda (value) (setf push-value value))
-                          :pull-passthrough t)))
+                          :call-push-p t)))
            (item:add-binding item binding)
            (exec-pull binding)
            (is-true (await-cond 0.5 (eq 124 push-value))))

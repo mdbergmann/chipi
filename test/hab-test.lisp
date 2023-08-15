@@ -77,7 +77,7 @@
                     id :storage-root-path #P"/tmp/hab-test")))
     (defitem 'temp-a "Temperatur A"
       :persistence '(:id :default :frequency :every-change)
-      :persistence '(:id :foo :frequency :every-3minutes))
+      :persistence '(:id :foo :frequency :every-3minutes)) ;; `every-3minutes' doesn't exist
 
     (is (= 2 (hash-table-count *persistences*)))
     (is (typep (gethash :default *persistences*) 'persp:persistence))

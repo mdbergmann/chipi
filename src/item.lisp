@@ -75,7 +75,7 @@
                                         (log:debug "Processing ~a binding(s)." (length bindings))
                                         (dolist (binding bindings)
                                           (let ((eff-push (if push 
-                                                              (binding:do-push binding)
+                                                              (binding:call-push-p binding)
                                                               nil)))
                                             (when eff-push
                                               (binding:exec-push binding new-value))))))

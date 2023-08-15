@@ -19,6 +19,10 @@
 (defvar *persistences* nil "All persistences")
 
 (defmacro defconfig (&body body)
+  "Defines a configuration for the environment.
+It will start the environment if it is not already started.
+It is re-entrant, so it can be called multiple times.
+It will setup items, rules and persistences storages."
   `(progn
      (envi:ensure-env)
      (unless *items*
@@ -30,12 +34,24 @@
      ,@body))
 
 (defun shutdown ()
+  "Shuts down the environment and cleans all items rules and persistences."
   (envi:shutdown-env)
   (clrhash *items*)
   (clrhash *rules*)
   (clrhash *persistences*))
 
 (defmacro defitem (id label &body body)
+  "Defines an item.
+It will create the item if it does not exist.
+It will clean and re-create the item if it already exists.
+Cleaning means all attached bindings are re-created and persistence are re-attached.
+Bindings can be defined as a list of `binding's.
+The `binding' arguments are passed to `binding:make-function-binding'.
+Persistences are references via `:persistence' key.
+`persistence' key allows to define a plist of `:id' and `:frequency' configuration.
+`:id' specifies the persistence id.
+`:frequency' specifies the persistence frequency. Currently only `:every-change' exists. 
+See `hab-test.lisp' for more examples."
   (let ((item (gensym "item"))
         (old-item (gensym "old-item"))
         (bindings (gensym "bindn"))
@@ -65,9 +81,15 @@
          (setf (gethash ,id *items*) ,item)))))
 
 (defmacro binding (&rest args)
+  "Creates a binding.
+See `binding:make-function-binding' for more information and arguments."
   `(binding:make-function-binding ,@args))
 
 (defmacro defrule (name &rest args)
+  "Defines a rule.
+It will create the rule if it does not exist.
+It will clean and re-create the rule if it already exists.
+See `rule:make-rule' for more information and arguments."
   (let ((rule (gensym "rule"))
         (old-rule (gensym "old-rule")))
     `(progn
@@ -80,6 +102,12 @@
          (setf (gethash ,name *rules*) ,rule)))))
 
 (defmacro defpersistence (id factory)
+  "Defines a persistence.
+Persistence generally represents a storage that items use for persisting their values.
+It will create the persistence if it does not exist.
+It will clean and re-create the persistence if it already exists.
+The factory function is called with the persistence id as argument and allows to create required persistence type.
+Currently only `simple-persistence' exists."
   (let ((persistence (gensym "persistence"))
         (old-persistence (gensym "old-persistence")))
     `(progn
