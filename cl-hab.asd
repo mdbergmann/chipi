@@ -72,6 +72,4 @@ OK - persistence based on items: :load :save, :load called on init, :save called
 OK - store item value along with timestamp (universal-time)
 OK - should restored timestamp be set on restored item? => stream line interface.
 
-- allow rule to trigger only for specified item id
-
 |#

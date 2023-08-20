@@ -4,6 +4,7 @@
   (:export #:*items*
            #:*rules*
            #:*persistences*
+           #:get-item
            #:defconfig
            #:defitem
            #:binding
@@ -17,6 +18,10 @@
 (defvar *items* nil "All items")
 (defvar *rules* nil "All rules")
 (defvar *persistences* nil "All persistences")
+
+(defun get-item (id)
+  "Returns the item with the given id."
+  (gethash id *items*))
 
 (defmacro defconfig (&body body)
   "Defines a configuration for the environment.
@@ -118,3 +123,6 @@ Currently only `simple-persistence' exists."
            (remhash ,id *persistences*)))
        (let ((,persistence (funcall ,factory ,id)))
          (setf (gethash ,id *persistences*) ,persistence)))))
+
+;; TODOs:
+;; - add 'get-item' function to retrieve item by id
