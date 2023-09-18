@@ -6,7 +6,7 @@
 (in-package :cl-hab.persistence-test)
 
 (def-suite persistence-tests
-  :description "Persistence tests"
+  :description "Persistence tests for simple persistence."
   :in cl-hab.tests:test-suite)
 
 (in-suite persistence-tests)

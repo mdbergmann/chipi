@@ -19,6 +19,7 @@
                  (:file "persistence-api")
                  (:file "item")
                  (:file "persistence-simple")
+                 (:file "persistence-influx")
                  (:file "rule")
                  (:file "persistence")
                  (:module "bindings"
@@ -41,6 +42,7 @@
                  (:file "item-test")
                  (:file "rule-test")
                  (:file "persistence-test")
+                 (:file "persistence-influx-test")
                  (:file "hab-test")
                  )))
   :description "Test system for cl-hab"
