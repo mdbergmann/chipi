@@ -26,3 +26,7 @@
 
 (defmethod shutdown ((persistence influx-persistence))
   (log:info "Shutting down persistence: ~a" persistence))
+
+(defmethod persist ((persistence influx-persistence) item)
+  (log:debug "Persisting, item: ~a" item)
+  )

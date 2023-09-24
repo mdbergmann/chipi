@@ -6,7 +6,8 @@
                "sento"
                "timer-wheel"
                "cl-cron"
-               "yason")
+               "yason"
+               "drakma")
   :components ((:module "src"
                 :serial t
                 :components
