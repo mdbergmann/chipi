@@ -32,7 +32,7 @@
       (is-true cut)
       (is (typep cut 'influx-persistence)))))
 
-(test influx-persistence--store-and-fetch
+(test influx-persistence--store-and-fetch--string-type
   "Store a value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
     (let ((cut (make-influx-persistence :persp-influx
