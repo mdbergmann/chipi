@@ -25,15 +25,13 @@
                                      base-url
                                      token
                                      org
-                                     bucket
-                                     (precision "s"))
+                                     bucket)
   (persp::make-persistence id
                            :type 'influx-persistence
                            :base-url base-url
                            :token token
                            :org org
-                           :bucket bucket
-                           :precision precision))
+                           :bucket bucket))
 
 (defmethod act:pre-start ((persistence influx-persistence))
   (log:debug "Pre-starting persistence: ~a" persistence)
@@ -45,7 +43,7 @@
               token (getf other-args :token)
               org (getf other-args :org)
               bucket (getf other-args :bucket)
-              precision (getf other-args :precision)))))
+              precision "s"))))
   (call-next-method))
 
 (defmethod initialize ((persistence influx-persistence))
@@ -58,7 +56,9 @@
   (log:debug "Persisting, item: ~a" item)
   (let* ((item-name (act-cell:name item))
          (item-state (item:get-item-stateq item))
-         (item-value (item:item-state-value item-state)))
+         (item-value (item:item-state-value item-state))
+         (item-timestamp (local-time:universal-to-timestamp
+                          (item:item-state-timestamp item-state))))
     (multiple-value-bind (body status headers)
         (drakma:http-request (format nil "~a/api/v2/write" (base-url persistence))
                              :method :post
@@ -69,9 +69,12 @@
                              :additional-headers
                              `(("Authorization" . ,(format nil "Token ~a" (token persistence))))
                              :content-type "text/plain; charset=utf-8"
-                             :content (format nil "~a,item=~a value=\"~a\""
-                                              item-name item-name item-value))
-      (when (not (eql status 204))
-        (log:warn "Response: ~a" (babel:octets-to-string body))
-        (log:warn "Status: ~a" status)
-        (log:warn "Headers: ~a" headers)))))
+                             :content (format nil "~a,item=~a value=\"~a\" ~a"
+                                              item-name item-name item-value
+                                              (local-time:timestamp-to-unix item-timestamp)))
+      (case status
+        (204 (log:info "Persisted item: ~a" item))
+        (t (log:warn "Failed to persist item: ~a" item)
+           (log:warn "Response: ~a" (babel:octets-to-string body))
+           (log:warn "Status: ~a" status)
+         (log:warn "Headers: ~a" headers))))))

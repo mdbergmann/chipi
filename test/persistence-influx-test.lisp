@@ -25,9 +25,7 @@
                                         :base-url "http://picellar:8086"
                                         :token "A005mInE0uPMoW6l-kHmsxX1l8XC14Uw0UyAjV20GDq7qev0M1-kaGy77M7JH7wsIrc3-rTm1hRoHZ735Q4tHw=="
                                         :org "mabe"
-                                        :bucket "test"
-                                        :precision "s"
-                                        )))
+                                        :bucket "test")))
       (print cut)
       (is-true cut)
       (is (typep cut 'influx-persistence)))))
@@ -39,8 +37,7 @@
                                         :base-url "http://picellar:8086"
                                         :token "A005mInE0uPMoW6l-kHmsxX1l8XC14Uw0UyAjV20GDq7qev0M1-kaGy77M7JH7wsIrc3-rTm1hRoHZ735Q4tHw=="
                                         :org "mabe"
-                                        :bucket "test"
-                                        :precision "s"))
+                                        :bucket "test"))
           (item (item:make-item 'foo)))
       (item:set-value item "foobar")
       (persp:store cut item)
