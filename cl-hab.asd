@@ -8,7 +8,8 @@
                "cl-cron"
                "yason"
                "drakma"
-               "local-time")
+               "local-time"
+               "binding-arrows")
   :components ((:module "src"
                 :serial t
                 :components
@@ -76,8 +77,9 @@ OK - persistence based on items: :load :save, :load called on init, :save called
 OK - store item value along with timestamp (universal-time)
 OK - should restored timestamp be set on restored item? => stream line interface.
 
+OK - use unit timestamp for influxdb
+
 => - implement retrieve last value from influxdb
-- use unit timestamp (same as influxdb) for persistence
 - implement value types: numbers, strings and booleans
 
 |#

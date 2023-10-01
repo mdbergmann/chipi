@@ -41,10 +41,12 @@
           (item (item:make-item 'foo)))
       (item:set-value item "foobar")
       (persp:store cut item)
-      (sleep .2)
+      (sleep 1)
       (let ((fetched (persp:fetch cut item)))
-        (is-true (miscutils:await-cond 0.5
+        (is-true (miscutils:await-cond 2.0
                    (let ((resolved (future:fresult fetched)))
                      (and (not (equal resolved :not-ready))
                           (equal (persisted-item-value resolved) "foobar"))))))
       )))
+
+;; add failed persistence test
