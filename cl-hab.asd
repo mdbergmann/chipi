@@ -78,8 +78,9 @@ OK - store item value along with timestamp (universal-time)
 OK - should restored timestamp be set on restored item? => stream line interface.
 
 OK - use unit timestamp for influxdb
+OK - implement retrieve last value from influxdb
 
-=> - implement retrieve last value from influxdb
-- implement value types: numbers, strings and booleans
+=> - implement value types: numbers, strings and booleans
+- should fetch return condition in cae of error on fetch/retrieve?
 
 |#

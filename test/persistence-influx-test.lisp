@@ -21,11 +21,12 @@
 (test make-persistence--influx
   "Make a `influx' persistence."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-influx-persistence :persp-influx
-                                        :base-url "http://picellar:8086"
-                                        :token "A005mInE0uPMoW6l-kHmsxX1l8XC14Uw0UyAjV20GDq7qev0M1-kaGy77M7JH7wsIrc3-rTm1hRoHZ735Q4tHw=="
-                                        :org "mabe"
-                                        :bucket "test")))
+    (let ((cut (make-influx-persistence
+                :persp-influx
+                :base-url "http://picellar:8086"
+                :token "A005mInE0uPMoW6l-kHmsxX1l8XC14Uw0UyAjV20GDq7qev0M1-kaGy77M7JH7wsIrc3-rTm1hRoHZ735Q4tHw=="
+                :org "mabe"
+                :bucket "test")))
       (print cut)
       (is-true cut)
       (is (typep cut 'influx-persistence)))))
@@ -33,11 +34,12 @@
 (test influx-persistence--store-and-fetch--string-type
   "Store a value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-influx-persistence :persp-influx
-                                        :base-url "http://picellar:8086"
-                                        :token "A005mInE0uPMoW6l-kHmsxX1l8XC14Uw0UyAjV20GDq7qev0M1-kaGy77M7JH7wsIrc3-rTm1hRoHZ735Q4tHw=="
-                                        :org "mabe"
-                                        :bucket "test"))
+    (let ((cut (make-influx-persistence
+                :persp-influx
+                :base-url "http://picellar:8086"
+                :token "A005mInE0uPMoW6l-kHmsxX1l8XC14Uw0UyAjV20GDq7qev0M1-kaGy77M7JH7wsIrc3-rTm1hRoHZ735Q4tHw=="
+                :org "mabe"
+                :bucket "test"))
           (item (item:make-item 'foo)))
       (item:set-value item "foobar")
       (persp:store cut item)
