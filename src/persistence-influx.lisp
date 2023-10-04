@@ -69,9 +69,28 @@
                              :additional-headers
                              `(("Authorization" . ,(format nil "Token ~a" (token persistence))))
                              :content-type "text/plain; charset=utf-8"
-                             :content (format nil "~a,item=~a value=\"~a\" ~a"
-                                              item-name item-name item-value
-                                              (local-time:timestamp-to-unix item-timestamp)))
+                             :content
+                             (cond
+                               ((stringp item-value)
+                                (format nil "~a,item=~a value=\"~a\" ~a"
+                                        item-name item-name item-value
+                                        (local-time:timestamp-to-unix item-timestamp)))
+                               ((integerp item-value)
+                                (format nil "~a,item=~a value=~ai ~a"
+                                        item-name item-name item-value
+                                        (local-time:timestamp-to-unix item-timestamp)))
+                               ((floatp item-value)
+                                (format nil "~a,item=~a value=~a ~a"
+                                        item-name item-name item-value
+                                        (local-time:timestamp-to-unix item-timestamp)))
+                               ((or (eq item-value 'item:true)
+                                    (eq item-value 'item:false))
+                                (format nil "~a,item=~a value=~a ~a"
+                                        item-name item-name
+                                        (if (eq item-value 'item:true) "true" "false")
+                                        (local-time:timestamp-to-unix item-timestamp)))
+                               (t (error "Unsupported item value type: ~a" (type-of item-value)))
+                               ))
       (case status
         (204 (log:info "Persisted item OK: ~a" item))
         (t
@@ -84,7 +103,8 @@
 (defmethod retrieve ((persistence influx-persistence) item)
   "Output format of influxdb is csv, so we need to parse it."
   (log:debug "Reading item: ~a" item)
-  (let ((item-name (act-cell:name item)))
+  (let ((item-name (act-cell:name item))
+        (type-hint (item:value-type-hint item)))
     (multiple-value-bind (body status headers)
         (drakma:http-request "http://picellar:8086/api/v2/query"
                              :method :post
@@ -102,6 +122,7 @@
         (200
          (progn
            (log:info "Read item OK: ~a" item)
+           (log:debug "Response: ~a" body)
            (let* ((csv-lines (str:split (format nil "~C~C" #\return #\linefeed) body))
                   (csv-columns
                     (mapcar (lambda (s) (str:split "," s :omit-nulls t))
@@ -112,10 +133,24 @@
                      (find "_time" header-val-pairs :test #'equal :key #'car))
                    (value
                      (find "_value" header-val-pairs :test #'equal :key #'car)))
-               (make-persisted-item
-                :value (second value)
-                :timestamp (local-time:timestamp-to-universal
-                            (local-time:parse-timestring (second timestamp))))))))
+               (let ((persisted-item
+                       (make-persisted-item
+                        :value (cond
+                                 ((eq type-hint 'integer)
+                                  (parse-integer (second value)))
+                                 ((eq type-hint 'float)
+                                  (parse-float:parse-float (second value)))
+                                 ((eq type-hint 'boolean)
+                                  (if (string= "true" (second value))
+                                      'item:true
+                                      'item:false))
+                                 ((eq type-hint 'string)
+                                  (second value))
+                                 (t (error "Unsupported type: ~a" type-hint)))
+                        :timestamp (local-time:timestamp-to-universal
+                                    (local-time:parse-timestring (second timestamp))))))
+                 (log:debug "Loaded persisted item: ~a" persisted-item)
+                 persisted-item)))))
         (t
          (progn
            (log:warn "Failed to read item: ~a" item)

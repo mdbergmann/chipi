@@ -61,3 +61,5 @@
                                (cdr (assoc "value" alist :test #'equal))
                                :timestamp
                                (cdr (assoc "timestamp" alist :test #'equal))))))))
+
+;; add failed retrieve test

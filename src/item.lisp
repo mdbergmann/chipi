@@ -11,6 +11,7 @@
                 #:?)
   (:export #:make-item
            #:item
+           #:value-type-hint
            #:get-value
            #:set-value
            #:get-item-stateq
@@ -20,6 +21,9 @@
            #:item-state
            #:item-state-value
            #:item-state-timestamp
+           ;; boolean value types
+           #:true
+           #:false
            ;; events
            #:item-changed-event
            #:item-changed-event-item))
@@ -32,6 +36,9 @@
   ((label :initform nil
           :reader label
           :documentation "An explanatory label.")
+   (value-type-hint :initform nil
+                    :reader value-type-hint
+                    :documentation "A type hint for the item value.")
    (bindings :initform '()
              :reader bindings
              :documentation "The items bindings")
@@ -41,6 +48,9 @@
 (defstruct item-state
   (value t)
   (timestamp (get-universal-time)))
+
+(deftype true ())
+(deftype false ())
 
 (defstruct item-persistence
   (persp nil :type (or null persp:persistence))
@@ -53,7 +63,7 @@
      (eq (item-persistence-frequency p) freq))
    list))
 
-(defun make-item (id &optional (label nil))
+(defun make-item (id type-hint &optional (label nil))
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys
@@ -105,16 +115,18 @@
                                (ignore-errors
                                 (binding:destroy binding))))
                            (log:info "Item '~a' destroyed!" id)))))
-    (setf (slot-value item 'label) label)
+    (setf (slot-value item 'label) label
+          (slot-value item 'value-type-hint) type-hint)
     item))
 
 (defmethod print-object ((obj item) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (format stream "name: ~a, label: ~a, value: ~a"
+      (format stream "name: ~a, label: ~a, value: ~a, type-hint: ~a"
               (act-cell:name obj)
               (label obj)
-              (act-cell:state obj))
+              (act-cell:state obj)
+              (value-type-hint obj))
       (get-output-stream-string string-stream))))
 
 (defun get-value (item)
@@ -148,12 +160,19 @@ If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
                        :load-on-start (getf other-args :load-on-start))))
       (push item-persp persistences)
       (when (item-persistence-load-on-start item-persp)
-        (log:debug "Loading item value from persp: ~a" persistence)
-        (future:fcompleted (persp:fetch persistence item)
-            (result)
-          (set-value item (persp:persisted-item-value result)
-                     :push nil
-                     :timestamp (persp:persisted-item-timestamp result)))))))
+        (%fetch-persisted-value persistence item)))))
+
+(defun %fetch-persisted-value (persistence item)
+  (log:debug "Loading item value from persp: ~a" persistence)
+  (future:fcompleted (persp:fetch persistence item)
+      (result)
+    (cond
+      ((and (consp result) (eq (car result) :error))
+       (log:warn "Error loading item (~a) value from persp: ~a" (act-cell:name item) persistence))
+      (t
+       (set-value item (persp:persisted-item-value result)
+                  :push nil
+                  :timestamp (persp:persisted-item-timestamp result))))))
 
 (defun destroy (item)
   (ac:stop (act:context item) item :wait t))

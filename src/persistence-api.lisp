@@ -39,4 +39,6 @@ There may be different kinds of persistence with different storages."))
 The persistence is responsible to store all the data that is also expected to be retrieved later."))
 
 (defgeneric retrieve (persistence item)
-  (:documentation "Fetches the attributes of an item from file as `persisted-item'."))
+  (:documentation "Fetches the attributes of an item from file as `persisted-item'.
+In case of error on fetch you should return '(:error . <error-message>),
+in which case the item value will not be set."))

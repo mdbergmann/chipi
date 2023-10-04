@@ -9,7 +9,8 @@
                "yason"
                "drakma"
                "local-time"
-               "binding-arrows")
+               "binding-arrows"
+               "parse-float")
   :components ((:module "src"
                 :serial t
                 :components
@@ -80,7 +81,8 @@ OK - should restored timestamp be set on restored item? => stream line interface
 OK - use unit timestamp for influxdb
 OK - implement retrieve last value from influxdb
 
+OK - should fetch return condition in case of error on fetch/retrieve?
 => - implement value types: numbers, strings and booleans
-- should fetch return condition in cae of error on fetch/retrieve?
+- add failed fetch test
 
 |#

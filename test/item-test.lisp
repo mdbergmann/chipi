@@ -161,4 +161,24 @@
                    (let ((item-value (get-value item)))
                      (await-cond 0.3
                        (equal (future:fresult item-value) 1)))))))))
-  
+
+(defclass fail-fetch-persistence (simple-persistence:simple-persistence) ())
+(defmethod persp:retrieve ((persistence fail-fetch-persistence) item)
+  '(:error . "Failed to fetch."))
+
+(test item--simple-persistence--dont-update-on-fetch-error
+  "Tests that item persists its value."
+  (with-fixture init-destroy-isys ()
+    (let* ((persp (persp::make-persistence :foo :type 'fail-fetch-persistence))
+           (item (make-item 'my-item)))
+      ;; make load item on startup
+      (destroy item)
+      (let ((item (make-item 'my-item))
+            (fetched-item-value))
+        (add-persistence item persp :load-on-start t)
+        (sleep 2)
+        (let ((item-value (get-value item)))
+          (sleep 1)
+          (setf fetched-item-value (future:fresult item-value)))
+        (format t "fetched-item-value: ~a~%" fetched-item-value)
+        (is-true (eq t fetched-item-value))))))
