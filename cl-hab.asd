@@ -82,7 +82,7 @@ OK - use unit timestamp for influxdb
 OK - implement retrieve last value from influxdb
 
 OK - should fetch return condition in case of error on fetch/retrieve?
-=> - implement value types: numbers, strings and booleans
+OK - implement value types: numbers, strings and booleans
 - add failed fetch test
 
 |#

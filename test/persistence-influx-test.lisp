@@ -43,72 +43,39 @@
    :org "mabe"
    :bucket "test"))
 
+(defmacro test-type-value (type value itemid)
+  `(let ((cut (make-cut))
+         (item (item:make-item ,itemid ,type)))
+     (item:set-value item ,value)
+     (persp:store cut item)
+     (sleep 1)
+     (let ((fetched (persp:fetch cut item)))
+       (is-true (miscutils:await-cond 2.0
+                  (let ((resolved (future:fresult fetched)))
+                    (and (not (equal resolved :not-ready))
+                         (equal (persisted-item-value resolved) ,value))))))))
+
 (test influx-persistence--store-and-fetch--string-type
   "Store a string value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-cut))
-          (item (item:make-item 'stringfield 'string)))
-      (item:set-value item "foobar")
-      (persp:store cut item)
-      (sleep 1)
-      (let ((fetched (persp:fetch cut item)))
-        (is-true (miscutils:await-cond 2.0
-                   (let ((resolved (future:fresult fetched)))
-                     (and (not (equal resolved :not-ready))
-                          (equal (persisted-item-value resolved) "foobar")))))))))
+    (test-type-value 'string "some string" 'stringfield)))
 
 (test influx-persistence--store-and-fetch--int-type
   "Store an integer value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-cut))
-          (item (item:make-item 'intfield 'integer)))
-      (item:set-value item 1234)
-      (persp:store cut item)
-      (sleep 1)
-      (let ((fetched (persp:fetch cut item)))
-        (is-true (miscutils:await-cond 2.0
-                   (let ((resolved (future:fresult fetched)))
-                     (and (not (equal resolved :not-ready))
-                          (= (persisted-item-value resolved) 1234)))))))))
+    (test-type-value 'integer 1234 'intfield)))
 
 (test influx-persistence--store-and-fetch--float-type
   "Store a float value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-cut))
-          (item (item:make-item 'floatfield 'float)))
-      (item:set-value item 1234.0)
-      (persp:store cut item)
-      (sleep 1)
-      (let ((fetched (persp:fetch cut item)))
-        (is-true (miscutils:await-cond 2.0
-                   (let ((resolved (future:fresult fetched)))
-                     (and (not (equal resolved :not-ready))
-                          (= (persisted-item-value resolved) 1234.0)))))))))
+    (test-type-value 'float 1234.567 'floatfield)))
 
 (test influx-persistence--store-and-fetch--bool-type-t
   "Store a bool value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-cut))
-          (item (item:make-item 'boolfield 'boolean)))
-      (item:set-value item 'item:true)
-      (persp:store cut item)
-      (sleep 1)
-      (let ((fetched (persp:fetch cut item)))
-        (is-true (miscutils:await-cond 2.0
-                   (let ((resolved (future:fresult fetched)))
-                     (and (not (equal resolved :not-ready))
-                          (eq (persisted-item-value resolved) 'item:true)))))))))
+    (test-type-value 'boolean 'item:true 'boolfield)))
 
 (test influx-persistence--store-and-fetch--bool-type-nil
   "Store a bool value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
-    (let ((cut (make-cut))
-          (item (item:make-item 'boolfield 'boolean)))
-      (item:set-value item 'item:false)
-      (persp:store cut item)
-      (sleep 1)
-      (let ((fetched (persp:fetch cut item)))
-        (is-true (miscutils:await-cond 2.0
-                   (let ((resolved (future:fresult fetched)))
-                     (and (not (equal resolved :not-ready))
-                          (eq (persisted-item-value resolved) 'item:false)))))))))
+    (test-type-value 'boolean 'item:false 'boolfield)))
