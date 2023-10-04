@@ -79,3 +79,38 @@
   "Store a bool value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
     (test-type-value 'boolean 'item:false 'boolfield)))
+
+(test influx-persistence--fetch-with-error--unknown-host
+  "Fetch raises error, i.e. unknown host."
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-influx-persistence
+                :persp-influx
+                :base-url "http://notexist:8086"
+                :token ""
+                :org "mabe"
+                :bucket "test"))
+          (item (item:make-item 'someid 'string)))
+      (let ((fetched (persp:fetch cut item)))
+        (is-true (miscutils:await-cond 2.0
+                   (let ((resolved (future:fresult fetched)))
+                     (and (not (eq resolved :not-ready))
+                          (consp resolved)
+                          (equal (car resolved) :error)))))))))
+
+(test influx-persistence--fetch-with-error--api-response-4xy
+  "Fetch raises error, i.e. api response 4xy."
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-influx-persistence
+                :persp-influx
+                :base-url "http://picellar:8086"
+                :token "wrong-token"
+                :org "mabe"
+                :bucket "test"))
+          (item (item:make-item 'someid 'string)))
+      (let ((fetched (persp:fetch cut item)))
+        (is-true (miscutils:await-cond 2.0
+                   (let ((resolved (future:fresult fetched)))
+                     (and (not (eq resolved :not-ready))
+                          (consp resolved)
+                          (equal (car resolved) :error)))))))))
+  
