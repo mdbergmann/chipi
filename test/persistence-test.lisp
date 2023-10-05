@@ -38,7 +38,7 @@
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :persp-map
                                         :storage-root-path #P"/tmp/cl-hab/persistence-test"))
-          (item (item:make-item 'foo)))
+          (item (item:make-item 'foo 'string)))
       (item:set-value item "foobar")
       (persp:store cut item)
       (is-true (miscutils:await-cond 0.5
@@ -47,5 +47,17 @@
         (is-true (miscutils:await-cond 0.5
                    (let ((resolved (future:fresult fetched)))
                      (and (not (equal resolved :not-ready))
-                          (equal (persisted-item-value resolved) "foobar"))))))
-      )))
+                          (equal (persisted-item-value resolved) "foobar")))))))))
+
+(test simple-persistence--error-on-fetch--file-not-found
+  "Fetch a non-existent file from a `simple` persistence."
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-simple-persistence :persp-map
+                                        :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+          (item (item:make-item 'foo 'string)))
+      (let ((fetched (persp:fetch cut item)))
+        (is-true (miscutils:await-cond 2.0
+                   (let ((resolved (future:fresult fetched)))
+                     (and (not (eq resolved :not-ready))
+                          (consp resolved)
+                          (equal (car resolved) :error)))))))))
