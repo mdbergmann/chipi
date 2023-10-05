@@ -19,7 +19,16 @@
    (bucket :initform nil
            :reader bucket)
    (precision :initform nil
-              :reader precision)))
+              :reader precision))
+  (:documentation "Influx persistence implementation.
+Influx persistence supports the following value types:
+- string
+- integer
+- float
+- boolean, fpr boolean values, use the symbols 'item:true and 'item:false.
+
+Other value types are not supported.
+Specify those types as 'type-hint' in the item definition."))
 
 (defun make-influx-persistence (id &key
                                      base-url
@@ -82,8 +91,7 @@
                                   item-name item-name
                                   (if (eq item-value 'item:true) "true" "false")
                                   (local-time:timestamp-to-unix item-timestamp)))
-                         (t (error "Unsupported item value type: ~a" (type-of item-value)))
-                         )))
+                         (t (error "Unsupported item value type: ~a" (type-of item-value))))))
 
 (defmethod persist ((persistence influx-persistence) item)
   (log:debug "Persisting, item: ~a" item)
