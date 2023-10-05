@@ -45,7 +45,7 @@ It will setup items, rules and persistences storages."
   (clrhash *rules*)
   (clrhash *persistences*))
 
-(defmacro defitem (id label &body body)
+(defmacro defitem (id label type-hint &body body)
   "Defines an item.
 It will create the item if it does not exist.
 It will clean and re-create the item if it already exists.
@@ -70,7 +70,7 @@ See `hab-test.lisp' for more examples."
          (let ((,old-item (gethash ,id *items*)))
            (item:destroy ,old-item)
            (remhash ,id *items*)))
-       (let ((,item (item:make-item ,id :label ,label))
+       (let ((,item (item:make-item ,id :label ,label :type-hint ,type-hint))
              (,bindings (loop :for x :in (list ,@body)
                               :if (typep x 'binding::binding)
                                 :collect x))
@@ -123,6 +123,3 @@ Currently only `simple-persistence' exists."
            (remhash ,id *persistences*)))
        (let ((,persistence (funcall ,factory ,id)))
          (setf (gethash ,id *persistences*) ,persistence)))))
-
-;; TODOs:
-;; - add 'get-item' function to retrieve item by id

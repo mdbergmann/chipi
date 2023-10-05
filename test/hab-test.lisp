@@ -29,10 +29,10 @@
   "Tests defining items."  
   (with-fixture clean-after ()
     (defconfig ())
-    (defitem 'temp-a "Temperatur A")
+    (defitem 'temp-a "Temperatur A" nil)
     ;; define item second time, first will be removed
-    (defitem 'temp-a "Temperatur A")
-    (defitem 'temp-b "Temperatur B"
+    (defitem 'temp-a "Temperatur A" nil)
+    (defitem 'temp-b "Temperatur B" nil
       (binding
        :initial-delay 0.1
        :pull (lambda () 1)))
@@ -75,7 +75,7 @@
                  (lambda (id)
                    (simple-persistence:make-simple-persistence
                     id :storage-root-path #P"/tmp/hab-test")))
-    (defitem 'temp-a "Temperatur A"
+    (defitem 'temp-a "Temperatur A" 'float
       :persistence '(:id :default :frequency :every-change)
       :persistence '(:id :foo :frequency :every-3minutes)) ;; `every-3minutes' doesn't exist
 
