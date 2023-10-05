@@ -38,7 +38,7 @@
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :persp-map
                                         :storage-root-path #P"/tmp/cl-hab/persistence-test"))
-          (item (item:make-item 'foo 'string)))
+          (item (item:make-item 'foo)))
       (item:set-value item "foobar")
       (persp:store cut item)
       (is-true (miscutils:await-cond 0.5
@@ -54,7 +54,7 @@
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :persp-map
                                         :storage-root-path #P"/tmp/cl-hab/persistence-test"))
-          (item (item:make-item 'foo 'string)))
+          (item (item:make-item 'foo)))
       (let ((fetched (persp:fetch cut item)))
         (is-true (miscutils:await-cond 2.0
                    (let ((resolved (future:fresult fetched)))

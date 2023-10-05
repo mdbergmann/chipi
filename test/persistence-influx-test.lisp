@@ -45,7 +45,7 @@
 
 (defmacro test-type-value (type value itemid)
   `(let ((cut (make-cut))
-         (item (item:make-item ,itemid ,type)))
+         (item (item:make-item ,itemid :type-hint ,type)))
      (item:set-value item ,value)
      (persp:store cut item)
      (sleep 1)
@@ -89,7 +89,7 @@
                 :token ""
                 :org "mabe"
                 :bucket "test"))
-          (item (item:make-item 'someid 'string)))
+          (item (item:make-item 'someid :type-hint 'string)))
       (let ((fetched (persp:fetch cut item)))
         (is-true (miscutils:await-cond 2.0
                    (let ((resolved (future:fresult fetched)))
@@ -106,7 +106,7 @@
                 :token "wrong-token"
                 :org "mabe"
                 :bucket "test"))
-          (item (item:make-item 'someid 'string)))
+          (item (item:make-item 'someid :type-hint 'string)))
       (let ((fetched (persp:fetch cut item)))
         (is-true (miscutils:await-cond 2.0
                    (let ((resolved (future:fresult fetched)))

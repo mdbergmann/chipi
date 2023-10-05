@@ -63,7 +63,7 @@
      (eq (item-persistence-frequency p) freq))
    list))
 
-(defun make-item (id type-hint &optional (label nil))
+(defun make-item (id &key (label nil) (type-hint nil))
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys

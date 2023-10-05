@@ -68,4 +68,3 @@
       (error (e)
         (log:warn "Error retrieving item: ~a, error: ~a" item e)
         `(:error . ,e)))))
-

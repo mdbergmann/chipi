@@ -27,7 +27,7 @@
 
 (test make-item
   (unwind-protect
-       (let ((item (make-item 'my-item "label")))
+       (let ((item (make-item 'my-item :label "label")))
          (is-true item)
          (is-true (typep item 'item)))
     (envi:shutdown-env)))

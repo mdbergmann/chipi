@@ -70,7 +70,7 @@ See `hab-test.lisp' for more examples."
          (let ((,old-item (gethash ,id *items*)))
            (item:destroy ,old-item)
            (remhash ,id *items*)))
-       (let ((,item (item:make-item ,id ,label))
+       (let ((,item (item:make-item ,id :label ,label))
              (,bindings (loop :for x :in (list ,@body)
                               :if (typep x 'binding::binding)
                                 :collect x))
