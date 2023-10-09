@@ -114,3 +114,26 @@
                           (consp resolved)
                           (equal (car resolved) :error)))))))))
   
+;; --------------------------------------
+;; history api tests
+;; --------------------------------------
+
+(test influx-persistence--retrieve-history
+  "Retrieves item value history for time frame."
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-cut))
+          (item (item:make-item 'history :type-hint 'integer))
+          (fetched-items))
+      (item:add-persistence item cut :frequency :every-change)
+      (dotimes (x 10)
+        (item:set-value item x)
+        (sleep 1))
+      (sleep 1)
+      (let ((fetched-range (persp:fetch cut item (persp:make-relative-range :seconds 20))))
+        (is-true (miscutils:await-cond 2.0
+                   (let ((resolved (future:fresult fetched-range)))
+                     (when (not (equal resolved :not-ready))
+                       (setf fetched-items resolved)))))
+        (is (= (length fetched-items) 10))
+        ))))
+

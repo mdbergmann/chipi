@@ -70,7 +70,7 @@
                  (lambda (id)
                    (simple-persistence:make-simple-persistence
                     id :storage-root-path #P"/tmp/hab-test")))
-    ;; redefining same persistence to check if possible
+    ;; redefining same persistence
     (defpersistence :default
                  (lambda (id)
                    (simple-persistence:make-simple-persistence
@@ -82,6 +82,6 @@
     (is (= 2 (hash-table-count *persistences*)))
     (is (typep (gethash :default *persistences*) 'persp:persistence))
 
-    ;; item contains defpersistence
+    ;; item contains persistence
     (is (= 2 (length (item::persistences (gethash 'temp-a *items*)))))))
 

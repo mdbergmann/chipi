@@ -38,7 +38,8 @@
           :documentation "An explanatory label.")
    (value-type-hint :initform nil
                     :reader value-type-hint
-                    :documentation "A type hint for the item value.")
+                    :documentation "A type hint for the item value.
+This is in particular important for persistences that are type specific, like influxdb (within a measurement).")
    (bindings :initform '()
              :reader bindings
              :documentation "The items bindings")

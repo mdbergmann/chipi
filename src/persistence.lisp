@@ -21,12 +21,30 @@ This constructor is not public, subclasses should provide their own constructor 
                             (log:debug "Received: ~a, msg: ~a" (car msg) msg)
                             (case (car msg)
                               (:store (persist act:*self* (cadr msg)))
-                              (:fetch (reply (retrieve act:*self* (cdr msg))))))
+                              (:fetch
+                               (let ((item (cadr msg))
+                                     (range (cddr msg)))
+                                 (if range
+                                     (reply (retrieve-range act:*self* item range))
+                                     (reply (retrieve act:*self* item)))))))
                  :init (lambda (self)
                          (initialize self))
                  :destroy (lambda (self)
                             (shutdown self))
                  :other-args other-args)))
+
+(defun make-relative-range (&key
+                              (seconds nil)
+                              (minutes nil)
+                              (hours nil)
+                              (days nil))
+  "Creates a relative range with the given `seconds', `minutes', `hours' and `days'.
+Specify only one."
+  (make-instance 'relative-range
+                 :seconds seconds
+                 :minutes minutes
+                 :hours hours
+                 :days days))
 
 (defun store (persistence item)
   "Triggers the 'store' procedure of the persistence actor.
@@ -37,11 +55,12 @@ The actual persistence method called as a result is `persp:persist'."
     (! persistence `(:store . (,item . ,result))))
   t)
 
-(defun fetch (persistence item)
+(defun fetch (persistence item &optional range)
   "Triggers the 'fetch' procedure of the persistence actor.
 The actual persistence method called as a result is `persp:retrieve'.
+optionally specify a `range' to retrieve a list of values that satisfy the `range'.
 Returns a `persisted-item' instance."
-  (? persistence `(:fetch . ,item)))
+  (? persistence `(:fetch . (,item . ,range))))
 
 (defun destroy (persistence)
   "Destroys the persistence."
