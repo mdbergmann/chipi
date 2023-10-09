@@ -61,6 +61,10 @@ Specify those types as 'type-hint' in the item definition."))
 (defmethod shutdown ((persistence influx-persistence))
   (log:info "Shutting down persistence: ~a" persistence))
 
+;; ---------------------------------------
+;; Writing
+;; ---------------------------------------
+
 (defun %make-write-request (persistence item-name item-value item-timestamp)
   (let ((data-string
           (cond
@@ -115,6 +119,10 @@ Specify those types as 'type-hint' in the item definition."))
                       status message)))))
       (error (e)
         (log:warn "Failed to persist item: ~a, with error: ~a" item e)))))
+
+;; ---------------------------------------
+;; Querying
+;; ---------------------------------------
 
 (defun %range-to-string (range)
   (if (not range) "0"
@@ -188,7 +196,11 @@ Specify those types as 'type-hint' in the item definition."))
    :timestamp (local-time:timestamp-to-universal
                (local-time:parse-timestring timestamp))))
 
-(defun %parsed-single-persisted-item (response-body type-hint)
+;; -------------------------------------
+;; Retrieve last
+;; -------------------------------------
+
+(defun %parsed-last-persisted-item (response-body type-hint)
   (let ((pairs (%parse-csv-to-time-value-pairs response-body)))
     (log:debug "Parsed pairs: ~a" pairs)
     (let* ((last-pair (first (last pairs)))
@@ -211,7 +223,7 @@ Specify those types as 'type-hint' in the item definition."))
              (progn
                (log:info "Read item OK: ~a" item)
                (log:debug "Response: ~a" body)
-               (%parsed-single-persisted-item body type-hint)))
+               (%parsed-last-persisted-item body type-hint)))
             (t
              (let ((message (babel:octets-to-string body)))
                (log:warn "Failed to read item: ~a" item)
@@ -223,6 +235,10 @@ Specify those types as 'type-hint' in the item definition."))
       (error (e)
         (log:warn "Failed to read item: ~a, with error: ~a" item e)
         `(:error . ,e)))))
+
+;; ------------------------------------------
+;; Range retrieval
+;; ------------------------------------------
 
 (defun %parsed-range-persisted-item (response-body type-hint)
   (let ((pairs (%parse-csv-to-time-value-pairs response-body)))
