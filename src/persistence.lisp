@@ -62,7 +62,8 @@ The actual persistence method called as a result is `persp:persist'."
 (defun fetch (persistence item &optional range)
   "Triggers the 'fetch' procedure of the persistence actor.
 The actual persistence method called as a result is `persp:retrieve'.
-optionally specify a `range' to retrieve a list of values that satisfy the `range'.
+Optionally specify a `range' to retrieve a list of values that satisfy the `range'
+See `item:range' for more details of range. Currently only `relative-range' is supported.
 Returns a `persisted-item' instance."
   (? persistence `(:fetch . (,item . ,range))))
 
