@@ -80,6 +80,13 @@
   (with-fixture init-destroy-env ()
     (test-type-value 'boolean 'item:false 'boolfield)))
 
+(defmacro assert-fetch-error (fetched)
+  `(is-true (miscutils:await-cond 2.0
+              (let ((resolved (future:fresult ,fetched)))
+                (and (not (eq resolved :not-ready))
+                     (consp resolved)
+                     (equal (car resolved) :error))))))
+
 (test influx-persistence--fetch-with-error--unknown-host
   "Fetch raises error, i.e. unknown host."
   (with-fixture init-destroy-env ()
@@ -91,11 +98,7 @@
                 :bucket "test"))
           (item (item:make-item 'someid :type-hint 'string)))
       (let ((fetched (persp:fetch cut item)))
-        (is-true (miscutils:await-cond 2.0
-                   (let ((resolved (future:fresult fetched)))
-                     (and (not (eq resolved :not-ready))
-                          (consp resolved)
-                          (equal (car resolved) :error)))))))))
+        (assert-fetch-error fetched)))))
 
 (test influx-persistence--fetch-with-error--api-response-4xy
   "Fetch raises error, i.e. api response 4xy."
@@ -108,11 +111,7 @@
                 :bucket "test"))
           (item (item:make-item 'someid :type-hint 'string)))
       (let ((fetched (persp:fetch cut item)))
-        (is-true (miscutils:await-cond 2.0
-                   (let ((resolved (future:fresult fetched)))
-                     (and (not (eq resolved :not-ready))
-                          (consp resolved)
-                          (equal (car resolved) :error)))))))))
+        (assert-fetch-error fetched)))))
   
 ;; --------------------------------------
 ;; history api tests
@@ -140,3 +139,15 @@
         (is (= (reduce #'+ (mapcar #'persisted-item-value fetched-items) :initial-value 0) 45))
         ))))
 
+(test influx-persistence--history--fetch-with-error--api-response-4xy
+  "Fetch raises error, i.e. api response 4xy."
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-influx-persistence
+                :persp-influx
+                :base-url "http://picellar:8086"
+                :token "wrong-token"
+                :org "mabe"
+                :bucket "test"))
+          (item (item:make-item 'someid :type-hint 'string)))
+      (let ((fetched (persp:fetch cut item (persp:make-relative-range :seconds 20))))
+        (assert-fetch-error fetched)))))
