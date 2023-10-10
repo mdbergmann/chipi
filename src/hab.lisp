@@ -5,6 +5,7 @@
            #:*rules*
            #:*persistences*
            #:get-item
+           #:get-persistence
            #:defconfig
            #:defitem
            #:binding
@@ -22,6 +23,10 @@
 (defun get-item (id)
   "Returns the item with the given id."
   (gethash id *items*))
+
+(defun get-persistence (id)
+  "Returns the persistence with the given id."
+  (gethash id *persistences*))
 
 (defmacro defconfig (&body body)
   "Defines a configuration for the environment.
