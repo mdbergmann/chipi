@@ -24,9 +24,13 @@ This constructor is not public, subclasses should provide their own constructor 
                               (:fetch
                                (let ((item (cadr msg))
                                      (range (cddr msg)))
-                                 (if range
-                                     (reply (retrieve-range act:*self* item range))
-                                     (reply (retrieve act:*self* item)))))))
+                                 (handler-case
+                                     (if range
+                                         (reply (retrieve-range act:*self* item range))
+                                         (reply (retrieve act:*self* item)))
+                                   (error (e)
+                                     (log:warn "Error on retrieving persisted data: ~a" e)
+                                     (reply `(:error . ,e))))))))
                  :init (lambda (self)
                          (initialize self))
                  :destroy (lambda (self)

@@ -80,13 +80,6 @@
   (with-fixture init-destroy-env ()
     (test-type-value 'boolean 'item:false 'boolfield)))
 
-(defmacro assert-fetch-error (fetched)
-  `(is-true (miscutils:await-cond 2.0
-              (let ((resolved (future:fresult ,fetched)))
-                (and (not (eq resolved :not-ready))
-                     (consp resolved)
-                     (equal (car resolved) :error))))))
-
 (test influx-persistence--fetch-with-error--unknown-host
   "Fetch raises error, i.e. unknown host."
   (with-fixture init-destroy-env ()

@@ -57,8 +57,10 @@ The persistence is responsible to store all the data that is also expected to be
 
 (defgeneric retrieve (persistence item)
   (:documentation "Fetches the last value of an item from the persistence as `persisted-item'.
-In case of error on fetch you should return '(:error . error-message or condition),
-in which case the item value will not be set."))
+The caller of this method is handling error conditions, so you don't have to necessarily.
+But you can return more specific '(:error . error-message or condition)."))
 
 (defgeneric retrieve-range (persistence item range)
-  (:documentation "Fetches a range of values of an item from the persistence as a list of `persisted-item's."))
+  (:documentation "Fetches a range of values of an item from the persistence as a list of `persisted-item's.
+The caller of this method is handling error conditions, so you don't have to necessarily.
+But you can return more specific '(:error . error-message or condition)."))
