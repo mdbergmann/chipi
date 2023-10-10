@@ -135,5 +135,8 @@
                      (when (not (equal resolved :not-ready))
                        (setf fetched-items resolved)))))
         (is (= (length fetched-items) 10))
+        (is (= (persisted-item-value (car fetched-items)) 0))
+        (is (= (persisted-item-value (car (last fetched-items))) 9))
+        (is (= (reduce #'+ (mapcar #'persisted-item-value fetched-items) :initial-value 0) 45))
         ))))
 
