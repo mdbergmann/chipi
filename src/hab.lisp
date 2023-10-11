@@ -6,6 +6,7 @@
            #:*persistences*
            #:get-item
            #:get-persistence
+           #:get-rule
            #:defconfig
            #:defitem
            #:binding
@@ -22,11 +23,18 @@
 
 (defun get-item (id)
   "Returns the item with the given id."
-  (gethash id *items*))
+  (when *items*
+    (gethash id *items*)))
 
 (defun get-persistence (id)
   "Returns the persistence with the given id."
-  (gethash id *persistences*))
+  (when *persistences*
+    (gethash id *persistences*)))
+
+(defun get-rule (name)
+  "Returns the rule with the given name."
+  (when *rules*
+    (gethash name *rules*)))
 
 (defmacro defconfig (&body body)
   "Defines a configuration for the environment.
@@ -70,9 +78,9 @@ See `hab-test.lisp' for more examples."
         (p-reps (gensym "p-reps"))
         (persp (gensym "persp")))
     `(progn
-       (when (and *items* (gethash ,id *items*))
+       (when (get-item ,id)
          (log:info "Cleaning old item: " ,id)
-         (let ((,old-item (gethash ,id *items*)))
+         (let ((,old-item (get-item ,id)))
            (item:destroy ,old-item)
            (remhash ,id *items*)))
        (let ((,item (item:make-item ,id :label ,label :type-hint ,type-hint))
@@ -85,7 +93,7 @@ See `hab-test.lisp' for more examples."
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
          (dolist (,p-rep ,p-reps)
-           (let ((,persp (gethash (getf ,p-rep :id) *persistences*)))
+           (let ((,persp (get-persistence (getf ,p-rep :id))))
              (when ,persp
                (item:add-persistence ,item ,persp ,p-rep))))
          (setf (gethash ,id *items*) ,item)))))
@@ -103,9 +111,9 @@ See `rule:make-rule' for more information and arguments."
   (let ((rule (gensym "rule"))
         (old-rule (gensym "old-rule")))
     `(progn
-       (when (and *rules* (gethash ,name *rules*))
+       (when (get-rule ,name)
          (log:info "Cleaning old rule: " ,name)
-         (let ((,old-rule (gethash ,name *rules*)))
+         (let ((,old-rule (get-rule ,name)))
            (rule:destroy ,old-rule)
            (remhash ,name *rules*)))
        (let ((,rule (rule:make-rule ,name ,@args)))
@@ -121,9 +129,9 @@ Currently only `simple-persistence' exists."
   (let ((persistence (gensym "persistence"))
         (old-persistence (gensym "old-persistence")))
     `(progn
-       (when (and *persistences* (gethash ,id *persistences*))
+       (when (get-persistence ,id)
          (log:info "Cleaning old persistence: " ,id)
-         (let ((,old-persistence (gethash ,id *persistences*)))
+         (let ((,old-persistence (get-persistence ,id)))
            (persp:destroy ,old-persistence)
            (remhash ,id *persistences*)))
        (let ((,persistence (funcall ,factory ,id)))
