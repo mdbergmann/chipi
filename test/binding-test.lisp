@@ -50,6 +50,22 @@
            (is-true (await-cond 0.5 (eq 123 push-value))))
       (envi:shutdown-env))))
 
+(test binding--does-not-call-push-after-on-pull-err
+  "Test that bindings is not passed through to push if pull fails."
+  (with-fixture init-destroy-timer ()
+    (unwind-protect
+         (let* ((item (item:make-item 'my-item))
+                (push-value)
+                (binding (make-function-binding
+                          :pull (lambda () (error "foo"))
+                          :push (lambda (value) (setf push-value value))
+                          :call-push-p t)))
+           (item:add-binding item bindin
+           (exec-pull binding)
+           (sleep 0.5)
+           (is-false push-value))
+      (envi:shutdown-env))))
+
 (test binding--transform-between-after-pull
   "Tests that binding calls transform function to transform the pulled value."
   (with-fixture init-destroy-timer ()

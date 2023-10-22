@@ -65,6 +65,7 @@ This is in particular important for persistences that are type specific, like in
    list))
 
 (defun make-item (id &key (label nil) (type-hint nil))
+  (log:info "Creating item: ~a, label: ~a, type-hint: ~a" id label type-hint)
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys
@@ -72,7 +73,7 @@ This is in particular important for persistences that are type specific, like in
                 :type 'item
                 :state (make-item-state)
                 :receive (lambda (msg)
-                           (log:debug "Received msg: " msg)
+                           (log:debug "Received msg: ~a, item: ~a" msg id)
                            (let ((self *self*))
                              (flet ((apply-new-value (new-value timestamp)
                                       (let ((timestamp (or timestamp (get-universal-time))))
@@ -100,18 +101,18 @@ This is in particular important for persistences that are type specific, like in
                                (case (car msg)
                                  (:get-state
                                   (let ((state-value (item-state-value *state*)))
-                                    (log:debug "Current state value: ~a" state-value)
+                                    (log:debug "Current state value: ~a, item: ~a" state-value id)
                                     (reply state-value)))
                                  (:set-state
                                   (let ((val (getf (cdr msg) :value))
                                         (push (getf (cdr msg) :push))
                                         (timestamp (getf (cdr msg) :timestamp)))
-                                    (log:debug "set-state: ~a" val)
+                                    (log:debug "set-state: ~a on item: ~a" val id)
                                     (apply-new-value val timestamp)
                                     (push-to-bindings val push)
                                     (apply-persistences)))))))
                 :destroy (lambda (self)
-                           (with-slots (bindings persistences) self
+                           (with-slots (bindings) self
                              (dolist (binding bindings)
                                (ignore-errors
                                 (binding:destroy binding))))

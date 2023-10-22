@@ -56,9 +56,10 @@ It will setup items, rules and persistences storages."
   (envi:shutdown-env)
   (clrhash *items*)
   (clrhash *rules*)
-  (clrhash *persistences*))
+  (clrhash *persistences*)
+  :ok)
 
-(defmacro defitem (id label type-hint &body body)
+(defmacro defitem (id label type-hint &rest body)
   "Defines an item.
 It will create the item if it does not exist.
 It will clean and re-create the item if it already exists.
@@ -124,8 +125,7 @@ See `rule:make-rule' for more information and arguments."
 Persistence generally represents a storage that items use for persisting their values.
 It will create the persistence if it does not exist.
 It will clean and re-create the persistence if it already exists.
-The factory function is called with the persistence id as argument and allows to create required persistence type.
-Currently only `simple-persistence' exists."
+The factory function is called with the persistence id as argument and allows to create required persistence type."
   (let ((persistence (gensym "persistence"))
         (old-persistence (gensym "old-persistence")))
     `(progn
