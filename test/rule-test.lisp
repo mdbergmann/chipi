@@ -54,11 +54,12 @@
            (rule (make-rule "test rule"
                             :when-cron '(:boot-only t)
                             :do (lambda (trigger)
+                                  (format t "trigger: ~a~%" trigger)
                                   (assert (eq (car trigger) :cron))
                                   (setf expected (cdr trigger))))))
       (is-true rule)
       (is (typep rule 'rule))
-      (is-true (miscutils:await-cond 0.5
+      (is-true (miscutils:await-cond 3.5
                  (equalp expected '(:boot-only t)))))))
 
 (test rule--cancel-cron-tasks-on-destroy

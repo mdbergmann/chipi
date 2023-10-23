@@ -20,10 +20,11 @@
 		                 :job-dow (get-days-of-week day-of-week step-dow)
 		                 :job-@boot boot-only
 		                 :job-func function-symbol)))
-  ;; MB: Added this to run the job if boot-only is set
-  ;; MB: This is a bit of a hack, but it works
-  ;; MB: If boot-only is set, then the job is not added to the hash to not run it repeatedly
-    (if (eql boot-only t)
+    ;; MB: Added this to run the job if boot-only is set
+    ;; MB: This is a bit of a hack, but it works
+    ;; MB: If boot-only is set, then the job is not added to the hash to not run it repeatedly
+    (format t "Created job: ~a, boot-only: ~a~%" job (job-@boot job))
+    (if boot-only
         (run-job-if-boot hash-key job)
         (setf (gethash hash-key *cron-jobs-hash*) job)))
   hash-key)

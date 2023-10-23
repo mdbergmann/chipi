@@ -73,16 +73,21 @@ When triggered, the rule will log a message to the info log.
                (ev:subscribe self self 'item:item-changed-event))
              (when (car crons)
                (loop :for cron :in crons
+                     :for boot-only-p = (getf cron :boot-only nil)
                      :for cron-hash = (cr:make-cron-job
                                        (lambda ()
+                                         (when boot-only-p
+                                           (log:info "Boot-only cron '~a' triggered." name)
+                                           (sleep 2) ; let rule initialize first
+                                           )
                                          (! self `(cron-triggered ,cron)))
                                        :minute (getf cron :minute :every)
                                        :hour (getf cron :hour :every)
                                        :day-of-month (getf cron :day-of-month :every)
                                        :month (getf cron :month :every)
                                        :day-of-week (getf cron :day-of-week :every)
-                                       :boot-only (getf cron :boot-only nil))
-                     :do (unless (getf cron :boot-only)
+                                       :boot-only boot-only-p)
+                     :do (unless boot-only-p
                            (%add-cron-hash self cron-hash))))
              (log:info "Rule '~a' initialized." name))
      :destroy (lambda (self)
