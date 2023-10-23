@@ -29,8 +29,16 @@
   (unwind-protect
        (let ((item (make-item 'my-item :label "label")))
          (is-true item)
-         (is-true (typep item 'item)))
+         (is-true (typep item 'item))
+         (is (eq (item:item-state-value (item:get-item-stateq item)) t)))
     (envi:shutdown-env)))
+
+(test make-item--with-initial-value
+  (with-fixture init-destroy-isys ()
+    (let ((item (make-item 'my-item :label "label" :initial-value 12345)))
+      (is-true item)
+      (is-true (typep item 'item))
+      (is (eq (item:item-state-value (item:get-item-stateq item)) 12345)))))
 
 (test make-item--with-state--get--set
   (with-fixture init-destroy-isys ()

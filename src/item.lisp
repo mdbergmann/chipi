@@ -64,14 +64,14 @@ This is in particular important for persistences that are type specific, like in
      (eq (item-persistence-frequency p) freq))
    list))
 
-(defun make-item (id &key (label nil) (type-hint nil))
+(defun make-item (id &key (label nil) (type-hint nil) (initial-value t))
   (log:info "Creating item: ~a, label: ~a, type-hint: ~a" id label type-hint)
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys
                 :name (symbol-name id)
                 :type 'item
-                :state (make-item-state)
+                :state (make-item-state :value initial-value)
                 :receive (lambda (msg)
                            (log:debug "Received msg: ~a, item: ~a" msg id)
                            (let ((self *self*))

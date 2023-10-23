@@ -23,7 +23,7 @@ The output value will be set on the item, should an item be attached.")
                 :documentation "defines whether setting a new value (`item:set-value') will be passed through to 'push', after the transformation chain has been executed.")
    (initial-delay :initarg :initial-delay
                   :initform nil
-                  :documentation "Initial delay in seconds where `PULL-FUN' is executed. `NIL' means disabled.")
+                  :documentation "Initial delay in seconds where `PULL-FUN' is executed. `NIL' means disabled and `PULL-FUN' is not called.")
    (delay :initarg :delay
           :initform nil
           :documentation "Recurring delay in seconds. Calls `PULL-FUN' repeatedly. `NIL' means disabled.")
@@ -60,12 +60,15 @@ The output value will be set on the item, should an item be attached.")
   (with-slots (bound-items pull-fun transform-fun) binding
     ;; maybe execute using tasks
     (when pull-fun
-      (let ((result (funcall pull-fun)))
-        (log:debug "Pulling value from: " binding ", result: " result)
-        (when transform-fun
-          (setf result (funcall transform-fun result)))
-        (dolist (item bound-items)
-          (item:set-value item result))))))
+      (handler-case
+          (let ((result (funcall pull-fun)))
+            (log:debug "Pulling value from: " binding ", result: " result)
+            (when transform-fun
+              (setf result (funcall transform-fun result)))
+            (dolist (item bound-items)
+              (item:set-value item result)))
+        (error (c)
+          (log:warn "Error pulling value from: " binding ", error: " c))))))
 
 (defun exec-push (binding value)
   (log:debug "Pushing value: " value " to: " binding)

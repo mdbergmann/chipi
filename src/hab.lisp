@@ -69,7 +69,8 @@ The `binding' arguments are passed to `binding:make-function-binding'.
 Persistences are references via `:persistence' key.
 `persistence' key allows to define a plist of `:id' and `:frequency' configuration.
 `:id' specifies the persistence id.
-`:frequency' specifies the persistence frequency. Currently only `:every-change' exists. 
+`:frequency' specifies the persistence frequency. Currently only `:every-change' exists.
+`:initial-value' can be used to specify the initial value of the item.
 See `hab-test.lisp' for more examples."
   (let ((item (gensym "item"))
         (old-item (gensym "old-item"))
@@ -77,20 +78,27 @@ See `hab-test.lisp' for more examples."
         (binding (gensym "bind"))
         (p-rep (gensym "p-rep"))
         (p-reps (gensym "p-reps"))
-        (persp (gensym "persp")))
+        (persp (gensym "persp"))
+        (initial-value (gensym "initial-value")))
     `(progn
        (when (get-item ,id)
          (log:info "Cleaning old item: " ,id)
          (let ((,old-item (get-item ,id)))
            (item:destroy ,old-item)
            (remhash ,id *items*)))
-       (let ((,item (item:make-item ,id :label ,label :type-hint ,type-hint))
-             (,bindings (loop :for x :in (list ,@body)
-                              :if (typep x 'binding::binding)
-                                :collect x))
-             (,p-reps (loop :for (k v) :on (list ,@body)
-                            :if (eq k :persistence)
-                              :collect v)))
+       (let* ((,bindings (loop :for x :in (list ,@body)
+                               :if (typep x 'binding::binding)
+                                 :collect x))
+              (,p-reps (loop :for (k v) :on (list ,@body)
+                             :if (eq k :persistence)
+                               :collect v))
+              (,initial-value (loop :for (k v) :on (list ,@body)
+                                    :if (eq k :initial-value)
+                                      :return v))
+              (,item (item:make-item ,id
+                                     :label ,label
+                                     :type-hint ,type-hint
+                                     :initial-value (if ,initial-value ,initial-value t))))
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
          (dolist (,p-rep ,p-reps)

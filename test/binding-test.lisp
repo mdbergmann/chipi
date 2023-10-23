@@ -38,49 +38,43 @@
 (test binding--call-push-after-setting-value
   "Test that bindings is eventually passed through to push (after transformations)."
   (with-fixture init-destroy-timer ()
-    (unwind-protect
-         (let* ((item (item:make-item 'my-item))
-                (push-value)
-                (binding (make-function-binding
-                          :pull (lambda () 123)
-                          :push (lambda (value) (setf push-value value))
-                          :call-push-p t)))
-           (item:add-binding item binding)
-           (exec-pull binding)
-           (is-true (await-cond 0.5 (eq 123 push-value))))
-      (envi:shutdown-env))))
+    (let* ((item (item:make-item 'my-item))
+           (push-value)
+           (binding (make-function-binding
+                     :pull (lambda () 123)
+                     :push (lambda (value) (setf push-value value))
+                     :call-push-p t)))
+      (item:add-binding item binding)
+      (exec-pull binding)
+      (is-true (await-cond 0.5 (eq 123 push-value))))))
 
 (test binding--does-not-call-push-after-on-pull-err
   "Test that bindings is not passed through to push if pull fails."
   (with-fixture init-destroy-timer ()
-    (unwind-protect
-         (let* ((item (item:make-item 'my-item))
-                (push-value)
-                (binding (make-function-binding
-                          :pull (lambda () (error "foo"))
-                          :push (lambda (value) (setf push-value value))
-                          :call-push-p t)))
-           (item:add-binding item bindin
-           (exec-pull binding)
-           (sleep 0.5)
-           (is-false push-value))
-      (envi:shutdown-env))))
+    (let* ((item (item:make-item 'my-item))
+           (push-value)
+           (binding (make-function-binding
+                     :pull (lambda () (error "foo"))
+                     :push (lambda (value) (setf push-value value))
+                     :call-push-p t)))
+      (item:add-binding item binding)
+      (exec-pull binding)
+      (sleep 0.5)
+      (is-false push-value))))
 
 (test binding--transform-between-after-pull
   "Tests that binding calls transform function to transform the pulled value."
   (with-fixture init-destroy-timer ()
-    (unwind-protect
-         (let* ((item (item:make-item 'my-item))
-                (push-value)
-                (binding (make-function-binding
-                          :pull (lambda () 123)
-                          :transform (lambda (value) (1+ value))
-                          :push (lambda (value) (setf push-value value))
-                          :call-push-p t)))
-           (item:add-binding item binding)
-           (exec-pull binding)
-           (is-true (await-cond 0.5 (eq 124 push-value))))
-      (envi:shutdown-env))))
+    (let* ((item (item:make-item 'my-item))
+           (push-value)
+           (binding (make-function-binding
+                     :pull (lambda () 123)
+                     :transform (lambda (value) (1+ value))
+                     :push (lambda (value) (setf push-value value))
+                     :call-push-p t)))
+      (item:add-binding item binding)
+      (exec-pull binding)
+      (is-true (await-cond 0.5 (eq 124 push-value))))))
 
 (test binding--initial-delay->0--execute-pull
   "`initial-delay' >= 0 means execute `pull' function after bind."

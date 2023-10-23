@@ -36,10 +36,15 @@
       (binding
        :initial-delay 0.1
        :pull (lambda () 1)))
+    (defitem 'temp-c "Temperatur C" 'integer
+      :initial-value 1)
 
-    (is (= 2 (hash-table-count *items*)))
+    (is (= 3 (hash-table-count *items*)))
     (is (typep (gethash 'temp-a *items*) 'item:item))
-    (is (typep (gethash 'temp-b *items*) 'item:item)))
+    (is (typep (gethash 'temp-b *items*) 'item:item))
+    (is (typep (gethash 'temp-c *items*) 'item:item))
+    (is (= 1 (item:item-state-value (item:get-item-stateq (gethash 'temp-c *items*)))))
+    )
   (is (= 0 (hash-table-count *items*))))
 
 (test define-rules

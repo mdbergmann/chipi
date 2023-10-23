@@ -1,5 +1,7 @@
 (defpackage :cl-hab.influx-persistence-test
   (:use :cl :fiveam :cl-hab.persistence :cl-hab.influx-persistence)
+  (:import-from #:cl-hab.persistence-test
+                #:assert-fetch-error)
   (:export #:run!
            #:all-tests
            #:nil))
