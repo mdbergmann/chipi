@@ -49,7 +49,8 @@
                 (yason:encode-plist `("value"
                                       ,(item:item-state-value item-state)
                                       "timestamp"
-                                      ,(item:item-state-timestamp item-state)))))))
+                                      ,(item:item-state-timestamp item-state))))))
+          (log:debug "Persisting to file OK, item: ~a" item))
       (error (e)
         (log:warn "Error persisting item: ~a, error: ~a" item e)))))
 

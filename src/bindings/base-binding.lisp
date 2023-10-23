@@ -56,18 +56,19 @@ The output value will be set on the item, should an item be attached.")
                  :call-push-p call-push-p))
 
 (defun exec-pull (binding)
-  (log:debug "Retrieving value...")
+  (log:debug "Pulling value from: " binding)
   (with-slots (bound-items pull-fun transform-fun) binding
     ;; maybe execute using tasks
     (when pull-fun
       (let ((result (funcall pull-fun)))
+        (log:debug "Pulling value from: " binding ", result: " result)
         (when transform-fun
           (setf result (funcall transform-fun result)))
         (dolist (item bound-items)
           (item:set-value item result))))))
 
 (defun exec-push (binding value)
-  (log:debug "Pushing value: " value)
+  (log:debug "Pushing value: " value " to: " binding)
   (with-slots (push-fun) binding
     ;; maybe execute using tasks
     (when push-fun
@@ -75,17 +76,17 @@ The output value will be set on the item, should an item be attached.")
 
 (defun bind-item (binding item)
   (with-slots (bound-items initial-delay delay) binding
-    (log:info "Binding item: " item)
+    (log:info "Binding item: ~a, on: ~a" item binding)
     (setf bound-items (cons item bound-items))
     (let ((timer-fun (lambda () (exec-pull binding))))
       (when initial-delay
-        (log:info "Scheduling initial delay: " initial-delay)
+        (log:info "Scheduling initial delay: " initial-delay " on: " binding)
         (%add-timer binding
                     (timer:schedule initial-delay timer-fun)
                     :initial-delay))
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
-        (log:info "Scheduling delay: " delay)
+        (log:info "Scheduling delay: " delay " on: " binding)
         (let (recurring-timer-fun)
           (setf recurring-timer-fun
                 (lambda ()
@@ -100,7 +101,7 @@ The output value will be set on the item, should an item be attached.")
 
 (defun %add-timer (binding timer timer-type)
   (with-slots (timers) binding
-    (log:debug "Adding timer: " timer)
+    (log:debug "Adding timer: " timer " of type: " timer-type " to: " binding)
     (setf (gethash timer-type timers) timer)))
 
 (defun destroy (binding)
@@ -109,7 +110,7 @@ The output value will be set on the item, should an item be attached.")
     (setf destroyed t)  ;; prevent further scheduling
     (maphash (lambda (key timer)
                (declare (ignore key))
-               (log:debug "Cancelling timer: " timer)
+               (log:debug "Cancelling timer: " timer " on: " binding)
                (timer:cancel timer))
              timers)
     (clrhash timers)))

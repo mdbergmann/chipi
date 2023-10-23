@@ -86,10 +86,10 @@ This is in particular important for persistences that are type specific, like in
                                       (with-slots (bindings) self
                                         (log:debug "Processing ~a binding(s)." (length bindings))
                                         (dolist (binding bindings)
-                                          (let ((eff-push (if push 
-                                                              (binding:call-push-p binding)
-                                                              nil)))
-                                            (when eff-push
+                                          (let ((effective-push (if push 
+                                                                    (binding:call-push-p binding)
+                                                                    nil)))
+                                            (when effective-push
                                               (binding:exec-push binding new-value))))))
                                     (apply-persistences ()
                                       (with-slots (persistences) self
