@@ -56,7 +56,7 @@ When triggered, the rule will log a message to the info log.
      :name name
      :type 'rule
      :receive (lambda (msg)
-                (log:debug "Received msg: " msg)
+                (log:debug "Received msg: ~a at rule: ~a" msg name)
                 (when do-fun
                   (when (typep msg 'item:item-changed-event)
                     (let* ((item (item:item-changed-event-item msg))
