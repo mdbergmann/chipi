@@ -17,8 +17,17 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 ***** cl-hab consists of the following components:
 
 - items: items are a primitive to represent the temperatur of a sensor, the state of light in your house, the state of you window being open or closed, etc.
-- persistence: persistences allow to persist and load the state of items. Currently two types of persistences are supported:
-  - simple-persistence that just stores the current state and can retrieve it
-  - historic persiastence with a support for influxdb to store each changed item value in influxdb and also retrieve values for a specific time range to calculate averages, peaks or whatever.
 
-    
+- persistence: persistences allow to persist and load the state of items. Currently two types of persistences are supported:
+    - simple-persistence that just stores the current state and can retrieve it
+    - historic persiastence with a support for influxdb to store each changed item value in influxdb and also retrieve values for a specific time range to calculate averages, peaks or whatever.
+
+- rules: rules are kind of scripts that are run on certain 'triggers'. Triggers may be a change of an item value, or a cron timing.
+
+**** How does it work
+
+cl-hab is largely based on [[https://github.com/mdbergmann/cl-gserver][Sento]] a Common Lisp Actor Framework where features like thread-safety, queuing and an event-bus are very handy for cl-hab.
+
+A full production example that defines items, persistences and rules can be seen [[https://github.com/mdbergmann/cl-etaconnector/blob/master/eta-hab.lisp][here]]. This script, still very much based on Common Lisp, is a full example configuration of cl-hab. At the end of the script evaluation items, persistences and rules will start their work.
+This particular example uses Common Lisp libraries like [[https://github.com/bendudson/py4cl][py4cl]] (to talk to ina219 analog 2 didital converter for a pressure sensor in a zisterne plugged to the gpios of an Rapi PI 4), or just [[https://github.com/edicl/drakma][Drakma]] to query data of a [[https://www.shelly-support.eu/][Shelly]] power switch.
+
