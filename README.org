@@ -14,3 +14,11 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 
 **** What does cl-hab currently do
 
+***** cl-hab consists of the following components:
+
+- items: items are a primitive to represent the temperatur of a sensor, the state of light in your house, the state of you window being open or closed, etc.
+- persistence: persistences allow to persist and load the state of items. Currently two types of persistences are supported:
+  - simple-persistence that just stores the current state and can retrieve it
+  - historic persiastence with a support for influxdb to store each changed item value in influxdb and also retrieve values for a specific time range to calculate averages, peaks or whatever.
+
+    
