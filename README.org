@@ -34,14 +34,31 @@ This particular example uses Common Lisp libraries like [[https://github.com/ben
 
 **** But let's go slowly
 
-The top of the cl-hab standalone script should include:
+The top of the cl-hab standalone script should include this in order to make sure that dependencies are loaded properly.
 
 #+begin_src lisp
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (ql:quickload :cl-eta))
+  (ql:quickload :cl-hab))  ; at least this if you don't have more
 #+end_src
 
-In order to make sure that dependencies are loaded properly.
-
 Next thing is that you might want to define a separate package using =defpackage=, it allows to inherit symbols using =:use= or =:import-from= that you want to use in the script.
+
+***** defining the global environment
+This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defined and starts the actor system.
+
+***** define items
+The simplest form to define an item is:
+
+#+begin_src lisp
+(defitem 'myitem "My Item" 'integer)
+#+end_src
+
+This defines an item with no interactions. You could manually call =SET-VALUE= function to give it a value or =GET-VALUE= to retrieve its value. But that's probably not of much use.
+
+Usually you'd want to at least define an initial value. Well you can do so by:
+
+#+begin_src lisp
+  (defitem 'myitem "My Item" 'integer
+    :initial-value 0)
+#+end_src
 
