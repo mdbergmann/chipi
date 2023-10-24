@@ -1,1 +1,16 @@
 WIP: Project for house automation in Common Lisp: House automation bus (hab)
+
+*** House Automation for Common Lisp
+
+****  Motivation
+
+I use home automation in my home. Currently utilizing [[https://www.openhab.org/][openHAB]]. While openHAB has many features and supports many devices and so on, it is also a heavy beast.
+
+So my aim was to eventually replace openHAB. There are a few things still missing to do this. The current state of the cl-hab project lacks the following for me to be able to replace openHAB:
+
+- support for KNX
+- a REST interface
+- a UI to interact with the system
+
+**** What does cl-hab currently do
+

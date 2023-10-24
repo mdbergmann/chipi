@@ -22,17 +22,17 @@
 (defvar *persistences* nil "All persistences")
 
 (defun get-item (id)
-  "Returns the item with the given id."
+  "Returns the item with the given id from the created items."
   (when *items*
     (gethash id *items*)))
 
 (defun get-persistence (id)
-  "Returns the persistence with the given id."
+  "Returns the persistence with the given id from the created persistences."
   (when *persistences*
     (gethash id *persistences*)))
 
 (defun get-rule (name)
-  "Returns the rule with the given name."
+  "Returns the rule with the given name from the created rules."
   (when *rules*
     (gethash name *rules*)))
 
@@ -40,7 +40,8 @@
   "Defines a configuration for the environment.
 It will start the environment if it is not already started.
 It is re-entrant, so it can be called multiple times.
-It will setup items, rules and persistences storages."
+But if environment is already configured/started it does nothing.
+It also will setup items, rules and persistences storages."
   `(progn
      (envi:ensure-env)
      (unless *items*
@@ -64,14 +65,14 @@ It will setup items, rules and persistences storages."
 It will create the item if it does not exist.
 It will clean and re-create the item if it already exists.
 Cleaning means all attached bindings are re-created and persistence are re-attached.
+An `:initial-value' can be used to specify the initial value of the item.
 Bindings can be defined as a list of `binding's.
 The `binding' arguments are passed to `binding:make-function-binding'.
 Persistences are references via `:persistence' key.
 `persistence' key allows to define a plist of `:id' and `:frequency' configuration.
 `:id' specifies the persistence id.
 `:frequency' specifies the persistence frequency. Currently only `:every-change' exists.
-`:initial-value' can be used to specify the initial value of the item.
-See `hab-test.lisp' for more examples."
+See `hab-test.lisp' and `item' for more examples."
   (let ((item (gensym "item"))
         (old-item (gensym "old-item"))
         (bindings (gensym "bindn"))
@@ -133,7 +134,8 @@ See `rule:make-rule' for more information and arguments."
 Persistence generally represents a storage that items use for persisting their values.
 It will create the persistence if it does not exist.
 It will clean and re-create the persistence if it already exists.
-The factory function is called with the persistence id as argument and allows to create required persistence type."
+The factory function is called with the persistence id as argument and allows to create required persistence type.
+See `hab-test.lisp' and `persistence' for more examples."
   (let ((persistence (gensym "persistence"))
         (old-persistence (gensym "old-persistence")))
     `(progn
