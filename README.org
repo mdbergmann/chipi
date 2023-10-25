@@ -16,11 +16,13 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 
 ***** cl-hab consists of the following components:
 
-- items: items are a primitive to represent the temperatur of a sensor, the state of light in your house, the state of you window being open or closed, etc.
+- item: items are a primitive to represent the temperatur of a sensor, the state of light in your house, the state of you window being open or closed, etc.
+
+- binding: bindings are a means to update an items value or distribute a value change to somewhere
 
 - persistence: persistences allow to persist and load the state of items. Currently two types of persistences are supported:
     - simple-persistence that just stores the current state and can retrieve it
-    - historic persiastence with a support for influxdb to store each changed item value in influxdb and also retrieve values for a specific time range to calculate averages, peaks or whatever.
+    - historic persistence with a support for influxdb to store each changed item value in influxdb and also retrieve values for a specific time range to calculate averages, peaks or whatever.
 
 - rules: rules are kind of scripts that are run on certain 'triggers'. Triggers may be a change of an item value, or a cron timing.
 
@@ -28,13 +30,15 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 
 cl-hab is largely based on [[https://github.com/mdbergmann/cl-gserver][Sento]] a Common Lisp Actor Framework where features like thread-safety, queuing and an event-bus are very handy for cl-hab.
 
-A full production example that defines items, persistences and rules can be seen [[https://github.com/mdbergmann/cl-etaconnector/blob/master/eta-hab.lisp][here]]. This script, still very much based on Common Lisp, is a full example configuration of cl-hab. At the end of the script evaluation items, persistences and rules will start their work.
+How it works is to define and combine all the mentioned primitives in a file. This file is a Common Lisp source file. The definition of the primitives (item, binding, ...) is done using pre-defined DSL (domain specific language) which largely consists of a few macros. But it is also possible to define your own macros, functions or variables.
 
-This particular example uses Common Lisp libraries like [[https://github.com/bendudson/py4cl][py4cl]] (to talk to ina219 analog 2 didital converter for a pressure sensor in a zisterne plugged to the gpios of an Rapi PI 4), or just [[https://github.com/edicl/drakma][Drakma]] to query data of a [[https://www.shelly-support.eu/][Shelly]] power switch.
+A full production example that defines items, bindings, persistences and rules can be seen [[https://github.com/mdbergmann/cl-etaconnector/blob/master/eta-hab.lisp][here]]. This script, very much based on Common Lisp, is a full example configuration of cl-hab. At the end of the script evaluation all items, persistences and rules will start their work.
+
+This particular example uses Common Lisp libraries like [[https://github.com/bendudson/py4cl][py4cl]] (to talk to ina219 analog 2 didital converter for a pressure sensor in a zisterne plugged to the GPIOs of a Raspberry PI 4), [[https://github.com/edicl/drakma][Drakma]] to query data of a [[https://www.shelly-support.eu/][Shelly]] power switch or [[https://github.com/snmsts/cserial-port][cserial]] to communicate with some other device to retrieve temperatur sensor data.
 
 **** But let's go slowly
 
-The top of the cl-hab standalone script should include this in order to make sure that dependencies are loaded properly.
+The top of the cl-hab standalone script should include this (=eval-when=) in order to make sure that dependencies are loaded properly. But this is not mandatory if you find another way of loading dependencies.
 
 #+begin_src lisp
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -44,16 +48,18 @@ The top of the cl-hab standalone script should include this in order to make sur
 Next thing is that you might want to define a separate package using =defpackage=, it allows to inherit symbols using =:use= or =:import-from= that you want to use in the script.
 
 ***** defining the global environment
-This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defined and starts the actor system.
+The first thing cl-hab specific that should defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
 
-***** define items
+***** defining items
 The simplest form to define an item is:
 
 #+begin_src lisp
   (defitem 'myitem "My Item" 'integer)
 #+end_src
 
-This defines an item with no interactions. You could manually call =SET-VALUE= function to give it a value or =GET-VALUE= to retrieve its value. But that's probably not of much use.
+This defines an item with no interactions, it's just a plain item that can hold a value. You could manually use =SET-VALUE= function to give it a value or =GET-VALUE= to retrieve its value. But that's probably not of much use.
+
+The three parameters define an id of the item (for easier lookup), a label and last, a type hint. The type hint is not necessary unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["src/persistence-influx.lisp"]] for which types are supported.
 
 Usually you'd want to at least define an initial value. Well you can do so by:
 
@@ -62,7 +68,7 @@ Usually you'd want to at least define an initial value. Well you can do so by:
     :initial-value 0)
 #+end_src
 
-In many cases you want to retrieve the item value from somewhere and also want to push it somewhere else once it was set. For that case there is a rudimentary =binding= that does this. There can be more =binding= definitions on an item.
+In many cases you want to retrieve the item value from somewhere and maybe also want to push it somewhere else once it was set. For that case there is a rudimentary =binding= that does this. There can be more =binding= definitions on an item but this only really makes sense if you plan to =push= to more places, for some reason.
 
 #+begin_src lisp
   (defitem 'myitem "My Item" 'integer
@@ -74,7 +80,7 @@ In many cases you want to retrieve the item value from somewhere and also want t
              :call-push-p t))
 #+end_src
 
-This will define an item and uses a binding to retrieve (=pull=) it's value. The =pull=  is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defined whether the =push= function is called.
+This will define an item and uses a binding to retrieve (=pull=) it's value. When to =pull= is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defines whether the =push= function is called when the value was updated. The =push= can be used to push the value elsewhere if required.
 
 So, this allows you to update the value of an item by whatever means in a repetetive manner, and also, optionally push the value forward to someplace else if required.
 
