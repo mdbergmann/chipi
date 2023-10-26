@@ -47,10 +47,10 @@ The top of the cl-hab standalone script should include this (=eval-when=) in ord
 
 Next thing is that you might want to define a separate package using =defpackage=, it allows to inherit symbols using =:use= or =:import-from= that you want to use in the script.
 
-***** defining the global environment
+***** Defining the global environment
 The first thing cl-hab specific that should defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
 
-***** defining persistences
+***** Defining persistences
 Persistences are used to persist the value of an item and to retrieve it back. The influx persistence also allows to retrieve all values of a time range.
 
 ****** Simple persistence
@@ -88,17 +88,34 @@ A persistence that allows retrieving item values of a time range, i.e. to build 
 
 To retrieve a range of values you can call =PERSP:FETCH= with an optional range instance. Currently only =RELATIVE-RANGE= exists.
 
+***** Bindings
+Bindings are a means to interact with sources or targets, meaning they allow interactivity with the item value.
+Bindings are defined as part of an item definition and *not* on toplevel. A basic binding definition looke like this:
 
-***** defining items
+#+begin_src lisp
+  (binding :initial-delay 5
+           :delay 60
+           :pull (lambda () 0) ;;pull value from somewhere
+           :push (lambda (value)) ;; push to somewhere else
+           :call-push-p t)
+#+end_src
+
+This binding uses =pull= function to retrieve a value, which is passed on to the item value. When to =pull= is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defines whether the =push= function is called when the value was updated. The =push= function can be used to push the value elsewhere if required. Both =pull= and =push= are optional. Though one of the two should be used, otherwise the binding doesn't make much sense.
+
+Thinking further, I'd like to have bindings that are specific to pulling from http, serial, or whatever, and allow to be specified in that way. The =pull=, =push= functions are very generic but may require repetition and are not enough specialized.
+
+See next how to define and attach bindings on items.
+
+***** Defining items
 The simplest form to define an item is:
 
 #+begin_src lisp
   (defitem 'myitem "My Item" 'integer)
 #+end_src
 
-This defines an item with no interactions, it's just a plain item that can hold a value. You could manually use =SET-VALUE= function to give it a value or =GET-VALUE= to retrieve its value. But that's probably not of much use.
+This defines a plain item that can hold a value. You could manually use =SET-VALUE= function to give it a value or =GET-VALUE= to retrieve its value. In some cases this is useful in 'rules'. See later.
 
-The three parameters define an id of the item (for easier lookup), a label and last, a type hint. The type hint is not necessary unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["https://github.com/mdbergmann/cl-hab/blob/main/src/persistence-influx.lisp"][influx persistence]] for which types are supported.
+The three parameters define an id of the item (for easier lookup), a label and a type hint. The type hint is not necessary unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["https://github.com/mdbergmann/cl-hab/blob/main/src/persistence-influx.lisp"][influx persistence]] for which types are supported. However, even if not required it might be a good idea to define the type for clarity.
 
 Usually you'd want to at least define an initial value. Well you can do so by:
 
@@ -107,21 +124,23 @@ Usually you'd want to at least define an initial value. Well you can do so by:
     :initial-value 0)
 #+end_src
 
-In many cases you want to retrieve the item value from somewhere and maybe also want to push it somewhere else once it was set. For that case there is a rudimentary =binding= that does this. There can be more =binding= definitions on an item but this only really makes sense if you plan to =push= to more places, for some reason.
+****** Define and attach bindings
+
+In many cases you want to retrieve the item value from somewhere and maybe also want to push it somewhere else once it was set. This is where bindings come in. There can be more =binding= definitions on an item but this only really makes sense if you plan to =push= to more places. An item definition with binding looks like this:
 
 #+begin_src lisp
   (defitem 'myitem "My Item" 'integer
     :initial-value 0
     (binding :initial-delay 5
              :delay 60
-             :pull (lambda () 0) ;;pull value from somewhere
-             :push (lambda (value)) ;; push to somewhere else
+             :pull (lambda () (do-some-http-get))
+             :push (lambda (value) (do-some-http-post))
              :call-push-p t))
 #+end_src
 
-This will define an item and uses a binding to retrieve (=pull=) it's value. When to =pull= is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defines whether the =push= function is called when the value was updated. The =push= can be used to push the value elsewhere if required. If you don't want to push the value elsewhere, then forget about =push= and =call-push-p= altogether, itS' not important.
+****** Applying persistences on the item definitions
 
-So, this allows you to update the value of an item by whatever means in a repetetive manner, and also, optionally push the value forward to someplace else if required.
 
-Thinking further, I'd like to have bindings that are specific to pulling from http, serial, or whatever, and allow to be specified in that way. The =pull=, =push= functions are very open and generic but may require repetition and are not enough specialized.
+
+***** Defining rules
 
