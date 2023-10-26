@@ -96,11 +96,13 @@ Bindings are defined as part of an item definition and *not* on toplevel. A basi
   (binding :initial-delay 5
            :delay 60
            :pull (lambda () 0) ;;pull value from somewhere
+           :transform (lambda (value) (1+ value))
            :push (lambda (value)) ;; push to somewhere else
            :call-push-p t)
 #+end_src
 
 This binding uses =pull= function to retrieve a value, which is passed on to the item value. When to =pull= is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defines whether the =push= function is called when the value was updated. The =push= function can be used to push the value elsewhere if required. Both =pull= and =push= are optional. Though one of the two should be used, otherwise the binding doesn't make much sense.
+What is =transform=? It is optional but can be used to transform the value retrieved with =pull=. =transform= should return a transformed value.
 
 Thinking further, I'd like to have bindings that are specific to pulling from http, serial, or whatever, and allow to be specified in that way. The =pull=, =push= functions are very generic but may require repetition and are not enough specialized.
 
@@ -131,16 +133,37 @@ In many cases you want to retrieve the item value from somewhere and maybe also 
 #+begin_src lisp
   (defitem 'myitem "My Item" 'integer
     :initial-value 0
-    (binding :initial-delay 5
-             :delay 60
+    (binding :initial-delay 0.1
+             :delay 30
              :pull (lambda () (do-some-http-get))
              :push (lambda (value) (do-some-http-post))
              :call-push-p t))
 #+end_src
 
-****** Applying persistences on the item definitions
+****** Attaching persistences on the item definitions
 
+Persistences, as defined above can now be 'attached' to the item like this:
 
+#+begin_src lisp
+  (defitem 'myitem "My Item" 'integer
+    :initial-value 0
+    (binding :initial-delay 0.1
+             :delay 30
+             :pull (lambda () (do-some-http-get))
+             :push (lambda (value) (do-some-http-post))
+             :call-push-p t)
+    :persistence '(:id :simple
+                   :frequency :every-change
+                   :load-on-start t)
+    :persistence '(:id :influx
+                   :frequency :every-change))
+#+end_src
+
+It is possible to attach multiple. In this case both have different purposes. The =:simple= persistence is used to just store the latest value and can recover from it when told so using =:load-on-start=.
+
+The =:influx= persistence will just store every value change to the database.
+
+The =:frequency= defines how often the value is stored. Currently only =:every-change= exists. Later other values may be defineable like =:every-3-minutes= or so.
 
 ***** Defining rules
 
