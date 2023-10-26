@@ -190,3 +190,40 @@
           (setf fetched-item-value (future:fresult item-value)))
         (format t "fetched-item-value: ~a~%" fetched-item-value)
         (is-true (eq t fetched-item-value))))))
+
+(defclass fail-persist-persistence (simple-persistence:simple-persistence) ())
+(defmethod persp:persist ((persistence fail-persist-persistence) item)
+  (format t "persisting...~%")
+  (error "Failed to persist."))
+
+(test item--push-even-on-persist-err
+  "Tests that item value is pushed even if persistence fails."
+  (with-fixture init-destroy-isys ()
+    (let* ((persp (persp::make-persistence :foo :type 'fail-persist-persistence))
+           (item (make-item 'my-item))
+           (pushed-value)
+           (binding (binding:make-function-binding
+                     :push (lambda (value) (setf pushed-value value))
+                     :call-push-p t)))
+      (add-binding item binding)
+      (add-persistence item persp)
+      (sleep 0.5)
+      (set-value item 1)
+      (is-true (await-cond 2 (equal pushed-value 1))))))
+
+(test item--pushes-on-all-bindings-even-if-previous-raises-err
+  "Tests that item value is pushed to all bindings even if previous fails."
+  (with-fixture init-destroy-isys ()
+    (let* ((item (make-item 'my-item))
+           (pushed-value)
+           (binding1 (binding:make-function-binding
+                      :push (lambda (value) (error "on push!"))
+                      :call-push-p t))
+           (binding2 (binding:make-function-binding
+                      :push (lambda (value) (setf pushed-value value))
+                      :call-push-p t)))
+      (add-binding item binding1)
+      (add-binding item binding2)
+      (sleep 0.5)
+      (set-value item 1)
+      (is-true (await-cond 2 (equal pushed-value 1))))))

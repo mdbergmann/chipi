@@ -86,22 +86,22 @@ This is in particular important for persistences that are type specific, like in
                                       (with-slots (bindings) self
                                         (log:debug "Processing ~a binding(s)." (length bindings))
                                         (dolist (binding bindings)
-                                          (ignore-errors
-                                           (let ((effective-push (if push 
-                                                                     (binding:call-push-p binding)
-                                                                     nil)))
-                                             (when effective-push
-                                               (binding:exec-push binding new-value)))))))
+                                          (handler-case
+                                              (let ((effective-push (if push 
+                                                                        (binding:call-push-p binding)
+                                                                        nil)))
+                                                (when effective-push
+                                                  (binding:exec-push binding new-value)))
+                                            (error (c) (log:warn "Error in binding: ~a, error: ~a" binding c))))))
                                     (apply-persistences ()
                                       (with-slots (persistences) self
                                         (log:debug "Processing ~a persistence(s)." (length persistences))
                                         (dolist (persp (%filter-frequency persistences :every-change))
-                                          (ignore-errors
-                                           (persp:store
-                                            (item-persistence-persp persp)
-                                            self))))))
+                                          (persp:store
+                                           (item-persistence-persp persp)
+                                           self)))))
                                (case (car msg)
-                                 (:get-state–
+                                 (:get-state
                                   (let ((state-value (item-state-value *state*)))
                                     (log:debug "Current state value: ~a, item: ~a" state-value id)
                                     (reply state-value)))
