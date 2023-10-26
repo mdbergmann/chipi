@@ -109,8 +109,8 @@ This is in particular important for persistences that are type specific, like in
                                         (timestamp (getf (cdr msg) :timestamp)))
                                     (log:debug "set-state: ~a on item: ~a" val id)
                                     (apply-new-value val timestamp)
-                                    (push-to-bindings val push)
-                                    (apply-persistences)))))))
+                                    (apply-persistences)
+                                    (push-to-bindings val push)))))))
                 :destroy (lambda (self)
                            (with-slots (bindings) self
                              (dolist (binding bindings)

@@ -85,4 +85,6 @@ OK - should fetch return condition in case of error on fetch/retrieve?
 OK - implement value types: numbers, strings and booleans
 OK - add failed fetch test for influx (OK) and simple (OK)
 
+- error in push should still persist value
+
 |#

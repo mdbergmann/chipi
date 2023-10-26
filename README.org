@@ -50,6 +50,9 @@ Next thing is that you might want to define a separate package using =defpackage
 ***** defining the global environment
 The first thing cl-hab specific that should defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
 
+***** defining persistences
+
+
 ***** defining items
 The simplest form to define an item is:
 
@@ -59,7 +62,7 @@ The simplest form to define an item is:
 
 This defines an item with no interactions, it's just a plain item that can hold a value. You could manually use =SET-VALUE= function to give it a value or =GET-VALUE= to retrieve its value. But that's probably not of much use.
 
-The three parameters define an id of the item (for easier lookup), a label and last, a type hint. The type hint is not necessary unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["src/persistence-influx.lisp"]] for which types are supported.
+The three parameters define an id of the item (for easier lookup), a label and last, a type hint. The type hint is not necessary unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["https://github.com/mdbergmann/cl-hab/blob/main/src/persistence-influx.lisp"][influx persistence]] for which types are supported.
 
 Usually you'd want to at least define an initial value. Well you can do so by:
 
@@ -80,7 +83,9 @@ In many cases you want to retrieve the item value from somewhere and maybe also 
              :call-push-p t))
 #+end_src
 
-This will define an item and uses a binding to retrieve (=pull=) it's value. When to =pull= is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defines whether the =push= function is called when the value was updated. The =push= can be used to push the value elsewhere if required.
+This will define an item and uses a binding to retrieve (=pull=) it's value. When to =pull= is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defines whether the =push= function is called when the value was updated. The =push= can be used to push the value elsewhere if required. If you don't want to push the value elsewhere, then forget about =push= and =call-push-p= altogether, itS' not important.
 
 So, this allows you to update the value of an item by whatever means in a repetetive manner, and also, optionally push the value forward to someplace else if required.
+
+Thinking further, I'd like to have bindings that are specific to pulling from http, serial, or whatever, and allow to be specified in that way. The =pull=, =push= functions are very open and generic but may require repetition and are not enough specialized.
 
