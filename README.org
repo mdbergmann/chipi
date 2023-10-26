@@ -181,7 +181,8 @@ Rules are scripts that are run on certain triggers. Triggers are the change of o
                (future:fcompleted (item:get-value item)
                    (value)
                  (do-some-action-with-value value))))
-            (:cron (format t "Cron triggered: ~a~%" (cdr trigger))
+            (:cron
+             (format t "Cron triggered: ~a~%" (cdr trigger))
              (do-some-action))))
 #+end_src
 
@@ -199,4 +200,4 @@ Caveeat: if a persistence is changed and re-evaluated also the items where it is
 
 **** Logging
 
-The project uses log4cl. You can change the log level for '=(cl-hab)= to suite your needs of granularity.
+The project uses log4cl. You can change the log level for '=(cl-hab)= to suite your needs of granularity. The underlying Sento actor framework will log extensively on =:debug= level so a good idea is to silence this via =(log:config '(sento) :warn)=.
