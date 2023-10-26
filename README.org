@@ -189,7 +189,7 @@ Rules can be triggered by item value changes. To subscribe to certain items one 
 
 The other trigger is cron. The lowest granularity is minutes. Specify cron triggers with =:with-cron=. Also multiple triggers can be defined. The =cdr= of the trigger variable is the cron expression.
 
-When a cron trigger is specified as ~'(:boot-only t)~ then this means that the rule is called immediately after initialization, but only once.
+When a cron trigger is specified as '=(:boot-only t)= then this means that the rule is called immediately after initialization, but only once.
 
 **** Redefining persistences, items and rules
 
@@ -199,4 +199,4 @@ Caveeat: if a persistence is changed and re-evaluated also the items where it is
 
 **** Logging
 
-The project uses log4cl. You can change the log level for ='(cl-hab)= to suite your needs of granularity.
+The project uses log4cl. You can change the log level for '=(cl-hab)= to suite your needs of granularity.
