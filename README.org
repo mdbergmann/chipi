@@ -1,4 +1,3 @@
-WIP: Project for house automation in Common Lisp: House automation bus (hab)
 
 *** House Automation for Common Lisp
 
@@ -8,7 +7,7 @@ I use home automation in my home. Currently utilizing [[https://www.openhab.org/
 
 So my aim was to eventually replace openHAB. There are a few things still missing to do this. The current state of the cl-hab project lacks the following for me to be able to replace openHAB:
 
-- support for KNX
+- support for KNX bus
 - a REST interface
 - a UI to interact with the system
 
@@ -16,7 +15,7 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 
 ***** cl-hab consists of the following components:
 
-- item: items are a primitive to represent the temperatur of a sensor, the state of light in your house, the state of you window being open or closed, etc.
+- item: items are a primitive to represent the temperatur of a sensor, the state of light in your house, the state of your window being open or closed, etc.
 
 - binding: bindings are a means to update an items value or distribute a value change to somewhere
 
@@ -28,13 +27,13 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 
 **** How does it work
 
-cl-hab is largely based on [[https://github.com/mdbergmann/cl-gserver][Sento]] a Common Lisp Actor Framework where features like thread-safety, queuing and an event-bus are very handy for cl-hab.
+cl-hab is largely based on [[https://github.com/mdbergmann/cl-gserver][Sento]], a Common Lisp Actor Framework where features like thread-safety, queuing and an event-bus are very handy for cl-hab.
 
-How it works is to define and combine all the mentioned primitives in a file. This file is a Common Lisp source file. The definition of the primitives (item, binding, ...) is done using pre-defined DSL (domain specific language) which largely consists of a few macros. But it is also possible to define your own macros, functions or variables.
+How it works is to define and combine all the mentioned primitives in a file. This file is a Common Lisp source file. The definition of the primitives (item, binding, ...) is done using a defined DSL (domain specific language) which largely consists of a few macros. But it is also possible to define your own macros, functions or variables.
 
 A full production example that defines items, bindings, persistences and rules can be seen [[https://github.com/mdbergmann/cl-etaconnector/blob/master/eta-hab.lisp][here]]. This script, very much based on Common Lisp, is a full example configuration of cl-hab. At the end of the script evaluation all items, persistences and rules will start their work.
 
-This particular example uses Common Lisp libraries like [[https://github.com/bendudson/py4cl][py4cl]] (to talk to ina219 analog 2 didital converter for a pressure sensor in a zisterne plugged to the GPIOs of a Raspberry PI 4), [[https://github.com/edicl/drakma][Drakma]] to query data of a [[https://www.shelly-support.eu/][Shelly]] power switch or [[https://github.com/snmsts/cserial-port][cserial]] to communicate with some other device to retrieve temperatur sensor data.
+This particular example uses Common Lisp libraries like [[https://github.com/bendudson/py4cl][py4cl]] (to talk to ina219 analog 2 digital converter for a pressure sensor in a cistern plugged to the GPIOs of a Raspberry PI 4), [[https://github.com/edicl/drakma][Drakma]] to query data of a [[https://www.shelly-support.eu/][Shelly]] power switch or [[https://github.com/snmsts/cserial-port][cserial]] to communicate with some other device to retrieve temperatur sensor data.
 
 **** But let's go slowly
 
@@ -48,10 +47,10 @@ The top of the cl-hab standalone script should include this (=eval-when=) in ord
 Next thing is that you might want to define a separate package using =defpackage=, it allows to inherit symbols using =:use= or =:import-from= that you want to use in the script.
 
 ***** Defining the global environment
-The first thing cl-hab specific that should defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
+The first thing cl-hab specific that should be defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
 
 ***** Defining persistences
-Persistences are used to persist the value of an item and to retrieve it back. The influx persistence also allows to retrieve all values of a time range.
+Persistences are used to persist the value of an item and to retrieve it back. The influx persistence also allows to retrieve values in a certain time range.
 
 ****** Simple persistence
 To define a 'simple' persistence you do:
@@ -70,7 +69,7 @@ The only information =simple-persistence= requires is where to store the item va
 {"value":66.19999694824219,"timestamp":3907315980}
 #+end_src
 
-Under normal circumstances you don't need to deal with simple persistences directly. To retrieve a item value you'd call =ITEM:GET-VALUE=. Though it is possible to call =PERSP:FETCH= and retrieve the current value.
+Under normal circumstances you don't need to deal with simple persistences directly. To retrieve an item value you'd call =ITEM:GET-VALUE=. Though it is possible to call =PERSP:FETCH= and retrieve the current value from the persistence directly.
 
 ****** Influx persistence
 A persistence that allows retrieving item values of a time range, i.e. to build daily or weekly average values, is influx. Currently only influx v2 is supported. Define such persistence like this:
@@ -101,7 +100,7 @@ Bindings are defined as part of an item definition and *not* on toplevel. A basi
            :call-push-p t)
 #+end_src
 
-This binding uses =pull= function to retrieve a value, which is passed on to the item value. When to =pull= is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defines whether the =push= function is called when the value was updated. The =push= function can be used to push the value elsewhere if required. Both =pull= and =push= are optional. Though one of the two should be used, otherwise the binding doesn't make much sense.
+This binding uses the =pull= function to retrieve a value, which is passed on to the item value. When to =pull= is determined by =:initial-delay= and =:delay= in seconds where the former is an 'initial delay' and the latter a repetetive delay. =:call-push-p= actually defines whether the =push= function is called when the value was updated. The =push= function can be used to push the value elsewhere if required. Both =pull= and =push= are optional. Though one of the two should be used, otherwise the binding doesn't make much sense.
 What is =transform=? It is optional but can be used to transform the value retrieved with =pull=. =transform= should return a transformed value.
 
 Thinking further, I'd like to have bindings that are specific to pulling from http, serial, or whatever, and allow to be specified in that way. The =pull=, =push= functions are very generic but may require repetition and are not enough specialized.
@@ -117,9 +116,9 @@ The simplest form to define an item is:
 
 This defines a plain item that can hold a value. You could manually use =SET-VALUE= function to give it a value or =GET-VALUE= to retrieve its value. In some cases this is useful in 'rules'. See later.
 
-The three parameters define an id of the item (for easier lookup), a label and a type hint. The type hint is not necessary unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["https://github.com/mdbergmann/cl-hab/blob/main/src/persistence-influx.lisp"][influx persistence]] for which types are supported. However, even if not required it might be a good idea to define the type for clarity.
+The three parameters define an id of the item (for easier lookup), a label and a type hint. The type hint is not necessary (can be specified as =NIL=) unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["https://github.com/mdbergmann/cl-hab/blob/main/src/persistence-influx.lisp"][influx persistence]] for which types are supported. However, even if not required it might be a good idea to define the type for clarity.
 
-Usually you'd want to at least define an initial value. Well you can do so by:
+Usually you'd want to at least define an initial value. You can do so by:
 
 #+begin_src lisp
   (defitem 'myitem "My Item" 'integer
@@ -159,7 +158,7 @@ Persistences, as defined above can now be 'attached' to the item like this:
                    :frequency :every-change))
 #+end_src
 
-It is possible to attach multiple. In this case both have different purposes. The =:simple= persistence is used to just store the latest value and can recover from it when told so using =:load-on-start=.
+It is possible to attach multiple. In the case above both have different purposes. The =:simple= persistence is used to just store the latest value and can recover from it when told so using =:load-on-start=.
 
 The =:influx= persistence will just store every value change to the database.
 
@@ -167,3 +166,27 @@ The =:frequency= defines how often the value is stored. Currently only =:every-c
 
 ***** Defining rules
 
+Rules are scripts that are run on certain triggers. Triggers are the change of one or more item values or one or more cron definitions. Example:
+
+#+begin_src lisp
+  (defrule "My Rule"
+    :when-item-change 'my-item
+    :when-cron '(:minute 0 :hour 0)
+    :do (lambda (trigger)
+          (case (car trigger)
+            (:item
+             (let ((item (cdr trigger)))
+               (format t "Item changed: ~a~%" item)
+               ;; asynchronously do something with the value
+               (future:fcompleted (item:get-value item)
+                   (value)
+                 (do-some-action-with-value value))))
+            (:cron (format t "Cron triggered: ~a~%" (cdr trigger))
+             (do-some-action))))
+#+end_src
+
+Rules can be triggered by item value changes. To subscribe to certain items one has to use =:when-item-change= with the item id of the item definition. Use multiple =:when-item-change= to subscribe to multiple item changes.
+
+The other trigger is cron. The lowest granularity is minutes. Specify cron triggers with =:with-cron=. Also multiple triggers can be defined. The =cdr= of the trigger variable is the cron expression.
+
+When a cron trigger is specified as ='(:boot-only t)= then this means that the rule is called immediately after initialization, but only once.
