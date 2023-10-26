@@ -51,6 +51,42 @@ Next thing is that you might want to define a separate package using =defpackage
 The first thing cl-hab specific that should defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
 
 ***** defining persistences
+Persistences are used to persist the value of an item and to retrieve it back. The influx persistence also allows to retrieve all values of a time range.
+
+****** Simple persistence
+To define a 'simple' persistence you do:
+
+#+begin_src lisp
+  (defpersistence :simple
+    (lambda (id)
+      (make-simple-persistence id :storage-root-path #P"some-path")))
+#+end_src
+
+The =:simple= here is the persistence id passed along to the lambda factory function.
+
+The only information =simple-persistence= requires is where to store the item values. Each item is stored in its own file and just stores the last value. The value plus a timestamp (=GET-UNIVERSAL-TIME=) is stored in JSON format like this:
+
+#+begin_src
+{"value":66.19999694824219,"timestamp":3907315980}
+#+end_src
+
+Under normal circumstances you don't need to deal with simple persistences directly. To retrieve a item value you'd call =ITEM:GET-VALUE=. Though it is possible to call =PERSP:FETCH= and retrieve the current value.
+
+****** Influx persistence
+A persistence that allows retrieving item values of a time range, i.e. to build daily or weekly average values, is influx. Currently only influx v2 is supported. Define such persistence like this:
+
+#+begin_src lisp
+  (defpersistence :influx
+      (lambda (id)
+        (make-influx-persistence
+         id
+         :base-url "http://your-host:8086"
+         :token "your-token"
+         :org "your-org"
+         :bucket "your-bucket")))
+#+end_src
+
+To retrieve a range of values you can call =PERSP:FETCH= with an optional range instance. Currently only =RELATIVE-RANGE= exists.
 
 
 ***** defining items
