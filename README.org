@@ -1,6 +1,8 @@
 
 *** House Automation for Common Lisp
 
+!!! Still in alpha state, API design changes are probably required !!!
+
 ****  Motivation
 
 I use home automation in my home. Currently utilizing [[https://www.openhab.org/][openHAB]]. While openHAB has many features and supports many devices and so on, it is also a heavy beast.
