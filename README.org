@@ -157,14 +157,15 @@ Persistences, as defined above can now be 'attached' to the item like this:
                    :frequency :every-change
                    :load-on-start t)
     :persistence '(:id :influx
-                   :frequency :every-change))
+                   :frequency :every-20s))
 #+end_src
 
 It is possible to attach multiple. In the case above both have different purposes. The =:simple= persistence is used to just store the latest value and can recover from it when told so using =:load-on-start=.
 
 The =:influx= persistence will just store every value change to the database.
 
-The =:frequency= defines how often the value is stored. Currently only =:every-change= exists. Later other values may be defineable like =:every-3-minutes= or so.
+The =:frequency= defines how often the value is stored. =:every-change= will store the value to the persistence on every change of the item value.
+=:every-20s= (form example) stored the value every 20 seconds recirring. The notation here is =:every-N<s|m|h>= where N is the number, s (seconds), m (minutes) and h (hours).
 
 ***** Defining rules
 
