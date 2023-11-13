@@ -28,11 +28,15 @@
   (ensure-cron)
   (hash-table-count cl-cron::*cron-jobs-hash*))
 
-(defun make-cron-job (fun &rest args)
+(defun make-cron-job (fun args)
+  "`fun' is the function to execute by cl-cron.
+`args' are all job args supported by cl-cron."
   (ensure-cron)
   (cl-cron:make-cron-job fun
                          :minute (getf args :minute :every)
+                         :step-min (getf args :step-min 1)
                          :hour (getf args :hour :every)
+                         :step-hour (getf args :step-hour 1)
                          :day-of-month (getf args :day-of-month :every)
                          :month (getf args :month :every)
                          :day-of-week (getf args :day-of-week :every)

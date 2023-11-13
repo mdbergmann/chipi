@@ -81,12 +81,7 @@ When triggered, the rule will log a message to the info log.
                                            (sleep 2) ; let rule initialize first
                                            )
                                          (! self `(cron-triggered ,cron)))
-                                       :minute (getf cron :minute :every)
-                                       :hour (getf cron :hour :every)
-                                       :day-of-month (getf cron :day-of-month :every)
-                                       :month (getf cron :month :every)
-                                       :day-of-week (getf cron :day-of-week :every)
-                                       :boot-only boot-only-p)
+                                       cron)
                      :do (unless boot-only-p
                            (%add-cron-hash self cron-hash))))
              (log:info "Rule '~a' initialized." name))
