@@ -64,7 +64,7 @@ The actual persistence method called as a result is `persp:persist'."
 The actual persistence method called as a result is `persp:retrieve'.
 Optionally specify a `range' to retrieve a list of values that satisfy the `range'
 See `item:range' for more details of range. Currently only `relative-range' is supported.
-Returns a `persisted-item' instance."
+Returns a `persisted-item' instance or a list of `persisten-item's if range is specified."
   (? persistence `(:fetch . (,item . ,range))))
 
 (defun destroy (persistence)
