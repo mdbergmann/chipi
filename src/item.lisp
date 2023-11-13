@@ -160,7 +160,7 @@ If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
   (with-slots (persistences) item
     (let ((item-persp (make-item-persistence
                        :persp persistence
-                       :frequency (getf other-args :frequency)
+                       :frequency (getf other-args :frequency :every-change)
                        :load-on-start (getf other-args :load-on-start))))
       (push item-persp persistences)
       (when (item-persistence-load-on-start item-persp)
