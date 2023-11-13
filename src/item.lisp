@@ -56,13 +56,57 @@ This is in particular important for persistences that are type specific, like in
 (defstruct item-persistence
   (persp nil :type (or null persp:persistence))
   (frequency :every-change)
-  (load-on-start t))
+  (load-on-start t)
+  (timer-sig (gensym "item-persistence-timer-sig")))
 
 (defun %filter-frequency (list freq)
   (remove-if-not
    (lambda (p)
      (eq (item-persistence-frequency p) freq))
    list))
+
+(defun %item-receive (msg id)
+  (log:debug "Received msg: ~a, item: ~a" msg id)
+  (let ((self *self*))
+    (flet ((apply-new-value (new-value timestamp)
+             (let ((timestamp (or timestamp (get-universal-time))))
+               (prog1
+                   (setf (item-state-value *state*) new-value
+                         (item-state-timestamp *state*) timestamp)
+                 (ev:publish self (make-item-changed-event
+                                   :item self)))))
+           (push-to-bindings (new-value push) 
+             (with-slots (bindings) self
+               (log:debug "Processing ~a binding(s)." (length bindings))
+               (dolist (binding bindings)
+                 (handler-case
+                     (let ((effective-push (if push 
+                                               (binding:call-push-p binding)
+                                               nil)))
+                       (when effective-push
+                         (binding:exec-push binding new-value)))
+                   (error (c) (log:warn "Error in binding: ~a, error: ~a" binding c))))))
+           (apply-persistences ()
+             (with-slots (persistences) self
+               (let ((every-change-persps (%filter-frequency persistences :every-change)))
+                 (log:debug "Processing 'every-change' ~a persistence(s)." (length every-change-persps))
+                 (dolist (persp every-change-persps)
+                   (persp:store
+                    (item-persistence-persp persp)
+                    self))))))
+      (case (car msg)
+        (:get-state
+         (let ((state-value (item-state-value *state*)))
+           (log:debug "Current state value: ~a, item: ~a" state-value id)
+           (reply state-value)))
+        (:set-state
+         (let ((val (getf (cdr msg) :value))
+               (push (getf (cdr msg) :push))
+               (timestamp (getf (cdr msg) :timestamp)))
+           (log:debug "set-state: ~a on item: ~a" val id)
+           (apply-new-value val timestamp)
+           (apply-persistences)
+           (push-to-bindings val push)))))))
 
 (defun make-item (id &key (label nil) (type-hint nil) (initial-value t))
   (log:info "Creating item: ~a, label: ~a, type-hint: ~a" id label type-hint)
@@ -72,52 +116,16 @@ This is in particular important for persistences that are type specific, like in
                 :name (symbol-name id)
                 :type 'item
                 :state (make-item-state :value initial-value)
-                :receive (lambda (msg)
-                           (log:debug "Received msg: ~a, item: ~a" msg id)
-                           (let ((self *self*))
-                             (flet ((apply-new-value (new-value timestamp)
-                                      (let ((timestamp (or timestamp (get-universal-time))))
-                                        (prog1
-                                            (setf (item-state-value *state*) new-value
-                                                  (item-state-timestamp *state*) timestamp)
-                                          (ev:publish self (make-item-changed-event
-                                                            :item self)))))
-                                    (push-to-bindings (new-value push) 
-                                      (with-slots (bindings) self
-                                        (log:debug "Processing ~a binding(s)." (length bindings))
-                                        (dolist (binding bindings)
-                                          (handler-case
-                                              (let ((effective-push (if push 
-                                                                        (binding:call-push-p binding)
-                                                                        nil)))
-                                                (when effective-push
-                                                  (binding:exec-push binding new-value)))
-                                            (error (c) (log:warn "Error in binding: ~a, error: ~a" binding c))))))
-                                    (apply-persistences ()
-                                      (with-slots (persistences) self
-                                        (log:debug "Processing ~a persistence(s)." (length persistences))
-                                        (dolist (persp (%filter-frequency persistences :every-change))
-                                          (persp:store
-                                           (item-persistence-persp persp)
-                                           self)))))
-                               (case (car msg)
-                                 (:get-state
-                                  (let ((state-value (item-state-value *state*)))
-                                    (log:debug "Current state value: ~a, item: ~a" state-value id)
-                                    (reply state-value)))
-                                 (:set-state
-                                  (let ((val (getf (cdr msg) :value))
-                                        (push (getf (cdr msg) :push))
-                                        (timestamp (getf (cdr msg) :timestamp)))
-                                    (log:debug "set-state: ~a on item: ~a" val id)
-                                    (apply-new-value val timestamp)
-                                    (apply-persistences)
-                                    (push-to-bindings val push)))))))
+                :receive (lambda (msg) (%item-receive msg id))
                 :destroy (lambda (self)
-                           (with-slots (bindings) self
+                           (with-slots (bindings persistences) self
                              (dolist (binding bindings)
                                (ignore-errors
-                                (binding:destroy binding))))
+                                (binding:destroy binding)))
+                             (dolist (persp persistences)
+                               (ignore-errors
+                                (timer:cancel-for-sig
+                                 (item-persistence-timer-sig persp)))))
                            (log:info "Item '~a' destroyed!" id)))))
     (setf (slot-value item 'label) label
           (slot-value item 'value-type-hint) type-hint)
@@ -153,6 +161,13 @@ If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
   item)
 
 (defun add-persistence (item persistence &rest other-args)
+  "Adds persistence to item.
+`PERSISTENCE' is a `persp:persistence' object.
+`OTHER-ARGS' are key arguments:
+`:frequency': which by default is
+  `:every-change' denoting that every change to the iten should be stored.
+  `:every-N<s|m|h>' denoting a number N specified as `s' (seconds), `m' (minutes) or `h' (hours)
+  when the item should be stored recurringly."
   ;; unwrap a list in list
   (log:info "Adding persistence: ~a to item: ~a" persistence item)
   (when (listp (car other-args))
@@ -163,8 +178,19 @@ If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
                        :frequency (getf other-args :frequency :every-change)
                        :load-on-start (getf other-args :load-on-start))))
       (push item-persp persistences)
-      (when (item-persistence-load-on-start item-persp)
-        (%fetch-persisted-value persistence item)))))
+      (let ((load-on-start (item-persistence-load-on-start item-persp))
+            (frequency (item-persistence-frequency item-persp))
+            (timer-sig (item-persistence-timer-sig item-persp))
+            (persp (item-persistence-persp item-persp)))
+        (when load-on-start
+          (%fetch-persisted-value persistence item))
+        (when (not (eq :every-change frequency))
+          (let ((freq-in-secs (%parse-frequency frequency)))
+            (log:debug "Scheduling persistence: ~a, frequency: ~a secs" persistence freq-in-secs)
+            (timer:schedule-recurring freq-in-secs
+                                      (lambda ()
+                                        (persp:store persp item))
+                                      timer-sig)))))))
 
 (defun %fetch-persisted-value (persistence item)
   (log:debug "Loading item value from persp: ~a" persistence)
@@ -177,6 +203,24 @@ If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
        (set-value item (persp:persisted-item-value result)
                   :push nil
                   :timestamp (persp:persisted-item-timestamp result))))))
+
+(defun %parse-frequency (freq)
+  (let* ((freq-str (symbol-name freq))
+         (timing (second (str:split "EVERY-" freq-str))))
+    (multiple-value-bind (start end ar1 ar2)
+        (ppcre:scan "([0-9]*)([S|M|H])" timing)
+      (declare (ignore end))
+      (when (null start)
+        (log:warn "Invalid frequency: ~a" freq)
+        (error "Invalid frequency: ~a" freq))
+      (let ((num (subseq timing (elt ar1 0) (elt ar1 1)))
+            (unit (subseq timing (elt ar2 0) (elt ar2 1))))
+        (cond ((string= unit "S")
+               (parse-integer num))
+              ((string= unit "M")
+               (* (parse-integer num) 60))
+              ((string= unit "H")
+               (* (parse-integer num) 3600)))))))
 
 (defun destroy (item)
   (ac:stop (act:context item) item :wait t))

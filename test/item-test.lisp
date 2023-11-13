@@ -17,7 +17,7 @@
    :validate t
    :if-does-not-exist :ignore))
 
-(def-fixture init-destroy-isys ()
+(def-fixture init-destroy-env ()
   (unwind-protect
        (progn 
          (&body))
@@ -34,14 +34,14 @@
     (envi:shutdown-env)))
 
 (test make-item--with-initial-value
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let ((item (make-item 'my-item :label "label" :initial-value 12345)))
       (is-true item)
       (is-true (typep item 'item))
       (is (eq (item:item-state-value (item:get-item-stateq item)) 12345)))))
 
 (test make-item--with-state--get--set
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let ((item (make-item 'my-item)))
       (is-true item)
       (let ((item-value (get-value item))
@@ -62,7 +62,7 @@
 
 (test item--set-value-pushes-to-binding--with-passthrough
   "Tests that set-value pushes to binding."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let* ((item (make-item 'my-item))
            (pushed-value)
            (binding (binding:make-function-binding
@@ -76,7 +76,7 @@
 
 (test item--set-value-does-no-push
   "Tests that set-value does not push to binding if :push key is false."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let* ((item (make-item 'my-item))
            (pushed-value)
            (binding (binding:make-function-binding
@@ -89,7 +89,7 @@
 
 (test item--set-value-does-no-push-even-with-passthrough--push-has-precedence
   "Tests that set-value does not push to binding if :push key is false."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let* ((item (make-item 'my-item))
            (pushed-value)
            (binding (binding:make-function-binding
@@ -103,7 +103,7 @@
 
 (test item-raises-changed-event-when-changed
   "When item value is changed it should raise event."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let ((item (make-item 'my-item))
           (ev-received))
       (ac:actor-of (isys:ensure-isys)
@@ -121,7 +121,7 @@
 
 (test item--pull-value-from-added-binding
   "Binding that provides the value updates to the item."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let ((item (make-item 'my-item))
           (binding (binding:make-function-binding
                     :pull (lambda () 1)
@@ -134,7 +134,7 @@
 
 (test item--cleanup-on-destroy
   "Tests that item cleans up bindings on destroy."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let ((item (make-item 'my-item))
           (binding (binding:make-function-binding
                     :pull (lambda () 1)
@@ -142,16 +142,20 @@
           (persp (make-simple-persistence :foo
                   :storage-root-path #P"/tmp/cl-hab/persistence-test")))
       (add-binding item binding)
-      (add-persistence item persp)
+      (add-persistence item persp
+                       :frequency :every-1s)  ;; triggers adding a timer
       (with-mocks ()
         (answer (binding:destroy _) t)
+        (answer (timer:cancel-for-sig _) t)
         (destroy item)
-        (is (= 1 (length (invocations 'binding:destroy))))))))
+        (is (= 1 (length (invocations 'binding:destroy))))
+        (is (= 1 (length (invocations 'timer:cancel-for-sig))))))))
 
 (test item--with-simple-persistence
   "Tests that item persists its value."
-  (with-fixture init-destroy-isys ()
-    (let* ((persp (make-simple-persistence :foo
+  (with-fixture init-destroy-env ()
+    (let* ((persp (make-simple-persistence
+                   :foo
                    :storage-root-path #P"/tmp/cl-hab/persistence-test"))
            (item (make-item 'my-item)))
       (add-persistence item persp
@@ -170,13 +174,29 @@
                      (await-cond 0.3
                        (equal (future:fresult item-value) 1)))))))))
 
+(test item--with-persistence--freq-every-x
+  "Tests that item perists it's value with frequency :every-x."
+  (with-fixture init-destroy-env ()
+    (let* ((persp (make-simple-persistence
+                   :foo
+                   :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+           (item (make-item 'my-item)))
+      (add-persistence item persp
+                       :frequency :every-1s)
+
+      (with-mocks ()
+        (answer (persp:store _) t)
+        (set-value item 1)
+        (is-true (await-cond 3
+                   (= 2 (length (invocations 'persp:store)))))))))
+
 (defclass fail-fetch-persistence (simple-persistence:simple-persistence) ())
 (defmethod persp:retrieve ((persistence fail-fetch-persistence) item)
   '(:error . "Failed to fetch."))
 
 (test item--simple-persistence--dont-update-on-fetch-error
   "Tests that item persists its value."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let* ((persp (persp::make-persistence :foo :type 'fail-fetch-persistence))
            (item (make-item 'my-item)))
       ;; make load item on startup
@@ -198,7 +218,7 @@
 
 (test item--push-even-on-persist-err
   "Tests that item value is pushed even if persistence fails."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let* ((persp (persp::make-persistence :foo :type 'fail-persist-persistence))
            (item (make-item 'my-item))
            (pushed-value)
@@ -213,7 +233,7 @@
 
 (test item--pushes-on-all-bindings-even-if-previous-raises-err
   "Tests that item value is pushed to all bindings even if previous fails."
-  (with-fixture init-destroy-isys ()
+  (with-fixture init-destroy-env ()
     (let* ((item (make-item 'my-item))
            (pushed-value)
            (binding1 (binding:make-function-binding

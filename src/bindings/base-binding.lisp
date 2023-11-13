@@ -89,7 +89,9 @@ The output value will be set on the item, should an item be attached.")
                     :initial-delay))
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
+        ;; TODO: replace this with `timer:schedule-recurring'
         (log:info "Scheduling delay: " delay " on: " binding)
+        (timer:schedule-recurring )
         (let (recurring-timer-fun)
           (setf recurring-timer-fun
                 (lambda ()
