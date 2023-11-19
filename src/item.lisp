@@ -188,7 +188,7 @@ If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
           (%fetch-persisted-value persistence item))
         (when (not (eq :every-change frequency))
           (let ((freq-in-secs (%parse-frequency frequency)))
-            (log:debug "Scheduling persistence: ~a, frequency: ~a secs" persistence freq-in-secs)
+            (log:info "Scheduling persistence: ~a, frequency: ~a secs" persistence freq-in-secs)
             (timer:schedule-recurring freq-in-secs
                                       (lambda ()
                                         (persp:store persp item))
