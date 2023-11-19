@@ -60,6 +60,17 @@
                          (eq (future:fresult item-value) 123)))))
           (is (> (get-timestamp item) item-timestamp)))))))
 
+(test item--does-not-change-value-when-setting-same-value
+  "Tests that item does not change value when same value is set."
+  ;; potentially rewrite to not have to wait for 1.5 seconds
+  (with-fixture init-destroy-env ()
+    (let ((item (make-item 'my-item :initial-value 12345)))
+      (let ((timestamp (item-state-timestamp (get-item-stateq item))))
+        (sleep 1)
+        (set-value item 12345)
+        (sleep 0.5)
+        (is (eq (item-state-timestamp (get-item-stateq item)) timestamp))))))
+
 (test item--set-value-pushes-to-binding--with-passthrough
   "Tests that set-value pushes to binding."
   (with-fixture init-destroy-env ()
