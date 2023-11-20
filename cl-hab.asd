@@ -1,5 +1,5 @@
 (defsystem "cl-hab"
-  :version "0.1.1"
+  :version "0.2.1"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
@@ -57,7 +57,5 @@
 
 #|
 hab:
-
-- error in push should still persist value
 
 |#

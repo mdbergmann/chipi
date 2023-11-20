@@ -102,12 +102,14 @@ This is in particular important for persistences that are type specific, like in
         (:set-state
          (let ((old-val (item-state-value *state*))
                (val (getf (cdr msg) :value))
-               (push (getf (cdr msg) :push))
+               (push (getf (cdr msg) :push-p))
+               (persist (getf (cdr msg) :persist-p t))
                (timestamp (getf (cdr msg) :timestamp)))
            (unless (equal old-val val)
              (log:debug "set-state: ~a on item: ~a" val id)
              (apply-new-value val timestamp)
-             (apply-persistences)
+             (when persist
+               (apply-persistences))
              (push-to-bindings val push))))))))
 
 (defun make-item (id &key (label nil) (type-hint nil) (initial-value t))
@@ -146,10 +148,12 @@ This is in particular important for persistences that are type specific, like in
 (defun get-value (item)
   (? item '(:get-state . nil)))
 
-(defun set-value (item value &key (push t) (timestamp nil))
+(defun set-value (item value &key (push t) (timestamp nil) (persist t))
   "Updates item value with push to bindings.
-If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
-  (! item `(:set-state . (:value ,value :push ,push :timestamp ,timestamp))))
+If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on binding definition.
+`TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
+`PERSIST': if non-nil, persistences will be applied."
+  (! item `(:set-state . (:value ,value :push-p ,push :timestamp ,timestamp :persist-p ,persist))))
 
 (defun get-item-stateq (item)
   "Returns the item state `item-state'."
@@ -202,9 +206,13 @@ If PUSH is non-nil, bindings will be pushed regardsless of :do-push."
       ((and (consp result) (eq (car result) :error))
        (log:warn "Error loading item (~a) value from persp: ~a" (act-cell:name item) persistence))
       (t
-       (set-value item (persp:persisted-item-value result)
-                  :push nil
-                  :timestamp (persp:persisted-item-timestamp result))))))
+       (progn
+         (log:debug "Setting loaded value to item: ~a" item)
+         (set-value item (persp:persisted-item-value result)
+                    :push nil
+                    :timestamp (persp:persisted-item-timestamp result)
+                    :persist nil ; loaded values should not be persisted
+                    ))))))
 
 (defun %parse-frequency (freq)
   (let* ((freq-str (symbol-name freq))

@@ -196,10 +196,40 @@
                        :frequency :every-1s)
 
       (with-mocks ()
-        (answer (persp:store _) t)
+        (answer persp:store t)
         (set-value item 1)
         (is-true (await-cond 3
                    (= 2 (length (invocations 'persp:store)))))))))
+
+(test item--with-persistence--should-not-persist-on-load-on-start
+  "Test that when two persistences are defined, one with `:load-on-start',
+that when loading the value the second (or any more) persistence does not persit it."
+  (with-fixture init-destroy-env ()
+    (let* ((persp1 (make-simple-persistence
+                    :foo
+                    :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+           (persp2 (make-simple-persistence
+                    :bar
+                    :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+           (item (make-item 'my-item :initial-value 0)))
+      (with-mocks ()
+        (answer persp:fetch (future:with-fut
+                              (persp:make-persisted-item
+                               :value 1
+                               :timestamp (get-universal-time))))
+        (answer persp:store (error "No call to store should be made!"))
+        (add-persistence item persp2
+                         :frequency :every-change)
+        (add-persistence item persp1
+                         :load-on-start t
+                         :frequency :every-change)
+        (is-true (await-cond 2
+                   (= 1 (length (invocations 'persp:fetch)))))
+        (sleep 0.5)
+        (is (= 0 (length (invocations 'persp:store)))))
+      )
+    )
+  )
 
 (defclass fail-fetch-persistence (simple-persistence:simple-persistence) ())
 (defmethod persp:retrieve ((persistence fail-fetch-persistence) item)
