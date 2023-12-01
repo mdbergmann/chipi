@@ -56,18 +56,7 @@ When triggered, the rule will log a message to the info log.
      :name name
      :type 'rule
      :receive (lambda (msg)
-                (log:debug "Received msg: ~a at rule: ~a" msg name)
-                (when do-fun
-                  (when (typep msg 'item:item-changed-event)
-                    (let* ((item (item:item-changed-event-item msg))
-                           (item-name (act-cell:name item)))
-                      (when (member item-name
-                                    item-names
-                                    :test #'equal)
-                        (funcall do-fun `(:item . ,item)))))
-                  (when (and (listp msg)
-                             (eq (car msg) 'cron-triggered))
-                    (funcall do-fun `(:cron . ,(second msg))))))
+		(%receive-fun msg name do-fun item-names))
      :init (lambda (self)
              (when (car item-changes)
                (ev:subscribe self self 'item:item-changed-event))
@@ -91,6 +80,21 @@ When triggered, the rule will log a message to the info log.
                       :do (cr:cancel-job cron-hash))
                 (setf (slot-value self 'cron-hashes) nil)
                 (log:info "Rule '~a' destroyed." name)))))
+
+(defun %receive-fun (msg name do-fun item-names)
+  (format t "Received msg: ~a at rule: ~a~%" msg name)
+  (log:debug "Received msg: ~a at rule: ~a" msg name)
+  (when do-fun
+    (when (typep msg 'item:item-changed-event)
+      (let* ((item (item:item-changed-event-item msg))
+             (item-name (act-cell:name item)))
+        (when (member item-name
+                      item-names
+                      :test #'equal)
+          (funcall do-fun `(:item . ,item)))))
+    (when (and (listp msg)
+               (eq (car msg) 'cron-triggered))
+      (funcall do-fun `(:cron . ,(second msg))))))
 
 (defun %add-cron-hash (rule hash)
   "Add the given `HASH' to the list of cron hashes for the given `RULE'."
