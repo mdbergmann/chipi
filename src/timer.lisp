@@ -13,7 +13,7 @@
 (in-package :cl-hab.timer)
 
 (defvar *timer* nil)
-(defvar *timer-hash* nil)
+(defvar *timer-hash* nil "hash-table for recurring timers")
 
 (defun ensure-timer ()
   "Ensure that a timer is running."
