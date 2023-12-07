@@ -1,5 +1,5 @@
 
-*** House Automation for Common Lisp
+*** Chipi - A (House) Automation for Common Lisp
 
 !!! Still in alpha state, API design changes are probably required !!!
 
