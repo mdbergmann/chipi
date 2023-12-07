@@ -7,15 +7,15 @@
 
 I use home automation in my home. Currently utilizing [[https://www.openhab.org/][openHAB]]. While openHAB has many features and supports many devices and so on, it is also a heavy beast.
 
-So my aim was to eventually replace openHAB. There are a few things still missing to do this. The current state of the cl-hab project lacks the following for me to be able to replace openHAB:
+So my aim was to eventually replace openHAB. There are a few things still missing to do this. The current state of the Chipi project lacks the following for me to be able to replace openHAB:
 
 - support for KNX bus
 - a REST interface
 - a UI to interact with the system
 
-**** What does cl-hab currently do
+**** What does Chipi currently do
 
-***** cl-hab consists of the following components:
+***** Chipi consists of the following components:
 
 - item: items are a primitive to represent the temperatur of a sensor, the state of light in your house, the state of your window being open or closed, etc.
 
@@ -29,27 +29,27 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 
 **** How does it work
 
-cl-hab is largely based on [[https://github.com/mdbergmann/cl-gserver][Sento]], a Common Lisp Actor Framework where features like thread-safety, queuing and an event-bus are very handy for cl-hab.
+Chipi is largely based on [[https://github.com/mdbergmann/cl-gserver][Sento]], a Common Lisp Actor Framework where features like thread-safety, queuing and an event-bus are very handy for Chipi.
 
 How it works is to define and combine all the mentioned primitives in a file. This file is a Common Lisp source file. The definition of the primitives (item, binding, ...) is done using a defined DSL (domain specific language) which largely consists of a few macros. But it is also possible to define your own macros, functions or variables.
 
-A full production example that defines items, bindings, persistences and rules can be seen [[https://github.com/mdbergmann/cl-etaconnector/blob/master/eta-hab.lisp][here]]. This script, very much based on Common Lisp, is a full example configuration of cl-hab. At the end of the script evaluation of all items, persistences and rules will start their work.
+A full production example that defines items, bindings, persistences and rules can be seen [[https://github.com/mdbergmann/cl-etaconnector/blob/master/eta-hab.lisp][here]]. This script, very much based on Common Lisp, is a full example configuration of Chipi. At the end of the script evaluation of all items, persistences and rules will start their work.
 
 This particular example uses Common Lisp libraries like [[https://github.com/bendudson/py4cl][py4cl]] (to talk to ina219 analog 2 digital converter for a pressure sensor in a cistern plugged to the GPIOs of a Raspberry PI 4), [[https://github.com/edicl/drakma][Drakma]] to query data of a [[https://www.shelly-support.eu/][Shelly]] power switch or [[https://github.com/snmsts/cserial-port][cserial]] to communicate with some other device to retrieve temperatur sensor data.
 
 **** But let's go slowly
 
-The top of the cl-hab standalone script should include this (=eval-when=) in order to make sure that dependencies are loaded properly. But this is not mandatory if you find another way of loading dependencies.
+The top of the Chipi standalone script should include this (=eval-when=) in order to make sure that dependencies are loaded properly. But this is not mandatory if you find another way of loading dependencies.
 
 #+begin_src lisp
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (ql:quickload :cl-hab))  ; at least this if you don't have more
+  (ql:quickload :Chipi))  ; at least this if you don't have more
 #+end_src
 
 Next thing is that you might want to define a separate package using =defpackage=, it allows to inherit symbols using =:use= or =:import-from= that you want to use in the script.
 
 ***** Defining the global environment
-The first thing cl-hab specific that should be defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
+The first thing Chipi specific that should be defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
 
 ***** Defining persistences
 Persistences are used to persist the value of an item and to retrieve it back. The influx persistence also allows to retrieve values in a certain time range.
@@ -118,7 +118,7 @@ The simplest form to define an item is:
 
 This defines a plain item that can hold a value. You could manually use =SET-VALUE= function to give it a value or =GET-VALUE= to retrieve its value. In some cases this is useful in 'rules'. See later.
 
-The three parameters define an id of the item (for easier lookup), a label and a type hint. The type hint is not necessary (can be specified as =NIL=) unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["https://github.com/mdbergmann/cl-hab/blob/main/src/persistence-influx.lisp"][influx persistence]] for which types are supported. However, even if not required it might be a good idea to define the type for clarity.
+The three parameters define an id of the item (for easier lookup), a label and a type hint. The type hint is not necessary (can be specified as =NIL=) unless you want to use influx db where under the hoods it is necessary to bring the value in the right format based on what type the value is in. Checkout [["https://github.com/mdbergmann/Chipi/blob/main/src/persistence-influx.lisp"][influx persistence]] for which types are supported. However, even if not required it might be a good idea to define the type for clarity.
 
 Usually you'd want to at least define an initial value. You can do so by:
 
@@ -203,4 +203,4 @@ Caveeat: if a persistence is changed and re-evaluated also the items where it is
 
 **** Logging
 
-The project uses log4cl. You can change the log level for '=(cl-hab)= to suite your needs of granularity. The underlying Sento actor framework will log extensively on =:debug= level so a good idea is to silence this via =(log:config '(sento) :warn)=.
+The project uses log4cl. You can change the log level for '=(Chipi)= to suite your needs of granularity. The underlying Sento actor framework will log extensively on =:debug= level so a good idea is to silence this via =(log:config '(sento) :warn)=.
