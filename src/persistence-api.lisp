@@ -1,4 +1,4 @@
-(defpackage :cl-hab.persistence
+(defpackage :chipi.persistence
   (:use :cl)
   (:nicknames :persp)
   (:import-from #:act
@@ -27,7 +27,7 @@
            #:hours
            #:days))
 
-(in-package :cl-hab.persistence)
+(in-package :chipi.persistence)
 
 (defclass persistence (actor) ()
   (:documentation "This persistence is the base class of sub-persistences.

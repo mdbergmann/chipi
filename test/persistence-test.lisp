@@ -1,14 +1,14 @@
-(defpackage :cl-hab.persistence-test
-  (:use :cl :fiveam :cl-hab.persistence :cl-hab.simple-persistence)
+(defpackage :chipi.persistence-test
+  (:use :cl :fiveam :chipi.persistence :chipi.simple-persistence)
   (:export #:run!
            #:all-tests
            #:nil
            #:assert-fetch-error))
-(in-package :cl-hab.persistence-test)
+(in-package :chipi.persistence-test)
 
 (def-suite persistence-tests
   :description "Persistence tests for simple persistence."
-  :in cl-hab.tests:test-suite)
+  :in chipi.tests:test-suite)
 
 (in-suite persistence-tests)
 
@@ -19,7 +19,7 @@
     (progn
       (envi:shutdown-env)
       (uiop:delete-directory-tree
-       (uiop:ensure-directory-pathname #P"/tmp/cl-hab")
+       (uiop:ensure-directory-pathname #P"/tmp/chipi")
        :validate t
        :if-does-not-exist :ignore))))
 
@@ -34,10 +34,10 @@
   "Make a `simple` persistence."
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :persp-map
-                                        :storage-root-path #P"/tmp/cl-hab/persistence-test")))
+                                        :storage-root-path #P"/tmp/chipi/persistence-test")))
       (print cut)
       (is-true (miscutils:await-cond 0.5
-                 (uiop:directory-exists-p #P"/tmp/cl-hab/persistence-test")))
+                 (uiop:directory-exists-p #P"/tmp/chipi/persistence-test")))
       (is-true cut)
       (is (typep cut 'simple-persistence)))))
 
@@ -45,12 +45,12 @@
   "Store a value in a `simple` persistence."
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :persp-map
-                                        :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+                                        :storage-root-path #P"/tmp/chipi/persistence-test"))
           (item (item:make-item 'foo)))
       (item:set-value item "foobar")
       (persp:store cut item)
       (is-true (miscutils:await-cond 0.5
-                 (uiop:file-exists-p #P"/tmp/cl-hab/persistence-test/FOO.store")))
+                 (uiop:file-exists-p #P"/tmp/chipi/persistence-test/FOO.store")))
       (let ((fetched (persp:fetch cut item)))
         (is-true (miscutils:await-cond 0.5
                    (let ((resolved (future:fresult fetched)))
@@ -61,7 +61,7 @@
   "Simple persistence does'nt implement retrieving history."
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :persp-map
-                                        :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+                                        :storage-root-path #P"/tmp/chipi/persistence-test"))
           (item (item:make-item 'foo)))
       (let ((fetched (persp:fetch cut item (make-relative-range :seconds 1))))
         (assert-fetch-error fetched)))))
@@ -70,7 +70,7 @@
   "Fetch a non-existent file from a `simple` persistence."
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :persp-map
-                                        :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+                                        :storage-root-path #P"/tmp/chipi/persistence-test"))
           (item (item:make-item 'foo)))
       (let ((fetched (persp:fetch cut item)))
         (assert-fetch-error fetched)))))

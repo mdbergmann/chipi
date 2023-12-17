@@ -1,10 +1,10 @@
-(defpackage :cl-hab.isys
+(defpackage :chipi.isys
   (:use :cl)
   (:nicknames :isys)
   (:export #:ensure-isys
            #:shutdown-isys))
 
-(in-package :cl-hab.isys)
+(in-package :chipi.isys)
 
 (defvar *isys* nil)
 

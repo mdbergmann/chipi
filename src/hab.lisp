@@ -1,4 +1,4 @@
-(defpackage :cl-hab.hab
+(defpackage :chipi.hab
   (:use :cl)
   (:nicknames :hab)
   (:export #:*items*
@@ -15,7 +15,7 @@
            #:shutdown)
   )
 
-(in-package :cl-hab.hab)
+(in-package :chipi.hab)
 
 (defvar *items* nil "All items")
 (defvar *rules* nil "All rules")

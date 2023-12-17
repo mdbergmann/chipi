@@ -1,13 +1,13 @@
-(defpackage :cl-hab.item-test
-  (:use :cl :fiveam :cl-mock :miscutils :cl-hab.item :cl-hab.simple-persistence)
+(defpackage :chipi.item-test
+  (:use :cl :fiveam :cl-mock :miscutils :chipi.item :chipi.simple-persistence)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-hab.item-test)
+(in-package :chipi.item-test)
 
 (def-suite item-tests
   :description "Item tests"
-  :in cl-hab.tests:test-suite)
+  :in chipi.tests:test-suite)
 
 (in-suite item-tests)
 
@@ -23,7 +23,7 @@
          (&body))
     (progn 
       (envi:shutdown-env)
-      (delete-folder #P"/tmp/cl-hab"))))
+      (delete-folder #P"/tmp/chipi"))))
 
 (test make-item
   (unwind-protect
@@ -151,7 +151,7 @@
                     :pull (lambda () 1)
                     :initial-delay 0.1))
           (persp (make-simple-persistence :foo
-                  :storage-root-path #P"/tmp/cl-hab/persistence-test")))
+                  :storage-root-path #P"/tmp/chipi/persistence-test")))
       (add-binding item binding)
       (add-persistence item persp
                        :frequency :every-1s)  ;; triggers adding a timer
@@ -167,7 +167,7 @@
   (with-fixture init-destroy-env ()
     (let* ((persp (make-simple-persistence
                    :foo
-                   :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+                   :storage-root-path #P"/tmp/chipi/persistence-test"))
            (item (make-item 'my-item)))
       (add-persistence item persp
                        :frequency :every-change)  ;; default
@@ -175,7 +175,7 @@
       (is-true (await-cond 2
                  (uiop:file-exists-p
                   (merge-pathnames #P"MY-ITEM.store"
-                                   #P"/tmp/cl-hab/persistence-test/"))))
+                                   #P"/tmp/chipi/persistence-test/"))))
       ;; make load item on startup
       (destroy item)
       (let ((item (make-item 'my-item)))
@@ -190,7 +190,7 @@
   (with-fixture init-destroy-env ()
     (let* ((persp (make-simple-persistence
                    :foo
-                   :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+                   :storage-root-path #P"/tmp/chipi/persistence-test"))
            (item (make-item 'my-item)))
       (add-persistence item persp
                        :frequency :every-1s)
@@ -207,10 +207,10 @@ that when loading the value the second (or any more) persistence does not persit
   (with-fixture init-destroy-env ()
     (let* ((persp1 (make-simple-persistence
                     :foo
-                    :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+                    :storage-root-path #P"/tmp/chipi/persistence-test"))
            (persp2 (make-simple-persistence
                     :bar
-                    :storage-root-path #P"/tmp/cl-hab/persistence-test"))
+                    :storage-root-path #P"/tmp/chipi/persistence-test"))
            (item (make-item 'my-item :initial-value 0)))
       (with-mocks ()
         (answer persp:fetch (future:with-fut

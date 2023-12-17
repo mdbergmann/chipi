@@ -1,13 +1,13 @@
-(defpackage :cl-hab.rule-test
-  (:use :cl :fiveam :cl-hab.rule)
+(defpackage :chipi.rule-test
+  (:use :cl :fiveam :chipi.rule)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-hab.rule-test)
+(in-package :chipi.rule-test)
 
 (def-suite rule-tests
   :description "Tests for rules"
-  :in cl-hab.tests:test-suite)
+  :in chipi.tests:test-suite)
 
 (in-suite rule-tests)
 

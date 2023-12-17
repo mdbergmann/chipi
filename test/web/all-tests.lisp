@@ -1,11 +1,11 @@
-(defpackage :chipi.tests
+(defpackage :chipi-web.tests
   (:use :cl :fiveam)
   (:export #:run!
            #:all-tests
            #:nil
            #:test-suite))
 
-(in-package :chipi.tests)
+(in-package :chipi-web.tests)
 
 (def-suite test-suite
   :description "All catching test suite.")

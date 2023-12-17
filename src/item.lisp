@@ -1,4 +1,4 @@
-(defpackage :cl-hab.item
+(defpackage :chipi.item
   (:use :cl)
   (:nicknames :item)
   (:import-from #:isys
@@ -28,7 +28,7 @@
            #:item-changed-event
            #:item-changed-event-item))
 
-(in-package :cl-hab.item)
+(in-package :chipi.item)
 
 (defstruct item-changed-event item)
 

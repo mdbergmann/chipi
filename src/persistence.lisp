@@ -1,4 +1,4 @@
-(in-package :cl-hab.persistence)
+(in-package :chipi.persistence)
 
 (eval-when (:compile-toplevel)
   (shadowing-import '(act:!

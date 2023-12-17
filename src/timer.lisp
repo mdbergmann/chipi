@@ -1,4 +1,4 @@
-(defpackage :cl-hab.timer
+(defpackage :chipi.timer
   (:documentation "A simple timer package
   This package provides a simple timer that can be used to schedule functions.")
   (:use :cl)
@@ -10,7 +10,7 @@
            #:cancel
            #:cancel-for-sig))
 
-(in-package :cl-hab.timer)
+(in-package :chipi.timer)
 
 (defvar *timer* nil)
 (defvar *timer-hash* nil "hash-table for recurring timers")

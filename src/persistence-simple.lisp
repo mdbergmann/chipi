@@ -1,12 +1,12 @@
-(defpackage :cl-hab.simple-persistence
-  (:use :cl :cl-hab.persistence)
+(defpackage :chipi.simple-persistence
+  (:use :cl :chipi.persistence)
   (:nicknames :simple-persistence)
   (:import-from #:persp
                 #:persistence)
   (:export #:simple-persistence
            #:make-simple-persistence))
 
-(in-package :cl-hab.simple-persistence)
+(in-package :chipi.simple-persistence)
 
 (defclass simple-persistence (persistence)
   ((storage-root-path :initform #P""

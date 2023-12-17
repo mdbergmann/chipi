@@ -1,13 +1,13 @@
-(defpackage :cl-hab.hab-test
-  (:use :cl :fiveam :cl-hab.hab :miscutils)
+(defpackage :chipi.hab-test
+  (:use :cl :fiveam :chipi.hab :miscutils)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-hab.hab-test)
+(in-package :chipi.hab-test)
 
 (def-suite hab-tests
   :description "House automation bus"
-  :in cl-hab.tests:test-suite)
+  :in chipi.tests:test-suite)
 
 (in-suite hab-tests)
 

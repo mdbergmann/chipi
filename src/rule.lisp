@@ -1,4 +1,4 @@
-(defpackage :cl-hab.rule
+(defpackage :chipi.rule
   (:use :cl)
   (:nicknames :rule)
   (:import-from #:isys
@@ -10,7 +10,7 @@
            #:make-rule
            #:destroy))
 
-(in-package :cl-hab.rule)
+(in-package :chipi.rule)
 
 (defclass rule (actor)
   ((cron-hashes :initform nil

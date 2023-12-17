@@ -1,5 +1,5 @@
-(defpackage :cl-hab.influx-persistence
-  (:use :cl :cl-hab.persistence)
+(defpackage :chipi.influx-persistence
+  (:use :cl :chipi.persistence)
   (:nicknames :influx-persistence)
   (:import-from #:persp
                 #:persistence)
@@ -7,7 +7,7 @@
            #:make-influx-persistence)
   )
 
-(in-package :cl-hab.influx-persistence)
+(in-package :chipi.influx-persistence)
 
 (defclass influx-persistence (persistence)
   ((base-url :initform nil

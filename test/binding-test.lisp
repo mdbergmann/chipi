@@ -1,13 +1,13 @@
-(defpackage :cl-hab.binding-test
-  (:use :cl :fiveam :cl-mock :miscutils :cl-hab.binding)
+(defpackage :chipi.binding-test
+  (:use :cl :fiveam :cl-mock :miscutils :chipi.binding)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-hab.binding-test)
+(in-package :chipi.binding-test)
 
 (def-suite binding-tests
   :description "Tests for bindings"
-  :in cl-hab.tests:test-suite)
+  :in chipi.tests:test-suite)
 
 (in-suite binding-tests)
 

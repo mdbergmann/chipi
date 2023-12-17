@@ -1,10 +1,10 @@
-(defpackage :cl-hab.env
+(defpackage :chipi.env
   (:use :cl)
   (:nicknames :envi)
   (:export #:ensure-env
            #:shutdown-env))
 
-(in-package :cl-hab.env)
+(in-package :chipi.env)
 
 (defun ensure-env ()
   (isys:ensure-isys)

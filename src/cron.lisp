@@ -1,4 +1,4 @@
-(defpackage :cl-hab.cron
+(defpackage :chipi.cron
   (:use :cl)
   (:nicknames :cr)
   (:export #:ensure-cron
@@ -7,7 +7,7 @@
            #:make-cron-job
            #:cancel-job))
 
-(in-package :cl-hab.cron)
+(in-package :chipi.cron)
 
 (defvar *cron* nil)
 

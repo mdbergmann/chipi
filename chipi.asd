@@ -1,4 +1,4 @@
-(defsystem "cl-hab"
+(defsystem "chipi"
   :version "0.2.1"
   :author "Manfred Bergmann"
   :license "Apache-2"
@@ -31,11 +31,11 @@
                   ((:file "base-binding")))
                  (:file "hab")
                  )))
-  :in-order-to ((test-op (test-op "cl-hab/tests"))))
+  :in-order-to ((test-op (test-op "chipi/tests"))))
 
-(defsystem "cl-hab/tests"
+(defsystem "chipi/tests"
   :author "Manfred Bergmann"
-  :depends-on ("cl-hab"
+  :depends-on ("chipi"
                "fiveam"
                "cl-mock"
                )
@@ -49,10 +49,10 @@
                  (:file "persistence-influx-test")
                  (:file "hab-test")
                  )))
-  :description "Test system for cl-hab"
+  :description "Test system for chipi"
   :perform (test-op (op c) (symbol-call :fiveam :run!
                                         (uiop:find-symbol* '#:test-suite
-                                                           '#:cl-hab.tests))))
+                                                           '#:chipi.tests))))
 
 
 #|

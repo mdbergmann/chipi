@@ -1,4 +1,4 @@
-(in-package :cl-hab.binding)
+(in-package :chipi.binding)
 
 (defclass binding ()
   ((bound-items :initform '()

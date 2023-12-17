@@ -1,4 +1,4 @@
-(defpackage :cl-hab.binding
+(defpackage :chipi.binding
   (:use :cl)
   (:nicknames :binding)
   (:export #:make-function-binding

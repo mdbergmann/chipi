@@ -1,15 +1,15 @@
-(defpackage :cl-hab.influx-persistence-test
-  (:use :cl :fiveam :cl-hab.persistence :cl-hab.influx-persistence)
-  (:import-from #:cl-hab.persistence-test
+(defpackage :chipi.influx-persistence-test
+  (:use :cl :fiveam :chipi.persistence :chipi.influx-persistence)
+  (:import-from #:chipi.persistence-test
                 #:assert-fetch-error)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :cl-hab.influx-persistence-test)
+(in-package :chipi.influx-persistence-test)
 
 (def-suite influx-persistence-tests
   :description "Persistence tests for influxdb"
-  :in cl-hab.tests:test-suite)
+  :in chipi.tests:test-suite)
 
 (in-suite influx-persistence-tests)
 
