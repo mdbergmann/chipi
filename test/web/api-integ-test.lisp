@@ -60,16 +60,18 @@
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
 
-(test auth--too-short-password
-  (with-fixture api-start-stop ()
-    (multiple-value-bind (body status headers)
-        ;; min 8 chars
-        (make-auth-request '(("username" . "foobarbaz")
-                             ("password" . "2short")))
-      (declare (ignore headers))
-      (is (= status 403))
-      (is (equal (babel:octets-to-string body)
-                 "{\"error\":\"Invalid password. Must be at least 8 characters.\"}")))))
+;; this test is not useful here because /auth endpoint just authenticates
+;; it doesn't create new users
+;; (test auth--too-short-password
+;;   (with-fixture api-start-stop ()
+;;     (multiple-value-bind (body status headers)
+;;         ;; min 8 chars
+;;         (make-auth-request '(("username" . "foobarbaz")
+;;                              ("password" . "2short")))
+;;       (declare (ignore headers))
+;;       (is (= status 403))
+;;       (is (equal (babel:octets-to-string body)
+;;                  "{\"error\":\"Invalid password. Must be at least 8 characters.\"}")))))
 
 (test auth--check-protection-headers
   (with-fixture api-start-stop ()
@@ -92,6 +94,17 @@
                  "default-src 'none'; frame-ancestors 'none'; sandbox"))
       )))
 
+(test auth--with-initial-admin-user
+  (api::generate-initial-admin-user "12345678")
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-auth-request '(("username" . "admin")
+                             ("password" . "12345678")))
+      (declare (ignore headers))
+      (is (= status 200))
+      (is (str:starts-with-p "\{\"token\":\""
+                             (babel:octets-to-string body))))))
+
 (run! 'api-integtests)
 
 ;; OK do: input validation on length
@@ -101,6 +114,7 @@
 ;; OK send request parameters as json
 ;; OK check minimum password length
 ;; use scrypt to hash password to compare against stored password
+;; use a manually generated 'admin' user with scrypted password for initial login in order to use the rest of the API
 ;; implement token auth with bearer
 ;; check expiry
 ;; logout

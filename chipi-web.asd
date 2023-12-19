@@ -6,7 +6,11 @@
                "hunchentoot"
                "easy-routes"
                "drakma"
-               "cl-ppcre")
+               "cl-ppcre"
+               "ironclad/kdf/scrypt"
+               "ironclad/mac/hmac"
+               "ironclad/digest/sha256"
+               "cl-base64")
   :components ((:module "src/web"
                 :serial t
                 :components
