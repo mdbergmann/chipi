@@ -2,12 +2,14 @@
   :version "0.0.1"
   :author "Manfred Bergmann"
   :license "Apache-2"
-  :depends-on ("chipi")
+  :depends-on ("chipi"
+               "hunchentoot"
+               "easy-routes"
+               "drakma")
   :components ((:module "src/web"
                 :serial t
                 :components
-                (;;(:file "cron")
-                  
+                ((:file "api")
                   )))
   :in-order-to ((test-op (test-op "chipi-web/tests"))))
 
@@ -20,6 +22,7 @@
   :components ((:module "test/web"
                 :components
                 ((:file "all-tests")
+                 (:file "api-integ-test")
                  )))
   :description "Test system for chipi-web, the web API for chipi."
   :perform (test-op (op c) (symbol-call :fiveam :run!
