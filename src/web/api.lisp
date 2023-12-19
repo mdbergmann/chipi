@@ -35,7 +35,11 @@
   (unless (ppcre:scan "(?i)[a-zA-Z][a-zA-Z0-9]{1,29}" username)
     (return-from %verify-auth-parameters
       (make-http-error hunchentoot:+http-forbidden+
-                       "Invalid username. Must be 2-30 characters with only alpha numeric and number characters."))))
+                       "Invalid username. Must be 2-30 characters with only alpha numeric and number characters.")))
+  (when (< (length password) 8)
+    (return-from %verify-auth-parameters
+      (make-http-error hunchentoot:+http-forbidden+
+                       "Invalid password. Must be at least 8 characters."))))
 
 (defun @json-in (next)
   (if (equal (hunchentoot:header-in* "Content-Type")
@@ -44,7 +48,7 @@
       (make-http-error hunchentoot:+http-bad-request+
                        "Content-Type must be application/json")))
 
-(defun @protections-headers (next)
+(defun @protection-headers (next)
   (setf (hunchentoot:header-out "X-XSS-Protection")
         "0"
         (hunchentoot:header-out "X-Content-Type-Options")
@@ -60,7 +64,7 @@
 (defroute authenticate
     ("/api/authenticate"
      :method :post
-     :decorators (@json @json-in @protections-headers))
+     :decorators (@json @json-in @protection-headers))
     ()
   (let* ((post-string
            (babel:octets-to-string
@@ -71,5 +75,8 @@
     (let ((verify-params-result
             (%verify-auth-parameters username password)))
       (when verify-params-result
-        (return-from authenticate verify-params-result))))
-  )
+        (return-from authenticate verify-params-result)))
+
+    ;; do something with username and password
+    
+    ))

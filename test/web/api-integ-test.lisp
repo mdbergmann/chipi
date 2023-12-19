@@ -60,11 +60,22 @@
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
 
+(test auth--too-short-password
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        ;; min 8 chars
+        (make-auth-request '(("username" . "foobarbaz")
+                             ("password" . "2short")))
+      (declare (ignore headers))
+      (is (= status 403))
+      (is (equal (babel:octets-to-string body)
+                 "{\"error\":\"Invalid password. Must be at least 8 characters.\"}")))))
+
 (test auth--check-protection-headers
   (with-fixture api-start-stop ()
     (multiple-value-bind (body status headers)
         (make-auth-request '(("username" . "foo")
-                             ("password" . "bar")))
+                             ("password" . "12345678")))
       (declare (ignore body))
       (is (= status 200))
       (is (equal (cdr (assoc :content-type headers))
@@ -79,7 +90,6 @@
                  "no-store"))
       (is (equal (cdr (assoc :content-security-policy headers))
                  "default-src 'none'; frame-ancestors 'none'; sandbox"))
-      (print headers)
       )))
 
 (run! 'api-integtests)
@@ -88,4 +98,11 @@
 ;; OK do: return json with error message
 ;; OK do: check on valid characters for username
 ;; OK do: XSS protection
-;; send request parameters as json
+;; OK send request parameters as json
+;; OK check minimum password length
+;; use scrypt to hash password to compare against stored password
+;; implement token auth with bearer
+;; check expiry
+;; logout
+;; pre-flight?
+;; CORS headers
