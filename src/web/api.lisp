@@ -47,42 +47,50 @@
       (make-http-error hunchentoot:+http-forbidden+
                        "Invalid username. Must be 2-30 characters with only alpha numeric and number characters."))))
 
-(defun %verify-user (username password)
+(defun %authenticate-user (username password)
   (if (equal username "admin")
       (let ((existing-pw (cdr *admin-user*)))
         (unless (cryp:equal-string-p existing-pw
                                      (cryp:scrypt-data
                                       (babel:string-to-octets password)
                                       *scrypt-salt*))
-          (make-http-error hunchentoot:+http-forbidden+
-                           "Invalid password")))
-      nil))
+          (make-http-error hunchentoot:+http-authorization-required+
+                           "Unable to authenticate!")))
+      (make-http-error hunchentoot:+http-not-implemented+
+                       "Other user authentication not implemented yet.")))
 
-(defroute authenticate
-    ("/api/authenticate"
-     :method :post
-     :decorators (@json-out @json-in @protection-headers))
-    ()
-  (let* ((post-string
-           (babel:octets-to-string
-            (hunchentoot:raw-post-data)))
+(defun %auth-parse-body (body)
+  (let* ((post-string (babel:octets-to-string body))
          (json (yason:parse post-string :object-as :alist))
          (username (cdr (assoc "username" json :test #'equal)))
          (password (cdr (assoc "password" json :test #'equal))))
-    (let ((verify-params-result
-            (%verify-auth-parameters username password)))
-      (when verify-params-result
-        (return-from authenticate verify-params-result)))
-
-    (let ((verify-user-result
-            (%verify-user username password)))
-      (when verify-user-result
-        (return-from authenticate verify-user-result)))
-    ;; good result
-    ;; generate token
-    (yason:with-output-to-string* ()
-      (yason:encode-alist
-       `(("token" . ,(token-store:create-token username)))))))
+    (values username password)))
+    
+(defroute authenticate
+    ("/api/authenticate"
+     :method :post
+     :decorators (@json-out
+                  @protection-headers-out
+                  @json-in)) ()
+  (multiple-value-bind (username password)
+      (%auth-parse-body (hunchentoot:raw-post-data))
+    (flet ((verify-auth-params ()
+             (let ((verify-params-result
+                     (%verify-auth-parameters username password)))
+               (when verify-params-result
+                 (return-from authenticate verify-params-result))))
+           (auth-user ()
+             (let ((auth-result
+                     (%authenticate-user username password)))
+               (when auth-result
+                 (return-from authenticate auth-result))))
+           (generate-token ()
+             (yason:with-output-to-string* ()
+               (yason:encode-alist
+                `(("token" . ,(token-store:create-token username)))))))             
+      (verify-auth-params)
+      (auth-user)
+      (generate-token))))
 
 (defun @json-out (next)
   (setf (hunchentoot:content-type*) "application/json")
@@ -95,7 +103,7 @@
       (make-http-error hunchentoot:+http-bad-request+
                        "Content-Type must be application/json")))
 
-(defun @protection-headers (next)
+(defun @protection-headers-out (next)
   (setf (hunchentoot:header-out "X-XSS-Protection")
         "0"
         (hunchentoot:header-out "X-Content-Type-Options")

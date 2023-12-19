@@ -105,6 +105,17 @@
       (is (str:starts-with-p "\{\"token\":\""
                              (babel:octets-to-string body))))))
 
+(test auth--admin-auth-fail
+  (api::generate-initial-admin-user "12345678")
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-auth-request '(("username" . "admin")
+                             ("password" . "wrong")))
+      (declare (ignore headers))
+      (is (= status 401))
+      (is (equal (babel:octets-to-string body)
+                 "{\"error\":\"Unable to authenticate!\"}")))))
+
 (run! 'api-integtests)
 
 ;; OK do: input validation on length
@@ -113,8 +124,8 @@
 ;; OK do: XSS protection
 ;; OK send request parameters as json
 ;; OK check minimum password length
-;; use scrypt to hash password to compare against stored password
-;; use a manually generated 'admin' user with scrypted password for initial login in order to use the rest of the API
+;; OK use scrypt to hash password to compare against stored password
+;; OK use a manually generated 'admin' user with scrypted password for initial login in order to use the rest of the API
 ;; implement token auth with bearer
 ;; check expiry
 ;; logout
