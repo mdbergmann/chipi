@@ -52,10 +52,31 @@
                              ("password" . "bar")))
       (is (= status 403))
       (is (equal (babel:octets-to-string body)
-                 "{\"error\":\"Username too long, max 30 characters\"}")))))
+                 "{\"error\":\"Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
+
+(test auth--check-protection-headers
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-auth-request '(("username" . "foo")
+                             ("password" . "bar")))
+      (is (= status 200))
+      (is (equal (cdr (assoc :content-type headers))
+                 "application/json"))
+      (is (equal (cdr (assoc :x-xss-protection headers))
+                 "0"))
+      (is (equal (cdr (assoc :x-content-type-options headers))
+                 "nosniff"))
+      (is (equal (cdr (assoc :x-frame-options headers))
+                 "DENY"))
+      (is (equal (cdr (assoc :cache-control headers))
+                 "no-store"))
+      (is (equal (cdr (assoc :content-security-policy headers))
+                 "default-src 'none'; frame-ancestors 'none'; sandbox"))
+      (print headers)
+      )))
 
 ;; OK do: input validation on length
 ;; OK do: return json with error message
-;; do: check on valid characters for username
-;; do: XSS protection
+;; OK do: check on valid characters for username
+;; => do: XSS protection
 (run! 'api-integtests)

@@ -5,7 +5,8 @@
   :depends-on ("chipi"
                "hunchentoot"
                "easy-routes"
-               "drakma")
+               "drakma"
+               "cl-ppcre")
   :components ((:module "src/web"
                 :serial t
                 :components

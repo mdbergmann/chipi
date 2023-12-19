@@ -32,15 +32,25 @@
     (return-from %verify-auth-parameters
       (make-http-error hunchentoot:+http-forbidden+
                        "Missing username or password")))
-  (when (> (length username) 30)
+  (unless (ppcre:scan "(?i)[a-zA-Z][a-zA-Z0-9]{1,29}" username)
     (return-from %verify-auth-parameters
       (make-http-error hunchentoot:+http-forbidden+
-                       "Username too long, max 30 characters"))))
+                       "Invalid username. Must be 2-30 characters with only alpha numeric and number characters."))))
 
 (defroute authenticate ("/api/authenticate" :method :post
                                             :decorators (@json))
     ((username :parameter-type 'string)
      (password :parameter-type 'string))
+  (setf (hunchentoot:header-out "X-XSS-Protection")
+        "0"
+        (hunchentoot:header-out "X-Content-Type-Options")
+        "nosniff"
+        (hunchentoot:header-out "X-Frame-Options")
+        "DENY"
+        (hunchentoot:header-out "Cache-Control")
+        "no-store"
+        (hunchentoot:header-out "Content-Security-Policy")
+        "default-src 'none'; frame-ancestors 'none'; sandbox")
   (let ((verify-params-result (%verify-auth-parameters username password)))
     (when verify-params-result
       (return-from authenticate verify-params-result)))
