@@ -26,12 +26,16 @@
                        :method :post
                        ;;:certificate "../cert/localhost.crt"
                        ;;:key "../cert/localhost.key"
-                       :parameters params))
+                       :content-type "application/json"
+                       :content
+                       (yason:with-output-to-string* ()
+                         (yason:encode-alist params))))
 
 (test auth--missing-username
   (with-fixture api-start-stop ()
     (multiple-value-bind (body status headers)
         (make-auth-request '(("username" . "foo")))
+      (declare (ignore headers))
       (is (= status 403))
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Missing username or password\"}")))))
@@ -40,6 +44,7 @@
   (with-fixture api-start-stop ()
     (multiple-value-bind (body status headers)
         (make-auth-request '(("password" . "bar")))
+      (declare (ignore headers))
       (is (= status 403))
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Missing username or password\"}")))))
@@ -50,6 +55,7 @@
         ;; max 30 chars
         (make-auth-request '(("username" . "1234567890123456789012345678901")
                              ("password" . "bar")))
+      (declare (ignore headers))
       (is (= status 403))
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
@@ -59,6 +65,7 @@
     (multiple-value-bind (body status headers)
         (make-auth-request '(("username" . "foo")
                              ("password" . "bar")))
+      (declare (ignore body))
       (is (= status 200))
       (is (equal (cdr (assoc :content-type headers))
                  "application/json"))
@@ -75,8 +82,10 @@
       (print headers)
       )))
 
+(run! 'api-integtests)
+
 ;; OK do: input validation on length
 ;; OK do: return json with error message
 ;; OK do: check on valid characters for username
-;; => do: XSS protection
-(run! 'api-integtests)
+;; OK do: XSS protection
+;; send request parameters as json

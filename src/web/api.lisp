@@ -37,10 +37,14 @@
       (make-http-error hunchentoot:+http-forbidden+
                        "Invalid username. Must be 2-30 characters with only alpha numeric and number characters."))))
 
-(defroute authenticate ("/api/authenticate" :method :post
-                                            :decorators (@json))
-    ((username :parameter-type 'string)
-     (password :parameter-type 'string))
+(defun @json-in (next)
+  (if (equal (hunchentoot:header-in* "Content-Type")
+             "application/json")
+      (funcall next)
+      (make-http-error hunchentoot:+http-bad-request+
+                       "Content-Type must be application/json")))
+
+(defun @protections-headers (next)
   (setf (hunchentoot:header-out "X-XSS-Protection")
         "0"
         (hunchentoot:header-out "X-Content-Type-Options")
@@ -51,7 +55,21 @@
         "no-store"
         (hunchentoot:header-out "Content-Security-Policy")
         "default-src 'none'; frame-ancestors 'none'; sandbox")
-  (let ((verify-params-result (%verify-auth-parameters username password)))
-    (when verify-params-result
-      (return-from authenticate verify-params-result)))
-  (format t "username, password: ~a, ~a~%" username password))
+  (funcall next))
+
+(defroute authenticate
+    ("/api/authenticate"
+     :method :post
+     :decorators (@json @json-in @protections-headers))
+    ()
+  (let* ((post-string
+           (babel:octets-to-string
+            (hunchentoot:raw-post-data)))
+         (json (yason:parse post-string :object-as :alist))
+         (username (cdr (assoc "username" json :test #'equal)))
+         (password (cdr (assoc "password" json :test #'equal))))
+    (let ((verify-params-result
+            (%verify-auth-parameters username password)))
+      (when verify-params-result
+        (return-from authenticate verify-params-result))))
+  )
