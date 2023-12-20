@@ -2,6 +2,7 @@
   (:use :cl)
   (:nicknames :token-store)
   (:export #:create-token
+           #:read-token
            #:token
            #:token-id
            #:user-id
@@ -32,11 +33,15 @@
     (store-token 'memory token)
     (token-id token)))
 
+(defun read-token (token-id)
+  (retrieve-token 'memory token-id))
+
 ;; ----------------------------------------
 ;; token store-backend
 ;; ----------------------------------------
 
 (defgeneric store-token (backend token))
+(defgeneric retrieve-token (backend token-id))
 
 ;; ----------------------------------------
 ;; memory backend
@@ -47,3 +52,5 @@
 (defmethod store-token ((backend (eql 'memory)) token)
   (setf (gethash (token-id token) *tokens*) token))
 
+(defmethod retrieve-token ((backend (eql 'memory)) token-id)
+  (gethash token-id *tokens*))

@@ -64,19 +64,6 @@
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
 
-;; this test is not useful here because /auth endpoint just authenticates
-;; it doesn't create new users
-;; (test auth--too-short-password
-;;   (with-fixture api-start-stop ()
-;;     (multiple-value-bind (body status headers)
-;;         ;; min 8 chars
-;;         (make-auth-request '(("username" . "foobarbaz")
-;;                              ("password" . "2short")))
-;;       (declare (ignore headers))
-;;       (is (= status 403))
-;;       (is (equal (babel:octets-to-string body)
-;;                  "{\"error\":\"Invalid password. Must be at least 8 characters.\"}")))))
-
 (test auth--check-protection-headers
   (with-fixture api-start-stop ()
     (multiple-value-bind (body status headers)
@@ -123,6 +110,81 @@
 ;; --------------------
 ;; items
 ;; --------------------
+
+(defun get-header (name headers)
+  (cdr (assoc name headers)))
+
+(defun make-get-items-request (headers)
+  (drakma:http-request "https://localhost:8443/api/items"
+                       :method :get
+                       :certificate "../../cert/localhost.crt"
+                       :key "../../cert/localhost.key"
+                       :additional-headers headers))
+
+(test items--get-all--401--no-auth-header
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-get-items-request nil)
+      (declare (ignore body))
+      (is (= status 401))
+      (is (equal (get-header :www-authenticate headers)
+                 "Bearer realm=\"chipi\", error=\"no token\", error_description=\"No Authorization header!\"")))))
+
+(test items--get-all--401--no-token
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-get-items-request '(("Authorization" . "Bearer")))
+      (declare (ignore body))
+      (is (= status 401))
+      (is (equal (get-header :www-authenticate headers)
+                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided.\"")))))
+
+(test items--get-all--401--token-not-known
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-get-items-request '(("Authorization" . "Bearer abcdef")))
+      (declare (ignore body))
+      (is (= status 401))
+      (is (equal (get-header :www-authenticate headers)
+                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known.\"")))))
+
+(defun login-admin (password)
+  (multiple-value-bind (body)
+      (make-auth-request `(("username" . "admin")
+                           ("password" . ,password)))
+    (cdr (assoc "token"
+                (yason:parse
+                 (babel:octets-to-string body)
+                 :object-as :alist)
+                :test #'equal))))
+
+(test items--get-all--401--token-expired
+  (api::generate-initial-admin-user "12345678")
+  (with-fixture api-start-stop ()
+    (let ((token (login-admin "12345678")))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token))))
+        (declare (ignore body))
+        (is (= status 401))
+        (is (equal (get-header :www-authenticate headers)
+                   "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token is expired.\""))))))
+
+;; --------------------
+;; users
+;; --------------------
+
+;; this test is not useful here because /auth endpoint just authenticates
+;; it doesn't create new users
+;; (test auth--too-short-password
+;;   (with-fixture api-start-stop ()
+;;     (multiple-value-bind (body status headers)
+;;         ;; min 8 chars
+;;         (make-auth-request '(("username" . "foobarbaz")
+;;                              ("password" . "2short")))
+;;       (declare (ignore headers))
+;;       (is (= status 403))
+;;       (is (equal (babel:octets-to-string body)
+;;                  "{\"error\":\"Invalid password. Must be at least 8 characters.\"}")))))
 
 
 (run! 'api-integtests)
