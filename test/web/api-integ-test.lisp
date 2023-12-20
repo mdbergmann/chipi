@@ -128,7 +128,7 @@
       (declare (ignore body))
       (is (= status 401))
       (is (equal (get-header :www-authenticate headers)
-                 "Bearer realm=\"chipi\", error=\"no token\", error_description=\"No Authorization header!\"")))))
+                 "Bearer realm=\"chipi\", error=\"no token\", error_description=\"No Authorization header\"")))))
 
 (test items--get-all--401--no-token
   (with-fixture api-start-stop ()
@@ -137,7 +137,7 @@
       (declare (ignore body))
       (is (= status 401))
       (is (equal (get-header :www-authenticate headers)
-                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided.\"")))))
+                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided\"")))))
 
 (test items--get-all--401--token-not-known
   (with-fixture api-start-stop ()
@@ -146,7 +146,7 @@
       (declare (ignore body))
       (is (= status 401))
       (is (equal (get-header :www-authenticate headers)
-                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known.\"")))))
+q                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known\"")))))
 
 (defun login-admin (password)
   (multiple-value-bind (body)
@@ -167,7 +167,7 @@
         (declare (ignore body))
         (is (= status 401))
         (is (equal (get-header :www-authenticate headers)
-                   "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token is expired.\""))))))
+                   "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token has expired\""))))))
 
 ;; --------------------
 ;; users
@@ -197,8 +197,10 @@
 ;; OK check minimum password length
 ;; OK use scrypt to hash password to compare against stored password
 ;; OK use a manually generated 'admin' user with scrypted password for initial login in order to use the rest of the API
-;; implement token auth with bearer
-;; check expiry
+;; OK implement token auth with bearer
+;; => check expiry
 ;; logout
+;; access-control
+;; audit log
 ;; pre-flight?
 ;; CORS headers

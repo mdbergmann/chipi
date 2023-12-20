@@ -123,18 +123,18 @@
   (let ((auth-header (hunchentoot:header-in* "Authorization")))
     (unless auth-header
       (setf (hunchentoot:header-out "WWW-Authenticate")
-            "Bearer realm=\"chipi\", error=\"no token\", error_description=\"No Authorization header!\"")
+            "Bearer realm=\"chipi\", error=\"no token\", error_description=\"No Authorization header\"")
       (return-from @check-authorization
         (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
     (let ((token (str:trim (second (str:split "Bearer " auth-header)))))
       (when (null token)
         (setf (hunchentoot:header-out "WWW-Authenticate")
-              "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided.\"")
+              "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided\"")
         (return-from @check-authorization
           (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
       (unless (token-store:read-token token)
         (setf (hunchentoot:header-out "WWW-Authenticate")
-              "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known.\"")
+              "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known\"")
         (return-from @check-authorization
           (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
         )
