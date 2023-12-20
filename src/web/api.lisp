@@ -28,7 +28,6 @@
     (let ((pw-base64 (cryp:scrypt-data
                       (babel:string-to-octets password)
                       *scrypt-salt*)))
-      (format t "pw-base64url: ~a~%" pw-base64)
       (setf *admin-user* (cons username pw-base64)))))
 
 (defun make-http-error (status-code message)
@@ -66,6 +65,30 @@
          (password (cdr (assoc "password" json :test #'equal))))
     (values username password)))
     
+(defun @json-out (next)
+  (setf (hunchentoot:content-type*) "application/json")
+  (funcall next))
+
+(defun @json-in (next)
+  (if (equal (hunchentoot:header-in* "Content-Type")
+             "application/json")
+      (funcall next)
+      (make-http-error hunchentoot:+http-bad-request+
+                       "Content-Type must be application/json")))
+
+(defun @protection-headers-out (next)
+  (setf (hunchentoot:header-out "X-XSS-Protection")
+        "0"
+        (hunchentoot:header-out "X-Content-Type-Options")
+        "nosniff"
+        (hunchentoot:header-out "X-Frame-Options")
+        "DENY"
+        (hunchentoot:header-out "Cache-Control")
+        "no-store"
+        (hunchentoot:header-out "Content-Security-Policy")
+        "default-src 'none'; frame-ancestors 'none'; sandbox")
+  (funcall next))
+
 (defroute authenticate
     ("/api/authenticate"
      :method :post
@@ -91,27 +114,3 @@
       (verify-auth-params)
       (auth-user)
       (generate-token))))
-
-(defun @json-out (next)
-  (setf (hunchentoot:content-type*) "application/json")
-  (funcall next))
-
-(defun @json-in (next)
-  (if (equal (hunchentoot:header-in* "Content-Type")
-             "application/json")
-      (funcall next)
-      (make-http-error hunchentoot:+http-bad-request+
-                       "Content-Type must be application/json")))
-
-(defun @protection-headers-out (next)
-  (setf (hunchentoot:header-out "X-XSS-Protection")
-        "0"
-        (hunchentoot:header-out "X-Content-Type-Options")
-        "nosniff"
-        (hunchentoot:header-out "X-Frame-Options")
-        "DENY"
-        (hunchentoot:header-out "Cache-Control")
-        "no-store"
-        (hunchentoot:header-out "Content-Security-Policy")
-        "default-src 'none'; frame-ancestors 'none'; sandbox")
-  (funcall next))

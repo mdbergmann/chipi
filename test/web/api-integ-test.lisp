@@ -79,7 +79,7 @@
         (make-auth-request '(("username" . "foo")
                              ("password" . "12345678")))
       (declare (ignore body))
-      (is (= status 200))
+      (is (= status 501))  ;; because other users than 'admin' are not yet supported
       (is (equal (cdr (assoc :content-type headers))
                  "application/json"))
       (is (equal (cdr (assoc :x-xss-protection headers))

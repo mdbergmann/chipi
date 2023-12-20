@@ -14,7 +14,10 @@
   :components ((:module "src/web"
                 :serial t
                 :components
-                ((:file "api")
+                ((:file "endecode")
+                 (:file "cryp")
+                 (:file "token-store")
+                 (:file "api")
                   )))
   :in-order-to ((test-op (test-op "chipi-web/tests"))))
 
@@ -27,6 +30,7 @@
   :components ((:module "test/web"
                 :components
                 ((:file "all-tests")
+                 (:file "token-store-test")
                  (:file "api-integ-test")
                  )))
   :description "Test system for chipi-web, the web API for chipi."
