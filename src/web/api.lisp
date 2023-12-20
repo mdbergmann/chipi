@@ -11,9 +11,9 @@
 
 (defun start ()
   (setf *api* (hunchentoot:start
-               (make-instance 'easy-routes-acceptor
-                              ;;:ssl-privatekey-file "../cert/localhost.key"
-                              ;;:ssl-certificate-file "../cert/localhost.crt"
+               (make-instance 'easy-routes-ssl-acceptor ;; 'easy-routes-acceptor
+                              :ssl-privatekey-file "../../cert/localhost.key"
+                              :ssl-certificate-file "../../cert/localhost.crt"
                               :port 8443
                               :address "0.0.0.0"))))
 

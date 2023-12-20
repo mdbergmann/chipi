@@ -21,11 +21,15 @@
     (progn
       (chipi-web.api:stop))))
 
+;; --------------------
+;; auth
+;; --------------------
+
 (defun make-auth-request (params)
-  (drakma:http-request "http://localhost:8443/api/authenticate"
+  (drakma:http-request "https://localhost:8443/api/authenticate"
                        :method :post
-                       ;;:certificate "../cert/localhost.crt"
-                       ;;:key "../cert/localhost.key"
+                       :certificate "../../cert/localhost.crt"
+                       :key "../../cert/localhost.key"
                        :content-type "application/json"
                        :content
                        (yason:with-output-to-string* ()
@@ -115,6 +119,11 @@
       (is (= status 401))
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Unable to authenticate!\"}")))))
+
+;; --------------------
+;; items
+;; --------------------
+
 
 (run! 'api-integtests)
 
