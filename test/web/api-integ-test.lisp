@@ -161,9 +161,11 @@ q                 "Bearer realm=\"chipi\", error=\"invalid token\", error_descri
 (test items--get-all--401--token-expired
   (api::generate-initial-admin-user "12345678")
   (with-fixture api-start-stop ()
-    (let ((token (login-admin "12345678")))
+    (setf token-store::*token-life-time-seconds* 1)
+    (let ((token-id (login-admin "12345678")))
+      (sleep 1.5)
       (multiple-value-bind (body status headers)
-          (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token))))
+          (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token-id))))
         (declare (ignore body))
         (is (= status 401))
         (is (equal (get-header :www-authenticate headers)

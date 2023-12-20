@@ -11,6 +11,9 @@
 
 (in-package :chipi-web.token-store)
 
+(defvar *token-store-backend* 'memory)
+(defvar *token-life-time-seconds* (* 60 10)) ; 10 minutes
+
 (defclass token ()
   ((token-id :initarg :token-id
              :initform (error "token-id is required")
@@ -19,7 +22,7 @@
             :initform (error "user-id is required")
             :reader user-id)
    (expiry :initarg :expiry
-           :initform (+ (get-universal-time) (* 60 10)) ; 10 minutes
+           :initform (+ (get-universal-time) *token-life-time-seconds*)
            :reader expiry)))
 
 (defun %new-random-id ()
@@ -30,11 +33,11 @@
   (let ((token (make-instance 'token
                               :token-id (%new-random-id)
                               :user-id username)))
-    (store-token 'memory token)
+    (store-token *token-store-backend* token)
     (token-id token)))
 
 (defun read-token (token-id)
-  (retrieve-token 'memory token-id))
+  (retrieve-token *token-store-backend* token-id))
 
 ;; ----------------------------------------
 ;; token store-backend
