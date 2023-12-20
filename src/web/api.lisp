@@ -126,12 +126,16 @@
             "Bearer realm=\"chipi\", error=\"no token\", error_description=\"No Authorization header\"")
       (return-from @check-authorization
         (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
+
+    ;; parse token-id
     (let ((token-id (str:trim (second (str:split "Bearer " auth-header)))))
       (when (null token-id)
         (setf (hunchentoot:header-out "WWW-Authenticate")
               "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided\"")
         (return-from @check-authorization
           (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
+
+      ;; read token
       (let ((token (token-store:read-token token-id)))
         (unless token
           (setf (hunchentoot:header-out "WWW-Authenticate")
@@ -156,4 +160,4 @@
                   @check-authorization)) ()
   (yason:with-output-to-string* ()
     (yason:encode-alist
-     `(("items" . ())))))
+     `(("items" . #())))))

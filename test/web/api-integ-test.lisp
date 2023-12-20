@@ -171,6 +171,17 @@ q                 "Bearer realm=\"chipi\", error=\"invalid token\", error_descri
         (is (equal (get-header :www-authenticate headers)
                    "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token has expired\""))))))
 
+(test items--get-all--ok
+  (api::generate-initial-admin-user "12345678")
+  (with-fixture api-start-stop ()
+    (let ((token-id (login-admin "12345678")))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token-id))))
+        (declare (ignore headers))
+        (is (= status 200))
+        (is (equal (babel:octets-to-string body)
+                   "{\"items\":[]}"))))))
+
 ;; --------------------
 ;; users
 ;; --------------------
