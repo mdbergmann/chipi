@@ -85,7 +85,7 @@ The output value will be set on the item, should an item be attached.")
       (when initial-delay
         (log:info "Scheduling initial delay: " initial-delay " on: " binding)
         (%add-timer binding
-                    (timer:schedule initial-delay timer-fun)
+                    (timer:schedule-once initial-delay timer-fun)
                     :initial-delay))
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
@@ -97,13 +97,14 @@ The output value will be set on the item, should an item be attached.")
                   (unless (slot-value binding 'destroyed)
                     (funcall timer-fun)
                     (%add-timer binding
-                                (timer:schedule delay recurring-timer-fun)
+                                (timer:schedule-once delay recurring-timer-fun)
                                 :delay))))
           (%add-timer binding
-                      (timer:schedule delay recurring-timer-fun)
+                      (timer:schedule-once delay recurring-timer-fun)
                       :delay))))))
 
 (defun %add-timer (binding timer timer-type)
+  "`TIMER' is a just a signature."
   (with-slots (timers) binding
     (log:debug "Adding timer: " timer " of type: " timer-type " to: " binding)
     (setf (gethash timer-type timers) timer)))

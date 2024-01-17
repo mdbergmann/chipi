@@ -5,7 +5,7 @@
   (:nicknames :timer)
   (:export #:ensure-timer
            #:shutdown-timer
-           #:schedule
+           #:schedule-once
            #:schedule-recurring
            #:cancel))
 
@@ -24,7 +24,7 @@
     (setf *timer* nil))
   t)
 
-(defun schedule (delay fun)
+(defun schedule-once (delay fun)
   "Schedule a function to be called after a delay in seconds
 Returns a timer signature to be used for `CANCEL'"
   (ensure-timer)
