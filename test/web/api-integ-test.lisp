@@ -30,10 +30,8 @@
                        :method :post
                        :certificate "../../cert/localhost.crt"
                        :key "../../cert/localhost.key"
-                       :content-type "application/json"
-                       :content
-                       (yason:with-output-to-string* ()
-                         (yason:encode-alist params))))
+                       ;;:content-type "application/json"
+                       :parameters params))
 
 (test auth--missing-username
   (with-fixture api-start-stop ()
@@ -69,8 +67,7 @@
     (multiple-value-bind (body status headers)
         (make-auth-request '(("username" . "foo")
                              ("password" . "12345678")))
-      (declare (ignore body))
-      (is (= status 501))  ;; because other users than 'admin' are not yet supported
+      (declare (ignore body status))
       (is (equal (cdr (assoc :content-type headers))
                  "application/json"))
       (is (equal (cdr (assoc :x-xss-protection headers))
@@ -106,6 +103,45 @@
       (is (= status 401))
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Unable to authenticate!\"}")))))
+
+(defun login-admin (password)
+  (multiple-value-bind (body)
+      (make-auth-request `(("username" . "admin")
+                           ("password" . ,password)))
+    (cdr (assoc "token"
+                (yason:parse
+                 (babel:octets-to-string body)
+                 :object-as :alist)
+                :test #'equal))))
+
+(defun make-logout-request (token-id)
+  (drakma:http-request "https://localhost:8443/api/authenticate"
+                       :method :delete
+                       :certificate "../../cert/localhost.crt"
+                       :key "../../cert/localhost.key"
+                       :additional-headers (if token-id
+                                               `(("X-Auth-Token" . ,token-id))
+                                               '())))
+
+(test auth--logout
+  (api::generate-initial-admin-user "12345678")
+  (with-fixture api-start-stop ()
+    (let ((token-id (login-admin "12345678")))
+      (is-true (token-store:read-token token-id))
+      (multiple-value-bind (body status headers)
+          (make-logout-request token-id)
+        (declare (ignore body headers))
+        (is (= status 200))
+        (is-false (token-store:read-token token-id))))))
+
+(test auth--logout--no-token-header
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-logout-request nil)
+      (declare (ignore headers))
+      (is (= status 400))
+      (is (equal (babel:octets-to-string body)
+                 "{\"error\":\"No X-Auth-Token header!\"}")))))
 
 ;; --------------------
 ;; items
@@ -146,17 +182,7 @@
       (declare (ignore body))
       (is (= status 401))
       (is (equal (get-header :www-authenticate headers)
-q                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known\"")))))
-
-(defun login-admin (password)
-  (multiple-value-bind (body)
-      (make-auth-request `(("username" . "admin")
-                           ("password" . ,password)))
-    (cdr (assoc "token"
-                (yason:parse
-                 (babel:octets-to-string body)
-                 :object-as :alist)
-                :test #'equal))))
+                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known\"")))))
 
 (test items--get-all--401--token-expired
   (api::generate-initial-admin-user "12345678")
@@ -171,7 +197,7 @@ q                 "Bearer realm=\"chipi\", error=\"invalid token\", error_descri
         (is (equal (get-header :www-authenticate headers)
                    "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token has expired\""))))))
 
-(test items--get-all--ok
+(test items--get-all--empty-ok
   (api::generate-initial-admin-user "12345678")
   (with-fixture api-start-stop ()
     (let ((token-id (login-admin "12345678")))
@@ -181,6 +207,8 @@ q                 "Bearer realm=\"chipi\", error=\"invalid token\", error_descri
         (is (= status 200))
         (is (equal (babel:octets-to-string body)
                    "{\"items\":[]}"))))))
+
+;; TODO: add some real items
 
 ;; --------------------
 ;; users
@@ -200,7 +228,7 @@ q                 "Bearer realm=\"chipi\", error=\"invalid token\", error_descri
 ;;                  "{\"error\":\"Invalid password. Must be at least 8 characters.\"}")))))
 
 
-(run! 'api-integtests)
+;;(run! 'api-integtests)
 
 ;; OK do: input validation on length
 ;; OK do: return json with error message

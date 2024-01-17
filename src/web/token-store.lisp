@@ -3,6 +3,7 @@
   (:nicknames :token-store)
   (:export #:create-token
            #:read-token
+           #:revoke-token
            #:token
            #:token-id
            #:user-id
@@ -39,12 +40,16 @@
 (defun read-token (token-id)
   (retrieve-token *token-store-backend* token-id))
 
+(defun revoke-token (token-id)
+  (delete-token *token-store-backend* token-id))
+  
 ;; ----------------------------------------
 ;; token store-backend
 ;; ----------------------------------------
 
 (defgeneric store-token (backend token))
 (defgeneric retrieve-token (backend token-id))
+(defgeneric delete-token (backend token-id))
 
 ;; ----------------------------------------
 ;; memory backend
@@ -57,3 +62,6 @@
 
 (defmethod retrieve-token ((backend (eql 'memory)) token-id)
   (gethash token-id *tokens*))
+
+(defmethod delete-token ((backend (eql 'memory)) token-id)
+  (remhash token-id *tokens*))

@@ -58,23 +58,9 @@
       (make-http-error hunchentoot:+http-not-implemented+
                        "Other user authentication not implemented yet.")))
 
-(defun %auth-parse-body (body)
-  (let* ((post-string (babel:octets-to-string body))
-         (json (yason:parse post-string :object-as :alist))
-         (username (cdr (assoc "username" json :test #'equal)))
-         (password (cdr (assoc "password" json :test #'equal))))
-    (values username password)))
-    
 (defun @json-out (next)
   (setf (hunchentoot:content-type*) "application/json")
   (funcall next))
-
-(defun @json-in (next)
-  (if (equal (hunchentoot:header-in* "Content-Type")
-             "application/json")
-      (funcall next)
-      (make-http-error hunchentoot:+http-bad-request+
-                       "Content-Type must be application/json")))
 
 (defun @protection-headers-out (next)
   (setf (hunchentoot:header-out "X-XSS-Protection")
@@ -89,31 +75,46 @@
         "default-src 'none'; frame-ancestors 'none'; sandbox")
   (funcall next))
 
-(defroute authenticate
+(defun authenticate-post (username password)
+  (flet ((verify-auth-params ()
+           (let ((verify-params-result
+                   (%verify-auth-parameters username password)))
+             (when verify-params-result
+               (return-from authenticate-post verify-params-result))))
+         (auth-user ()
+           (let ((auth-result
+                   (%authenticate-user username password)))
+             (when auth-result
+               (return-from authenticate-post auth-result))))
+         (generate-token ()
+           (yason:with-output-to-string* ()
+             (yason:encode-alist
+              `(("token" . ,(token-store:create-token username)))))))             
+    (verify-auth-params)
+    (auth-user)
+    (generate-token)))
+
+(defroute session-create
     ("/api/authenticate"
      :method :post
      :decorators (@json-out
-                  @protection-headers-out
-                  @json-in)) ()
-  (multiple-value-bind (username password)
-      (%auth-parse-body (hunchentoot:raw-post-data))
-    (flet ((verify-auth-params ()
-             (let ((verify-params-result
-                     (%verify-auth-parameters username password)))
-               (when verify-params-result
-                 (return-from authenticate verify-params-result))))
-           (auth-user ()
-             (let ((auth-result
-                     (%authenticate-user username password)))
-               (when auth-result
-                 (return-from authenticate auth-result))))
-           (generate-token ()
-             (yason:with-output-to-string* ()
-               (yason:encode-alist
-                `(("token" . ,(token-store:create-token username)))))))             
-      (verify-auth-params)
-      (auth-user)
-      (generate-token))))
+                  @protection-headers-out))
+    (&post (username :parameter-type 'string)
+           (password :parameter-type 'string))
+  (authenticate-post username password))
+
+(defroute session-close
+    ("/api/authenticate"
+     :method :delete
+     :decorators (@json-out
+                  @protection-headers-out)) ()
+  (let ((token-id (hunchentoot:header-in* "X-Auth-Token")))
+    (unless token-id
+      (return-from session-close
+        (make-http-error hunchentoot:+http-bad-request+
+                         "No X-Auth-Token header!")))
+    (token-store:revoke-token token-id)
+    "{}"))
 
 ;; -----------------------------------
 ;; items

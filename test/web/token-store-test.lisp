@@ -37,4 +37,3 @@
       (is (integerp (expiry token)))
       )))
 
-(run! 'token-store-tests)
