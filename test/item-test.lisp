@@ -157,10 +157,10 @@
                        :frequency :every-1s)  ;; triggers adding a timer
       (with-mocks ()
         (answer (binding:destroy _) t)
-        (answer (timer:cancel-for-sig _) t)
+        (answer (timer:cancel _) t)
         (destroy item)
         (is (= 1 (length (invocations 'binding:destroy))))
-        (is (= 1 (length (invocations 'timer:cancel-for-sig))))))))
+        (is (= 1 (length (invocations 'timer:cancel))))))))
 
 (test item--with-simple-persistence
   "Tests that item persists its value."

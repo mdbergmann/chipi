@@ -128,7 +128,7 @@ This is in particular important for persistences that are type specific, like in
                                 (binding:destroy binding)))
                              (dolist (persp persistences)
                                (ignore-errors
-                                (timer:cancel-for-sig
+                                (timer:cancel
                                  (item-persistence-timer-sig persp)))))
                            (log:info "Item '~a' destroyed!" id)))))
     (setf (slot-value item 'label) label
