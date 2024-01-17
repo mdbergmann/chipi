@@ -28,9 +28,7 @@ The output value will be set on the item, should an item be attached.")
           :initform nil
           :documentation "Recurring delay in seconds. Calls `PULL-FUN' repeatedly. `NIL' means disabled.")
    (timers :initform (make-hash-table :test #'eq)
-           :documentation "The timers that are scheduled for this binding.")
-   (destroyed :initform nil
-              :documentation "Whether the binding has been destroyed.")))
+           :documentation "The timers that are scheduled for this binding.")))
 
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
@@ -89,19 +87,10 @@ The output value will be set on the item, should an item be attached.")
                     :initial-delay))
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
-        ;; TODO: replace this with `timer:schedule-recurring'
-        (log:info "Scheduling delay: " delay " on: " binding)
-        (let (recurring-timer-fun)
-          (setf recurring-timer-fun
-                (lambda ()
-                  (unless (slot-value binding 'destroyed)
-                    (funcall timer-fun)
-                    (%add-timer binding
-                                (timer:schedule-once delay recurring-timer-fun)
-                                :delay))))
-          (%add-timer binding
-                      (timer:schedule-once delay recurring-timer-fun)
-                      :delay))))))
+        (log:info "Scheduling recurring delay: " delay " on: " binding)
+        (%add-timer binding
+                    (timer:schedule-once delay timer-fun)
+                    :delay)))))
 
 (defun %add-timer (binding timer timer-type)
   "`TIMER' is a just a signature."
@@ -111,8 +100,7 @@ The output value will be set on the item, should an item be attached.")
 
 (defun destroy (binding)
   (log:info "Destroying binding: " binding)
-  (with-slots (destroyed timers) binding
-    (setf destroyed t)  ;; prevent further scheduling
+  (with-slots (timers) binding
     (maphash (lambda (key timer)
                (declare (ignore key))
                (log:debug "Cancelling timer: " timer " on: " binding)
