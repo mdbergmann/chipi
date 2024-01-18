@@ -45,5 +45,3 @@
       (is (typep auth-result 'string))
       (is (equal "token-id" auth-result)))
     (is (= 1 (length (invocations 'token-store:create-token))))))
-
-(run! 'auth-controller-tests)

@@ -84,19 +84,27 @@
                  "default-src 'none'; frame-ancestors 'none'; sandbox"))
       )))
 
-(test auth--with-initial-admin-user
-  (api::generate-initial-admin-user "12345678")
+(test auth--with-initial-existing-admin-user
   (with-fixture api-start-stop ()
     (multiple-value-bind (body status headers)
         (make-auth-request '(("username" . "admin")
-                             ("password" . "12345678")))
+                             ("password" . "admin")))
       (declare (ignore headers))
       (is (= status 200))
       (is (str:starts-with-p "\{\"token\":\""
                              (babel:octets-to-string body))))))
 
+(test auth--user-does-not-exist
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-auth-request '(("username" . "unknown")
+                             ("password" . "wrong")))
+      (declare (ignore headers))
+      (is (= status 401))
+      (is (equal (babel:octets-to-string body)
+                 "{\"error\":\"User not found.\"}")))))
+
 (test auth--admin-auth-fail
-  (api::generate-initial-admin-user "12345678")
   (with-fixture api-start-stop ()
     (multiple-value-bind (body status headers)
         (make-auth-request '(("username" . "admin")
@@ -104,12 +112,12 @@
       (declare (ignore headers))
       (is (= status 401))
       (is (equal (babel:octets-to-string body)
-                 "{\"error\":\"Unable to authenticate!\"}")))))
+                 "{\"error\":\"Unable to authenticate.\"}")))))
 
-(defun login-admin (password)
+(defun login-admin ()
   (multiple-value-bind (body)
       (make-auth-request `(("username" . "admin")
-                           ("password" . ,password)))
+                           ("password" . "admin")))
     (cdr (assoc "token"
                 (yason:parse
                  (babel:octets-to-string body)
@@ -126,9 +134,8 @@
                                                '())))
 
 (test auth--logout
-  (api::generate-initial-admin-user "12345678")
   (with-fixture api-start-stop ()
-    (let ((token-id (login-admin "12345678")))
+    (let ((token-id (login-admin)))
       (is-true (token-store:read-token token-id))
       (multiple-value-bind (body status headers)
           (make-logout-request token-id)
@@ -187,10 +194,9 @@
                  "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known\"")))))
 
 (test items--get-all--401--token-expired
-  (api::generate-initial-admin-user "12345678")
   (with-fixture api-start-stop ()
     (setf token-store::*token-life-time-seconds* 1)
-    (let ((token-id (login-admin "12345678")))
+    (let ((token-id (login-admin)))
       (sleep 2.5)
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token-id))))
@@ -200,9 +206,8 @@
                    "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token has expired\""))))))
 
 (test items--get-all--empty-ok
-  (api::generate-initial-admin-user "12345678")
   (with-fixture api-start-stop ()
-    (let ((token-id (login-admin "12345678")))
+    (let ((token-id (login-admin)))
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token-id))))
         (declare (ignore headers))
@@ -242,9 +247,18 @@
 ;; OK use a manually generated 'admin' user with scrypted password for initial login in order to use the rest of the API
 ;; OK implement token auth with bearer
 ;; OK logout
-;; => check expiry - provide expired-p function to token-store and revoke token if expired
-;; implement retrieving refresh-token with longer expiry
-;; access-control
-;; audit log
-;; pre-flight?
-;; CORS headers
+;; OK check expiry - provide expired-p function to token-store and revoke token if expired
+
+#|
+
+TODOS:
+
+- implement additional 'controller' layer for auth, items, etc.
+- implement retrieving refresh-token with longer expiry
+- access-control
+- audit log
+- pre-flight?
+- CORS headers
+
+|#
+

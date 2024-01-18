@@ -21,42 +21,13 @@
   (when *api*
     (hunchentoot:stop *api*)))
 
-(defvar *scrypt-salt* (babel:string-to-octets "my-awefully-secure-salt"))
-(defvar *admin-user* nil "this should be elsewhere, i.e. database")
-(defun generate-initial-admin-user (password)
-  (let ((username "admin"))
-    (let ((pw-base64 (cryp:scrypt-data
-                      (babel:string-to-octets password)
-                      *scrypt-salt*)))
-      (setf *admin-user* (cons username pw-base64)))))
+(defun %alist-to-json (alist)
+  (yason:with-output-to-string* ()
+    (yason:encode-alist alist)))
 
 (defun make-http-error (status-code message)
   (http-error status-code
-              (yason:with-output-to-string* ()
-                (yason:encode-alist `(("error" . ,message))))))
-
-(defun %verify-auth-parameters (username password)
-  (when (or (null username)
-            (null password))
-    (return-from %verify-auth-parameters
-      (make-http-error hunchentoot:+http-forbidden+
-                       "Missing username or password")))
-  (unless (ppcre:scan "(?i)[a-zA-Z][a-zA-Z0-9]{1,29}" username)
-    (return-from %verify-auth-parameters
-      (make-http-error hunchentoot:+http-forbidden+
-                       "Invalid username. Must be 2-30 characters with only alpha numeric and number characters."))))
-
-(defun %authenticate-user (username password)
-  (if (equal username "admin")
-      (let ((existing-pw (cdr *admin-user*)))
-        (unless (cryp:equal-string-p existing-pw
-                                     (cryp:scrypt-data
-                                      (babel:string-to-octets password)
-                                      *scrypt-salt*))
-          (make-http-error hunchentoot:+http-authorization-required+
-                           "Unable to authenticate!")))
-      (make-http-error hunchentoot:+http-not-implemented+
-                       "Other user authentication not implemented yet.")))
+              (%alist-to-json `(("error" . ,message)))))
 
 (defun @json-out (next)
   (setf (hunchentoot:content-type*) "application/json")
@@ -75,24 +46,36 @@
         "default-src 'none'; frame-ancestors 'none'; sandbox")
   (funcall next))
 
-(defun authenticate (username password)
+;; TODO: verify in auth-controller
+(defun %verify-auth-parameters (username password)
+  (when (or (null username)
+            (null password))
+    (return-from %verify-auth-parameters
+      (make-http-error hunchentoot:+http-forbidden+
+                       "Missing username or password")))
+  (unless (ppcre:scan "(?i)[a-zA-Z][a-zA-Z0-9]{1,29}" username)
+    (return-from %verify-auth-parameters
+      (make-http-error hunchentoot:+http-forbidden+
+                       "Invalid username. Must be 2-30 characters with only alpha numeric and number characters."))))
+
+(defun authorize-user (username password)
   (flet ((verify-auth-params ()
            (let ((verify-params-result
                    (%verify-auth-parameters username password)))
              (when verify-params-result
-               (return-from authenticate verify-params-result))))
-         (auth-user ()
-           (let ((auth-result
-                   (%authenticate-user username password)))
-             (when auth-result
-               (return-from authenticate auth-result))))
-         (generate-token ()
-           (yason:with-output-to-string* ()
-             (yason:encode-alist
-              `(("token" . ,(token-store:create-token username)))))))             
+               (return-from authorize-user verify-params-result)))))
     (verify-auth-params)
-    (auth-user)
-    (generate-token)))
+    (handler-case
+        (let ((token-id (authc:authorize-user username password)))
+          (%alist-to-json `(("token" . ,token-id))))
+      (authc:user-not-found ()
+        (make-http-error hunchentoot:+http-forbidden+
+                         "User not found."))
+      (authc:unable-to-authenticate ()
+        (make-http-error hunchentoot:+http-forbidden+
+                         "Unable to authenticate."))
+      ;; TODO: other errors
+      )))
 
 (defroute session-create
     ("/api/session"
@@ -101,7 +84,7 @@
                   @protection-headers-out))
     (&post (username :parameter-type 'string)
            (password :parameter-type 'string))
-  (authenticate username password))
+  (authorize-user username password))
 
 (defroute session-close
     ("/api/session"
