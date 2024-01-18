@@ -17,6 +17,8 @@
                 ((:file "endecode")
                  (:file "cryp")
                  (:file "token-store")
+                 (:file "user-store")
+                 (:file "auth-controller")
                  (:file "api")
                   )))
   :in-order-to ((test-op (test-op "chipi-web/tests"))))
@@ -31,6 +33,7 @@
                 :components
                 ((:file "all-tests")
                  (:file "token-store-test")
+                 (:file "auth-controller-test")
                  (:file "api-integ-test")
                  )))
   :description "Test system for chipi-web, the web API for chipi."
