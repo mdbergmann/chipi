@@ -16,6 +16,8 @@
 (def-fixture api-start-stop ()
   (unwind-protect
        (progn
+         (setf token-store::*token-life-time-seconds*
+               token-store::*default-token-life-time-seconds*)
          (chipi-web.api:start)
          (&body))
     (progn
@@ -26,7 +28,7 @@
 ;; --------------------
 
 (defun make-auth-request (params)
-  (drakma:http-request "https://localhost:8443/api/authenticate"
+  (drakma:http-request "https://localhost:8443/api/session"
                        :method :post
                        :certificate "../../cert/localhost.crt"
                        :key "../../cert/localhost.key"
@@ -115,7 +117,7 @@
                 :test #'equal))))
 
 (defun make-logout-request (token-id)
-  (drakma:http-request "https://localhost:8443/api/authenticate"
+  (drakma:http-request "https://localhost:8443/api/session"
                        :method :delete
                        :certificate "../../cert/localhost.crt"
                        :key "../../cert/localhost.key"
@@ -189,7 +191,7 @@
   (with-fixture api-start-stop ()
     (setf token-store::*token-life-time-seconds* 1)
     (let ((token-id (login-admin "12345678")))
-      (sleep 1.5)
+      (sleep 2.5)
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token-id))))
         (declare (ignore body))
@@ -239,8 +241,9 @@
 ;; OK use scrypt to hash password to compare against stored password
 ;; OK use a manually generated 'admin' user with scrypted password for initial login in order to use the rest of the API
 ;; OK implement token auth with bearer
-;; => check expiry
-;; logout
+;; OK logout
+;; => check expiry - provide expired-p function to token-store and revoke token if expired
+;; implement retrieving refresh-token with longer expiry
 ;; access-control
 ;; audit log
 ;; pre-flight?

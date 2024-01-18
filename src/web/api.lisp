@@ -75,17 +75,17 @@
         "default-src 'none'; frame-ancestors 'none'; sandbox")
   (funcall next))
 
-(defun authenticate-post (username password)
+(defun authenticate (username password)
   (flet ((verify-auth-params ()
            (let ((verify-params-result
                    (%verify-auth-parameters username password)))
              (when verify-params-result
-               (return-from authenticate-post verify-params-result))))
+               (return-from authenticate verify-params-result))))
          (auth-user ()
            (let ((auth-result
                    (%authenticate-user username password)))
              (when auth-result
-               (return-from authenticate-post auth-result))))
+               (return-from authenticate auth-result))))
          (generate-token ()
            (yason:with-output-to-string* ()
              (yason:encode-alist
@@ -95,16 +95,16 @@
     (generate-token)))
 
 (defroute session-create
-    ("/api/authenticate"
+    ("/api/session"
      :method :post
      :decorators (@json-out
                   @protection-headers-out))
     (&post (username :parameter-type 'string)
            (password :parameter-type 'string))
-  (authenticate-post username password))
+  (authenticate username password))
 
 (defroute session-close
-    ("/api/authenticate"
+    ("/api/session"
      :method :delete
      :decorators (@json-out
                   @protection-headers-out)) ()
@@ -145,7 +145,8 @@
             (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
 
         ;; check expiry
-        (when (> (get-universal-time) (token-store:expiry token))
+        ;; TODO: delete if expired
+        (when (token-store:expired-p token)
           (setf (hunchentoot:header-out "WWW-Authenticate")
                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token has expired\"")
           (return-from @check-authorization
@@ -153,7 +154,7 @@
         )))
   (funcall next))
 
-(defroute items
+(defroute items-get
     ("/api/items"
      :method :get
      :decorators (@json-out

@@ -4,6 +4,7 @@
   (:export #:create-token
            #:read-token
            #:revoke-token
+           #:expired-p
            #:token
            #:token-id
            #:user-id
@@ -43,7 +44,11 @@
 
 (defun revoke-token (token-id)
   (delete-token *token-store-backend* token-id))
-  
+
+(defun expired-p (token-id)
+  (when (< (expiry (retrieve-token token-id)) (get-universal-time))
+    (revoke-token token-id)))
+
 ;; ----------------------------------------
 ;; token store-backend
 ;; ----------------------------------------
