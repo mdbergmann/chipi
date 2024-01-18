@@ -13,7 +13,8 @@
 (in-package :chipi-web.token-store)
 
 (defvar *token-store-backend* 'memory)
-(defvar *token-life-time-seconds* (* 60 10)) ; 10 minutes
+(defvar *default-token-life-time-seconds* (* 60 10)) ; 10 minutes
+(defvar *token-life-time-seconds* *default-token-life-time-seconds*)
 
 (defclass token ()
   ((token-id :initarg :token-id
