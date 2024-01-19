@@ -7,23 +7,23 @@
 
 (in-package :chipi-web.user-store)
 
+;; TODO: inject this via environment variable
 (defvar *scrypt-salt* (babel:string-to-octets "my-awefully-secure-salt"))
-(defvar *user*
-  (let ((store (make-hash-table :test #'equal)))
-    (setf (gethash "admin" store)
-          (make-user "admin" "admin"))
-    store))
 
 (defclass user ()
   ((username :initarg :username :accessor username)
    (password :initarg :password :accessor password)))
 
 (defun make-user (username password)
-  (let ((hashed-pw (cryp:scrypt-data
-                    (babel:string-to-octets password)
-                    *scrypt-salt*)))
+  (let ((hashed-pw (cryp:hashed-password password *scrypt-salt*)))
     (make-instance 'user :username username
                          :password hashed-pw)))
+
+(defvar *user*
+  (let ((store (make-hash-table :test #'equal)))
+    (setf (gethash "admin" store)
+          (make-user "admin" "admin"))
+    store))
 
 (defun find-user-by-username (username)
   "Not implemented")

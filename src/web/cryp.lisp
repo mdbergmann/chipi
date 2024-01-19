@@ -3,7 +3,8 @@
   (:nicknames :cryp)
   (:export #:scrypt-data
            #:equal-p
-           #:equal-string-p)
+           #:equal-string-p
+           #:hashed-password)
   )
 
 (in-package :chipi-web.cryp)
@@ -36,3 +37,9 @@ N = 4096, r = 8, and p = 2 are used as parameters for scrypt."
   (check-type b string)
   (equal-p (babel:string-to-octets a)
            (babel:string-to-octets b)))
+
+(defun hashed-password (password salt)
+  "Generate a scrypt hash from `PASSWORD' and `SALT'"
+  (scrypt-data
+   (babel:string-to-octets password)
+   salt))

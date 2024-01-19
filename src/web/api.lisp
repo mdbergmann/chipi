@@ -21,13 +21,36 @@
   (when *api*
     (hunchentoot:stop *api*)))
 
+;; -----------------------------------
+;; helpers
+;; -----------------------------------
+
 (defun %alist-to-json (alist)
   (yason:with-output-to-string* ()
     (yason:encode-alist alist)))
 
-(defun make-http-error (status-code message)
+(defun %make-http-error (status-code message)
   (http-error status-code
               (%alist-to-json `(("error" . ,message)))))
+
+(defun %make-json-response (alist)
+  (%alist-to-json alist))
+
+(defun %make-token-response (token)
+  (%make-json-response `(("token" . ,token))))
+
+;; -----------------------------------
+;; conditions
+;; -----------------------------------
+
+(define-condition parameter-validation-error (error)
+  ((args :initarg :args :reader args))
+  (:report (lambda (condition stream)
+             (format stream "~a" (args condition)))))
+
+;; -----------------------------------
+;; decorators
+;; -----------------------------------
 
 (defun @json-out (next)
   (setf (hunchentoot:content-type*) "application/json")
@@ -46,36 +69,16 @@
         "default-src 'none'; frame-ancestors 'none'; sandbox")
   (funcall next))
 
-;; TODO: verify in auth-controller
 (defun %verify-auth-parameters (username password)
   (when (or (null username)
             (null password))
-    (return-from %verify-auth-parameters
-      (make-http-error hunchentoot:+http-forbidden+
-                       "Missing username or password")))
-  (unless (ppcre:scan "(?i)[a-zA-Z][a-zA-Z0-9]{1,29}" username)
-    (return-from %verify-auth-parameters
-      (make-http-error hunchentoot:+http-forbidden+
-                       "Invalid username. Must be 2-30 characters with only alpha numeric and number characters."))))
+    (error 'parameter-validation-error
+           :args "Missing username or password"))
 
-(defun authorize-user (username password)
-  (flet ((verify-auth-params ()
-           (let ((verify-params-result
-                   (%verify-auth-parameters username password)))
-             (when verify-params-result
-               (return-from authorize-user verify-params-result)))))
-    (verify-auth-params)
-    (handler-case
-        (let ((token-id (authc:authorize-user username password)))
-          (%alist-to-json `(("token" . ,token-id))))
-      (authc:user-not-found ()
-        (make-http-error hunchentoot:+http-forbidden+
-                         "User not found."))
-      (authc:unable-to-authenticate ()
-        (make-http-error hunchentoot:+http-forbidden+
-                         "Unable to authenticate."))
-      ;; TODO: other errors
-      )))
+  (unless (ppcre:scan "(?i)[a-zA-Z][a-zA-Z0-9]{1,29}" username)
+    (error 'parameter-validation-error
+           :args
+           "Invalid username. Must be 2-30 characters with only alpha numeric and number characters.")))
 
 (defroute session-create
     ("/api/session"
@@ -84,7 +87,23 @@
                   @protection-headers-out))
     (&post (username :parameter-type 'string)
            (password :parameter-type 'string))
-  (authorize-user username password))
+  (handler-case
+      (progn
+        (%verify-auth-parameters username password)
+        (%make-token-response (authc:authorize-user username password)))
+    (parameter-validation-error (c)
+      (log:warn "Parameter validation error: ~a" c)
+      (%make-http-error hunchentoot:+http-forbidden+
+                        (format nil "~a" c)))
+    (authc:user-not-found (c)
+      (log:warn "User not found: ~a" c)
+      (%make-http-error hunchentoot:+http-forbidden+
+                        "User not found."))
+    (authc:unable-to-authenticate (c)
+      (log:warn "Unable to authenticate: ~a" c)
+      (%make-http-error hunchentoot:+http-forbidden+
+                        "Unable to authenticate."))
+    ))
 
 (defroute session-close
     ("/api/session"
@@ -94,7 +113,7 @@
   (let ((token-id (hunchentoot:header-in* "X-Auth-Token")))
     (unless token-id
       (return-from session-close
-        (make-http-error hunchentoot:+http-bad-request+
+        (%make-http-error hunchentoot:+http-bad-request+
                          "No X-Auth-Token header!")))
     (token-store:revoke-token token-id)
     "{}"))
@@ -109,7 +128,7 @@
       (setf (hunchentoot:header-out "WWW-Authenticate")
             "Bearer realm=\"chipi\", error=\"no token\", error_description=\"No Authorization header\"")
       (return-from @check-authorization
-        (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
+        (%make-http-error hunchentoot:+http-authorization-required+ "No token!")))
 
     ;; parse token-id
     (let ((token-id (str:trim (second (str:split "Bearer " auth-header)))))
@@ -117,7 +136,7 @@
         (setf (hunchentoot:header-out "WWW-Authenticate")
               "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided\"")
         (return-from @check-authorization
-          (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
+          (%make-http-error hunchentoot:+http-authorization-required+ "No token!")))
 
       ;; read token
       (let ((token (token-store:read-token token-id)))
@@ -125,7 +144,7 @@
           (setf (hunchentoot:header-out "WWW-Authenticate")
                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known\"")
           (return-from @check-authorization
-            (make-http-error hunchentoot:+http-authorization-required+ "No token!")))
+            (%make-http-error hunchentoot:+http-authorization-required+ "No token!")))
 
         ;; check expiry
         ;; TODO: delete if expired
@@ -133,7 +152,7 @@
           (setf (hunchentoot:header-out "WWW-Authenticate")
                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token has expired\"")
           (return-from @check-authorization
-            (make-http-error hunchentoot:+http-authorization-required+ "Expired")))          
+            (%make-http-error hunchentoot:+http-authorization-required+ "Expired")))          
         )))
   (funcall next))
 

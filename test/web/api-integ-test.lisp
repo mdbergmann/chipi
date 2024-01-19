@@ -28,12 +28,39 @@
 ;; --------------------
 
 (defun make-auth-request (params)
+  ;; (dex:post "https://localhost:8443/api/session"
+  ;;           :content params
+  ;;           :ssl-key-file "../../cert/localhost.key"
+  ;;           :ssl-cert-file "../../cert/localhost.crt"
+  ;;           :verbose t
+  ;;           :insecure t))
   (drakma:http-request "https://localhost:8443/api/session"
                        :method :post
                        :certificate "../../cert/localhost.crt"
                        :key "../../cert/localhost.key"
                        ;;:content-type "application/json"
-                       :parameters params))
+                       :parameters params
+                       :verify nil))
+
+(test auth--check-protection-headers
+  (with-fixture api-start-stop ()
+    (multiple-value-bind (body status headers)
+        (make-auth-request '(("username" . "foo")
+                             ("password" . "12345678")))
+      (declare (ignore body status))
+      (is (equal (cdr (assoc :content-type headers))
+                 "application/json"))
+      (is (equal (cdr (assoc :x-xss-protection headers))
+                 "0"))
+      (is (equal (cdr (assoc :x-content-type-options headers))
+                 "nosniff"))
+      (is (equal (cdr (assoc :x-frame-options headers))
+                 "DENY"))
+      (is (equal (cdr (assoc :cache-control headers))
+                 "no-store"))
+      (is (equal (cdr (assoc :content-security-policy headers))
+                 "default-src 'none'; frame-ancestors 'none'; sandbox"))
+      )))
 
 (test auth--missing-username
   (with-fixture api-start-stop ()
@@ -63,26 +90,6 @@
       (is (= status 403))
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
-
-(test auth--check-protection-headers
-  (with-fixture api-start-stop ()
-    (multiple-value-bind (body status headers)
-        (make-auth-request '(("username" . "foo")
-                             ("password" . "12345678")))
-      (declare (ignore body status))
-      (is (equal (cdr (assoc :content-type headers))
-                 "application/json"))
-      (is (equal (cdr (assoc :x-xss-protection headers))
-                 "0"))
-      (is (equal (cdr (assoc :x-content-type-options headers))
-                 "nosniff"))
-      (is (equal (cdr (assoc :x-frame-options headers))
-                 "DENY"))
-      (is (equal (cdr (assoc :cache-control headers))
-                 "no-store"))
-      (is (equal (cdr (assoc :content-security-policy headers))
-                 "default-src 'none'; frame-ancestors 'none'; sandbox"))
-      )))
 
 (test auth--with-initial-existing-admin-user
   (with-fixture api-start-stop ()
