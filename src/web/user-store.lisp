@@ -8,14 +8,14 @@
 (in-package :chipi-web.user-store)
 
 ;; TODO: inject this via environment variable
-(defvar *scrypt-salt* (babel:string-to-octets "my-awefully-secure-salt"))
+(defvar *scrypt-salt* "my-awefully-secure-salt")
 
 (defclass user ()
   ((username :initarg :username :accessor username)
    (password :initarg :password :accessor password)))
 
 (defun make-user (username password)
-  (let ((hashed-pw (cryp:hashed-password password *scrypt-salt*)))
+  (let ((hashed-pw (cryp:create-hash password *scrypt-salt*)))
     (make-instance 'user :username username
                          :password hashed-pw)))
 
