@@ -39,15 +39,23 @@
     (token-id token)))
 
 (defun read-token (token-id)
+  (check-type token-id string)
   (retrieve-token *token-store-backend* token-id))
 
 (defun revoke-token (token-id)
+  (check-type token-id string)
   (delete-token *token-store-backend* token-id))
 
 (defun expired-p (token-id)
-  (when (< (expiry (retrieve-token *token-store-backend* token-id))
+  (check-type token-id string)
+  (when (< (expiry (read-token token-id))
            (get-universal-time))
     (revoke-token token-id)))
+
+(defun %dump-store ()
+  (maphash (lambda (k v)
+             (format t "~a => ~a~%" k v))
+           *tokens*))
 
 ;; ----------------------------------------
 ;; token store-backend

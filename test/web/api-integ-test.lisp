@@ -28,19 +28,12 @@
 ;; --------------------
 
 (defun make-auth-request (params)
-  ;; (dex:post "https://localhost:8443/api/session"
-  ;;           :content params
-  ;;           :ssl-key-file "../../cert/localhost.key"
-  ;;           :ssl-cert-file "../../cert/localhost.crt"
-  ;;           :verbose t
-  ;;           :insecure t))
   (drakma:http-request "https://localhost:8443/api/session"
                        :method :post
                        :certificate "../../cert/localhost.crt"
-                       :key "../../cert/localhost.key"
                        ;;:content-type "application/json"
                        :parameters params
-                       :verify nil))
+                       :verify :required))
 
 (test auth--check-protection-headers
   (with-fixture api-start-stop ()
@@ -107,7 +100,7 @@
         (make-auth-request '(("username" . "unknown")
                              ("password" . "wrong")))
       (declare (ignore headers))
-      (is (= status 401))
+      (is (= status 403))
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"User not found.\"}")))))
 
@@ -117,7 +110,7 @@
         (make-auth-request '(("username" . "admin")
                              ("password" . "wrong")))
       (declare (ignore headers))
-      (is (= status 401))
+      (is (= status 403))
       (is (equal (babel:octets-to-string body)
                  "{\"error\":\"Unable to authenticate.\"}")))))
 

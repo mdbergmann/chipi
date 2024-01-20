@@ -15,7 +15,7 @@
                               :ssl-privatekey-file "../../cert/localhost.key"
                               :ssl-certificate-file "../../cert/localhost.crt"
                               :port 8443
-                              :address "0.0.0.0"))))
+                              :address "127.0.0.1"))))
 
 (defun stop ()
   (when *api*
@@ -147,8 +147,7 @@
             (%make-http-error hunchentoot:+http-authorization-required+ "No token!")))
 
         ;; check expiry
-        ;; TODO: delete if expired
-        (when (token-store:expired-p token)
+        (when (token-store:expired-p (token-store:token-id token))
           (setf (hunchentoot:header-out "WWW-Authenticate")
                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token has expired\"")
           (return-from @check-authorization

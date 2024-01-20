@@ -14,7 +14,6 @@
 (test create-token
   (with-mocks ()
     (answer token-store::store-token t)
-
     (let ((token-id (create-token "username")))
       (is-true token-id)
       (is (> (length token-id) 0))
@@ -28,7 +27,6 @@
       (make-instance 'token
                      :user-id "username"
                      :token-id "token-id"))
-
     (let ((token (read-token "token-id")))
       (is (= (length (invocations 'token-store::retrieve-token)) 1))
       (is-true (typep token 'token))
@@ -46,7 +44,6 @@
 (test revoke-token--not-existing
   (with-mocks ()
     (answer token-store::delete-token nil)
-
     (is-false (revoke-token "token-id"))
     (is (= (length (invocations 'token-store::delete-token)) 1))))
 
@@ -58,7 +55,6 @@
                      :token-id "token-id"
                      :expiry (- (get-universal-time) 1)))
     (answer token-store::delete-token t)
-      
     (is-true (expired-p "token-id"))
     (is (= (length (invocations 'token-store::delete-token)) 1))))
 
@@ -68,5 +64,4 @@
       (make-instance 'token
                      :user-id "username"
                      :token-id "token-id"))
-      
     (is-false (expired-p "token-id"))))

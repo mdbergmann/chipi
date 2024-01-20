@@ -23,9 +23,8 @@
 Returns `access-token-id` as string if all OK.
 Raises condition `user-not-found` if user not found.
 Raises condition `unable-to-authenticate` if password is incorrect."
-  (let ((user (user-store:find-user-by-username username)))
-    (unless user
-      (error 'user-not-found :username username))
-    (unless (user-store:verify-password user password)
-      (error 'unable-to-authenticate :username username))
-    (token-store:create-token username)))
+  (unless (user-store:exists-username-p username)
+    (error 'user-not-found :username username))
+  (unless (user-store:equals-password-p username password)
+    (error 'unable-to-authenticate :username username))
+  (token-store:create-token username))

@@ -1,9 +1,11 @@
 (defpackage :chipi-web.user-store
   (:use :cl)
   (:nicknames :user-store)
+  (:import-from #:alexandria
+                #:when-let)
   (:export #:user
-           #:find-user-by-username
-           #:verify-password))
+           #:exists-username-p
+           #:equals-password-p))
 
 (in-package :chipi-web.user-store)
 
@@ -25,8 +27,13 @@
           (make-user "admin" "admin"))
     store))
 
-(defun find-user-by-username (username)
-  (gethash username *user*))
+(defun exists-username-p (username)
+  "Returns true if the given username exists in the store."
+  (not (null (gethash username *user*))))
 
-(defun verify-password (user password)
-  "Not implemented")
+(defun equals-password-p (username password)
+  "Returns true if the password matches the one stored for the given username."
+  (when-let ((user (gethash username *user*)))
+    (cryp:equal-string-p
+     (password user)
+     (cryp:create-hash password *scrypt-salt*))))

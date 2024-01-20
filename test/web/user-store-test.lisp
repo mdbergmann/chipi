@@ -11,7 +11,17 @@
 
 (in-suite user-store-tests)
 
-(test find-user-by-username--user-exists
-  (is (find-user-by-username "test-user")))
+(test exists-username--user-exists
+  (is-true (exists-username-p "admin")))
 
-(run! 'user-store-tests)
+(test exists-username--user-not-exists
+  (is-false (exists-username-p "not-exists")))
+
+(test equals-password--correct-password
+  (is-true (equals-password-p "admin" "admin")))
+
+(test equals-password--incorrect-password
+  (is-false (equals-password-p "admin" "wrong")))
+
+(test equals-password--user-not-exists
+  (is-false (equals-password-p "not-exists" "wrong")))
