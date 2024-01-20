@@ -29,8 +29,7 @@
            :reader expiry)))
 
 (defun %new-random-id ()
-  (let ((id (crypto:random-data 20)))
-    (base64:usb8-array-to-base64-string id :uri t)))
+  (cryp:create-random-string 20 :uri t))
 
 (defun create-token (username)
   (let ((token (make-instance 'token
@@ -46,7 +45,8 @@
   (delete-token *token-store-backend* token-id))
 
 (defun expired-p (token-id)
-  (when (< (expiry (retrieve-token token-id)) (get-universal-time))
+  (when (< (expiry (retrieve-token *token-store-backend* token-id))
+           (get-universal-time))
     (revoke-token token-id)))
 
 ;; ----------------------------------------

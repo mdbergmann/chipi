@@ -23,4 +23,9 @@
 (test create-hash--data--salt-as-array
   (is (stringp (create-hash "test" (babel:string-to-octets "test")))))
 
-(run! 'cryp-tests)
+(test create-random-data
+  (is (arrayp (create-random-data 10)))
+  (is (= (length (create-random-data 10)) 10)))
+
+(test create-random-string
+  (is (stringp (create-random-string 10))))

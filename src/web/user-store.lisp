@@ -26,7 +26,7 @@
     store))
 
 (defun find-user-by-username (username)
-  "Not implemented")
+  (gethash username *user*))
 
 (defun verify-password (user password)
   "Not implemented")

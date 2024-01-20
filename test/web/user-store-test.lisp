@@ -11,3 +11,7 @@
 
 (in-suite user-store-tests)
 
+(test find-user-by-username--user-exists
+  (is (find-user-by-username "test-user")))
+
+(run! 'user-store-tests)
