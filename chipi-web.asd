@@ -8,6 +8,7 @@
                "drakma"
                "cl-ppcre"
                "ironclad/kdf/scrypt"
+               "ironclad/kdf/bcrypt"
                "ironclad/mac/hmac"
                "ironclad/digest/sha256"
                "cl-base64")

@@ -17,11 +17,8 @@
 (test make-hash--data-as-array--no-salt
   (is (stringp (make-hash (babel:string-to-octets "test")))))
 
-(test make-hash--data--salt-as-string
-  (is (stringp (make-hash "test" "salt"))))
-
-(test make-hash--data--salt-as-array
-  (is (stringp (make-hash "test" (babel:string-to-octets "test")))))
+(test make-hash--data--salt
+  (is (stringp (make-hash "test" (cryp:make-salt)))))
 
 (test make-random-data
   (is (arrayp (make-random-data 10)))

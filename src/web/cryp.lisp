@@ -2,6 +2,7 @@
   (:use :cl :endecode)
   (:nicknames :cryp)
   (:export #:make-hash
+           #:make-salt
            #:make-random-data
            #:make-random-string
            #:equal-p
@@ -10,32 +11,38 @@
 
 (in-package :chipi-web.cryp)
 
+(defun make-salt ()
+  "Generate a random 16 byte salt."
+  (crypto:random-data 16))
+
 (defun make-hash (data &optional (salt nil))
-  "Generate a scrypt hash from `DATA' and an optional `SALT'.
+  "Generate a bcrypt hash from `DATA' and an optional `SALT'.
 `DATA' can be a string or a vector of unsigned bytes.
 If `SALT' is not provided, a random salt is generated which makes the result a one way hash.
-If `SALD' is provided, it must be a string or a vector of unsigned bytes.
+If `SALT' is provided, it must be a vector of unsigned bytes with length 16. Use `make-salt' to generate a salt.
 The result is a base64url encoded string.
 N = 4096, r = 8, and p = 2 are used as parameters for scrypt."
   (check-type data (or string (simple-array (unsigned-byte 8) (*))))
-  (when salt (check-type salt (or string (simple-array (unsigned-byte 8) (*)))))
+  (when salt (check-type salt (simple-array (unsigned-byte 8) (*))))
 
   (let ((salt (cond
-                ((null salt) (crypto:random-data 16))
-                ((stringp salt) (babel:string-to-octets salt))
+                ((null salt) (make-salt))
                 (t salt)))
         (data (if (stringp data)
                   (babel:string-to-octets data)
                   data)))
-    (let* ((kdf (crypto:make-kdf :scrypt-kdf
+    (let* ((kdf (crypto:make-kdf :bcrypt
                                  :n 4096
                                  :r 8
                                  :r 2))
            (pw-digest (crypto:derive-key kdf
                                          data
                                          salt
-                                         nil ; ignored on scrypt
-                                         32)))
+                                         ; ignored on scrypt
+                                         #+:lispworks 128
+                                         #+:sbcl 2048
+                                         #+:abcl 64
+                                         24)))
       (octets-to-base64-uri-string pw-digest))))
 
 (defun make-random-data (length)

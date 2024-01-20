@@ -10,7 +10,7 @@
 (in-package :chipi-web.user-store)
 
 ;; TODO: inject this via environment variable
-(defvar *scrypt-salt* "my-awefully-secure-salt")
+(defvar *scrypt-salt* (cryp:make-salt))
 
 (defclass user ()
   ((username :initarg :username :accessor username)
