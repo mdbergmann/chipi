@@ -29,7 +29,7 @@
            :reader expiry)))
 
 (defun %new-random-id ()
-  (cryp:create-random-string 20 :uri t))
+  (cryp:make-random-string 20 :uri t))
 
 (defun create-token (username)
   (let ((token (make-instance 'token
@@ -52,11 +52,6 @@
            (get-universal-time))
     (revoke-token token-id)))
 
-(defun %dump-store ()
-  (maphash (lambda (k v)
-             (format t "~a => ~a~%" k v))
-           *tokens*))
-
 ;; ----------------------------------------
 ;; token store-backend
 ;; ----------------------------------------
@@ -70,6 +65,11 @@
 ;; ----------------------------------------
 
 (defvar *tokens* (make-hash-table :test #'equal))
+
+(defun %dump-store ()
+  (maphash (lambda (k v)
+             (format t "~a => ~a~%" k v))
+           *tokens*))
 
 (defmethod store-token ((backend (eql 'memory)) token)
   (setf (gethash (token-id token) *tokens*) token))

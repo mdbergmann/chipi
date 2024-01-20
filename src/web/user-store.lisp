@@ -17,7 +17,7 @@
    (password :initarg :password :accessor password)))
 
 (defun make-user (username password)
-  (let ((hashed-pw (cryp:create-hash password *scrypt-salt*)))
+  (let ((hashed-pw (cryp:make-hash password *scrypt-salt*)))
     (make-instance 'user :username username
                          :password hashed-pw)))
 
@@ -36,4 +36,4 @@
   (when-let ((user (gethash username *user*)))
     (cryp:equal-string-p
      (password user)
-     (cryp:create-hash password *scrypt-salt*))))
+     (cryp:make-hash password *scrypt-salt*))))

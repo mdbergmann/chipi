@@ -11,21 +11,21 @@
 
 (in-suite cryp-tests)
 
-(test create-hash--data-as-string--no-salt
-  (is (stringp (create-hash "test"))))
+(test make-hash--data-as-string--no-salt
+  (is (stringp (make-hash "test"))))
 
-(test create-hash--data-as-array--no-salt
-  (is (stringp (create-hash (babel:string-to-octets "test")))))
+(test make-hash--data-as-array--no-salt
+  (is (stringp (make-hash (babel:string-to-octets "test")))))
 
-(test create-hash--data--salt-as-string
-  (is (stringp (create-hash "test" "salt"))))
+(test make-hash--data--salt-as-string
+  (is (stringp (make-hash "test" "salt"))))
 
-(test create-hash--data--salt-as-array
-  (is (stringp (create-hash "test" (babel:string-to-octets "test")))))
+(test make-hash--data--salt-as-array
+  (is (stringp (make-hash "test" (babel:string-to-octets "test")))))
 
-(test create-random-data
-  (is (arrayp (create-random-data 10)))
-  (is (= (length (create-random-data 10)) 10)))
+(test make-random-data
+  (is (arrayp (make-random-data 10)))
+  (is (= (length (make-random-data 10)) 10)))
 
-(test create-random-string
-  (is (stringp (create-random-string 10))))
+(test make-random-string
+  (is (stringp (make-random-string 10))))

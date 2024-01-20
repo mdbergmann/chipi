@@ -132,7 +132,7 @@
 
     ;; parse token-id
     (let ((token-id (str:trim (second (str:split "Bearer " auth-header)))))
-      (when (null token-id)
+      (unless token-id
         (setf (hunchentoot:header-out "WWW-Authenticate")
               "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided\"")
         (return-from @check-authorization
@@ -161,6 +161,4 @@
      :decorators (@json-out
                   @protection-headers-out
                   @check-authorization)) ()
-  (yason:with-output-to-string* ()
-    (yason:encode-alist
-     `(("items" . #())))))
+  (%make-json-response `(("items" . #()))))
