@@ -45,10 +45,10 @@
 
 (define-condition parameter-validation-error (simple-error)
   ((failed-args :initarg :failed-args
-                :reader parameter-validation-error-failed-args))
+                :reader failed-args))
   (:report (lambda (condition stream)
-             (format stream "Parameter validation failed for: ~a"
-                     (parameter-validation-error-failed-args condition)))))
+             (format stream "Parameter validation failed: ~a"
+                     (failed-args condition)))))
 
 ;; -----------------------------------
 ;; decorators
@@ -116,7 +116,7 @@
     (unless token-id
       (return-from session-close
         (%make-http-error hunchentoot:+http-bad-request+
-                         "No X-Auth-Token header!")))
+                         "No X-Auth-Token header")))
     (token-store:revoke-token token-id)
     "{}"))
 
@@ -125,36 +125,34 @@
 ;; -----------------------------------
 
 (defun @check-authorization (next)
-  (let ((auth-header (hunchentoot:header-in* "Authorization")))
-    (unless auth-header
-      (setf (hunchentoot:header-out "WWW-Authenticate")
-            "Bearer realm=\"chipi\", error=\"no token\", error_description=\"No Authorization header\"")
-      (return-from @check-authorization
-        (%make-http-error hunchentoot:+http-authorization-required+ "No token!")))
+  (flet ((error-response (err-message err-descr)
+           (setf (hunchentoot:header-out "WWW-Authenticate")
+                 (format nil
+                         "Bearer realm=\"chipi\", error=\"~a\", error_description=\"~a\""
+                         err-message
+                         err-descr))
+           (return-from @check-authorization
+             (%make-http-error hunchentoot:+http-authorization-required+
+                               err-descr))))
+    ;; auth header
+    (let ((auth-header (hunchentoot:header-in* "Authorization")))
+      (unless auth-header
+        (error-response "no token" "No Authorization header"))
 
-    ;; parse token-id
-    (let ((token-id (str:trim (second (str:split "Bearer " auth-header)))))
-      (unless token-id
-        (setf (hunchentoot:header-out "WWW-Authenticate")
-              "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"No token provided\"")
-        (return-from @check-authorization
-          (%make-http-error hunchentoot:+http-authorization-required+ "No token!")))
-
-      ;; read token
-      (let ((token (token-store:read-token token-id)))
-        (unless token
-          (setf (hunchentoot:header-out "WWW-Authenticate")
-                "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known\"")
-          (return-from @check-authorization
-            (%make-http-error hunchentoot:+http-authorization-required+ "No token!")))
-
-        ;; check expiry
-        (when (token-store:expired-p (token-store:token-id token))
-          (setf (hunchentoot:header-out "WWW-Authenticate")
-                "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Token has expired\"")
-          (return-from @check-authorization
-            (%make-http-error hunchentoot:+http-authorization-required+ "Expired")))          
-        )))
+      ;; parse token-id
+      (let ((token-id (str:trim (second (str:split "Bearer " auth-header)))))
+        (unless token-id
+          (error-response "invalid token" "No token provided"))
+        
+        ;; check on token
+        (handler-case
+            (authc:verify-authorization token-id)
+          (authc:unknown-token (c)
+            (log:info "~a" c)
+            (error-response "invalid token" "Unknown token"))
+          (authc:token-expired (c)
+            (log:info "~a" c)
+            (error-response "invalid token" "Token has expired"))))))
   (funcall next))
 
 (defroute items-get

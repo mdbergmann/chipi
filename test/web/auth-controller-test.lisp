@@ -44,3 +44,23 @@
       (is (equal "token-id" auth-result)))
     (is (= 1 (length (invocations 'token-store:create-token))))))
 
+(test verify-authorization--ok
+  (with-mocks ()
+    (answer token-store:exists-token-p t)
+    (answer token-store:expired-token-p nil)
+    (verify-authorization "token-id")    
+    (is (= 1 (length (invocations 'token-store:exists-token-p))))
+    (is (= 1 (length (invocations 'token-store:expired-token-p))))))
+
+(test verify-authorization--not-existing-token-raises-error
+  (with-mocks ()
+    (answer token-store:exists-token-p nil)
+    (signals unknown-token
+      (verify-authorization "token-id"))))
+
+(test verify-authorization--expired-token-raises-error
+  (with-mocks ()
+    (answer token-store:exists-token-p t)
+    (answer token-store:expired-token-p t)
+    (signals token-expired
+      (verify-authorization "token-id"))))

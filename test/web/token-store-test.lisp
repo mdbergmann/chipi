@@ -55,7 +55,7 @@
                      :token-id "token-id"
                      :expiry (- (get-universal-time) 1)))
     (answer token-store::delete-token t)
-    (is-true (expired-p "token-id"))
+    (is-true (expired-token-p "token-id"))
     (is (= (length (invocations 'token-store::delete-token)) 1))))
 
 (test token-not-expired
@@ -64,4 +64,17 @@
       (make-instance 'token
                      :user-id "username"
                      :token-id "token-id"))
-    (is-false (expired-p "token-id"))))
+    (is-false (expired-token-p "token-id"))))
+
+(test token-exists
+  (with-mocks ()
+    (answer token-store::retrieve-token
+      (make-instance 'token
+                     :user-id "username"
+                     :token-id "token-id"))
+    (is-true (exists-token-p "token-id"))))
+
+(test token-not-exists
+  (with-mocks ()
+    (answer token-store::retrieve-token nil)
+    (is-false (exists-token-p "token-id"))))

@@ -65,7 +65,7 @@
       (declare (ignore headers))
       (is (= status 403))
       (is (equal (babel:octets-to-string body)
-                 "{\"error\":\"Missing username or password\"}")))))
+                 "{\"error\":\"Parameter validation failed: Missing username or password\"}")))))
 
 (test auth--missing-password
   (with-fixture api-start-stop ()
@@ -74,7 +74,7 @@
       (declare (ignore headers))
       (is (= status 403))
       (is (equal (babel:octets-to-string body)
-                 "{\"error\":\"Missing username or password\"}")))))
+                 "{\"error\":\"Parameter validation failed: Missing username or password\"}")))))
 
 (test auth--too-long-username
   (with-fixture api-start-stop ()
@@ -85,7 +85,7 @@
       (declare (ignore headers))
       (is (= status 403))
       (is (equal (babel:octets-to-string body)
-                 "{\"error\":\"Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
+                 "{\"error\":\"Parameter validation failed: Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
 
 (test auth--with-initial-existing-admin-user
   (with-fixture api-start-stop ()
@@ -153,7 +153,7 @@
       (declare (ignore headers))
       (is (= status 400))
       (is (equal (babel:octets-to-string body)
-                 "{\"error\":\"No X-Auth-Token header!\"}")))))
+                 "{\"error\":\"No X-Auth-Token header\"}")))))
 
 ;; --------------------
 ;; items
@@ -191,7 +191,7 @@
       (declare (ignore body))
       (is (= status 401))
       (is (equal (get-header :www-authenticate headers)
-                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"The provided token is not known\"")))))
+                 "Bearer realm=\"chipi\", error=\"invalid token\", error_description=\"Unknown token\"")))))
 
 (test items--get-all--401--token-expired
   (with-fixture api-start-stop ()
@@ -247,7 +247,7 @@
 ;; OK use a manually generated 'admin' user with scrypted password for initial login in order to use the rest of the API
 ;; OK implement token auth with bearer
 ;; OK logout
-;; OK check expiry - provide expired-p function to token-store and revoke token if expired
+;; OK check expiry - provide expired-token-p function to token-store and revoke token if expired
 
 #|
 
