@@ -28,3 +28,4 @@ Raises condition `unable-to-authenticate` if password is incorrect."
   (unless (user-store:equals-password-p username password)
     (error 'unable-to-authenticate :username username))
   (token-store:create-token username))
+

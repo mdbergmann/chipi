@@ -23,6 +23,9 @@
     (progn
       (chipi-web.api:stop))))
 
+(defun get-header (name headers)
+  (cdr (assoc name headers)))
+
 ;; --------------------
 ;; auth
 ;; --------------------
@@ -41,17 +44,17 @@
         (make-auth-request '(("username" . "foo")
                              ("password" . "12345678")))
       (declare (ignore body status))
-      (is (equal (cdr (assoc :content-type headers))
+      (is (equal (get-header :content-type headers)
                  "application/json"))
-      (is (equal (cdr (assoc :x-xss-protection headers))
+      (is (equal (get-header :x-xss-protection headers)
                  "0"))
-      (is (equal (cdr (assoc :x-content-type-options headers))
+      (is (equal (get-header :x-content-type-options headers)
                  "nosniff"))
-      (is (equal (cdr (assoc :x-frame-options headers))
+      (is (equal (get-header :x-frame-options headers)
                  "DENY"))
-      (is (equal (cdr (assoc :cache-control headers))
+      (is (equal (get-header :cache-control headers)
                  "no-store"))
-      (is (equal (cdr (assoc :content-security-policy headers))
+      (is (equal (get-header :content-security-policy headers)
                  "default-src 'none'; frame-ancestors 'none'; sandbox"))
       )))
 
@@ -156,9 +159,6 @@
 ;; items
 ;; --------------------
 
-(defun get-header (name headers)
-  (cdr (assoc name headers)))
-
 (defun make-get-items-request (headers)
   (drakma:http-request "https://localhost:8443/api/items"
                        :method :get
@@ -253,7 +253,14 @@
 
 TODOS:
 
-- implement additional 'controller' layer for auth, items, etc.
+=> - implement additional 'controller' layer for auth, items, etc.
+- setup runtime folder in 'system' folder
+  ;;(print (asdf:system-relative-pathname "chipi-web" ""))
+- generate (and read) salt in runtime folder
+- store users in runtime folder
+- make sure user storage is thread-safe
+- initialize environment (chipi.env) on startup, if it isn't already
+- have a thread, or actor that cleans up expired tokens via scheduler
 - implement retrieving refresh-token with longer expiry
 - access-control
 - audit log

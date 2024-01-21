@@ -43,10 +43,12 @@
 ;; conditions
 ;; -----------------------------------
 
-(define-condition parameter-validation-error (error)
-  ((args :initarg :args :reader args))
+(define-condition parameter-validation-error (simple-error)
+  ((failed-args :initarg :failed-args
+                :reader parameter-validation-error-failed-args))
   (:report (lambda (condition stream)
-             (format stream "~a" (args condition)))))
+             (format stream "Parameter validation failed for: ~a"
+                     (parameter-validation-error-failed-args condition)))))
 
 ;; -----------------------------------
 ;; decorators
@@ -73,11 +75,11 @@
   (when (or (null username)
             (null password))
     (error 'parameter-validation-error
-           :args "Missing username or password"))
+           :failed-args "Missing username or password"))
 
   (unless (ppcre:scan "(?i)[a-zA-Z][a-zA-Z0-9]{1,29}" username)
     (error 'parameter-validation-error
-           :args
+           :failed-args
            "Invalid username. Must be 2-30 characters with only alpha numeric and number characters.")))
 
 (defroute session-create

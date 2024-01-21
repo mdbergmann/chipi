@@ -21,16 +21,16 @@
 If `SALT' is not provided, a random salt is generated which makes the result a one way hash.
 If `SALT' is provided, it must be a vector of unsigned bytes with length 16. Use `make-salt' to generate a salt.
 The result is a base64url encoded string.
-N = 4096, r = 8, and p = 2 are used as parameters for scrypt."
+N = 4096, r = 8, and p = 2 are used as parameters for bcrypt."
   (check-type data (or string (simple-array (unsigned-byte 8) (*))))
   (when salt (check-type salt (simple-array (unsigned-byte 8) (*))))
 
   (let ((salt (cond
                 ((null salt) (make-salt))
                 (t salt)))
-        (data (if (stringp data)
-                  (babel:string-to-octets data)
-                  data)))
+        (data (cond
+                ((stringp data) (babel:string-to-octets data))
+                (t data))))
     (let* ((kdf (crypto:make-kdf :bcrypt
                                  :n 4096
                                  :r 8
@@ -58,7 +58,7 @@ If `URI' is true, the result is a base64url encoded string."
    (crypto:random-data length) :uri uri))
 
 (defun equal-vector-p (a b)
-  "Compare two simple arrays in constant time."
+  "Compare two arrays in constant time."
   (check-type a vector)
   (check-type b vector)
   (crypto:constant-time-equal a b))
