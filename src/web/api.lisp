@@ -12,6 +12,7 @@
 (defvar *api* nil "The API server instance")
 
 (defun start ()
+  "Start the API server."
   (setf *api* (hunchentoot:start
                (make-instance 'easy-routes-ssl-acceptor ;; 'easy-routes-acceptor
                               :ssl-privatekey-file "../../cert/localhost.key"

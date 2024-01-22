@@ -9,15 +9,16 @@
 
 (in-package :chipi-web.user-store)
 
-;; TODO: inject this via environment variable
-(defvar *scrypt-salt* (cryp:make-salt))
+(defvar *crypt-salt* (cryp:make-salt)
+  "The salt used for hashing passwords.
+This is stored (or loaded if exists) to file on startup: see `api-env:init'.")
 
 (defclass user ()
   ((username :initarg :username :accessor username)
    (password :initarg :password :accessor password)))
 
 (defun make-user (username password)
-  (let ((hashed-pw (cryp:make-hash password *scrypt-salt*)))
+  (let ((hashed-pw (cryp:make-hash password *crypt-salt*)))
     (make-instance 'user :username username
                          :password hashed-pw)))
 
@@ -36,4 +37,4 @@
   (when-let ((user (gethash username *user*)))
     (cryp:equal-string-p
      (password user)
-     (cryp:make-hash password *scrypt-salt*))))
+     (cryp:make-hash password *crypt-salt*))))
