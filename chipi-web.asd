@@ -46,8 +46,8 @@
 
 TODOS:
 
-=> - implement additional 'controller' layer for auth, items, etc.
-- setup runtime folder in 'system' folder
+OK - implement additional 'controller' layer for auth, items, etc.
+OK - setup runtime folder in 'system' folder => chipi.envi
   ;;(print (asdf:system-relative-pathname "chipi-web" ""))
 - generate (and read) salt in runtime folder
 - store users in runtime folder
