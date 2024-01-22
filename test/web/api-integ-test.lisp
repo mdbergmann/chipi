@@ -1,5 +1,5 @@
 (defpackage :chipi-web.api-integtest
-  (:use :cl :endecode :fiveam :chipi-web.api)
+  (:use :cl :cl-mock :fiveam :endecode :chipi-web.api)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -213,9 +213,20 @@
         (declare (ignore headers))
         (is (= status 200))
         (is (equal (octets-to-string body)
-                   "{\"items\":[]}"))))))
+                   "[]"))))))
 
-;; TODO: add some real items
+(test items--get-all--with-actually-some
+  (with-fixture api-start-stop ()
+    (let ((token-id (login-admin)))
+      (with-mocks ()
+        (answer itemsc:retrieve-items '((:name "foo" :label "label1" :value "bar")
+                                        (:name "foo2" :label "label2" :value "baz")))
+        (multiple-value-bind (body status headers)
+            (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token-id))))
+          (declare (ignore headers))
+          (is (= status 200))
+          (is (equal (octets-to-string body)
+                     "[{\"name\":\"foo\",\"value\":\"bar\",\"label\":\"label1\"},{\"name\":\"foo2\",\"value\":\"baz\",\"label\":\"label2\"}]")))))))
 
 ;; --------------------
 ;; users

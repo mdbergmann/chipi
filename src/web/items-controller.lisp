@@ -8,7 +8,7 @@
 (in-package :chipi-web.items-controller)
 
 (defun retrieve-items ()
-  "Retrieves all items as alist for easy json conversion."
+  "Retrieves all items as list of plists."
   (when-let ((items (hab:get-items)))
     (mapcar (lambda (item)
               (let* ((name (item:name item))

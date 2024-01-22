@@ -1,6 +1,8 @@
 (defpackage :chipi-web.api
   (:use :cl :easy-routes)
   (:nicknames :api)
+  (:import-from #:alexandria
+                #:plist-hash-table)
   (:export #:start
            #:stop)
   )
@@ -155,10 +157,19 @@
             (error-response "invalid token" "Token has expired"))))))
   (funcall next))
 
+(defun %make-items-response (items)
+  (if (car items)
+      (yason:with-output-to-string* ()
+        (let ((yason:*symbol-key-encoder* 
+                'yason:encode-symbol-as-lowercase))
+          (yason:encode
+           (mapcar #'plist-hash-table items))))
+      "[]"))
+
 (defroute items-get
     ("/api/items"
      :method :get
      :decorators (@json-out
                   @protection-headers-out
                   @check-authorization)) ()
-  (%make-json-response `(("items" . #()))))
+  (%make-items-response (itemsc:retrieve-items)))
