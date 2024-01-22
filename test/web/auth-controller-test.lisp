@@ -17,7 +17,7 @@
     (handler-case
         (authorize-user "test" "test")
       (condition (c)
-        (is (typep c 'user-not-found)))
+        (is (typep c 'user-not-found-error)))
       (:no-error ()
         (fail "Should have raised an error")))
     (is (= 1 (length (invocations 'user-store:exists-username-p))))))
@@ -29,7 +29,7 @@
     (handler-case
         (authorize-user "admin" "no-match")
       (condition (c)
-        (is (typep c 'unable-to-authenticate)))
+        (is (typep c 'unable-to-authenticate-error)))
       (:no-error ()
         (fail "Should have raised an error")))
     (is (= 1 (length (invocations 'user-store:equals-password-p))))))
@@ -55,12 +55,12 @@
 (test verify-authorization--not-existing-token-raises-error
   (with-mocks ()
     (answer token-store:exists-token-p nil)
-    (signals token-unknown
+    (signals token-unknown-error
       (verify-authorization "token-id"))))
 
 (test verify-authorization--expired-token-raises-error
   (with-mocks ()
     (answer token-store:exists-token-p t)
     (answer token-store:expired-token-p t)
-    (signals token-expired
+    (signals token-expired-error
       (verify-authorization "token-id"))))

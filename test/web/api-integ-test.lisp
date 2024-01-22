@@ -234,38 +234,3 @@
 ;;       (is (equal (babel:octets-to-string body)
 ;;                  "{\"error\":\"Invalid password. Must be at least 8 characters.\"}")))))
 
-
-;;(run! 'api-integtests)
-
-;; OK do: input validation on length
-;; OK do: return json with error message
-;; OK do: check on valid characters for username
-;; OK do: XSS protection
-;; OK send request parameters as json
-;; OK check minimum password length
-;; OK use scrypt to hash password to compare against stored password
-;; OK use a manually generated 'admin' user with scrypted password for initial login in order to use the rest of the API
-;; OK implement token auth with bearer
-;; OK logout
-;; OK check expiry - provide expired-token-p function to token-store and revoke token if expired
-
-#|
-
-TODOS:
-
-=> - implement additional 'controller' layer for auth, items, etc.
-- setup runtime folder in 'system' folder
-  ;;(print (asdf:system-relative-pathname "chipi-web" ""))
-- generate (and read) salt in runtime folder
-- store users in runtime folder
-- make sure user storage is thread-safe
-- initialize environment (chipi.env) on startup, if it isn't already
-- have a thread, or actor that cleans up expired tokens via scheduler
-- implement retrieving refresh-token with longer expiry
-- access-control
-- audit log
-- pre-flight?
-- CORS headers
-
-|#
-

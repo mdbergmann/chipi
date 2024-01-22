@@ -97,11 +97,11 @@
       (log:warn "Parameter validation error: ~a" c)
       (%make-http-error hunchentoot:+http-forbidden+
                         (format nil "~a" c)))
-    (authc:user-not-found (c)
+    (authc:user-not-found-error (c)
       (log:warn "User not found: ~a" c)
       (%make-http-error hunchentoot:+http-forbidden+
                         "User not found."))
-    (authc:unable-to-authenticate (c)
+    (authc:unable-to-authenticate-error (c)
       (log:warn "Unable to authenticate: ~a" c)
       (%make-http-error hunchentoot:+http-forbidden+
                         "Unable to authenticate."))
@@ -147,10 +147,10 @@
         ;; check on token
         (handler-case
             (authc:verify-authorization token-id)
-          (authc:token-unknown (c)
+          (authc:token-unknown-error (c)
             (log:info "~a" c)
             (error-response "invalid token" "Unknown token"))
-          (authc:token-expired (c)
+          (authc:token-expired-error (c)
             (log:info "~a" c)
             (error-response "invalid token" "Token has expired"))))))
   (funcall next))

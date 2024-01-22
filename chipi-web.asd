@@ -42,8 +42,22 @@
                                         (uiop:find-symbol* '#:test-suite
                                                            '#:chipi-web.tests))))
 
-
 #|
-todos:
+
+TODOS:
+
+=> - implement additional 'controller' layer for auth, items, etc.
+- setup runtime folder in 'system' folder
+  ;;(print (asdf:system-relative-pathname "chipi-web" ""))
+- generate (and read) salt in runtime folder
+- store users in runtime folder
+- make sure user storage is thread-safe
+- initialize environment (chipi.env) on startup, if it isn't already
+- have a thread, or actor that cleans up expired tokens via scheduler
+- implement retrieving refresh-token with longer expiry
+- access-control
+- audit log
+- pre-flight?
+- CORS headers
 
 |#
