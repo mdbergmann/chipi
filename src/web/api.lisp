@@ -147,7 +147,7 @@
         ;; check on token
         (handler-case
             (authc:verify-authorization token-id)
-          (authc:unknown-token (c)
+          (authc:token-unknown (c)
             (log:info "~a" c)
             (error-response "invalid token" "Unknown token"))
           (authc:token-expired (c)

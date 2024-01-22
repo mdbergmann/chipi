@@ -5,7 +5,7 @@
            #:verify-authorization
            #:user-not-found
            #:unable-to-authenticate
-           #:unknown-token
+           #:token-unknown
            #:token-expired)
   )
 
@@ -21,7 +21,7 @@
   (:report (lambda (condition stream)
              (format stream "Unable to authenticate user: ~a." (username condition)))))
 
-(define-condition unknown-token (simple-error)
+(define-condition token-unknown (simple-error)
   ((token-id :initarg :token-id :reader token-id))
   (:report (lambda (condition stream)
              (format stream "Unknown token: ~a." (token-id condition)))))
@@ -43,8 +43,8 @@ Raises condition `unable-to-authenticate` if password is incorrect."
   (token-store:create-token username))
 
 (defun verify-authorization (token-id)
-  "Verifies if access token exists and is not expired."
+  "Verifies if token exists and is not expired."
   (unless (token-store:exists-token-p token-id)
-    (error 'unknown-token :token-id token-id))
+    (error 'token-unknown :token-id token-id))
   (when (token-store:expired-token-p token-id)
     (error 'token-expired :token-id token-id)))

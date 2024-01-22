@@ -55,7 +55,7 @@
 (test verify-authorization--not-existing-token-raises-error
   (with-mocks ()
     (answer token-store:exists-token-p nil)
-    (signals unknown-token
+    (signals token-unknown
       (verify-authorization "token-id"))))
 
 (test verify-authorization--expired-token-raises-error
