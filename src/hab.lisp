@@ -5,6 +5,7 @@
            #:*rules*
            #:*persistences*
            #:get-item
+           #:get-items
            #:get-persistence
            #:get-rule
            #:defconfig
@@ -25,6 +26,12 @@
   "Returns the item with the given id from the created items."
   (when *items*
     (gethash id *items*)))
+
+(defun get-items ()
+  "Returns all items."
+  (when *items*
+    (loop :for item :being :the :hash-value :of *items*
+          :collect item)))
 
 (defun get-persistence (id)
   "Returns the persistence with the given id from the created persistences."

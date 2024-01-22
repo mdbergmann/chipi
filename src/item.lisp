@@ -15,6 +15,8 @@
            #:get-value
            #:set-value
            #:get-item-stateq
+           #:name
+           #:label
            #:add-binding
            #:add-persistence
            #:destroy
@@ -144,6 +146,9 @@ This is in particular important for persistences that are type specific, like in
               (act-cell:state obj)
               (value-type-hint obj))
       (get-output-stream-string string-stream))))
+
+(defun name (item)
+  (act-cell:name item))
 
 (defun get-value (item)
   (? item '(:get-state . nil)))
