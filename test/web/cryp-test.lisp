@@ -1,5 +1,5 @@
 (defpackage :chipi-web.cryp-test
-  (:use :cl :fiveam :chipi-web.cryp)
+  (:use :cl :endecode :fiveam :chipi-web.cryp)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -15,7 +15,7 @@
   (is (stringp (make-hash "test"))))
 
 (test make-hash--data-as-array--no-salt
-  (is (stringp (make-hash (babel:string-to-octets "test")))))
+  (is (stringp (make-hash (string-to-octets "test")))))
 
 (test make-hash--data--salt
   (is (stringp (make-hash "test" (cryp:make-salt)))))

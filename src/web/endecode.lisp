@@ -1,14 +1,22 @@
 (defpackage :chipi-web.endecode
   (:use :cl :cl-base64)
   (:nicknames :endecode)
-  (:export #:octets-to-base64-uri-string
-           #:base64-uri-string-to-octets)
+  (:export #:octets-to-base64-string
+           #:base64-string-to-octets
+           #:octets-to-string
+           #:string-to-octets)
   )
 
 (in-package :chipi-web.endecode)
 
-(defun octets-to-base64-uri-string (vector)
-  (usb8-array-to-base64-string vector :uri t))
+(defun octets-to-base64-string (vector &optional (urienc nil))
+  (usb8-array-to-base64-string vector :uri urienc))
 
-(defun base64-uri-string-to-octets (string)
-  (base64-string-to-usb8-array string :uri t))
+(defun base64-string-to-octets (string &optional (urienc nil))
+  (base64-string-to-usb8-array string :uri urienc))
+
+(defun octets-to-string (vector)
+  (babel:octets-to-string vector))
+
+(defun string-to-octets (string)
+  (babel:string-to-octets string))

@@ -1,5 +1,5 @@
 (defpackage :chipi-web.api-integtest
-  (:use :cl :fiveam :chipi-web.api)
+  (:use :cl :endecode :fiveam :chipi-web.api)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -64,7 +64,7 @@
         (make-auth-request '(("username" . "foo")))
       (declare (ignore headers))
       (is (= status 403))
-      (is (equal (babel:octets-to-string body)
+      (is (equal (octets-to-string body)
                  "{\"error\":\"Parameter validation failed: Missing username or password\"}")))))
 
 (test auth--missing-password
@@ -73,7 +73,7 @@
         (make-auth-request '(("password" . "bar")))
       (declare (ignore headers))
       (is (= status 403))
-      (is (equal (babel:octets-to-string body)
+      (is (equal (octets-to-string body)
                  "{\"error\":\"Parameter validation failed: Missing username or password\"}")))))
 
 (test auth--too-long-username
@@ -84,7 +84,7 @@
                              ("password" . "bar")))
       (declare (ignore headers))
       (is (= status 403))
-      (is (equal (babel:octets-to-string body)
+      (is (equal (octets-to-string body)
                  "{\"error\":\"Parameter validation failed: Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
 
 (test auth--with-initial-existing-admin-user
@@ -95,7 +95,7 @@
       (declare (ignore headers))
       (is (= status 200))
       (is (str:starts-with-p "\{\"token\":\""
-                             (babel:octets-to-string body))))))
+                             (octets-to-string body))))))
 
 (test auth--user-does-not-exist
   (with-fixture api-start-stop ()
@@ -104,7 +104,7 @@
                              ("password" . "wrong")))
       (declare (ignore headers))
       (is (= status 403))
-      (is (equal (babel:octets-to-string body)
+      (is (equal (octets-to-string body)
                  "{\"error\":\"User not found.\"}")))))
 
 (test auth--admin-auth-fail
@@ -114,7 +114,7 @@
                              ("password" . "wrong")))
       (declare (ignore headers))
       (is (= status 403))
-      (is (equal (babel:octets-to-string body)
+      (is (equal (octets-to-string body)
                  "{\"error\":\"Unable to authenticate.\"}")))))
 
 (defun login-admin ()
@@ -123,7 +123,7 @@
                            ("password" . "admin")))
     (cdr (assoc "token"
                 (yason:parse
-                 (babel:octets-to-string body)
+                 (octets-to-string body)
                  :object-as :alist)
                 :test #'equal))))
 
@@ -152,7 +152,7 @@
         (make-logout-request nil)
       (declare (ignore headers))
       (is (= status 400))
-      (is (equal (babel:octets-to-string body)
+      (is (equal (octets-to-string body)
                  "{\"error\":\"No X-Auth-Token header\"}")))))
 
 ;; --------------------
@@ -212,7 +212,7 @@
           (make-get-items-request `(("Authorization" . ,(format nil "Bearer ~a" token-id))))
         (declare (ignore headers))
         (is (= status 200))
-        (is (equal (babel:octets-to-string body)
+        (is (equal (octets-to-string body)
                    "{\"items\":[]}"))))))
 
 ;; TODO: add some real items
@@ -231,6 +231,6 @@
 ;;                              ("password" . "2short")))
 ;;       (declare (ignore headers))
 ;;       (is (= status 403))
-;;       (is (equal (babel:octets-to-string body)
+;;       (is (equal (octets-to-string body)
 ;;                  "{\"error\":\"Invalid password. Must be at least 8 characters.\"}")))))
 

@@ -1,5 +1,5 @@
 (defpackage :chipi-web.token-store-test
-  (:use :cl :fiveam :cl-mock :chipi-web.token-store)
+  (:use :cl :endecode :fiveam :cl-mock :chipi-web.token-store)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -18,7 +18,7 @@
       (is-true token-id)
       (is (> (length token-id) 0))
       (is (stringp token-id))
-      (is-true (base64:base64-string-to-usb8-array token-id :uri t)))
+      (is-true (base64-string-to-usb8-array token-id t)))
     (is (= (length (invocations 'token-store::store-token)) 1))))
 
 (test read-token

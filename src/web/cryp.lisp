@@ -29,7 +29,7 @@ N = 4096, r = 8, and p = 2 are used as parameters for bcrypt."
                 ((null salt) (make-salt))
                 (t salt)))
         (data (cond
-                ((stringp data) (babel:string-to-octets data))
+                ((stringp data) (string-to-octets data))
                 (t data))))
     (let* ((kdf (crypto:make-kdf :bcrypt
                                  :n 4096
@@ -43,7 +43,7 @@ N = 4096, r = 8, and p = 2 are used as parameters for bcrypt."
                                          #+:sbcl 2048
                                          #+:abcl 64
                                          24)))
-      (octets-to-base64-uri-string pw-digest))))
+      (octets-to-base64-string pw-digest t))))
 
 (defun make-random-data (length)
   "Generate a random array of `LENGTH' bytes."
@@ -54,8 +54,8 @@ N = 4096, r = 8, and p = 2 are used as parameters for bcrypt."
   "Generate a random base64 encoded string with a length of the underlying random array of `LENGTH' bytes.
 If `URI' is true, the result is a base64url encoded string."
   (check-type length integer)
-  (base64:usb8-array-to-base64-string
-   (crypto:random-data length) :uri uri))
+  (octets-to-base64-string
+   (crypto:random-data length) uri))
 
 (defun equal-vector-p (a b)
   "Compare two arrays in constant time."
@@ -67,5 +67,5 @@ If `URI' is true, the result is a base64url encoded string."
   "Compare two strings."
   (check-type a string)
   (check-type b string)
-  (equal-vector-p (babel:string-to-octets a)
-                  (babel:string-to-octets b)))
+  (equal-vector-p (string-to-octets a)
+                  (string-to-octets b)))
