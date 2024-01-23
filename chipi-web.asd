@@ -36,6 +36,7 @@
                 :components
                 ((:file "all-tests")
                  (:file "token-store-test")
+                 (:file "user-store-test")
                  (:file "auth-controller-test")
                  (:file "items-controller-test")
                  (:file "api-integ-test")
