@@ -14,8 +14,11 @@
 This is stored (or loaded if exists) to file on startup: see `api-env:init'.")
 
 (defclass user ()
-  ((username :initarg :username :accessor username)
-   (password :initarg :password :accessor password)))
+  ((username :initarg :username :reader username)
+   (password :initarg :password :reader password)))
+
+(defmethod ms:class-persistent-slots ((self user))
+  '(username password))
 
 (defun make-user (username password)
   (let ((hashed-pw (cryp:make-hash password *crypt-salt*)))

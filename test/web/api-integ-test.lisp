@@ -16,12 +16,15 @@
 (def-fixture api-start-stop ()
   (unwind-protect
        (progn
-         (setf token-store::*token-life-time-seconds*
-               token-store::*default-token-life-time-seconds*)
+         (setf token-store::*token-life-time-duration*
+               token-store::*default-token-life-time-duration*)
+         (setf token-store:*token-store-backend*
+               token-store:*memory-backend*)
          (chipi-web.api:start)
          (&body))
     (progn
-      (chipi-web.api:stop))))
+      (chipi-web.api:stop)
+      (setf token-store:*token-store-backend* nil))))
 
 (defun get-header (name headers)
   (cdr (assoc name headers)))
@@ -195,7 +198,7 @@
 
 (test items--get-all--401--token-expired
   (with-fixture api-start-stop ()
-    (setf token-store::*token-life-time-seconds* 1)
+    (setf token-store::*token-life-time-duration* (ltd:duration :sec 1))
     (let ((token-id (login-admin)))
       (sleep 2.5)
       (multiple-value-bind (body status headers)

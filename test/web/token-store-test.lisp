@@ -6,10 +6,17 @@
 (in-package :chipi-web.token-store-test)
 
 (def-suite token-store-tests
-  :description "Tests for token store"
+  :description "Tests for token store - memory backend"
   :in chipi-web.tests:test-suite)
 
 (in-suite token-store-tests)
+
+(def-fixture mem-backend ()
+  (unwind-protect
+       (progn
+         (setf *token-store-backend* *memory-backend*)
+         (&body))
+    (setf *token-store-backend* nil)))
 
 (test create-token
   (with-mocks ()
@@ -18,7 +25,7 @@
       (is-true token-id)
       (is (> (length token-id) 0))
       (is (stringp token-id))
-      (is-true (base64-string-to-usb8-array token-id t)))
+      (is-true (base64-string-to-octets token-id t)))
     (is (= (length (invocations 'token-store::store-token)) 1))))
 
 (test read-token
@@ -37,7 +44,6 @@
 (test revoke-token--existing
   (with-mocks ()
     (answer token-store::delete-token t)
-
     (is-true (revoke-token "token-id"))
     (is (= (length (invocations 'token-store::delete-token)) 1))))
 

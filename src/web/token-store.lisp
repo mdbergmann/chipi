@@ -1,6 +1,9 @@
 (defpackage :chipi-web.token-store
   (:use :cl)
   (:nicknames :token-store)
+  (:import-from #:local-time-duration
+                #:duration
+                #:duration-as)
   (:export #:create-token
            #:read-token
            #:revoke-token
@@ -9,14 +12,18 @@
            #:token
            #:token-id
            #:user-id
-           #:expiry)
+           #:expiry
+           #:*memory-backend*
+           #:*token-store-backend*)
   )
 
 (in-package :chipi-web.token-store)
 
-(defvar *token-store-backend* 'memory)
-(defvar *default-token-life-time-seconds* (* 60 10)) ; 10 minutes
-(defvar *token-life-time-seconds* *default-token-life-time-seconds*)
+(defvar *token-store-backend* nil)
+
+(defvar *default-token-life-time-duration* (duration :minute 10))
+(defvar *token-life-time-duration* *default-token-life-time-duration*
+  "The life time of a token as `ltd:duration' object.")
 
 (defclass token ()
   ((token-id :initarg :token-id
@@ -26,8 +33,10 @@
             :initform (error "user-id is required")
             :reader user-id)
    (expiry :initarg :expiry
-           :initform (+ (get-universal-time) *token-life-time-seconds*)
-           :reader expiry)))
+           :initform (+ (get-universal-time)
+                        (duration-as *token-life-time-duration* :sec))
+           :reader expiry
+           :documentation "The universal-time when the token expires.")))
 
 (defun %new-random-id ()
   (cryp:make-random-string 20 :uri t))
@@ -69,6 +78,9 @@
 ;; memory backend
 ;; ----------------------------------------
 
+(defvar *memory-backend* 'memory)
+
+;; TODO: serialize access to this. Agent?
 (defvar *tokens* (make-hash-table :test #'equal))
 
 (defun %dump-store ()

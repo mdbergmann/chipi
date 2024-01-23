@@ -11,7 +11,8 @@
                "ironclad/kdf/bcrypt"
                "ironclad/mac/hmac"
                "ironclad/digest/sha256"
-               "cl-base64")
+               "cl-base64"
+               "marshal")
   :components ((:module "src/web"
                 :serial t
                 :components
@@ -19,6 +20,7 @@
                  (:file "cryp")
                  (:file "token-store")
                  (:file "user-store")
+                 (:file "items-controller")
                  (:file "auth-controller")
                  (:file "api")
                   )))
@@ -35,6 +37,7 @@
                 ((:file "all-tests")
                  (:file "token-store-test")
                  (:file "auth-controller-test")
+                 (:file "items-controller-test")
                  (:file "api-integ-test")
                  )))
   :description "Test system for chipi-web, the web API for chipi."
@@ -50,10 +53,11 @@ OK - implement additional 'controller' layer for auth, items, etc.
 OK - setup runtime folder in 'system' folder => chipi.envi
   ;;(print (asdf:system-relative-pathname "chipi-web" ""))
 OK - generate (and read) salt in runtime folder
-- store users in runtime folder
+=> - store users in runtime folder
 - make sure user storage is thread-safe
 - initialize environment (chipi.env) on startup, if it isn't already
 - have a thread, or actor that cleans up expired tokens via scheduler
+  => manage token memory backend via Actor altogether
 - implement retrieving refresh-token with longer expiry
 - access-control
 - audit log
