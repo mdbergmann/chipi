@@ -18,6 +18,7 @@
   ;; and that a 'runtime' folder was created
 
   ;; for chipi-web we need to setup additional things
+  
   ;; 1. setup the `api-env' environment, this creates some crucial runtime data, like password salts, etc.
   ;;    this should not be deleted when users were created. Creating a new password salt will
   ;;    invalidate all existing user passwords
@@ -41,6 +42,6 @@
   (user-store:add-user (chipi-web.user-store:make-user "admin" "the-admin-password"))
 
   ;; 5. start the API server
-  (chipi-web.api:start)
+  (api:start)
   
   )
