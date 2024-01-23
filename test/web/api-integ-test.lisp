@@ -17,7 +17,7 @@
   (unwind-protect
        (progn
          (api-env:init)
-         (setf token-store::*token-life-time-duration*
+         (setf token-store:*token-life-time-duration*
                token-store::*default-token-life-time-duration*)
          (setf token-store:*token-store-backend*
                token-store:*memory-backend*)

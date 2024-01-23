@@ -13,6 +13,7 @@
            #:token-id
            #:user-id
            #:expiry
+           #:*token-life-time-duration*
            #:*memory-backend*
            #:*token-store-backend*)
   )
