@@ -13,12 +13,14 @@
           (with-open-file (file pw-salt
                                 :direction :output
                                 :if-exists :supersede)
-            (prin1 user-store::*scrypt-salt* file)))
+            (with-standard-io-syntax
+              (prin1 user-store::*crypt-salt* file))))
         (progn
           (log:info "Loading password salt")
           (with-open-file (file pw-salt
                                 :direction :input)
-            (setf user-store::*scrypt-salt* (read file))))))
+            (setf user-store::*crypt-salt*
+                  (coerce (read file) '(simple-array (unsigned-byte 8) (*))))))))
   t)
 
 (defun init ()

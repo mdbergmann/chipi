@@ -16,15 +16,22 @@
 (def-fixture api-start-stop ()
   (unwind-protect
        (progn
+         (api-env:init)
          (setf token-store::*token-life-time-duration*
                token-store::*default-token-life-time-duration*)
          (setf token-store:*token-store-backend*
                token-store:*memory-backend*)
+         (setf user-store:*user-store-backend*
+               (user-store:make-simple-file-backend))
+         (user-store:add-user (user-store:make-user "admin" "admin"))
          (chipi-web.api:start)
          (&body))
     (progn
       (chipi-web.api:stop)
-      (setf token-store:*token-store-backend* nil))))
+      (setf token-store:*token-store-backend* nil)
+      (setf user-store:*user-store-backend* nil)
+      (uiop:delete-directory-tree (envi:ensure-runtime-dir) :validate t)
+      )))
 
 (defun get-header (name headers)
   (cdr (assoc name headers)))

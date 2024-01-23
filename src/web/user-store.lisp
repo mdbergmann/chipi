@@ -32,14 +32,17 @@ This is stored (or loaded if exists) to file on startup: see `api-env:init'.")
 
 (defun add-user (user)
   "Adds the given user to the store."
+  (assert *user-store-backend* nil "user store backend not set")
   (store-user *user-store-backend* user))
 
 (defun exists-username-p (username)
   "Returns true if the given username exists in the store."
+  (assert *user-store-backend* nil "user store backend not set")
   (not (null (find-user *user-store-backend* username))))
 
 (defun equals-password-p (username password)
   "Returns true if the password matches the one stored for the given username."
+  (assert *user-store-backend* nil "user store backend not set")
   (when-let ((user (find-user *user-store-backend* username)))
     (cryp:equal-string-p
      (password user)

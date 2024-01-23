@@ -22,6 +22,7 @@
                  (:file "user-store")
                  (:file "items-controller")
                  (:file "auth-controller")
+                 (:file "api-env")
                  (:file "api")
                   )))
   :in-order-to ((test-op (test-op "chipi-web/tests"))))
@@ -52,13 +53,15 @@ TODOS:
 
 OK - implement additional 'controller' layer for auth, items, etc.
 OK - setup runtime folder in 'system' folder => chipi.envi
-  ;;(print (asdf:system-relative-pathname "chipi-web" ""))
+  -> (print (asdf:system-relative-pathname "chipi-web" ""))
 OK - generate (and read) salt in runtime folder
-=> - store users in runtime folder
-- make sure user storage is thread-safe
-- initialize environment (chipi.env) on startup, if it isn't already
-- have a thread, or actor that cleans up expired tokens via scheduler
-  => manage token memory backend via Actor altogether
+OK - store users in runtime folder
+OK - make sure user storage is thread-safe
+  ? (we are not storing many users, it should only be done on bootstrap) 
+OK - initialize environment (chipi.env) on startup, if it isn't already
+  -> Checkout api-integ-test.lisp for example
+=> - have a thread, or actor that cleans up expired tokens via scheduler
+  -> manage token memory backend via Actor altogether
 - implement retrieving refresh-token with longer expiry
 - access-control
 - audit log
