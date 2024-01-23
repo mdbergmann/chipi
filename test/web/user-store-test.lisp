@@ -24,21 +24,32 @@
 (test add-user--ok
   (with-fixture simple-file-store ()
     (is-true (add-user (make-user "test" "test")))
+    (is-true (exists-username-p "test"))
     (is-true (uiop:file-exists-p
               (user-store::filepath *user-store-backend*)))))
 
-(test exists-username--user-exists
+(test store-loads-user-on-initialize
   (with-fixture simple-file-store ()
-    (is-true (exists-username-p "admin"))))
+    (is-true (add-user (make-user "test" "test")))
+
+    (setf *user-store-backend*
+          (make-simple-file-backend #p"/tmp/chipi-web-test/"))
+    (is-true (exists-username-p "test"))))
 
 (test exists-username--user-not-exists
-  (is-false (exists-username-p "not-exists")))
+  (with-fixture simple-file-store ()
+    (is-false (exists-username-p "not-exists"))))
 
 (test equals-password--correct-password
-  (is-true (equals-password-p "admin" "admin")))
+  (with-fixture simple-file-store ()
+    (add-user (make-user "test" "test"))
+    (is-true (equals-password-p "test" "test"))))
 
 (test equals-password--incorrect-password
-  (is-false (equals-password-p "admin" "wrong")))
+  (with-fixture simple-file-store ()
+    (add-user (make-user "test" "test"))
+    (is-false (equals-password-p "test" "wrong"))))
 
 (test equals-password--user-not-exists
-  (is-false (equals-password-p "not-exists" "wrong")))
+  (with-fixture simple-file-store ()
+    (is-false (equals-password-p "not-exists" "wrong"))))

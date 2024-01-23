@@ -40,7 +40,7 @@ This is stored (or loaded if exists) to file on startup: see `api-env:init'.")
 
 (defun equals-password-p (username password)
   "Returns true if the password matches the one stored for the given username."
-  (when-let ((user (gethash username *user*)))
+  (when-let ((user (find-user *user-store-backend* username)))
     (cryp:equal-string-p
      (password user)
      (cryp:make-hash password *crypt-salt*))))
@@ -65,6 +65,14 @@ This is stored (or loaded if exists) to file on startup: see `api-env:init'.")
              :initform nil
              :reader filepath)))
 
+(defmethod initialize-instance :after ((self simple-file-backend) &key)
+  (assert (filepath self) nil "filepath not set")
+  (when (probe-file (filepath self))
+    (with-open-file (in (filepath self) :direction :input)
+      (let ((user-list (marshal:unmarshal (read in))))
+        (dolist (user user-list)
+          (setf (gethash (username user) (store self)) user))))))
+
 (defun make-simple-file-backend (&optional (dir (envi:ensure-runtime-dir)))
   (make-instance 'simple-file-backend
                  :filepath (merge-pathnames
@@ -88,5 +96,4 @@ This is stored (or loaded if exists) to file on startup: see `api-env:init'.")
             ;; generate simple list of users
             (loop :for user :being :the :hash-value :of (store backend)
                   :collect user)))
-      (format t "user-list: ~a~%" user-list)
       (prin1 (marshal:marshal user-list) out))))
