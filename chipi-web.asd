@@ -62,7 +62,7 @@ OK - initialize environment (chipi.env) on startup, if it isn't already
   -> Checkout api-integ-test.lisp for example
 => - have a thread, or actor that cleans up expired tokens via scheduler
   -> manage token memory backend via Actor altogether
-- make more abstractions in api-env to setup token, user-store, token lifetime, etc.
+OK - make more abstractions in api-env to setup token, user-store, token lifetime, etc.
 - hardening token storage by sha256/HMAC
 - make tokens more long-lifed
 - access-control

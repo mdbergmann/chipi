@@ -16,13 +16,9 @@
 (def-fixture api-start-stop ()
   (unwind-protect
        (progn
-         (api-env:init)
-         (api-env:init-token-lifetime
-          token-store::*default-token-life-time-duration*)
-         (api-env:init-token-store
-          token-store:*memory-backend*)
-         (api-env:init-user-store
-          user-store:make-simple-file-backend)
+         (api-env:init :token-store *memory-backend*
+                       :token-lifetime (ltd:duration :days 30)
+                       :user-store (user-store:make-simple-file-backend))
          (user-store:add-user (user-store:make-user "admin" "admin"))
          (api:start)
          (&body))

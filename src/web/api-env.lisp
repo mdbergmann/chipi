@@ -6,10 +6,9 @@
                 #:*token-life-time-duration*)
   (:import-from #:user-store
                 #:*user-store-backend*)
-  (:export #:init
-           #:init-token-store
-           #:init-token-lifetime
-           #:init-user-store))
+  (:import-from #:ltd
+                #:duration)
+  (:export #:init))
 
 (in-package :chipi-web.api-env)
 
@@ -27,28 +26,33 @@
           (log:info "Loading password salt")
           (with-open-file (file pw-salt
                                 :direction :input)
-            (setf user-store::*crypt-salt*
-                  (coerce (read file) '(simple-array (unsigned-byte 8) (*))))))))
+            (with-standard-io-syntax
+              (setf user-store::*crypt-salt*
+                    (coerce (read file)
+                            '(simple-array (unsigned-byte 8) (*)))))))))
   t)
 
-(defun init ()
-  "Initialize the API environment.
-This should be called very early in the application startup process.
-Preferably in or with `hab:defconfig'."
-  (%init-user-pw-salt)
-  t)
-
-(defun init-token-store (token-store-backend)
+(defun %init-token-store (token-store-backend)
   "Initialize the token store backend."
   (setf token-store:*token-store-backend*
         token-store-backend))
 
-(defun init-token-lifetime (token-lifetime-duration)
+(defun %init-token-lifetime (token-lifetime-duration)
   "Initialize the token lifetime duration."
   (setf token-store:*token-life-time-duration*
         token-lifetime-duration))
 
-(defun init-user-store (user-store-backend)
+(defun %init-user-store (user-store-backend)
   "Initialize the user store backend."
   (setf user-store:*user-store-backend*
         user-store-backend))
+
+(defun init (&key token-store user-store (token-lifetime (duration :days 30)))
+  "Initialize the API environment.
+This should be called very early in the application startup process.
+Preferably in or with `hab:defconfig'."
+  (%init-user-pw-salt)
+  (%init-token-store token-store)
+  (%init-token-lifetime token-lifetime)
+  (%init-user-store user-store)
+  t)
