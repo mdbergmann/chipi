@@ -64,7 +64,7 @@ OK - initialize environment (chipi.env) on startup, if it isn't already
   -> manage token memory backend via Actor altogether
 OK - make more abstractions in api-env to setup token, user-store, token lifetime, etc.
 - hardening token storage by sha256/HMAC
-- make tokens more long-lifed
+OK - make tokens more long-lifed => 30d
 - access-control
 - audit log
 - pre-flight?
