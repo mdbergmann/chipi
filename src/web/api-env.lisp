@@ -1,7 +1,15 @@
 (defpackage :chipi-web.api-env
   (:use :cl)
   (:nicknames :api-env)
-  (:export #:init))
+  (:import-from #:token-store
+                #:*token-store-backend*
+                #:*token-life-time-duration*)
+  (:import-from #:user-store
+                #:*user-store-backend*)
+  (:export #:init
+           #:init-token-store
+           #:init-token-lifetime
+           #:init-user-store))
 
 (in-package :chipi-web.api-env)
 
@@ -29,3 +37,18 @@ This should be called very early in the application startup process.
 Preferably in or with `hab:defconfig'."
   (%init-user-pw-salt)
   t)
+
+(defun init-token-store (token-store-backend)
+  "Initialize the token store backend."
+  (setf token-store:*token-store-backend*
+        token-store-backend))
+
+(defun init-token-lifetime (token-lifetime-duration)
+  "Initialize the token lifetime duration."
+  (setf token-store:*token-life-time-duration*
+        token-lifetime-duration))
+
+(defun init-user-store (user-store-backend)
+  "Initialize the user store backend."
+  (setf user-store:*user-store-backend*
+        user-store-backend))

@@ -17,17 +17,17 @@
   (unwind-protect
        (progn
          (api-env:init)
-         (setf token-store:*token-life-time-duration*
-               token-store::*default-token-life-time-duration*)
-         (setf token-store:*token-store-backend*
-               token-store:*memory-backend*)
-         (setf user-store:*user-store-backend*
-               (user-store:make-simple-file-backend))
+         (api-env:init-token-lifetime
+          token-store::*default-token-life-time-duration*)
+         (api-env:init-token-store
+          token-store:*memory-backend*)
+         (api-env:init-user-store
+          user-store:make-simple-file-backend)
          (user-store:add-user (user-store:make-user "admin" "admin"))
-         (chipi-web.api:start)
+         (api:start)
          (&body))
     (progn
-      (chipi-web.api:stop)
+      (api:stop)
       (setf token-store:*token-store-backend* nil)
       (setf user-store:*user-store-backend* nil)
       (uiop:delete-directory-tree (envi:ensure-runtime-dir) :validate t)

@@ -25,19 +25,25 @@
   ;;    invalidate all existing user passwords
   (api-env:init)
   
+         (api-env:init-token-lifetime
+          token-store::*default-token-life-time-duration*)
+         (api-env:init-token-store
+          token-store:*memory-backend*)
+         (api-env:init-user-store
+          user-store:make-simple-file-backend)
   ;; 2. setup the token store
   ;;    we just use an  in `memory' store. Since tokens are short lifed anyway, this is fine.
-  (setf token-store:*token-store-backend*
-        token-store:*memory-backend*)
+  (api-env:init-token-store token-store:*memory-backend*)
 
-  ;; 2.1. you may change token life-time via `token-store:*token-life-time-duration*'
+  ;; 2.1. you may change token life-time (optional)
+  ;;(api-env:init-token-lifetime
+  ;; (ltd:duration :days 30))
 
   ;; 3. setup the user store
   ;;    the system is not geared towards many users, maybe just one that uses the API
   ;;    the simple-file-backend will just store users to a file using `cl-marshal'.
   ;;    however, other backends are possible, like a database backend
-  (setf user-store:*user-store-backend*
-        (user-store:make-simple-file-backend))
+  (api-env:init-user-store user-store:make-simple-file-backend)
 
   ;; 4. we can add a user that primarily should use this API
   (user-store:add-user (user-store:make-user "admin" "the-admin-password"))
