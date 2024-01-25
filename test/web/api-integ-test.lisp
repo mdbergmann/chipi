@@ -16,16 +16,12 @@
 (def-fixture api-start-stop ()
   (unwind-protect
        (progn
-         (api-env:init :token-store *memory-backend*
-                       :token-lifetime (ltd:duration :days 30)
-                       :user-store (user-store:make-simple-file-backend))
-         (user-store:add-user (user-store:make-user "admin" "admin"))
+         (api-env:init :token-store token-store:*memory-backend*)
          (api:start)
          (&body))
     (progn
       (api:stop)
       (setf token-store:*token-store-backend* nil)
-      (setf user-store:*user-store-backend* nil)
       (uiop:delete-directory-tree (envi:ensure-runtime-dir) :validate t)
       )))
 
@@ -33,22 +29,19 @@
   (cdr (assoc name headers)))
 
 ;; --------------------
-;; auth
+;; items
 ;; --------------------
 
-(defun make-auth-request (params)
-  (drakma:http-request "https://localhost:8443/api/session"
-                       :method :post
+(defun make-get-items-request (headers)
+  (drakma:http-request "https://localhost:8443/api/items"
+                       :method :get
                        :certificate "../../cert/localhost.crt"
-                       ;;:content-type "application/json"
-                       :parameters params
-                       :verify :required))
+                       :additional-headers headers))
 
-(test auth--check-protection-headers
+(test items--check-protection-headers
   (with-fixture api-start-stop ()
     (multiple-value-bind (body status headers)
-        (make-auth-request '(("username" . "foo")
-                             ("password" . "12345678")))
+        (make-get-items-request nil)
       (declare (ignore body status))
       (is (equal (get-header :content-type headers)
                  "application/json"))
@@ -64,113 +57,14 @@
                  "default-src 'none'; frame-ancestors 'none'; sandbox"))
       )))
 
-(test auth--missing-username
+;; TODO: require API-Key as X-Api-Key header
+(test items--require-api-key
   (with-fixture api-start-stop ()
     (multiple-value-bind (body status headers)
-        (make-auth-request '(("username" . "foo")))
-      (declare (ignore headers))
+        (make-get-items-request nil)
       (is (= status 403))
       (is (equal (octets-to-string body)
-                 "{\"error\":\"Parameter validation failed: Missing username or password\"}")))))
-
-(test auth--missing-password
-  (with-fixture api-start-stop ()
-    (multiple-value-bind (body status headers)
-        (make-auth-request '(("password" . "bar")))
-      (declare (ignore headers))
-      (is (= status 403))
-      (is (equal (octets-to-string body)
-                 "{\"error\":\"Parameter validation failed: Missing username or password\"}")))))
-
-(test auth--too-long-username
-  (with-fixture api-start-stop ()
-    (multiple-value-bind (body status headers)
-        ;; max 30 chars
-        (make-auth-request '(("username" . "1234567890123456789012345678901")
-                             ("password" . "bar")))
-      (declare (ignore headers))
-      (is (= status 403))
-      (is (equal (octets-to-string body)
-                 "{\"error\":\"Parameter validation failed: Invalid username. Must be 2-30 characters with only alpha numeric and number characters.\"}")))))
-
-(test auth--with-initial-existing-admin-user
-  (with-fixture api-start-stop ()
-    (multiple-value-bind (body status headers)
-        (make-auth-request '(("username" . "admin")
-                             ("password" . "admin")))
-      (declare (ignore headers))
-      (is (= status 200))
-      (is (str:starts-with-p "\{\"token\":\""
-                             (octets-to-string body))))))
-
-(test auth--user-does-not-exist
-  (with-fixture api-start-stop ()
-    (multiple-value-bind (body status headers)
-        (make-auth-request '(("username" . "unknown")
-                             ("password" . "wrong")))
-      (declare (ignore headers))
-      (is (= status 403))
-      (is (equal (octets-to-string body)
-                 "{\"error\":\"User not found.\"}")))))
-
-(test auth--admin-auth-fail
-  (with-fixture api-start-stop ()
-    (multiple-value-bind (body status headers)
-        (make-auth-request '(("username" . "admin")
-                             ("password" . "wrong")))
-      (declare (ignore headers))
-      (is (= status 403))
-      (is (equal (octets-to-string body)
-                 "{\"error\":\"Unable to authenticate.\"}")))))
-
-(defun login-admin ()
-  (multiple-value-bind (body)
-      (make-auth-request `(("username" . "admin")
-                           ("password" . "admin")))
-    (cdr (assoc "token"
-                (yason:parse
-                 (octets-to-string body)
-                 :object-as :alist)
-                :test #'equal))))
-
-(defun make-logout-request (token-id)
-  (drakma:http-request "https://localhost:8443/api/session"
-                       :method :delete
-                       :certificate "../../cert/localhost.crt"
-                       :key "../../cert/localhost.key"
-                       :additional-headers (if token-id
-                                               `(("X-Auth-Token" . ,token-id))
-                                               '())))
-
-(test auth--logout
-  (with-fixture api-start-stop ()
-    (let ((token-id (login-admin)))
-      (is-true (token-store:read-token token-id))
-      (multiple-value-bind (body status headers)
-          (make-logout-request token-id)
-        (declare (ignore body headers))
-        (is (= status 200))
-        (is-false (token-store:read-token token-id))))))
-
-(test auth--logout--no-token-header
-  (with-fixture api-start-stop ()
-    (multiple-value-bind (body status headers)
-        (make-logout-request nil)
-      (declare (ignore headers))
-      (is (= status 400))
-      (is (equal (octets-to-string body)
-                 "{\"error\":\"No X-Auth-Token header\"}")))))
-
-;; --------------------
-;; items
-;; --------------------
-
-(defun make-get-items-request (headers)
-  (drakma:http-request "https://localhost:8443/api/items"
-                       :method :get
-                       :certificate "../../cert/localhost.crt"
-                       :key "../../cert/localhost.key"
-                       :additional-headers headers))
+                 "{\"error\":\"No API key provided\"}")))))
 
 (test items--get-all--401--no-auth-header
   (with-fixture api-start-stop ()

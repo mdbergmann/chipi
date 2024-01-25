@@ -60,11 +60,13 @@ OK - make sure user storage is thread-safe
   ? (we are not storing many users, it should only be done on bootstrap) 
 OK - initialize environment (chipi.env) on startup, if it isn't already
   -> Checkout api-integ-test.lisp for example
-=> - have a thread, or actor that cleans up expired tokens via scheduler
-  -> manage token memory backend via Actor altogether
 OK - make more abstractions in api-env to setup token, user-store, token lifetime, etc.
-- hardening token storage by sha256/HMAC
 OK - make tokens more long-lifed => 30d
+=> - remove user-store and rework token-store to API-Key store
+  -> we're only dealing with long-lifed api-keys
+- have a thread, or actor that cleans up expired tokens via scheduler
+  -> manage token memory backend via Actor altogether
+- hardening token storage by sha256/HMAC
 - access-control
 - audit log
 - pre-flight?

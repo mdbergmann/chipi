@@ -39,9 +39,6 @@
 (defun %make-json-response (alist)
   (%alist-to-json alist))
 
-(defun %make-token-response (token)
-  (%make-json-response `(("token" . ,token))))
-
 ;; -----------------------------------
 ;; conditions
 ;; -----------------------------------
@@ -74,88 +71,29 @@
         "default-src 'none'; frame-ancestors 'none'; sandbox")
   (funcall next))
 
-(defun %verify-auth-parameters (username password)
-  (when (or (null username)
-            (null password))
-    (error 'parameter-validation-error
-           :failed-args "Missing username or password"))
-
-  (unless (ppcre:scan "(?i)[a-zA-Z][a-zA-Z0-9]{1,29}" username)
-    (error 'parameter-validation-error
-           :failed-args
-           "Invalid username. Must be 2-30 characters with only alpha numeric and number characters.")))
-
-(defroute session-create
-    ("/api/session"
-     :method :post
-     :decorators (@json-out
-                  @protection-headers-out))
-    (&post (username :parameter-type 'string)
-           (password :parameter-type 'string))
-  (handler-case
-      (progn
-        (%verify-auth-parameters username password)
-        (%make-token-response (authc:authorize-user username password)))
-    (parameter-validation-error (c)
-      (log:warn "Parameter validation error: ~a" c)
-      (%make-http-error hunchentoot:+http-forbidden+
-                        (format nil "~a" c)))
-    (authc:user-not-found-error (c)
-      (log:warn "User not found: ~a" c)
-      (%make-http-error hunchentoot:+http-forbidden+
-                        "User not found."))
-    (authc:unable-to-authenticate-error (c)
-      (log:warn "Unable to authenticate: ~a" c)
-      (%make-http-error hunchentoot:+http-forbidden+
-                        "Unable to authenticate."))
-    ))
-
-(defroute session-close
-    ("/api/session"
-     :method :delete
-     :decorators (@json-out
-                  @protection-headers-out)) ()
-  (let ((token-id (hunchentoot:header-in* "X-Auth-Token")))
-    (unless token-id
-      (return-from session-close
-        (%make-http-error hunchentoot:+http-bad-request+
-                         "No X-Auth-Token header")))
-    (token-store:revoke-token token-id)
-    "{}"))
-
 ;; -----------------------------------
 ;; items
 ;; -----------------------------------
 
-(defun @check-authorization (next)
-  (flet ((error-response (err-message err-descr)
-           (setf (hunchentoot:header-out "WWW-Authenticate")
-                 (format nil
-                         "Bearer realm=\"chipi\", error=\"~a\", error_description=\"~a\""
-                         err-message
-                         err-descr))
-           (return-from @check-authorization
-             (%make-http-error hunchentoot:+http-authorization-required+
-                               err-descr))))
-    ;; auth header
-    (let ((auth-header (hunchentoot:header-in* "Authorization")))
-      (unless auth-header
-        (error-response "no token" "No Authorization header"))
+(defun @check-api-key (next)
+  (flet ((error-response (err-message)
+           (return-from @check-api-key
+             (%make-http-error hunchentoot:+http-forbidden+
+                               err-message))))
+    ;; api-key header
+    (let ((apikey (hunchentoot:header-in* "X-Api-Key")))
+      (unless apikey
+        (error-response "No API key provided"))
 
-      ;; parse token-id
-      (let ((token-id (str:trim (second (str:split "Bearer " auth-header)))))
-        (unless token-id
-          (error-response "invalid token" "No token provided"))
-        
-        ;; check on token
-        (handler-case
-            (authc:verify-authorization token-id)
-          (authc:token-unknown-error (c)
-            (log:info "~a" c)
-            (error-response "invalid token" "Unknown token"))
-          (authc:token-expired-error (c)
-            (log:info "~a" c)
-            (error-response "invalid token" "Token has expired"))))))
+      ;; check on token
+      (handler-case
+          (authc:verify-authorization apikey)
+        (authc:apikey-unknown-error (c)
+          (log:info "~a" c)
+          (error-response "Unknown API key"))
+        (authc:apikey-expired-error (c)
+          (log:info "~a" c)
+          (error-response "API key has expired")))))
   (funcall next))
 
 (defun %make-items-response (items)
@@ -172,5 +110,5 @@
      :method :get
      :decorators (@json-out
                   @protection-headers-out
-                  @check-authorization)) ()
+                  @check-api-key)) ()
   (%make-items-response (itemsc:retrieve-items)))

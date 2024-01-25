@@ -4,8 +4,6 @@
   (:import-from #:token-store
                 #:*token-store-backend*
                 #:*token-life-time-duration*)
-  (:import-from #:user-store
-                #:*user-store-backend*)
   (:import-from #:ltd
                 #:duration)
   (:export #:init))
@@ -42,17 +40,11 @@
   (setf token-store:*token-life-time-duration*
         token-lifetime-duration))
 
-(defun %init-user-store (user-store-backend)
-  "Initialize the user store backend."
-  (setf user-store:*user-store-backend*
-        user-store-backend))
-
-(defun init (&key token-store user-store (token-lifetime (duration :days 30)))
+(defun init (&key token-store (token-lifetime (duration :day 30)))
   "Initialize the API environment.
 This should be called very early in the application startup process.
 Preferably in or with `hab:defconfig'."
   (%init-user-pw-salt)
   (%init-token-store token-store)
   (%init-token-lifetime token-lifetime)
-  (%init-user-store user-store)
   t)
