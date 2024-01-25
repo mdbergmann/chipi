@@ -30,7 +30,7 @@
   ;;    the system is not geared towards many users, maybe just one that uses the API
   ;;    the simple-file-backend will just store users to a file using `cl-marshal'.
   ;;    however, other backends are possible, like a database backend
-  (api-env:init :token-store *memory-backend*
+  (api-env:init :apikey-store *memory-backend*
                 :token-lifetime (ltd:duration :days 30)
                 :user-store (user-store:make-simple-file-backend))
   

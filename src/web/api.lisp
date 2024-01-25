@@ -87,7 +87,7 @@
 
       ;; check on token
       (handler-case
-          (authc:verify-authorization apikey)
+          (authc:verify-apikey apikey)
         (authc:apikey-unknown-error (c)
           (log:info "~a" c)
           (error-response "Unknown API key"))

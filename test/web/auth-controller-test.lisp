@@ -11,56 +11,23 @@
 
 (in-suite auth-controller-tests)
 
-(test authorize-user--user-does-not-exist
+(test verify-apikey--ok
   (with-mocks ()
-    (answer user-store:exists-username-p nil)
-    (handler-case
-        (authorize-user "test" "test")
-      (condition (c)
-        (is (typep c 'user-not-found-error)))
-      (:no-error ()
-        (fail "Should have raised an error")))
-    (is (= 1 (length (invocations 'user-store:exists-username-p))))))
+    (answer apikey-store:exists-apikey-p t)
+    (answer apikey-store:expired-apikey-p nil)
+    (verify-apikey "apikey-id")
+    (is (= 1 (length (invocations 'apikey-store:exists-apikey-p))))
+    (is (= 1 (length (invocations 'apikey-store:expired-apikey-p))))))
 
-(test authorize-user--user-exists--password-does-not-match
+(test verify-apikey--not-existing-key-raises-error
   (with-mocks ()
-    (answer user-store:exists-username-p t)
-    (answer user-store:equals-password-p nil)
-    (handler-case
-        (authorize-user "admin" "no-match")
-      (condition (c)
-        (is (typep c 'unable-to-authenticate-error)))
-      (:no-error ()
-        (fail "Should have raised an error")))
-    (is (= 1 (length (invocations 'user-store:equals-password-p))))))
-  
-(test authorize-user--ok--returns-token-id
-  (with-mocks ()
-    (answer user-store:exists-username-p t)
-    (answer user-store:equals-password-p t)
-    (answer token-store:create-token "token-id")
-    (let ((auth-result (authorize-user "admin" "test")))
-      (is (typep auth-result 'string))
-      (is (equal "token-id" auth-result)))
-    (is (= 1 (length (invocations 'token-store:create-token))))))
+    (answer apikey-store:exists-apikey-p nil)
+    (signals apikey-unknown-error
+      (verify-apikey "apikey-id"))))
 
-(test verify-authorization--ok
+(test verify-apikey--expired-key-raises-error
   (with-mocks ()
-    (answer token-store:exists-token-p t)
-    (answer token-store:expired-token-p nil)
-    (verify-authorization "token-id")    
-    (is (= 1 (length (invocations 'token-store:exists-token-p))))
-    (is (= 1 (length (invocations 'token-store:expired-token-p))))))
-
-(test verify-authorization--not-existing-token-raises-error
-  (with-mocks ()
-    (answer token-store:exists-token-p nil)
-    (signals token-unknown-error
-      (verify-authorization "token-id"))))
-
-(test verify-authorization--expired-token-raises-error
-  (with-mocks ()
-    (answer token-store:exists-token-p t)
-    (answer token-store:expired-token-p t)
-    (signals token-expired-error
-      (verify-authorization "token-id"))))
+    (answer apikey-store:exists-apikey-p t)
+    (answer apikey-store:expired-apikey-p t)
+    (signals apikey-expired-error
+      (verify-apikey "apikey-id"))))

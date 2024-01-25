@@ -1,9 +1,9 @@
 (defpackage :chipi-web.api-env
   (:use :cl)
   (:nicknames :api-env)
-  (:import-from #:token-store
-                #:*token-store-backend*
-                #:*token-life-time-duration*)
+  (:import-from #:apikey-store
+                #:*apikey-store-backend*
+                #:*apikey-life-time-duration*)
   (:import-from #:ltd
                 #:duration)
   (:export #:init))
@@ -30,21 +30,21 @@
                             '(simple-array (unsigned-byte 8) (*)))))))))
   t)
 
-(defun %init-token-store (token-store-backend)
+(defun %init-apikey-store (apikey-store-backend)
   "Initialize the token store backend."
-  (setf token-store:*token-store-backend*
-        token-store-backend))
+  (setf apikey-store:*apikey-store-backend*
+        apikey-store-backend))
 
-(defun %init-token-lifetime (token-lifetime-duration)
-  "Initialize the token lifetime duration."
-  (setf token-store:*token-life-time-duration*
-        token-lifetime-duration))
+(defun %init-apikey-lifetime (apikey-lifetime-duration)
+  "Initialize the apikey lifetime duration."
+  (setf apikey-store:*apikey-life-time-duration*
+        apikey-lifetime-duration))
 
-(defun init (&key token-store (token-lifetime (duration :day 30)))
+(defun init (&key apikey-store (apikey-lifetime *apikey-life-time-duration*))
   "Initialize the API environment.
 This should be called very early in the application startup process.
 Preferably in or with `hab:defconfig'."
   (%init-user-pw-salt)
-  (%init-token-store token-store)
-  (%init-token-lifetime token-lifetime)
+  (%init-apikey-store apikey-store)
+  (%init-apikey-lifetime apikey-lifetime)
   t)

@@ -18,8 +18,7 @@
                 :components
                 ((:file "endecode")
                  (:file "cryp")
-                 (:file "token-store")
-                 (:file "user-store")
+                 (:file "apikey-store")
                  (:file "items-controller")
                  (:file "auth-controller")
                  (:file "api-env")
@@ -36,8 +35,7 @@
   :components ((:module "test/web"
                 :components
                 ((:file "all-tests")
-                 (:file "token-store-test")
-                 (:file "user-store-test")
+                 (:file "apikey-store-test")
                  (:file "auth-controller-test")
                  (:file "items-controller-test")
                  (:file "api-integ-test")
@@ -62,7 +60,7 @@ OK - initialize environment (chipi.env) on startup, if it isn't already
   -> Checkout api-integ-test.lisp for example
 OK - make more abstractions in api-env to setup token, user-store, token lifetime, etc.
 OK - make tokens more long-lifed => 30d
-=> - remove user-store and rework token-store to API-Key store
+=> - remove user-store and rework apikey-store to API-Key store
   -> we're only dealing with long-lifed api-keys
 - have a thread, or actor that cleans up expired tokens via scheduler
   -> manage token memory backend via Actor altogether
