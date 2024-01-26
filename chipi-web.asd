@@ -4,7 +4,6 @@
   :license "Apache-2"
   :depends-on ("chipi"
                "hunchentoot"
-               "easy-routes"
                "drakma"
                "cl-ppcre"
                "ironclad/kdf/scrypt"
