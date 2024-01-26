@@ -3,7 +3,9 @@
   (:nicknames :itemsc)
   (:import-from #:alexandria
                 #:when-let)
-  (:export #:retrieve-items))
+  (:export #:retrieve-items
+           #:retrieve-item
+           #:update-item-value))
 
 (in-package :chipi-web.items-controller)
 
@@ -19,3 +21,7 @@
                       :label label
                       :value item-value)))
             items)))
+
+(defun retrieve-item (item-name))
+
+(defun update-item-value (item-name item-value))

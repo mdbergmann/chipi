@@ -102,11 +102,27 @@
            (mapcar #'plist-hash-table items))))
       "[]"))
 
-(defroute items (:get :application/json)
+(defroute items (:get "application/json" &optional item-name)
   ;;(@json-out)
   (@protection-headers-out)
   (unless (@check-api-key)
-    (%make-items-response (itemsc:retrieve-items))))
+    (log:info "item-name: ~a" item-name)
+    (cond
+      ((null item-name)
+       (%make-items-response (itemsc:retrieve-items)))
+      (t
+       (let* ((item-name (string-downcase (symbol-name item-name)))
+              (item-plist (itemsc:retrieve-item item-name)))
+         (unless item-plist
+           (http-condition hunchentoot:+http-not-found+
+                           (format nil "Item '~a' not found" item-name)))
+         (%make-items-response (list item-plist)))))))
+
+;; (defroute items (:post "text/plain" item-name)
+;;   (@protection-headers-out)
+;;   (unless (@check-api-key)
+;;     (let ((item-value (payload-as-string)))
+;;       (itemsc:update-item-value item-name item-value))))
 
 (defmethod explain-condition ((c http-condition)
                               (resource (eql #'items))

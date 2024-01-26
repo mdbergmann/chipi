@@ -33,8 +33,11 @@
 ;; items
 ;; --------------------
 
-(defun make-get-items-request (headers)
-  (drakma:http-request "https://localhost:8443/items"
+(defun make-get-items-request (headers &optional (item-name nil))
+  (drakma:http-request (format nil "https://localhost:8443/items~a"
+                               (if item-name
+                                   (format nil "/~a" item-name)
+                                   ""))
                        :method :get
                        :accept "application/json"
                        ;;:certificate "../../cert/localhost.crt"
@@ -97,15 +100,61 @@
         (is (equal (octets-to-string body)
                    "[]"))))))
 
-(test items--get-all--with-actually-some
+(test items--get-all--some-ok
   (with-fixture api-start-stop ()
     (let ((apikey-id (apikey-store:create-apikey)))
       (with-mocks ()
-        (answer itemsc:retrieve-items '((:name "foo" :label "label1" :value "bar")
-                                        (:name "foo2" :label "label2" :value "baz")))
+        (answer itemsc:retrieve-items
+          '((:name "foo" :label "label1" :value "bar" :timestamp 1234567890)
+            (:name "foo2" :label "label2" :value "baz" :timestamp 1234567891))
         (multiple-value-bind (body status headers)
             (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
           (declare (ignore headers))
           (is (= status 200))
           (is (equal (octets-to-string body)
-                     "[{\"name\":\"foo\",\"value\":\"bar\",\"label\":\"label1\"},{\"name\":\"foo2\",\"value\":\"baz\",\"label\":\"label2\"}]")))))))
+                     "[{\"name\":\"foo\",\"label\":\"label1\",\"value\":\"bar\",\"timestamp\":1234567890},{\"name\":\"foo2\",\"label\":\"label2\",\"value\":\"baz\",\"timestamp\":1234567891}]"))))))))
+
+(test items--get-specific-item--ok
+  (with-fixture api-start-stop ()
+    (let ((apikey-id (apikey-store:create-apikey)))
+      (with-mocks ()
+        (answer itemsc:retrieve-item
+          '(:name "foo" :label "label1" :value "bar" :timestamp 1234567890))
+        (multiple-value-bind (body status headers)
+            (make-get-items-request `(("X-Api-Key" . ,apikey-id)) "foo")
+          (declare (ignore headers))
+          (is (= status 200))
+          (is (equal (octets-to-string body)
+                     "[{\"timestamp\":1234567890,\"name\":\"foo\",\"value\":\"bar\",\"label\":\"label1\"}]")))))))
+
+(test items--get-specific-item--not-found
+  (with-fixture api-start-stop ()
+    (let ((apikey-id (apikey-store:create-apikey)))
+      (with-mocks ()
+        (answer itemsc:retrieve-item nil)
+        (multiple-value-bind (body status headers)
+            (make-get-items-request `(("X-Api-Key" . ,apikey-id)) "foo")
+          (declare (ignore headers))
+          (is (= status 404))
+          (is (equal (octets-to-string body)
+                     "{\"error\":\"Item 'foo' not found\"}")))))))
+
+;; (test items--post-value--changes-item-value
+;;   (with-fixture api-start-stop ()
+;;     (let ((apikey-id (apikey-store:create-apikey)))
+;;       (with-mocks ()
+;;         (answer itemsc:retrieve-items '((:name "foo" :label "label1" :value "bar")
+;;                                         (:name "foo2" :label "label2" :value "baz")))
+;;         (answer (itemsc:update-item-value iname ivalue)
+;;           (assert (equal iname "foo" nil))
+;;           (assert (equal ivalue "bar" nil))
+;;           t)
+;;         (multiple-value-bind (body status headers)
+;;             (drakma:http-request "https://localhost:8443/items/foo"
+;;                                  :method :post
+;;                                  :accept "application/json"
+;;                                  :additional-headers `(("X-Api-Key" . ,apikey-id))
+;;                                  :contents "bar2"
+;;                                  :verify :required)
+;;           (declare (ignore headers))
+;;           (is (= status 204)))))))
