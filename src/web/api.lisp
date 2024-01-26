@@ -20,12 +20,6 @@
                               :ssl-certificate-file "../../cert/localhost.crt"
                               :port 8443
                               :address "127.0.0.1"))))
-  ;; (setf *api* (hunchentoot:start
-  ;;              (make-instance 'easy-routes-ssl-acceptor ;; 'easy-routes-acceptor
-  ;;                             :ssl-privatekey-file "../../cert/localhost.key"
-  ;;                             :ssl-certificate-file "../../cert/localhost.crt"
-  ;;                             :port 8443
-  ;;                             :address "127.0.0.1"))))
 
 (defun stop ()
   (when *api*
@@ -39,15 +33,6 @@
 (defun %alist-to-json (alist)
   (yason:with-output-to-string* ()
     (yason:encode-alist alist)))
-
-;; (defun %make-http-error (status-code message)
-;;   (http-error status-code
-;;               (%alist-to-json `(("error" . ,message)))))
-
-;; (defun %make-http-error (status-code message)
-;;   (setf (hunchentoot:return-code*) status-code)
-;;   (hunchentoot:abort-request-handler
-;;    (%alist-to-json `(("error" . ,message)))))
 
 (defun %make-json-response-body (alist)
   (%alist-to-json alist))
@@ -85,23 +70,6 @@
         (hunchentoot:header-out "Content-Security-Policy")
         "default-src 'none'; frame-ancestors 'none'; sandbox"))
  
-;; (defun @json-out (next)
-;;   (setf (hunchentoot:content-type*) "application/json")
-;;   (funcall next))
-
-;; (defun @protection-headers-out (next)
-;;   (setf (hunchentoot:header-out "X-XSS-Protection")
-;;         "0"
-;;         (hunchentoot:header-out "X-Content-Type-Options")
-;;         "nosniff"
-;;         (hunchentoot:header-out "X-Frame-Options")
-;;         "DENY"
-;;         (hunchentoot:header-out "Cache-Control")
-;;         "no-store"
-;;         (hunchentoot:header-out "Content-Security-Policy")
-;;         "default-src 'none'; frame-ancestors 'none'; sandbox")
-;;   (funcall next))
-
 ;; -----------------------------------
 ;; items
 ;; -----------------------------------
@@ -133,14 +101,6 @@
           (yason:encode
            (mapcar #'plist-hash-table items))))
       "[]"))
-
-;; (defroute items-get (:get :appl) items-get
-;;     ("/api/items"
-;;      :method :get
-;;      :decorators (@json-out
-;;                   @protection-headers-out
-;;                   @check-api-key)) ()
-;;   (%make-items-response (itemsc:retrieve-items)))
 
 (defroute items (:get :application/json)
   ;;(@json-out)
