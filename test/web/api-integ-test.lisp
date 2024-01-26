@@ -137,7 +137,7 @@
           (declare (ignore headers))
           (is (= status 404))
           (is (equal (octets-to-string body)
-                     "{\"error\":\"Item 'foo' not found\"}")))))))
+                     "{\"error\":\"Item 'FOO' not found\"}")))))))
 
 ;; (test items--post-value--changes-item-value
 ;;   (with-fixture api-start-stop ()

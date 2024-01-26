@@ -9,19 +9,24 @@
 
 (in-package :chipi-web.items-controller)
 
+(defun %item-to-plist (item)
+  (let* ((name (item:name item))
+         (label (item:label item))
+         (item-state (item:get-item-stateq item))
+         (item-value (item:item-state-value item-state))
+         (item-timestamp (item:item-state-timestamp item-state)))
+    (list :name name
+          :label label
+          :value item-value
+          :timestamp item-timestamp)))
+
 (defun retrieve-items ()
   "Retrieves all items as list of plists."
   (when-let ((items (hab:get-items)))
-    (mapcar (lambda (item)
-              (let* ((name (item:name item))
-                     (label (item:label item))
-                     (item-state (item:get-item-stateq item))
-                     (item-value (item:item-state-value item-state)))
-                (list :name name
-                      :label label
-                      :value item-value)))
-            items)))
+    (mapcar #'%item-to-plist items)))
 
-(defun retrieve-item (item-name))
+(defun retrieve-item (item-id)
+  (when-let ((item (hab:get-item item-id)))
+    (%item-to-plist item)))
 
-(defun update-item-value (item-name item-value))
+(defun update-item-value (item-id item-value))
