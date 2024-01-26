@@ -13,6 +13,7 @@
            #:identifier
            #:expiry
            #:*apikey-life-time-duration*
+           #:make-simple-file-backend
            #:*memory-backend*
            #:*apikey-store-backend*)
   )
@@ -69,6 +70,56 @@
 (defgeneric store-apikey (backend apikey))
 (defgeneric retrieve-apikey (backend identifier))
 (defgeneric delete-apikey (backend identifier))
+
+;; ---------------------------------
+;; simple file backed hash-table backend
+;; ---------------------------------
+
+(defclass simple-file-backend ()
+  ((store :initform (make-hash-table :test #'equal)
+          :reader store)
+   (filepath :initarg :filepath
+             :initform nil
+             :reader filepath)))
+
+(defmethod initialize-instance :after ((self simple-file-backend) &key)
+  (assert (filepath self) nil "filepath not set")
+  (when (probe-file (filepath self))
+    (with-open-file (in (filepath self) :direction :input)
+      (let ((apikey-list (marshal:unmarshal (read in))))
+        (dolist (apikey apikey-list)
+          (setf (gethash (identifier apikey) (store self)) apikey))))))
+
+(defun make-simple-file-backend (&optional (dir (envi:ensure-runtime-dir)))
+  (make-instance 'simple-file-backend
+                 :filepath (merge-pathnames
+                            "apikeys"
+                            (progn
+                              (uiop:ensure-all-directories-exist (list dir))
+                              dir))))
+
+(defmethod marshal:class-persistent-slots ((self apikey))
+  '(identifier expiry))
+
+(defun %persist-store (backend)
+  (with-open-file (out (filepath backend) :direction :output
+                                          :if-exists :supersede)
+    (let ((apikey-list
+            ;; generate simple list of apikeys
+            (loop :for apikey :being :the :hash-value :of (store backend)
+                  :collect apikey)))
+      (prin1 (marshal:marshal apikey-list) out))))
+
+(defmethod store-apikey ((backend simple-file-backend) apikey)
+  (setf (gethash (identifier apikey) (store backend)) apikey)
+  (%persist-store backend))
+
+(defmethod retrieve-apikey ((backend simple-file-backend) identifier)
+  (gethash identifier (store backend)))
+
+(defmethod delete-apikey ((backend simple-file-backend) identifier)
+  (remhash identifier (store backend))
+  (%persist-store backend))
 
 ;; ----------------------------------------
 ;; memory backend

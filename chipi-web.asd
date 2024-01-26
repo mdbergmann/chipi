@@ -12,7 +12,8 @@
                "ironclad/mac/hmac"
                "ironclad/digest/sha256"
                "cl-base64"
-               "marshal")
+               "marshal"
+               "snooze")
   :components ((:module "src/web"
                 :serial t
                 :components

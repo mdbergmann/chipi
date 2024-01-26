@@ -1,5 +1,5 @@
 (defpackage :chipi-web.api
-  (:use :cl :easy-routes)
+  (:use :cl :snooze)
   (:nicknames :api)
   (:import-from #:alexandria
                 #:plist-hash-table)
@@ -13,16 +13,24 @@
 
 (defun start ()
   "Start the API server."
+  (push (make-hunchentoot-app) hunchentoot:*dispatch-table*)
   (setf *api* (hunchentoot:start
-               (make-instance 'easy-routes-ssl-acceptor ;; 'easy-routes-acceptor
+               (make-instance 'hunchentoot:easy-ssl-acceptor
                               :ssl-privatekey-file "../../cert/localhost.key"
                               :ssl-certificate-file "../../cert/localhost.crt"
                               :port 8443
                               :address "127.0.0.1"))))
+  ;; (setf *api* (hunchentoot:start
+  ;;              (make-instance 'easy-routes-ssl-acceptor ;; 'easy-routes-acceptor
+  ;;                             :ssl-privatekey-file "../../cert/localhost.key"
+  ;;                             :ssl-certificate-file "../../cert/localhost.crt"
+  ;;                             :port 8443
+  ;;                             :address "127.0.0.1"))))
 
 (defun stop ()
   (when *api*
-    (hunchentoot:stop *api*)))
+    (hunchentoot:stop *api*)
+    (setf hunchentoot:*dispatch-table* nil)))
 
 ;; -----------------------------------
 ;; helpers
@@ -32,12 +40,20 @@
   (yason:with-output-to-string* ()
     (yason:encode-alist alist)))
 
-(defun %make-http-error (status-code message)
-  (http-error status-code
-              (%alist-to-json `(("error" . ,message)))))
+;; (defun %make-http-error (status-code message)
+;;   (http-error status-code
+;;               (%alist-to-json `(("error" . ,message)))))
 
-(defun %make-json-response (alist)
+;; (defun %make-http-error (status-code message)
+;;   (setf (hunchentoot:return-code*) status-code)
+;;   (hunchentoot:abort-request-handler
+;;    (%alist-to-json `(("error" . ,message)))))
+
+(defun %make-json-response-body (alist)
   (%alist-to-json alist))
+
+(defun %make-json-error-body (message)
+  (%make-json-response-body `(("error" . ,message))))
 
 ;; -----------------------------------
 ;; conditions
@@ -54,11 +70,10 @@
 ;; decorators
 ;; -----------------------------------
 
-(defun @json-out (next)
-  (setf (hunchentoot:content-type*) "application/json")
-  (funcall next))
+(defun @json-out ()
+  (setf (hunchentoot:content-type*) "application/json"))
 
-(defun @protection-headers-out (next)
+(defun @protection-headers-out ()
   (setf (hunchentoot:header-out "X-XSS-Protection")
         "0"
         (hunchentoot:header-out "X-Content-Type-Options")
@@ -68,18 +83,32 @@
         (hunchentoot:header-out "Cache-Control")
         "no-store"
         (hunchentoot:header-out "Content-Security-Policy")
-        "default-src 'none'; frame-ancestors 'none'; sandbox")
-  (funcall next))
+        "default-src 'none'; frame-ancestors 'none'; sandbox"))
+ 
+;; (defun @json-out (next)
+;;   (setf (hunchentoot:content-type*) "application/json")
+;;   (funcall next))
+
+;; (defun @protection-headers-out (next)
+;;   (setf (hunchentoot:header-out "X-XSS-Protection")
+;;         "0"
+;;         (hunchentoot:header-out "X-Content-Type-Options")
+;;         "nosniff"
+;;         (hunchentoot:header-out "X-Frame-Options")
+;;         "DENY"
+;;         (hunchentoot:header-out "Cache-Control")
+;;         "no-store"
+;;         (hunchentoot:header-out "Content-Security-Policy")
+;;         "default-src 'none'; frame-ancestors 'none'; sandbox")
+;;   (funcall next))
 
 ;; -----------------------------------
 ;; items
 ;; -----------------------------------
 
-(defun @check-api-key (next)
+(defun @check-api-key ()
   (flet ((error-response (err-message)
-           (return-from @check-api-key
-             (%make-http-error hunchentoot:+http-forbidden+
-                               err-message))))
+           (http-condition hunchentoot:+http-forbidden+ err-message)))
     ;; api-key header
     (let ((apikey (hunchentoot:header-in* "X-Api-Key")))
       (unless apikey
@@ -93,10 +122,10 @@
           (error-response "Unknown API key"))
         (authc:apikey-expired-error (c)
           (log:info "~a" c)
-          (error-response "API key has expired")))))
-  (funcall next))
+          (error-response "API key has expired"))))))
 
 (defun %make-items-response (items)
+  (format t "items: ~a~%" items)
   (if (car items)
       (yason:with-output-to-string* ()
         (let ((yason:*symbol-key-encoder* 
@@ -105,10 +134,22 @@
            (mapcar #'plist-hash-table items))))
       "[]"))
 
-(defroute items-get
-    ("/api/items"
-     :method :get
-     :decorators (@json-out
-                  @protection-headers-out
-                  @check-api-key)) ()
-  (%make-items-response (itemsc:retrieve-items)))
+;; (defroute items-get (:get :appl) items-get
+;;     ("/api/items"
+;;      :method :get
+;;      :decorators (@json-out
+;;                   @protection-headers-out
+;;                   @check-api-key)) ()
+;;   (%make-items-response (itemsc:retrieve-items)))
+
+(defroute items (:get :application/json)
+  ;;(@json-out)
+  (@protection-headers-out)
+  (unless (@check-api-key)
+    (%make-items-response (itemsc:retrieve-items))))
+
+(defmethod explain-condition ((c http-condition)
+                              (resource (eql #'items))
+                              (ct snooze-types:application/json))
+  (log:warn "HTTP condition: ~a" c)
+  (%make-json-error-body (simple-condition-format-control c)))
