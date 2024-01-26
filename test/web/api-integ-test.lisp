@@ -90,7 +90,7 @@
           (is (equal (octets-to-string body)
                      "{\"error\":\"API key has expired\"}")))))))
 
-(test items--get-all--empty-ok
+(test items--get-all--empty--200--ok
   (with-fixture api-start-stop ()
     (let ((apikey-id (apikey-store:create-apikey)))
       (multiple-value-bind (body status headers)
@@ -100,7 +100,7 @@
         (is (equal (octets-to-string body)
                    "[]"))))))
 
-(test items--get-all--some-ok
+(test items--get-all--some--200--ok
   (with-fixture api-start-stop ()
     (let ((apikey-id (apikey-store:create-apikey)))
       (with-mocks ()
@@ -114,7 +114,7 @@
           (is (equal (octets-to-string body)
                      "[{\"name\":\"foo\",\"label\":\"label1\",\"value\":\"bar\",\"timestamp\":1234567890},{\"name\":\"foo2\",\"label\":\"label2\",\"value\":\"baz\",\"timestamp\":1234567891}]"))))))))
 
-(test items--get-specific-item--ok
+(test items--get-specific-item--200--ok
   (with-fixture api-start-stop ()
     (let ((apikey-id (apikey-store:create-apikey)))
       (with-mocks ()
@@ -127,7 +127,7 @@
           (is (equal (octets-to-string body)
                      "[{\"timestamp\":1234567890,\"name\":\"foo\",\"value\":\"bar\",\"label\":\"label1\"}]")))))))
 
-(test items--get-specific-item--not-found
+(test items--get-specific-item--404--not-found
   (with-fixture api-start-stop ()
     (let ((apikey-id (apikey-store:create-apikey)))
       (with-mocks ()
@@ -139,22 +139,36 @@
           (is (equal (octets-to-string body)
                      "{\"error\":\"Item 'FOO' not found\"}")))))))
 
-;; (test items--post-value--changes-item-value
-;;   (with-fixture api-start-stop ()
-;;     (let ((apikey-id (apikey-store:create-apikey)))
-;;       (with-mocks ()
-;;         (answer itemsc:retrieve-items '((:name "foo" :label "label1" :value "bar")
-;;                                         (:name "foo2" :label "label2" :value "baz")))
-;;         (answer (itemsc:update-item-value iname ivalue)
-;;           (assert (equal iname "foo" nil))
-;;           (assert (equal ivalue "bar" nil))
-;;           t)
-;;         (multiple-value-bind (body status headers)
-;;             (drakma:http-request "https://localhost:8443/items/foo"
-;;                                  :method :post
-;;                                  :accept "application/json"
-;;                                  :additional-headers `(("X-Api-Key" . ,apikey-id))
-;;                                  :contents "bar2"
-;;                                  :verify :required)
-;;           (declare (ignore headers))
-;;           (is (= status 204)))))))
+(defun make-post-item-request (headers item-id value)
+  (drakma:http-request (format nil "https://localhost:8443/items/~a" item-id)
+                       :method :post
+                       :accept "application/json"
+                       ;;:certificate "../../cert/localhost.crt"
+                       :content value
+                       :content-type "text/plain"
+                       :additional-headers headers
+                       :verify :required))
+
+(test items--post-item-value--204--ok
+  (with-fixture api-start-stop ()
+    (let ((apikey-id (apikey-store:create-apikey)))
+      (with-mocks ()
+        (answer itemsc:update-item-value t)
+        (multiple-value-bind (body status headers)
+            (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                    "foo" "bar")
+          (declare (ignore headers body))
+          (is (= status 204)))))))
+
+(test items--post-item-value--404--not-found
+  (with-fixture api-start-stop ()
+    (let ((apikey-id (apikey-store:create-apikey)))
+      (with-mocks ()
+        (answer itemsc:update-item-value nil)
+        (multiple-value-bind (body status headers)
+            (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                    "foo" "bar")
+          (declare (ignore headers body))
+          (is (= status 404))
+          (is (equal (octets-to-string body)
+                     "{\"error\":\"Item 'FOO' not found\"}")))))))

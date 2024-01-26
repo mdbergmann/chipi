@@ -41,17 +41,6 @@
   (%make-json-response-body `(("error" . ,message))))
 
 ;; -----------------------------------
-;; conditions
-;; -----------------------------------
-
-(define-condition parameter-validation-error (simple-error)
-  ((failed-args :initarg :failed-args
-                :reader failed-args))
-  (:report (lambda (condition stream)
-             (format stream "Parameter validation failed: ~a"
-                     (failed-args condition)))))
-
-;; -----------------------------------
 ;; decorators
 ;; -----------------------------------
 
@@ -93,14 +82,14 @@
           (error-response "API key has expired"))))))
 
 (defun %make-items-response (items)
-  (format t "items: ~a~%" items)
-  (if (car items)
-      (yason:with-output-to-string* ()
-        (let ((yason:*symbol-key-encoder* 
-                'yason:encode-symbol-as-lowercase))
-          (yason:encode
-           (mapcar #'plist-hash-table items))))
-      "[]"))
+  (cond
+    ((car items)
+     (yason:with-output-to-string* ()
+       (let ((yason:*symbol-key-encoder* 
+               'yason:encode-symbol-as-lowercase))
+         (yason:encode
+          (mapcar #'plist-hash-table items)))))
+    (t "[]")))
 
 (defroute items (:get "application/json" &optional item-id)
   ;;(@json-out)
@@ -117,13 +106,17 @@
                            (format nil "Item '~a' not found" item-id)))
          (%make-items-response (list item-plist)))))))
 
-;; (defroute items (:post "text/plain" item-id)
-;;   (@protection-headers-out)
-;;   (unless (@check-api-key)
-;;     (let ((item-value (payload-as-string)))
-;;       (itemsc:update-item-value item-id item-value))))
+(defroute items (:post "text/plain" &optional item-id)
+  ;;"`item-id' is not optional"
+  (@protection-headers-out)
+  (unless (@check-api-key)
+    (let ((item-value (payload-as-string)))
+      (unless (itemsc:update-item-value item-id item-value)
+        (http-condition hunchentoot:+http-not-found+
+                        (format nil "Item '~a' not found" item-id)))))
+  nil)
 
-(defmethod explain-condition ((c http-condition)
+(defmethod snooze:explain-condition ((c http-condition)
                               (resource (eql #'items))
                               (ct snooze-types:application/json))
   (log:warn "HTTP condition: ~a" c)

@@ -20,24 +20,14 @@
 
   ;; for chipi-web we need to setup additional things
   
-  ;; 1. setup the `api-env' environment, this creates some crucial runtime data, like password salts, etc.
-  ;;    this should not be deleted when users were created. Creating a new password salt will
-  ;;    invalidate all existing user passwords
-  ;; 2. setup the token store
-  ;;    we just use an  in `memory' store. Since tokens are short lifed anyway, this is fine.
-  ;;    you may change token life-time (optional)
-  ;; 3. setup the user store
-  ;;    the system is not geared towards many users, maybe just one that uses the API
-  ;;    the simple-file-backend will just store users to a file using `cl-marshal'.
-  ;;    however, other backends are possible, like a database backend
-  (api-env:init :apikey-store *memory-backend*
-                :token-lifetime (ltd:duration :days 30)
-                :user-store (user-store:make-simple-file-backend))
+  ;; 1. setup the `api-env' environment, this creates some crucial runtime data
+  ;; 2. setup the api-key store
+  ;;    we just use a simple file store as there may not be many api-keys (for now)
+  ;;    you may change api-key life-time (optional)
+  (api-env:init :apikey-store (apikey-store:make-simple-file-backend)
+                :apikey-lifetime (ltd:duration :days 100))
   
-  ;; 4. we can add a user that primarily should use this API
-  (user-store:add-user (user-store:make-user "admin" "the-admin-password"))
-
-  ;; 5. start the API server
+  ;; 3. start the API server
   (api:start)
   
   )
