@@ -46,3 +46,18 @@
       (is-true item)
       (is (listp item))
       (is-true (equal-item-props-p item "FOO1" "foo1-label" 1)))))
+
+(test retrieve-item--non-existing
+  (with-fixture with-isys ()
+    (is-false (retrieve-item 'foo1))))
+
+(test update-item--existing
+  (with-fixture with-isys ()
+    (hab:defitem 'foo1 "foo1-label" nil :initial-value 1)
+    (is-true (update-item-value 'foo1 2))
+    (is-true (miscutils:await-cond 0.5
+               (= (getf (retrieve-item 'foo1) :value) 2)))))
+
+(test update-item--non-existing
+  (with-fixture with-isys ()
+    (is-false (update-item-value 'foo1 2))))

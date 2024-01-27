@@ -92,7 +92,6 @@
     (t "[]")))
 
 (defroute items (:get "application/json" &optional item-id)
-  ;;(@json-out)
   (@protection-headers-out)
   (unless (@check-api-key)
     (log:info "item-name: ~a" item-id)
@@ -117,7 +116,7 @@
   nil)
 
 (defmethod snooze:explain-condition ((c http-condition)
-                              (resource (eql #'items))
-                              (ct snooze-types:application/json))
+                                     (resource (eql #'items))
+                                     (ct snooze-types:application/json))
   (log:warn "HTTP condition: ~a" c)
   (%make-json-error-body (simple-condition-format-control c)))

@@ -2,7 +2,7 @@
   (:use :cl)
   (:nicknames :itemsc)
   (:import-from #:alexandria
-                #:when-let)
+                #:if-let)
   (:export #:retrieve-items
            #:retrieve-item
            #:update-item-value))
@@ -22,11 +22,16 @@
 
 (defun retrieve-items ()
   "Retrieves all items as list of plists."
-  (when-let ((items (hab:get-items)))
-    (mapcar #'%item-to-plist items)))
+  (if-let ((items (hab:get-items)))
+          (mapcar #'%item-to-plist items)
+          (log:info "No items.")))
 
 (defun retrieve-item (item-id)
-  (when-let ((item (hab:get-item item-id)))
-    (%item-to-plist item)))
+  (if-let ((item (hab:get-item item-id)))
+          (%item-to-plist item)
+          (log:info "No item with id ~a." item-id)))
 
-(defun update-item-value (item-id item-value))
+(defun update-item-value (item-id item-value)
+  (if-let ((item (hab:get-item item-id)))
+          (item:set-value item item-value)
+          (log:info "No item with id ~a." item-id)))
