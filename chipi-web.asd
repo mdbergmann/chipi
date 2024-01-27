@@ -62,7 +62,8 @@ OK - make more abstractions in api-env to setup token, user-store, token lifetim
 OK - make tokens more long-lifed => 30d
 OK - remove user-store and rework apikey-store to API-Key store
   -> we're only dealing with long-lifed api-keys
-=> - add change item value via api
+OK - add change item value via api
+=> - convert to the right value type (string, number, boolean) in items-controller when updating value  
 - validate and length check the parameters for post request
 - have a thread, or actor that cleans up expired tokens via scheduler
   -> manage apikey backend via Actor altogether
