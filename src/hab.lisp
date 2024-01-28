@@ -106,7 +106,7 @@ See `hab-test.lisp' and `item' for more examples."
               (,item (item:make-item ,id
                                      :label ,label
                                      :type-hint ,type-hint
-                                     :initial-value (if ,initial-value ,initial-value t))))
+                                     :initial-value ,initial-value)))
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
          (dolist (,p-rep ,p-reps)

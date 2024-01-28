@@ -25,7 +25,9 @@
            #:item-state-timestamp
            ;; boolean value types
            #:true
+           #:true-p
            #:false
+           #:false-p
            ;; events
            #:item-changed-event
            #:item-changed-event-item))
@@ -52,8 +54,17 @@ This is in particular important for persistences that are type specific, like in
   (value t)
   (timestamp (get-universal-time)))
 
-(deftype true ())
-(deftype false ())
+(defun true-p (val)
+  (and (stringp val)
+       (string= val "true")))
+(defun false-p (val)
+  (and (stringp val)
+       (string= val "false")))
+
+(deftype true ()
+  `(satisfies true-p))
+(deftype false ()
+  `(satisfies false-p))
 
 (defstruct item-persistence
   (persp nil :type (or null persp:persistence))
@@ -115,7 +126,8 @@ This is in particular important for persistences that are type specific, like in
              (push-to-bindings val push))))))))
 
 (defun make-item (id &key (label nil) (type-hint nil) (initial-value t))
-  (log:info "Creating item: ~a, label: ~a, type-hint: ~a" id label type-hint)
+  (log:info "Creating item: ~a, label: ~a, type-hint: ~a, value: ~a"
+            id label type-hint initial-value)
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys
