@@ -25,7 +25,7 @@ Influx persistence supports the following value types:
 - string
 - integer
 - float
-- boolean, fpr boolean values, use the symbols 'item:true and 'item:false.
+- boolean, for boolean values, use the symbols 'item:true and 'item:false.
 
 Other value types are not supported.
 Specify those types as 'type-hint' in the item definition."))

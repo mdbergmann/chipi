@@ -63,7 +63,8 @@ OK - make tokens more long-lifed => 30d
 OK - remove user-store and rework apikey-store to API-Key store
   -> we're only dealing with long-lifed api-keys
 OK - add change item value via api
-=> - convert to the right value type (string, number, boolean) in items-controller when updating value  
+=> - convert to the right value type (string, number, boolean) in API when updating value
+- generate the right value type in API when converting item plist to json (boolean in particular)
 - validate and length check the parameters for post request
 - have a thread, or actor that cleans up expired tokens via scheduler
   -> manage apikey backend via Actor altogether

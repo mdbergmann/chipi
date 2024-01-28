@@ -158,7 +158,10 @@ This is in particular important for persistences that are type specific, like in
 If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on binding definition.
 `TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
 `PERSIST': if non-nil, persistences will be applied."
-  (! item `(:set-state . (:value ,value :push-p ,push :timestamp ,timestamp :persist-p ,persist))))
+  (! item `(:set-state . (:value ,value
+                          :push-p ,push
+                          :timestamp ,timestamp
+                          :persist-p ,persist))))
 
 (defun get-item-stateq (item)
   "Returns the item state `item-state'."
@@ -209,7 +212,8 @@ If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on bi
       (result)
     (cond
       ((and (consp result) (eq (car result) :error))
-       (log:warn "Error loading item (~a) value from persp: ~a" (act-cell:name item) persistence))
+       (log:warn "Error loading item (~a) value from persp: ~a"
+                 (act-cell:name item) persistence))
       (t
        (progn
          (log:debug "Setting loaded value to item: ~a" item)
