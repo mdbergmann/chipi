@@ -1,5 +1,7 @@
 (defpackage :chipi-web.api-integtest
   (:use :cl :cl-mock :fiveam :endecode :chipi-web.api)
+  (:local-nicknames
+   (#:jzon #:com.inuoe.jzon))
   (:export #:run!
            #:all-tests
            #:nil))
@@ -13,9 +15,13 @@
 
 (setf drakma:*header-stream* *standard-output*)
 
-(def-fixture api-start-stop ()
+(def-fixture api-start-stop (with-isys)
   (unwind-protect
        (progn
+         (when with-isys
+           ;; setup a partial environment
+           (setf hab:*items* (make-hash-table :test 'equal))
+           (isys:ensure-isys))
          (api-env:init :apikey-store apikey-store:*memory-backend*
                        :apikey-lifetime (ltd:duration :day 1))
          (api:start)
@@ -24,17 +30,20 @@
       (api:stop)
       (setf apikey-store:*apikey-store-backend* nil)
       (uiop:delete-directory-tree (envi:ensure-runtime-dir) :validate t)
+      (when with-isys
+        (isys:shutdown-isys)
+        (setf hab:*items* nil))
       )))
 
 (defun get-header (name headers)
   (cdr (assoc name headers)))
 
 ;; --------------------
-;; items
+;; item-plists
 ;; --------------------
 
 (defun make-get-items-request (headers &optional (item-name nil))
-  (drakma:http-request (format nil "https://localhost:8443/items~a"
+  (drakma:http-request (format nil "http://localhost:8765/items~a"
                                (if item-name
                                    (format nil "/~a" item-name)
                                    ""))
@@ -42,10 +51,10 @@
                        :accept "application/json"
                        ;;:certificate "../../cert/localhost.crt"
                        :additional-headers headers
-                       :verify :required))
+                       :verify nil))
 
 (test items--check-protection-headers
-  (with-fixture api-start-stop ()
+  (with-fixture api-start-stop (nil)
     (multiple-value-bind (body status headers)
         (make-get-items-request nil)
       (declare (ignore body status))
@@ -64,7 +73,7 @@
       )))
 
 (test items--get-all--403--require-api-key
-  (with-fixture api-start-stop ()
+  (with-fixture api-start-stop (nil)
     (multiple-value-bind (body status headers)
         (make-get-items-request nil)
       (declare (ignore headers))
@@ -73,7 +82,7 @@
                  "{\"error\":\"No API key provided\"}")))))
 
 (test items--get-all--403--apikey-not-known
-  (with-fixture api-start-stop ()
+  (with-fixture api-start-stop (nil)
     (multiple-value-bind (body status headers)
         (make-get-items-request '(("X-Api-Key" . "abcdef")))
       (declare (ignore headers))
@@ -82,7 +91,7 @@
                  "{\"error\":\"Unknown API key\"}")))))
 
 (test items--get-all--403--apikey-expired
-  (with-fixture api-start-stop ()
+  (with-fixture api-start-stop (nil)
     (let ((apikey-store:*apikey-life-time-duration* (ltd:duration :sec 1)))
       (let ((apikey-id (apikey-store:create-apikey)))
         (sleep 2.0)
@@ -94,7 +103,7 @@
                      "{\"error\":\"API key has expired\"}")))))))
 
 (test items--get-all--empty--200--ok
-  (with-fixture api-start-stop ()
+  (with-fixture api-start-stop (nil)
     (let ((apikey-id (apikey-store:create-apikey)))
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
@@ -103,75 +112,112 @@
         (is (equal (octets-to-string body)
                    "[]"))))))
 
+(defun equal-item-lists-p (json-string plists)
+  (format t "json-string: ~a~%" json-string)
+  (let ((json-objs (jzon:parse json-string)))
+    (assert (= (length json-objs) (length plists)) nil "Length mismatch")
+    (dolist (plist plists)
+      (loop :for (key value) :on plist :by #'cddr
+            :for key-string := (string-downcase (symbol-name key))
+            :do
+               (format t "~a => ~a~%" key value)
+               (assert (find-if (lambda (ht)
+                                  (let ((ht-val (gethash key-string ht)))
+                                    (format t "~a ==? ~a (ht-value)~%" value ht-val)
+                                    (maphash (lambda (k v)
+                                               (format t "ht: ~a => ~a~%" k v)) ht)
+                                    (cond
+                                      ((eq value nil)
+                                       (equal ht-val 'cl:null))
+                                      ((floatp ht-val)
+                                       (eql (coerce ht-val 'single-float) value))
+                                      (t
+                                       (equal ht-val value)))))
+                                (coerce json-objs 'list))
+                       nil (format nil "Key '~a' with value '~a' not found in json-obj" key value)))))
+  t)
+
 (test items--get-all--some--200--ok
-  (with-fixture api-start-stop ()
-    (let ((apikey-id (apikey-store:create-apikey)))
-      (with-mocks ()
-        (answer itemsc:retrieve-items
-          '((:name "foo" :label "label1" :value "bar" :timestamp 1234567890)
-            (:name "foo2" :label "label2" :value "baz" :timestamp 1234567891))
-        (multiple-value-bind (body status headers)
-            (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
-          (declare (ignore headers))
-          (is (= status 200))
-          (is (equal (octets-to-string body)
-                     "[{\"name\":\"foo\",\"label\":\"label1\",\"value\":\"bar\",\"timestamp\":1234567890},{\"name\":\"foo2\",\"label\":\"label2\",\"value\":\"baz\",\"timestamp\":1234567891}]"))))))))
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey))
+           (items (list
+                   (hab:defitem 'foo "label1" 'string :initial-value "bar")))
+           (item-plists (mapcar #'itemsc:item-to-plist items)))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
+        (declare (ignore headers))
+        (is (= status 200))
+        (is (equal-item-lists-p (octets-to-string body)
+                                item-plists))))))
+
+(test items--get-all--supported-value-types--200--ok
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey))
+           (items (list
+                   (hab:defitem 'foo "label-int" 'integer :initial-value 1)
+                   (hab:defitem 'foo2 "label-float" 'float :initial-value 1.1)
+                   (hab:defitem 'foo3 "label-string" 'string :initial-value "bar")
+                   (hab:defitem 'foo4 "label-true" 'boolean :initial-value 'item:true)
+                   (hab:defitem 'foo5 "label-false" 'boolean :initial-value 'item:false)
+                   (hab:defitem 'foo6 "label-null" nil :initial-value nil)))
+           (item-plists (mapcar #'itemsc:item-to-plist items)))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
+        (declare (ignore headers))
+        (is (= status 200))
+        (is (equal-item-lists-p (octets-to-string body)
+                                item-plists))))))
 
 (test items--get-specific-item--200--ok
-  (with-fixture api-start-stop ()
-    (let ((apikey-id (apikey-store:create-apikey)))
-      (with-mocks ()
-        (answer itemsc:retrieve-item
-          '(:name "foo" :label "label1" :value "bar" :timestamp 1234567890))
-        (multiple-value-bind (body status headers)
-            (make-get-items-request `(("X-Api-Key" . ,apikey-id)) "foo")
-          (declare (ignore headers))
-          (is (= status 200))
-          (is (equal (octets-to-string body)
-                     "[{\"timestamp\":1234567890,\"name\":\"foo\",\"value\":\"bar\",\"label\":\"label1\"}]")))))))
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey))
+           (items (list
+                   (hab:defitem 'foo "label1" 'string :initial-value "bar")))
+           (item-plists (mapcar #'itemsc:item-to-plist items)))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("X-Api-Key" . ,apikey-id)) "foo")
+        (declare (ignore headers))
+        (is (= status 200))
+        (is (equal-item-lists-p (octets-to-string body)
+                                item-plists))))))
 
 (test items--get-specific-item--404--not-found
-  (with-fixture api-start-stop ()
+  (with-fixture api-start-stop (t)
     (let ((apikey-id (apikey-store:create-apikey)))
-      (with-mocks ()
-        (answer itemsc:retrieve-item nil)
-        (multiple-value-bind (body status headers)
-            (make-get-items-request `(("X-Api-Key" . ,apikey-id)) "foo")
-          (declare (ignore headers))
-          (is (= status 404))
-          (is (equal (octets-to-string body)
-                     "{\"error\":\"Item 'FOO' not found\"}")))))))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("X-Api-Key" . ,apikey-id)) "foo")
+        (declare (ignore headers))
+        (is (= status 404))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"Item 'FOO' not found\"}"))))))
 
 (defun make-post-item-request (headers item-id value)
-  (drakma:http-request (format nil "https://localhost:8443/items/~a" item-id)
+  (drakma:http-request (format nil "http://localhost:8765/items/~a" item-id)
                        :method :post
                        :accept "application/json"
                        ;;:certificate "../../cert/localhost.crt"
                        :content value
                        :content-type "text/plain"
                        :additional-headers headers
-                       :verify :required))
+                       :verify nil))
 
 (test items--post-item-value--204--ok
-  (with-fixture api-start-stop ()
-    (let ((apikey-id (apikey-store:create-apikey)))
-      (with-mocks ()
-        (answer itemsc:update-item-value t)
-        (multiple-value-bind (body status headers)
-            (make-post-item-request `(("X-Api-Key" . ,apikey-id))
-                                    "foo" "bar")
-          (declare (ignore headers body))
-          (is (= status 204)))))))
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey)))
+      (hab:defitem 'foo "label1" 'string :initial-value "bar")
+      (multiple-value-bind (body status headers)
+          (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                  "foo" "bar")
+        (declare (ignore headers body))
+        (is (= status 204))))))
 
 (test items--post-item-value--404--not-found
-  (with-fixture api-start-stop ()
+  (with-fixture api-start-stop (t)
     (let ((apikey-id (apikey-store:create-apikey)))
-      (with-mocks ()
-        (answer itemsc:update-item-value nil)
-        (multiple-value-bind (body status headers)
-            (make-post-item-request `(("X-Api-Key" . ,apikey-id))
-                                    "foo" "bar")
-          (declare (ignore headers))
-          (is (= status 404))
-          (is (equal (octets-to-string body)
-                     "{\"error\":\"Item 'FOO' not found\"}")))))))
+      (multiple-value-bind (body status headers)
+          (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                  "foo" "bar")
+        (declare (ignore headers))
+        (is (= status 404))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"Item 'FOO' not found\"}"))))))

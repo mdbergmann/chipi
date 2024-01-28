@@ -3,6 +3,8 @@
   (:nicknames :api)
   (:import-from #:alexandria
                 #:plist-hash-table)
+  (:local-nicknames
+   (#:jzon #:com.inuoe.jzon))
   (:export #:start
            #:stop)
   )
@@ -15,10 +17,10 @@
   "Start the API server."
   (push (make-hunchentoot-app) hunchentoot:*dispatch-table*)
   (setf *api* (hunchentoot:start
-               (make-instance 'hunchentoot:easy-ssl-acceptor
-                              :ssl-privatekey-file "../../cert/localhost.key"
-                              :ssl-certificate-file "../../cert/localhost.crt"
-                              :port 8443
+               (make-instance 'hunchentoot:easy-acceptor
+                              ;;:ssl-privatekey-file "../../cert/localhost.key"
+                              ;;:ssl-certificate-file "../../cert/localhost.crt"
+                              :port 8765
                               :address "127.0.0.1"))))
 
 (defun stop ()
@@ -30,9 +32,18 @@
 ;; helpers
 ;; -----------------------------------
 
+(defun ph (plist)
+  "Shorthand for plist-hash-table."
+  (alexandria:plist-hash-table plist :test 'equal))
+
+(defun ah (alist)
+  "Shorthand for plist-hash-table."
+  (alexandria:alist-hash-table alist :test 'equal))
+
 (defun %alist-to-json (alist)
-  (yason:with-output-to-string* ()
-    (yason:encode-alist alist)))
+  (jzon:stringify (ah alist)))
+  ;; (yason:with-output-to-string* ()
+  ;;   (yason:encode-alist alist)))
 
 (defun %make-json-response-body (alist)
   (%alist-to-json alist))
@@ -84,35 +95,36 @@
 (defun %make-items-response (items)
   (cond
     ((car items)
-     (yason:with-output-to-string* ()
-       (let ((yason:*symbol-key-encoder* 
-               'yason:encode-symbol-as-lowercase))
-         (yason:encode
-          (mapcar #'plist-hash-table items)))))
+     (jzon:stringify (mapcar #'ph items)))
+     ;; (yason:with-output-to-string* ()
+     ;;   (let ((yason:*symbol-key-encoder* 
+     ;;           'yason:encode-symbol-as-lowercase))
+     ;;     (yason:encode
+     ;;      (mapcar #'plist-hash-table items)))))
     (t "[]")))
 
-(defroute items (:get "application/json" &optional item-id)
+(defroute items (:get "application/json" &optional item-name)
   (@protection-headers-out)
   (unless (@check-api-key)
-    (log:info "item-name: ~a" item-id)
+    (log:info "item-name: ~a, type: ~a" item-name (type-of item-name))
     (cond
-      ((null item-id)
+      ((null item-name)
        (%make-items-response (itemsc:retrieve-items)))
       (t
-       (let* ((item-plist (itemsc:retrieve-item item-id)))
+       (let* ((item-plist (itemsc:retrieve-item item-name)))
          (unless item-plist
            (http-condition hunchentoot:+http-not-found+
-                           (format nil "Item '~a' not found" item-id)))
+                           (format nil "Item '~a' not found" item-name)))
          (%make-items-response (list item-plist)))))))
 
-(defroute items (:post "text/plain" &optional item-id)
-  ;;"`item-id' is not optional"
+(defroute items (:post "text/plain" &optional item-name)
+  ;;"`item-name' is not optional"
   (@protection-headers-out)
   (unless (@check-api-key)
     (let ((item-value (payload-as-string)))
-      (unless (itemsc:update-item-value item-id item-value)
+      (unless (itemsc:update-item-value item-name item-value)
         (http-condition hunchentoot:+http-not-found+
-                        (format nil "Item '~a' not found" item-id)))))
+                        (format nil "Item '~a' not found" item-name)))))
   nil)
 
 (defmethod snooze:explain-condition ((c http-condition)
