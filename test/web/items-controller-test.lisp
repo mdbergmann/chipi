@@ -11,17 +11,31 @@
 
 (in-suite items-controller-tests)
 
-(def-fixture with-isys ()
+(defun %make-mock-item (id label value)
+  (let ((item
+          (act:make-actor (lambda ())
+                        :name (symbol-name id)
+                        :type 'item:item
+                        :state (item::make-item-state
+                                :value value))))
+    (setf (slot-value item 'item::label) label)
+    item))
+
+(def-fixture with-isys-mock (item-datas)
   (unwind-protect
        (progn
          ;; setup a partial environment
          (let ((hab:*items* (make-hash-table)))
-           (isys:ensure-isys)
-           (&body)))
-    (isys:shutdown-isys)))
+           (dolist (item-data item-datas)
+             (destructuring-bind (id label initial-value) item-data
+               (let ((item (%make-mock-item id label initial-value)))
+                 (setf (slot-value item 'item::label) label)
+                 (setf (gethash id hab:*items*) item))))
+           ;;(isys:ensure-isys)
+           (&body)))))
 
 (test retrieve-items--empty
-  (with-fixture with-isys ()
+  (with-fixture with-isys-mock (nil)
     (is (= (length (retrieve-items)) 0))))
 
 (defun equal-item-props-p (item-plist name label value)
@@ -31,22 +45,20 @@
        (> (getf item-plist :timestamp) 0)))
 
 (test retrieve-items--non-empty
-  (with-fixture with-isys ()
-    (hab:defitem 'foo1 "foo1-label" nil :initial-value 1)
-    (hab:defitem 'foo2 "foo2-label" nil :initial-value 2)
+  (with-fixture with-isys-mock ('((foo1 "foo1-label" 1)
+                                  (foo2 "foo2-label" 2)))
     (let ((items (retrieve-items)))
       (is (= (length items) 2))
       (is-true (equal-item-props-p (first items) "FOO1" "foo1-label" 1))
       (is-true (equal-item-props-p (second items) "FOO2" "foo2-label" 2)))))
 
 (test retrieve-items--supported-value-types-mapping
-  (with-fixture with-isys ()
-    (hab:defitem 'foo1 "foo1-label-int" 'integer :initial-value 1)
-    (hab:defitem 'foo2 "foo2-label-float" 'float :initial-value 2.1)
-    (hab:defitem 'foo3 "foo3-label-string" 'string :initial-value "bar")
-    (hab:defitem 'foo4 "foo4-label-true" 'boolean :initial-value 'item:true)
-    (hab:defitem 'foo5 "foo5-label-false" 'boolean :initial-value 'item:false)
-    (hab:defitem 'foo6 "foo6-label-null" nil :initial-value nil)
+  (with-fixture with-isys-mock ('((foo1 "foo1-label-int" 1)
+                                  (foo2 "foo2-label-float" 2.1)
+                                  (foo3 "foo3-label-string" "bar")
+                                  (foo4 "foo4-label-true" item:true)
+                                  (foo5 "foo5-label-false" item:false)
+                                  (foo6 "foo6-label-null" nil)))
     (let ((items (retrieve-items)))
       (is (= (length items) 6))
       (print items)
@@ -59,24 +71,23 @@
       )))
 
 (test retrieve-item--existing
-  (with-fixture with-isys ()
-    (hab:defitem 'foo1 "foo1-label" nil :initial-value 1)
+  (with-fixture with-isys-mock ('((foo1 "foo1-label" 1)))
     (let ((item (retrieve-item 'foo1)))
       (is-true item)
       (is (listp item))
       (is-true (equal-item-props-p item "FOO1" "foo1-label" 1)))))
 
 (test retrieve-item--non-existing
-  (with-fixture with-isys ()
+  (with-fixture with-isys-mock (nil)
     (is-false (retrieve-item 'foo1))))
 
 (test update-item--existing
-  (with-fixture with-isys ()
-    (hab:defitem 'foo1 "foo1-label" nil :initial-value 1)
-    (is-true (update-item-value 'foo1 2))
-    (is-true (miscutils:await-cond 0.5
-               (= (getf (retrieve-item 'foo1) :value) 2)))))
+  (with-fixture with-isys-mock ('((foo1 "foo1-label" 1)))
+    (with-mocks ()
+      (answer item:set-value t)
+      (is-true (update-item-value 'foo1 2))
+      (is (= (length (invocations 'item:set-value)) 1)))))
 
 (test update-item--non-existing
-  (with-fixture with-isys ()
+  (with-fixture with-isys-mock (nil)
     (is-false (update-item-value 'foo1 2))))
