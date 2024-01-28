@@ -6,7 +6,7 @@
                "sento"
                "timer-wheel"
                "cl-cron"
-               "yason"
+               "com.inuoe.jzon"
                "drakma"
                "local-time"
                "binding-arrows"
