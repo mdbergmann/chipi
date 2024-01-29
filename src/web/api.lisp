@@ -42,8 +42,6 @@
 
 (defun %alist-to-json (alist)
   (jzon:stringify (ah alist)))
-  ;; (yason:with-output-to-string* ()
-  ;;   (yason:encode-alist alist)))
 
 (defun %make-json-response-body (alist)
   (%alist-to-json alist))
@@ -96,11 +94,6 @@
   (cond
     ((car items)
      (jzon:stringify (mapcar #'ph items)))
-     ;; (yason:with-output-to-string* ()
-     ;;   (let ((yason:*symbol-key-encoder* 
-     ;;           'yason:encode-symbol-as-lowercase))
-     ;;     (yason:encode
-     ;;      (mapcar #'plist-hash-table items)))))
     (t "[]")))
 
 (defroute items (:get "application/json" &optional item-name)
@@ -117,11 +110,19 @@
                            (format nil "Item '~a' not found" item-name)))
          (%make-items-response (list item-plist)))))))
 
-(defroute items (:post "text/plain" &optional item-name)
+(defun %parse-item-value (json-payload)
+  (let* ((ht (jzon:parse json-payload))
+         (item-value (gethash "value" ht)))
+    (unless item-value
+      (http-condition hunchentoot:+http-bad-request+
+                      "No 'value' key found in JSON payload"))
+    item-value))
+
+(defroute items (:post "application/json" &optional item-name)
   ;;"`item-name' is not optional"
   (@protection-headers-out)
   (unless (@check-api-key)
-    (let ((item-value (payload-as-string)))
+    (let ((item-value (%parse-item-value (payload-as-string))))
       (unless (itemsc:update-item-value item-name item-value)
         (http-condition hunchentoot:+http-not-found+
                         (format nil "Item '~a' not found" item-name)))))

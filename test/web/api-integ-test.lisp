@@ -197,7 +197,7 @@
                        :accept "application/json"
                        ;;:certificate "../../cert/localhost.crt"
                        :content value
-                       :content-type "text/plain"
+                       :content-type "application/json"
                        :additional-headers headers
                        :verify nil))
 
@@ -207,17 +207,35 @@
       (hab:defitem 'foo "label1" 'string :initial-value "bar")
       (multiple-value-bind (body status headers)
           (make-post-item-request `(("X-Api-Key" . ,apikey-id))
-                                  "foo" "bar")
+                                  "foo"
+                                  "{\"value\":\"baz\"}")
         (declare (ignore headers body))
         (is (= status 204))))))
+
+(test items--post-item-value--400--wrong-json-payload
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey)))
+      (hab:defitem 'foo "label1" 'string :initial-value "bar")
+      (multiple-value-bind (body status headers)
+          (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                  "foo"
+                                  "{\"ve\":\"baz\"}")
+        (declare (ignore headers))
+        (is (= status 400))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"No 'value' key found in JSON payload\"}"))))))
 
 (test items--post-item-value--404--not-found
   (with-fixture api-start-stop (t)
     (let ((apikey-id (apikey-store:create-apikey)))
       (multiple-value-bind (body status headers)
           (make-post-item-request `(("X-Api-Key" . ,apikey-id))
-                                  "foo" "bar")
+                                  "foo" "{\"value\":\"baz\"}")
         (declare (ignore headers))
         (is (= status 404))
         (is (equal (octets-to-string body)
                    "{\"error\":\"Item 'FOO' not found\"}"))))))
+
+(test items--post-item-value--supported-value-types--ok
+  (fail)
+  )
