@@ -237,5 +237,39 @@
                    "{\"error\":\"Item 'FOO' not found\"}"))))))
 
 (test items--post-item-value--supported-value-types--ok
-  (fail)
-  )
+  (with-fixture api-start-stop (t)
+    (let ((apikey-id (apikey-store:create-apikey))
+          (item (hab:defitem 'foo "label1" nil :initial-value 0)))
+      (labels ((get-item-value ()
+                 (let ((value (item:item-state-value (item:get-item-stateq item))))
+                   (format t "value: ~a~%" value)
+                   value))
+               (post-value (value verification)
+                 (format t "POSTING: ~a~%" value)
+                 (multiple-value-bind (body status headers)
+                     (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                             "foo"
+                                             (format nil "{\"value\":~a}" value))
+                   (declare (ignore headers body))
+                   (is (= status 204))
+                   (is-true (miscutils:await-cond 0.5
+                              (equal (get-item-value) verification))))))
+        (post-value 1 1)
+        (post-value 1.1 1.1)
+        (post-value "\"foo\"" "foo")
+        (post-value "true" 'item:true)
+        (post-value "false" 'item:false)
+        (post-value "null" 'cl:null)))))
+
+(test items--post-item-value--500--parse-error
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey)))
+      (hab:defitem 'foo "label1" 'string :initial-value "bar")
+      (multiple-value-bind (body status headers)
+          (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                  "foo"
+                                  "{\"value\":something}")
+        (declare (ignore headers))
+        (is (= status 500))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"Unable to parse JSON\"}"))))))

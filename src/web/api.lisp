@@ -111,12 +111,21 @@
          (%make-items-response (list item-plist)))))))
 
 (defun %parse-item-value (json-payload)
-  (let* ((ht (jzon:parse json-payload))
-         (item-value (gethash "value" ht)))
-    (unless item-value
-      (http-condition hunchentoot:+http-bad-request+
-                      "No 'value' key found in JSON payload"))
-    item-value))
+  (let* ((ht (jzon:parse json-payload)))
+    (multiple-value-bind (item-value present)
+        (gethash "value" ht)
+      (unless present
+        (http-condition hunchentoot:+http-bad-request+
+                        "No 'value' key found in JSON payload"))
+      (cond
+        ((typep item-value 'double-float)
+         (coerce item-value 'single-float))
+        ((eq item-value t)
+         'item:true)
+        ((eq item-value nil)
+         'item:false)
+        (t
+         item-value)))))
 
 (defroute items (:post "application/json" &optional item-name)
   ;;"`item-name' is not optional"
@@ -133,3 +142,13 @@
                                      (ct snooze-types:application/json))
   (log:warn "HTTP condition: ~a" c)
   (%make-json-error-body (simple-condition-format-control c)))
+
+(defmethod snooze:explain-condition ((c error)
+                                     (resource (eql #'items))
+                                     (ct snooze-types:application/json))
+  (log:warn "HTTP condition: ~a" c)
+  (typecase c
+    (jzon:json-parse-error
+     (%make-json-error-body "Unable to parse JSON"))
+    (t
+     (%make-json-error-body (simple-condition-format-control c)))))
