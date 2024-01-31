@@ -91,9 +91,11 @@
           (error-response "API key has expired"))))))
 
 (defun @check-payload-length ()
-  (when (> (hunchentoot:content-length*) 256)
-    (http-condition hunchentoot:+http-request-entity-too-large+
-                    "Oversized payload")))
+  (let ((content-len (parse-integer (hunchentoot:header-in* "Content-Length"))))
+    (format t "Content len: ~a~%" content-len)
+    (when (> content-len 256)
+      (http-condition hunchentoot:+http-request-entity-too-large+
+                      "Oversized payload"))))
 
 (defun %make-items-response (items)
   (cond
@@ -103,17 +105,17 @@
 
 (defroute items (:get "application/json" &optional item-name)
   (@protection-headers-out)
-  (unless (@check-api-key)
-    (log:info "item-name: ~a, type: ~a" item-name (type-of item-name))
-    (cond
-      ((null item-name)
-       (%make-items-response (itemsc:retrieve-items)))
-      (t
-       (let* ((item-plist (itemsc:retrieve-item item-name)))
-         (unless item-plist
-           (http-condition hunchentoot:+http-not-found+
-                           (format nil "Item '~a' not found" item-name)))
-         (%make-items-response (list item-plist)))))))
+  (@check-api-key)
+  (log:info "item-name: ~a, type: ~a" item-name (type-of item-name))
+  (cond
+    ((null item-name)
+     (%make-items-response (itemsc:retrieve-items)))
+    (t
+     (let* ((item-plist (itemsc:retrieve-item item-name)))
+       (unless item-plist
+         (http-condition hunchentoot:+http-not-found+
+                         (format nil "Item '~a' not found" item-name)))
+       (%make-items-response (list item-plist))))))
 
 (defun %parse-item-value (json-payload)
   (let* ((ht (jzon:parse json-payload)))
@@ -157,4 +159,6 @@
     (jzon:json-parse-error
      (%make-json-error-body "Unable to parse JSON"))
     (t
-     (%make-json-error-body (simple-condition-format-control c)))))
+     (progn
+       ;;(trivial-backtrace:print-backtrace c)
+       (%make-json-error-body (simple-condition-format-control c))))))

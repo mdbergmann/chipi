@@ -277,14 +277,14 @@
 
 (test items--post--check-payload-length
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey)))
+    (let ((apikey-id (apikey-store:create-apikey)))
       (multiple-value-bind (body status headers)
           (make-post-item-request `(("X-Api-Key" . ,apikey-id))
                                   "foo"
                                   (format nil "{\"value\":\"~a\"}"
-                                          (make-string 1000000
+                                          (make-string 512
                                                        :initial-element #\a)))
         (declare (ignore headers))
         (is (= status 413))
-        (is (equal body;;(octets-to-string body)
+        (is (equal (octets-to-string body)
                    "{\"error\":\"Oversized payload\"}"))))))
