@@ -90,6 +90,11 @@
           (log:info "~a" c)
           (error-response "API key has expired"))))))
 
+(defun @check-payload-length ()
+  (when (> (hunchentoot:content-length*) 256)
+    (http-condition hunchentoot:+http-request-entity-too-large+
+                    "Oversized payload")))
+
 (defun %make-items-response (items)
   (cond
     ((car items)
@@ -130,11 +135,12 @@
 (defroute items (:post "application/json" &optional item-name)
   ;;"`item-name' is not optional"
   (@protection-headers-out)
-  (unless (@check-api-key)
-    (let ((item-value (%parse-item-value (payload-as-string))))
-      (unless (itemsc:update-item-value item-name item-value)
-        (http-condition hunchentoot:+http-not-found+
-                        (format nil "Item '~a' not found" item-name)))))
+  (@check-api-key)
+  (@check-payload-length)
+  (let ((item-value (%parse-item-value (payload-as-string))))
+    (unless (itemsc:update-item-value item-name item-value)
+      (http-condition hunchentoot:+http-not-found+
+                      (format nil "Item '~a' not found" item-name))))
   nil)
 
 (defmethod snooze:explain-condition ((c http-condition)

@@ -121,18 +121,19 @@
             :for key-string := (string-downcase (symbol-name key))
             :do
                (format t "~a => ~a~%" key value)
-               (assert (find-if (lambda (ht)
-                                  (let ((ht-val (gethash key-string ht)))
-                                    (format t "~a ==? ~a (ht-value)~%" value ht-val)
-                                    (maphash (lambda (k v)
-                                               (format t "ht: ~a => ~a~%" k v)) ht)
-                                    (cond
-                                      ((eq value nil)
-                                       (equal ht-val 'cl:null))
-                                      ((floatp ht-val)
-                                       (eql (coerce ht-val 'single-float) value))
-                                      (t
-                                       (equal ht-val value)))))
+               (assert (find-if
+                        (lambda (ht)
+                          (let ((ht-val (gethash key-string ht)))
+                            (format t "~a ==? ~a (ht-value)~%" value ht-val)
+                            (maphash (lambda (k v)
+                                       (format t "ht: ~a => ~a~%" k v)) ht)
+                            (cond
+                              ((eq value nil)
+                               (equal ht-val 'cl:null))
+                              ((floatp ht-val)
+                               (eql (coerce ht-val 'single-float) value))
+                              (t
+                               (equal ht-val value)))))
                                 (coerce json-objs 'list))
                        nil (format nil "Key '~a' with value '~a' not found in json-obj" key value)))))
   t)
@@ -273,3 +274,17 @@
         (is (= status 500))
         (is (equal (octets-to-string body)
                    "{\"error\":\"Unable to parse JSON\"}"))))))
+
+(test items--post--check-payload-length
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey)))
+      (multiple-value-bind (body status headers)
+          (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                  "foo"
+                                  (format nil "{\"value\":\"~a\"}"
+                                          (make-string 1000000
+                                                       :initial-element #\a)))
+        (declare (ignore headers))
+        (is (= status 413))
+        (is (equal body;;(octets-to-string body)
+                   "{\"error\":\"Oversized payload\"}"))))))
