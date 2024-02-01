@@ -67,8 +67,9 @@ OK - add change item value via api
 OK - convert to the right value type (string, number, boolean) in API when updating value
 OK - generate the right value type in API when converting item plist to json (boolean in particular)
 OK - validate and length check the parameters for post request
-- have a thread, or actor that cleans up expired tokens via scheduler
+? have a thread, or actor that cleans up expired tokens via scheduler
   -> manage apikey backend via Actor altogether
+OK - provide method to retrieve expired apikeys and revoke api key
 - hardening token storage by sha256/HMAC
 - access-control
 - audit log

@@ -9,7 +9,9 @@
            #:revoke-apikey
            #:expired-apikey-p
            #:exists-apikey-p
+           #:retrieve-expired-apikeys
            #:apikey
+           #:apikey-p
            #:identifier
            #:expiry
            #:*apikey-life-time-duration*
@@ -35,6 +37,9 @@
                         (duration-as *apikey-life-time-duration* :sec))
            :reader expiry
            :documentation "The universal-time when the apikey expires.")))
+
+(defun apikey-p (obj)
+  (typep obj 'apikey))
 
 (defun %new-random-id ()
   (cryp:make-random-string 20 :uri t))
@@ -63,6 +68,14 @@
   (check-type identifier string)
   (not (null (read-apikey identifier))))
 
+(defun retrieve-expired-apikeys ()
+  (retrieve-with-filter
+   *apikey-store-backend*
+   (lambda (apikey)
+     (when (< (expiry apikey)
+              (get-universal-time))
+       apikey))))
+
 ;; ----------------------------------------
 ;; apikey store-backend
 ;; ----------------------------------------
@@ -70,6 +83,7 @@
 (defgeneric store-apikey (backend apikey))
 (defgeneric retrieve-apikey (backend identifier))
 (defgeneric delete-apikey (backend identifier))
+(defgeneric retrieve-with-filter (backend filterfun))
 
 ;; ---------------------------------
 ;; simple file backed hash-table backend
@@ -120,6 +134,11 @@
 (defmethod delete-apikey ((backend simple-file-backend) identifier)
   (remhash identifier (store backend))
   (%persist-store backend))
+
+(defmethod retrieve-with-filter ((backend simple-file-backend) filterfun)
+  (loop :for apikey :being :the :hash-value :of (store backend)
+        :when (funcall filterfun apikey)
+          :collect apikey))
 
 ;; ----------------------------------------
 ;; memory backend

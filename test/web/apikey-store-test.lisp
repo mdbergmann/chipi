@@ -83,3 +83,13 @@
 (test apikey-not-exists
   (with-fixture simple-file-backend ()
     (is-false (exists-apikey-p "foo"))))
+
+(test retrieve-expired-apikeys
+  (with-fixture simple-file-backend ()
+    (let ((apikey-store:*apikey-life-time-duration* (ltd:duration)))
+      (create-apikey)
+      (create-apikey)
+      (sleep 1)
+      (let ((apikeys (retrieve-expired-apikeys)))
+        (is (= (length apikeys) 2))
+        (is (every #'apikey-p apikeys))))))
