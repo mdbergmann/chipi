@@ -12,6 +12,7 @@
            #:retrieve-expired-apikeys
            #:apikey
            #:apikey-p
+           #:signed-apikey-p
            #:identifier
            #:expiry
            #:*apikey-life-time-duration*
@@ -27,6 +28,10 @@
 (defvar *default-apikey-life-time-duration* (duration :day 100))
 (defvar *apikey-life-time-duration* *default-apikey-life-time-duration*
   "The life time of a apikey as `ltd:duration' object.")
+
+(defvar *sign-key* (cryp:make-random-data 20)
+  "The key used to sign apikeys.
+This key is stored and loaded from the file `sign-key' in the runtime directory.")
 
 (defclass apikey ()
   ((identifier :initarg :identifier
@@ -44,37 +49,87 @@
 (defun %new-random-id ()
   (cryp:make-random-string 20 :uri t))
 
+(defun %sign-apikey-id (apikey)
+  (let* ((apikey-id (identifier apikey))
+         (sig (cryp:hmac-sign *sign-key* apikey-id)))
+    (format nil "~a.~a" apikey-id sig)))
+
+(defun %verify-apikey-id (identifier)
+  "Checks the apikey id structure and return plain-id and sign."
+  (handler-case 
+      (destructuring-bind (plain-id sign)
+          (str:split #\. identifier)
+        (values plain-id sign))
+    (error ()
+      (log:info "Invalid API key")
+      nil)))
+
+(defun %verify-apikey-sig (identifier)
+  "Checks the apikey signature and returns the plain-id if the signature is valid."
+  (multiple-value-bind (plain-id sign)
+      (%verify-apikey-id identifier)
+    (when plain-id
+      (if (cryp:equal-string-p
+           sign (cryp:hmac-sign *sign-key* plain-id))
+          plain-id
+          (progn
+            (log:info "Invalid API key signature")
+            nil)))))
+
+(defun signed-apikey-p (identifier)
+  (and (stringp identifier)
+       (%verify-apikey-id identifier)))
+
+(deftype signed-apikey-identifier ()
+  `(satisfies signed-apikey-p))
+
 (defun create-apikey ()
+  "Creates a new apikey and stores it in the backend.
+Returns a signed identifier for the apikey."
   (let ((apikey (make-instance 'apikey
                                :identifier (%new-random-id))))
     (store-apikey *apikey-store-backend* apikey)
-    (identifier apikey)))
-
+    (%sign-apikey-id apikey)))
+    
 (defun retrieve-apikey (identifier)
-  (check-type identifier string)
-  (load-apikey *apikey-store-backend* identifier))
+  "Retrieves the apikey with the given identifier.
+Returns nil if no apikey with the given identifier exists.
+The identifier must be a signed apikey identifier.
+If the signature is invalid, nil is returned and the incident logged."
+  (check-type identifier signed-apikey-identifier)
+  (let ((plain-id (%verify-apikey-sig identifier)))
+    (load-apikey *apikey-store-backend* plain-id)))
 
 (defun revoke-apikey (identifier)
-  (check-type identifier string)
-  (delete-apikey *apikey-store-backend* identifier))
-
-(defun expired-apikey-p (identifier)
-  (check-type identifier string)
-  (when (< (expiry (retrieve-apikey identifier))
-           (get-universal-time))
-    (revoke-apikey identifier)))
-
-(defun exists-apikey-p (identifier)
-  (check-type identifier string)
-  (not (null (retrieve-apikey identifier))))
+  "Revokes the apikey with the given identifier.
+The identifier must be a signed apikey identifier.
+If the signature is invalid the incident will be logged."
+  (check-type identifier signed-apikey-identifier)
+  (let ((plain-id (%verify-apikey-sig identifier)))
+    (delete-apikey *apikey-store-backend* plain-id)))
 
 (defun retrieve-expired-apikeys ()
-  (retrieve-with-filter
-   *apikey-store-backend*
-   (lambda (apikey)
-     (when (< (expiry apikey)
-              (get-universal-time))
-       apikey))))
+  "Retrieves all expired apikeys as a list of signed identifiers."
+  (mapcar (lambda (apikey)
+            (%sign-apikey-id apikey))
+          (retrieve-with-filter *apikey-store-backend*
+                                (lambda (apikey)
+                                  (< (expiry apikey)
+                                     (get-universal-time))))))
+
+(defun expired-apikey-p (identifier)
+  "Returns t if the apikey with the given identifier is expired."
+  (check-type identifier signed-apikey-identifier)
+  (let ((apikey (retrieve-apikey identifier)))
+    (unless apikey
+      (error "API key does not exist"))
+    (when (< (expiry apikey)
+             (get-universal-time))
+      (revoke-apikey identifier))))
+
+(defun exists-apikey-p (identifier)
+  (check-type identifier signed-apikey-identifier)
+  (not (null (retrieve-apikey identifier))))
 
 ;; ----------------------------------------
 ;; apikey store-backend

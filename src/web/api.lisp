@@ -80,7 +80,7 @@
       (unless apikey
         (error-response "No API key provided"))
 
-      ;; check on token
+      ;; check on apikey
       (handler-case
           (authc:verify-apikey apikey)
         (authc:apikey-unknown-error (c)
@@ -88,7 +88,11 @@
           (error-response "Unknown API key"))
         (authc:apikey-expired-error (c)
           (log:info "~a" c)
-          (error-response "API key has expired"))))))
+          (error-response "API key has expired"))
+        (authc:apikey-invalid-error (c)
+          (log:info "~a" c)
+          (error-response "Invalid API key"))
+        ))))
 
 (defun @check-payload-length ()
   (let ((content-len (parse-integer (hunchentoot:header-in* "Content-Length"))))

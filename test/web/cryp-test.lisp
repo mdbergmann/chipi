@@ -31,4 +31,3 @@
   (is (stringp (hmac-sign (cryp:make-random-data 10)
                           "test"))))
 
-(run! 'cryp-tests)

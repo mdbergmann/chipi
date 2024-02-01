@@ -15,7 +15,7 @@
   (with-mocks ()
     (answer apikey-store:exists-apikey-p t)
     (answer apikey-store:expired-apikey-p nil)
-    (verify-apikey "apikey-id")
+    (verify-apikey "apikey.id")
     (is (= 1 (length (invocations 'apikey-store:exists-apikey-p))))
     (is (= 1 (length (invocations 'apikey-store:expired-apikey-p))))))
 
@@ -23,11 +23,16 @@
   (with-mocks ()
     (answer apikey-store:exists-apikey-p nil)
     (signals apikey-unknown-error
-      (verify-apikey "apikey-id"))))
+      (verify-apikey "apikey.id"))))
 
 (test verify-apikey--expired-key-raises-error
   (with-mocks ()
     (answer apikey-store:exists-apikey-p t)
     (answer apikey-store:expired-apikey-p t)
     (signals apikey-expired-error
+      (verify-apikey "apikey.id"))))
+
+(test verify-apikey--invalid-apikey-raises-error
+  (with-mocks ()
+    (signals apikey-invalid-error
       (verify-apikey "apikey-id"))))
