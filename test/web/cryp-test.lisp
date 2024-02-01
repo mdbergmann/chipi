@@ -26,3 +26,9 @@
 
 (test make-random-string
   (is (stringp (make-random-string 10))))
+
+(test hmac-sign--string-data
+  (is (stringp (hmac-sign (cryp:make-random-data 10)
+                          "test"))))
+
+(run! 'cryp-tests)

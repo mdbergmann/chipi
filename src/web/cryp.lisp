@@ -6,7 +6,8 @@
            #:make-random-data
            #:make-random-string
            #:equal-p
-           #:equal-string-p)
+           #:equal-string-p
+           #:hmac-sign)
   )
 
 (in-package :chipi-web.cryp)
@@ -69,3 +70,17 @@ If `URI' is true, the result is a base64url encoded string."
   (check-type b string)
   (equal-vector-p (string-to-octets a)
                   (string-to-octets b)))
+
+(defun hmac-sign (key data &key (base64-out t) (uri t))
+  "Sign `DATA' with `KEY' using HMAC-SHA256."
+  (check-type key (simple-array (unsigned-byte 8) (*)))
+  (check-type data (or string (simple-array (unsigned-byte 8) (*))))
+  (let* ((mac (crypto:make-hmac key :sha256))
+         (vec-data (cond
+                    ((stringp data) (string-to-octets data))
+                    (t data)))
+         (updated-mac (crypto:update-hmac mac vec-data))
+         (digest (crypto:hmac-digest updated-mac)))
+    (cond
+      ((not base64-out) digest)
+      (t (octets-to-base64-string digest uri)))))
