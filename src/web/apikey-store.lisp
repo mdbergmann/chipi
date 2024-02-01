@@ -5,7 +5,7 @@
                 #:duration
                 #:duration-as)
   (:export #:create-apikey
-           #:read-apikey
+           #:retrieve-apikey
            #:revoke-apikey
            #:expired-apikey-p
            #:exists-apikey-p
@@ -50,9 +50,9 @@
     (store-apikey *apikey-store-backend* apikey)
     (identifier apikey)))
 
-(defun read-apikey (identifier)
+(defun retrieve-apikey (identifier)
   (check-type identifier string)
-  (retrieve-apikey *apikey-store-backend* identifier))
+  (load-apikey *apikey-store-backend* identifier))
 
 (defun revoke-apikey (identifier)
   (check-type identifier string)
@@ -60,13 +60,13 @@
 
 (defun expired-apikey-p (identifier)
   (check-type identifier string)
-  (when (< (expiry (read-apikey identifier))
+  (when (< (expiry (retrieve-apikey identifier))
            (get-universal-time))
     (revoke-apikey identifier)))
 
 (defun exists-apikey-p (identifier)
   (check-type identifier string)
-  (not (null (read-apikey identifier))))
+  (not (null (retrieve-apikey identifier))))
 
 (defun retrieve-expired-apikeys ()
   (retrieve-with-filter
@@ -81,7 +81,7 @@
 ;; ----------------------------------------
 
 (defgeneric store-apikey (backend apikey))
-(defgeneric retrieve-apikey (backend identifier))
+(defgeneric load-apikey (backend identifier))
 (defgeneric delete-apikey (backend identifier))
 (defgeneric retrieve-with-filter (backend filterfun))
 
@@ -128,7 +128,7 @@
   (setf (gethash (identifier apikey) (store backend)) apikey)
   (%persist-store backend))
 
-(defmethod retrieve-apikey ((backend simple-file-backend) identifier)
+(defmethod load-apikey ((backend simple-file-backend) identifier)
   (gethash identifier (store backend)))
 
 (defmethod delete-apikey ((backend simple-file-backend) identifier)
@@ -157,7 +157,7 @@
 (defmethod store-apikey ((backend (eql 'memory)) apikey)
   (setf (gethash (identifier apikey) *apikeys*) apikey))
 
-(defmethod retrieve-apikey ((backend (eql 'memory)) identifier)
+(defmethod load-apikey ((backend (eql 'memory)) identifier)
   (gethash identifier *apikeys*))
 
 (defmethod delete-apikey ((backend (eql 'memory)) identifier)

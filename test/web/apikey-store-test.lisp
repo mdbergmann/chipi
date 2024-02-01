@@ -39,17 +39,17 @@
             (make-simple-file-backend #p"/tmp/chipi-web-test/"))
       (is-true (exists-apikey-p apikey-id)))))
 
-(test read-apikey--existing
+(test retrieve-apikey--existing
   (with-fixture simple-file-backend ()
     (let ((apikey-id (create-apikey)))
-      (let ((read-apikey (read-apikey apikey-id)))
-        (is-true (typep read-apikey 'apikey))
-        (is (string= (identifier read-apikey) apikey-id))
-        (is (integerp (expiry read-apikey)))))))
+      (let ((retrieve-apikey (retrieve-apikey apikey-id)))
+        (is-true (typep retrieve-apikey 'apikey))
+        (is (string= (identifier retrieve-apikey) apikey-id))
+        (is (integerp (expiry retrieve-apikey)))))))
 
-(test read-apikey--not-existing
+(test retrieve-apikey--not-existing
   (with-fixture simple-file-backend ()
-    (is-false (read-apikey "some key id"))))
+    (is-false (retrieve-apikey "some key id"))))
 
 (test revoke-apikey--existing
   (with-fixture simple-file-backend ()

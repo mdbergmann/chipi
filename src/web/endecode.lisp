@@ -9,6 +9,9 @@
 
 (in-package :chipi-web.endecode)
 
+;; we want '=' as padding character for URI compatibility
+(setf base64::*uri-pad-char* #\=)
+
 (defun octets-to-base64-string (vector &optional (urienc nil))
   (usb8-array-to-base64-string vector :uri urienc))
 

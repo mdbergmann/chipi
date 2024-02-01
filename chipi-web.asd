@@ -70,7 +70,7 @@ OK - validate and length check the parameters for post request
 ? have a thread, or actor that cleans up expired tokens via scheduler
   -> manage apikey backend via Actor altogether
 OK - provide method to retrieve expired apikeys and revoke api key
-- hardening token storage by sha256/HMAC
+=> - hardening token storage by sha256/HMAC
 - access-control
 - audit log
 - abstract json to separate package
