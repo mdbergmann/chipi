@@ -22,17 +22,23 @@
 (test verify-apikey--not-existing-key-raises-error
   (with-mocks ()
     (answer apikey-store:exists-apikey-p nil)
-    (signals apikey-unknown-error
+    (signals auth-apikey-unknown-error
       (verify-apikey "apikey.id"))))
 
 (test verify-apikey--expired-key-raises-error
   (with-mocks ()
     (answer apikey-store:exists-apikey-p t)
     (answer apikey-store:expired-apikey-p t)
-    (signals apikey-expired-error
+    (signals auth-apikey-expired-error
       (verify-apikey "apikey.id"))))
 
 (test verify-apikey--invalid-apikey-raises-error
   (with-mocks ()
-    (signals apikey-invalid-error
-      (verify-apikey "apikey-id"))))
+    (answer apikey-store:exists-apikey-p
+      (error 'apikey-store:invalid-apikey-error))
+    (handler-case
+        (verify-apikey "apikey-id")
+      (auth-apikey-invalid-error (c)
+        (is (equal "Invalid API key structure" (simple-condition-format-control c))))
+      (:no-error
+        (fail "Expected auth-apikey-invalid-error to be signaled")))))

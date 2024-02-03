@@ -18,7 +18,10 @@
            #:*apikey-life-time-duration*
            #:make-simple-file-backend
            #:*memory-backend*
-           #:*apikey-store-backend*)
+           #:*apikey-store-backend*
+           ;; conditions
+           #:apikey-store-error
+           #:invalid-apikey-error)
   )
 
 (in-package :chipi-web.apikey-store)
@@ -32,6 +35,14 @@
 (defvar *sign-key* (cryp:make-random-data 20)
   "The key used to sign apikeys.
 This key is stored and loaded from the file `sign-key' in the runtime directory.")
+
+(define-condition apikey-store-error (simple-condition)()
+  (:report (lambda (c s)
+             (format s "API key store error: ~a"
+                     (simple-condition-format-control c)))))
+
+(define-condition invalid-apikey-error (apikey-store-error)()
+  (:default-initargs :format-control "Invalid API key structure"))
 
 (defclass apikey ()
   ((identifier :initarg :identifier
@@ -72,9 +83,9 @@ This key is stored and loaded from the file `sign-key' in the runtime directory.
       (if (cryp:equal-string-p
            sign (cryp:hmac-sign *sign-key* plain-id))
           plain-id
-          (progn
-            (log:info "Invalid API key signature")
-            nil)))))
+          (let ((err-msg "Invalid API key signature"))
+            (log:info err-msg)
+            err-msg)))))
 
 (defun signed-apikey-p (identifier)
   (and (stringp identifier)
@@ -85,11 +96,11 @@ This key is stored and loaded from the file `sign-key' in the runtime directory.
 
 (defun create-apikey ()
   "Creates a new apikey and stores it in the backend.
-Returns a signed identifier for the apikey."
+Returns `values': signed identifier for the apikey and error indicator."
   (let ((apikey (make-instance 'apikey
                                :identifier (%new-random-id))))
     (store-apikey *apikey-store-backend* apikey)
-    (%sign-apikey-id apikey)))
+    (values (%sign-apikey-id apikey) nil)))
     
 (defun retrieve-apikey (identifier)
   "Retrieves the apikey with the given identifier.

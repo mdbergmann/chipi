@@ -83,13 +83,13 @@
       ;; check on apikey
       (handler-case
           (authc:verify-apikey apikey)
-        (authc:apikey-unknown-error (c)
+        (authc:auth-apikey-unknown-error (c)
           (log:info "~a" c)
           (error-response "Unknown API key"))
-        (authc:apikey-expired-error (c)
+        (authc:auth-apikey-expired-error (c)
           (log:info "~a" c)
           (error-response "API key has expired"))
-        (authc:apikey-invalid-error (c)
+        (authc:auth-apikey-invalid-error (c)
           (log:info "~a" c)
           (error-response "Invalid API key"))
         ))))

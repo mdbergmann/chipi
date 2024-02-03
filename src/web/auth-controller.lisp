@@ -2,34 +2,36 @@
   (:use :cl)
   (:nicknames :authc)
   (:export #:verify-apikey
-           #:apikey-error
-           #:apikey-unknown-error
-           #:apikey-expired-error
-           #:apikey-invalid-error)
+           #:auth-apikey-error
+           #:auth-apikey-unknown-error
+           #:auth-apikey-expired-error
+           #:auth-apikey-invalid-error)
   )
 
 (in-package :chipi-web.auth-controller)
 
-(define-condition apikey-error (simple-error)
-  ((apikey :initarg :identifier :reader apikey)))
+(define-condition auth-apikey-error (simple-condition) ()
+  (:report (lambda (c s)
+             (format s "Auth API key error: ~a"
+                     (simple-condition-format-control c)))))
 
-(define-condition apikey-unknown-error (apikey-error)()
-  (:report (lambda (condition stream)
-             (format stream "Unknown API key: ~a" (apikey condition)))))
+(define-condition auth-apikey-unknown-error (auth-apikey-error)()
+  (:default-initargs :format-control "Unknown API key"))
 
-(define-condition apikey-expired-error (apikey-error)()
-  (:report (lambda (condition stream)
-             (format stream "API key has expired: ~a" (apikey condition)))))
+(define-condition auth-apikey-expired-error (auth-apikey-error)()
+  (:default-initargs :format-control "API key has expired"))
 
-(define-condition apikey-invalid-error (apikey-error)()
-  (:report (lambda (condition stream)
-             (format stream "Invalid API key: ~a" (apikey condition)))))
+(define-condition auth-apikey-invalid-error (auth-apikey-error)()
+  (:default-initargs :format-control "Invalid API key"))
 
 (defun verify-apikey (apikey)
   "Verifies if apikey exists and is not expired."
-  (unless (apikey-store:signed-apikey-p apikey)
-    (error 'apikey-invalid-error :identifier apikey))
-  (unless (apikey-store:exists-apikey-p apikey)
-    (error 'apikey-unknown-error :identifier apikey))
-  (when (apikey-store:expired-apikey-p apikey)
-    (error 'apikey-expired-error :identifier apikey)))
+  (handler-case
+      (progn
+        (unless (apikey-store:exists-apikey-p apikey)
+          (error 'auth-apikey-unknown-error))
+        (when (apikey-store:expired-apikey-p apikey)
+          (error 'auth-apikey-expired-error)))
+    (apikey-store:apikey-store-error (e)
+      (error 'auth-apikey-invalid-error
+             :format-control (simple-condition-format-control e)))))
