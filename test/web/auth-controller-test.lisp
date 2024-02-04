@@ -31,5 +31,5 @@
         (verify-apikey "apikey-id")
       (auth-apikey-invalid-error (c)
         (is (equal "Invalid API key structure" (simple-condition-format-control c))))
-      (:no-error
-        (fail)))))
+      (:no-error ()
+        (fail "Expected auth-apikey-invalid-error to be signaled")))))

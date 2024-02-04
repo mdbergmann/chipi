@@ -71,10 +71,10 @@ OK - validate and length check the parameters for post request
   -> manage apikey backend via Actor altogether
 OK - provide method to retrieve expired apikeys and revoke api key
 OK - hardening token storage by sha256/HMAC
-=> - apikey-store should raise condition if apikey signature is not correct, catch in auth-controller
-=> refactor apikey-store return values indicating success or failure
-=> refactor apiley-store to raise condition if structure invalid or wrongly signed key
-- access-control
+OK - apikey-store should raise condition if apikey signature is not correct, catch in auth-controller
+OK - refactor apikey-store return values indicating success or failure
+OK - refactor apiley-store to raise condition if structure invalid or wrongly signed key
+=> - access-control
 - audit log
 - abstract json to separate package
 - pre-flight?
