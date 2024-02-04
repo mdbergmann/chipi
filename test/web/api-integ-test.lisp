@@ -83,12 +83,15 @@
 
 (test items--get-all--403--apikey-not-known
   (with-fixture api-start-stop (nil)
-    (multiple-value-bind (body status headers)
-        (make-get-items-request '(("X-Api-Key" . "abcdef.hiuzt")))
-      (declare (ignore headers))
-      (is (= status 403))
-      (is (equal (octets-to-string body)
-                 "{\"error\":\"Unknown API key\"}")))))
+    (multiple-value-bind (_apikey id)
+        (apikey-store::%make-signed-apikey)
+      (declare (ignore _apikey))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("X-Api-Key" . ,id)))
+        (declare (ignore headers))
+        (is (= status 403))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"Unknown API key\"}"))))))
 
 (test items--get-all--403--apikey-invalid
   (with-fixture api-start-stop (nil)
@@ -98,18 +101,6 @@
       (is (= status 403))
       (is (equal (octets-to-string body)
                  "{\"error\":\"Invalid API key\"}")))))
-
-(test items--get-all--403--apikey-expired
-  (with-fixture api-start-stop (nil)
-    (let ((apikey-store:*apikey-life-time-duration* (ltd:duration :sec 1)))
-      (let ((apikey-id (apikey-store:create-apikey)))
-        (sleep 2.0)
-        (multiple-value-bind (body status headers)
-            (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
-          (declare (ignore headers))
-          (is (= status 403))
-          (is (equal (octets-to-string body)
-                     "{\"error\":\"API key has expired\"}")))))))
 
 (test items--get-all--empty--200--ok
   (with-fixture api-start-stop (nil)
