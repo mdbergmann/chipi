@@ -4,24 +4,21 @@
   (:import-from #:local-time-duration
                 #:duration
                 #:duration-as)
+  (:import-from #:alexandria
+                #:when-let)
   (:export #:create-apikey
-           #:retrieve-apikey
            #:revoke-apikey
-           #:expired-apikey-p
            #:exists-apikey-p
-           #:retrieve-expired-apikeys
-           #:apikey
            #:apikey-p
            #:signed-apikey-p
-           #:identifier
-           #:expiry
            #:*apikey-life-time-duration*
+           #:*apikey-store-backend*
            #:make-simple-file-backend
            #:*memory-backend*
-           #:*apikey-store-backend*
            ;; conditions
            #:apikey-store-error
-           #:invalid-apikey-error)
+           #:apikey-invalid-error
+           #:apikey-invalid-sig-error)
   )
 
 (in-package :chipi-web.apikey-store)
@@ -36,13 +33,24 @@
   "The key used to sign apikeys.
 This key is stored and loaded from the file `sign-key' in the runtime directory.")
 
+;; ----------------------------------------
+;; conditions
+;; ----------------------------------------
+
 (define-condition apikey-store-error (simple-condition)()
   (:report (lambda (c s)
              (format s "API key store error: ~a"
                      (simple-condition-format-control c)))))
 
-(define-condition invalid-apikey-error (apikey-store-error)()
+(define-condition apikey-invalid-error (apikey-store-error)()
   (:default-initargs :format-control "Invalid API key structure"))
+
+(define-condition apikey-invalid-sig-error (apikey-store-error)()
+  (:default-initargs :format-control "Invalid API key signature"))
+
+;; ----------------------------------------
+;; types
+;; ----------------------------------------
 
 (defclass apikey ()
   ((identifier :initarg :identifier
@@ -54,8 +62,9 @@ This key is stored and loaded from the file `sign-key' in the runtime directory.
            :reader expiry
            :documentation "The universal-time when the apikey expires.")))
 
-(defun apikey-p (obj)
-  (typep obj 'apikey))
+;; ----------------------------------------
+;; helper functions
+;; ----------------------------------------
 
 (defun %new-random-id ()
   (cryp:make-random-string 20 :uri t))
@@ -65,59 +74,101 @@ This key is stored and loaded from the file `sign-key' in the runtime directory.
          (sig (cryp:hmac-sign *sign-key* apikey-id)))
     (format nil "~a.~a" apikey-id sig)))
 
-(defun %verify-apikey-id (identifier)
+(defun %make-signed-apikey ()
+  "Creates a new unstored apikey and returns values: apikey instance and signed identifier."
+  (let ((apikey (make-instance 'apikey
+                               :identifier (%new-random-id))))
+    (values apikey (%sign-apikey-id apikey))))
+
+(defun %destructure-apikey-id (identifier)
   "Checks the apikey id structure and return plain-id and sign."
   (handler-case 
       (destructuring-bind (plain-id sign)
           (str:split #\. identifier)
         (values plain-id sign))
     (error ()
-      (log:info "Invalid API key")
-      nil)))
+      (error 'apikey-invalid-error))))
 
 (defun %verify-apikey-sig (identifier)
   "Checks the apikey signature and returns the plain-id if the signature is valid."
   (multiple-value-bind (plain-id sign)
-      (%verify-apikey-id identifier)
-    (when plain-id
-      (if (cryp:equal-string-p
-           sign (cryp:hmac-sign *sign-key* plain-id))
-          plain-id
-          (let ((err-msg "Invalid API key signature"))
-            (log:info err-msg)
-            err-msg)))))
+      (%destructure-apikey-id identifier)
+    (when (and plain-id sign)
+      (unless (cryp:equal-string-p
+               sign (cryp:hmac-sign *sign-key* plain-id))
+        (error 'apikey-invalid-sig-error))
+      plain-id)))
+
+(defun apikey-p (obj)
+  (typep obj 'apikey))
 
 (defun signed-apikey-p (identifier)
   (and (stringp identifier)
-       (%verify-apikey-id identifier)))
+       (%destructure-apikey-id identifier)))
 
 (deftype signed-apikey-identifier ()
   `(satisfies signed-apikey-p))
 
+;; ----------------------------------------
+;; public interface
+;; ----------------------------------------
+
 (defun create-apikey ()
   "Creates a new apikey and stores it in the backend.
-Returns `values': signed identifier for the apikey and error indicator."
-  (let ((apikey (make-instance 'apikey
-                               :identifier (%new-random-id))))
+Returns signed identifier."
+  (multiple-value-bind (apikey signed-id)
+      (%make-signed-apikey)
     (store-apikey *apikey-store-backend* apikey)
-    (values (%sign-apikey-id apikey) nil)))
+    signed-id))
     
+(defun revoke-apikey (identifier)
+  "Revokes the apikey with the given identifier.
+The identifier must be a signed apikey identifier.
+If the signature is invalid, an `akikey-invalid-sig-error' is signaled."
+  (check-type identifier string)
+  (let ((plain-id (%verify-apikey-sig identifier)))
+    (delete-apikey *apikey-store-backend* plain-id)))
+
+(defun exists-apikey-p (identifier)
+  "Checks if the apikey identifier exists and in the store, is valid and not expired.
+Returns `T' if the apikey with the given identifier exists and is valid.
+Returns `NIL' if the apikey with the given identifier does not exist.
+If the signature is invalid, an `akikey-invalid-sig-error' is signaled.
+If the apikey is expired, it is revoked and `NIL' is returned."
+  (check-type identifier string)
+  (when-let ((apikey (retrieve-apikey identifier)))
+    (if (expired-apikey-p identifier)
+        (progn
+          (log:info "API key expired")
+          nil)
+        t)))
+
+;; ----------------------------------------
+;; private interface
+;; ----------------------------------------
+
 (defun retrieve-apikey (identifier)
   "Retrieves the apikey with the given identifier.
 Returns nil if no apikey with the given identifier exists.
 The identifier must be a signed apikey identifier.
 If the signature is invalid, nil is returned and the incident logged."
-  (check-type identifier signed-apikey-identifier)
+  (check-type identifier string)
   (let ((plain-id (%verify-apikey-sig identifier)))
     (load-apikey *apikey-store-backend* plain-id)))
 
-(defun revoke-apikey (identifier)
-  "Revokes the apikey with the given identifier.
-The identifier must be a signed apikey identifier.
-If the signature is invalid the incident will be logged."
-  (check-type identifier signed-apikey-identifier)
-  (let ((plain-id (%verify-apikey-sig identifier)))
-    (delete-apikey *apikey-store-backend* plain-id)))
+(defun expired-apikey-p (identifier)
+  "Returns `T' if the apikey with the given identifier is expired, `NIL' otherwise.
+If the apikey is expired, it is implicitly revoked."
+  (check-type identifier string)
+  (let ((apikey (retrieve-apikey identifier)))
+    (unless apikey
+      (error "API key does not exist"))
+    (if (< (expiry apikey)
+           (get-universal-time))
+        (progn
+          (delete-apikey *apikey-store-backend* (identifier apikey))
+          t)
+        nil)))
 
 (defun retrieve-expired-apikeys ()
   "Retrieves all expired apikeys as a list of signed identifiers."
@@ -127,20 +178,6 @@ If the signature is invalid the incident will be logged."
                                 (lambda (apikey)
                                   (< (expiry apikey)
                                      (get-universal-time))))))
-
-(defun expired-apikey-p (identifier)
-  "Returns t if the apikey with the given identifier is expired."
-  (check-type identifier signed-apikey-identifier)
-  (let ((apikey (retrieve-apikey identifier)))
-    (unless apikey
-      (error "API key does not exist"))
-    (when (< (expiry apikey)
-             (get-universal-time))
-      (revoke-apikey identifier))))
-
-(defun exists-apikey-p (identifier)
-  (check-type identifier signed-apikey-identifier)
-  (not (null (retrieve-apikey identifier))))
 
 ;; ----------------------------------------
 ;; apikey store-backend

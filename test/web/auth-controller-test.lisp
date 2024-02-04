@@ -35,7 +35,7 @@
 (test verify-apikey--invalid-apikey-raises-error
   (with-mocks ()
     (answer apikey-store:exists-apikey-p
-      (error 'apikey-store:invalid-apikey-error))
+      (error 'apikey-store:apikey-invalid-error))
     (handler-case
         (verify-apikey "apikey-id")
       (auth-apikey-invalid-error (c)

@@ -30,13 +30,12 @@
   (with-fixture simple-file-backend ()
     (let ((signed-apikey-id (create-apikey)))
       (is-true signed-apikey-id)
-      (is (> (length signed-apikey-id) 0))
-      (is (stringp signed-apikey-id))
-      (is-true (assert-signed-apikey signed-apikey-id)))
+      (is-true (assert-signed-apikey signed-apikey-id))
+      (is-true (signed-apikey-p signed-apikey-id)))
     (is-true (uiop:file-exists-p
               (apikey-store::filepath *apikey-store-backend*)))))
 
-(test store-loads-apikeys-on-initialize
+(test store-loads-on-initialize
   (with-fixture simple-file-backend ()
     (let ((signed-apikey-id (create-apikey)))
       ;; set new to trigger reload
@@ -44,18 +43,39 @@
               (make-simple-file-backend #p"/tmp/chipi-web-test/")))
         (is-true (exists-apikey-p signed-apikey-id))))))
 
-(test retrieve-apikey--existing
+(test exists-apikey
   (with-fixture simple-file-backend ()
     (let ((signed-apikey-id (create-apikey)))
-      (let ((retrieve-apikey (retrieve-apikey signed-apikey-id)))
-        (is-true (typep retrieve-apikey 'apikey))
-        (is (str:starts-with-p (identifier retrieve-apikey) signed-apikey-id))
-        (is (integerp (expiry retrieve-apikey)))))))
+      (is-true (exists-apikey-p signed-apikey-id)))))
 
-(test retrieve-apikey--not-existing
+(test exists-apikey--not-exists
   (with-fixture simple-file-backend ()
-    (signals simple-type-error
-      (retrieve-apikey "some key plain-id"))))
+    ;; create unstored apikey
+    (multiple-value-bind (apikey unstored-apikey-id)
+        (apikey-store::%make-signed-apikey)
+      (declare (ignore apikey))
+      (is-false (exists-apikey-p unstored-apikey-id)))))
+
+(test exists-apikey--structure-check--wrong-structure
+  (with-fixture simple-file-backend ()
+    (signals apikey-invalid-error
+      (exists-apikey-p "foo"))))
+
+(test exists-apikey--signature-check--wrong-signature
+  (with-fixture simple-file-backend ()
+    (let ((signed-apikey-id (create-apikey)))
+      (destructuring-bind (plain-id sign)
+          (str:split #\. signed-apikey-id)
+        (declare (ignore sign))
+        (signals apikey-invalid-sig-error
+          (exists-apikey-p (format nil "~a.bar" plain-id)))))))
+
+(test exists-apikey--revoke-apikey-and-return-nil-when-expired
+  (with-fixture simple-file-backend ()
+    (let ((apikey-store:*apikey-life-time-duration* (ltd:duration :sec 0)))
+      (let ((signed-apikey-id (create-apikey)))
+        (sleep 1)
+        (is-false (exists-apikey-p signed-apikey-id))))))
 
 (test revoke-apikey--existing
   (with-fixture simple-file-backend ()
@@ -68,47 +88,22 @@
               (make-simple-file-backend #p"/tmp/chipi-web-test/")))
         (is-false (exists-apikey-p signed-apikey-id))))))
 
-(test expired-apikey--delete-when-expired
-  (with-fixture simple-file-backend ()
-    (let ((apikey-store:*apikey-life-time-duration* (ltd:duration :sec 0)))
-      (let ((signed-apikey-id (create-apikey)))
-        (sleep 1)
-        (is-true (expired-apikey-p signed-apikey-id))
-        (is-false (exists-apikey-p signed-apikey-id))))))
-
-(test expired-apikey--not-expired
-  (with-fixture simple-file-backend ()
-    (let ((signed-apikey-id (create-apikey)))
-      (is-false (expired-apikey-p signed-apikey-id)))))
-
-(test expired-apikey--apikey-does-not-exist
-  (with-fixture simple-file-backend ()
-    (signals error (expired-apikey-p "some.key"))))
-
-(test exists-apikey
-  (with-fixture simple-file-backend ()
-    (let ((signed-apikey-id (create-apikey)))
-      (is-true (exists-apikey-p signed-apikey-id)))))
-
-(test exists-apikey--not-exists
-  (with-fixture simple-file-backend ()
-    (is-false (exists-apikey-p "foo.bar"))))
-
-(test signature-check--wrong-signature
+(test revoke-apikey--wrong-sig
   (with-fixture simple-file-backend ()
     (let ((signed-apikey-id (create-apikey)))
       (destructuring-bind (plain-id sign)
           (str:split #\. signed-apikey-id)
         (declare (ignore sign))
-        (is-false (exists-apikey-p (format nil "~a.bar" plain-id)))))))
+        (signals apikey-invalid-sig-error
+          (revoke-apikey (format nil "~a.bar" plain-id)))))))
 
-(test retrieve-expired-apikey-ids
+(test private--retrieve-expired-apikey-ids
   (with-fixture simple-file-backend ()
     (let ((apikey-store:*apikey-life-time-duration* (ltd:duration)))
       (create-apikey)
       (create-apikey)
       (sleep 1)
-      (let ((apikey-ids (retrieve-expired-apikeys)))
+      (let ((apikey-ids (apikey-store::retrieve-expired-apikeys)))
         (is (= (length apikey-ids) 2))
         (is (every #'stringp apikey-ids))
         (is (every #'assert-signed-apikey apikey-ids))))))
