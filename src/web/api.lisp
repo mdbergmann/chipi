@@ -83,11 +83,11 @@
       ;; check on apikey
       (handler-case
           (authc:verify-apikey apikey)
-        (authc:auth-apikey-unknown-error (c)
-          (log:info "~a" c)
+        (authc:auth-apikey-unknown-error (condition)
+          (log:info "~a" condition)
           (error-response "Unknown API key"))
-        (authc:auth-apikey-invalid-error (c)
-          (log:info "~a" c)
+        (authc:auth-apikey-invalid-error (condition)
+          (log:info "~a" condition)
           (error-response "Invalid API key"))
         ))))
 
@@ -146,20 +146,20 @@
                       (format nil "Item '~a' not found" item-name))))
   nil)
 
-(defmethod snooze:explain-condition ((c http-condition)
+(defmethod snooze:explain-condition ((condition http-condition)
                                      (resource (eql #'items))
                                      (ct snooze-types:application/json))
-  (log:warn "HTTP condition: ~a" c)
-  (%make-json-error-body (simple-condition-format-control c)))
+  (log:warn "HTTP condition: ~a" condition)
+  (%make-json-error-body (simple-condition-format-control condition)))
 
-(defmethod snooze:explain-condition ((c error)
+(defmethod snooze:explain-condition ((condition error)
                                      (resource (eql #'items))
                                      (ct snooze-types:application/json))
-  (log:warn "HTTP condition: ~a" c)
-  (typecase c
+  (log:warn "HTTP condition: ~a" condition)
+  (typecase condition
     (jzon:json-parse-error
      (%make-json-error-body "Unable to parse JSON"))
     (t
      (progn
-       ;;(trivial-backtrace:print-backtrace c)
-       (%make-json-error-body (simple-condition-format-control c))))))
+       ;;(trivial-backtrace:print-backtrace condition)
+       (%make-json-error-body (simple-condition-format-control condition))))))

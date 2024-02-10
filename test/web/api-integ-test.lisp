@@ -72,6 +72,10 @@
                  "default-src 'none'; frame-ancestors 'none'; sandbox"))
       )))
 
+;; --------------------
+;; get all item
+;; --------------------
+
 (test items--get-all--403--require-api-key
   (with-fixture api-start-stop (nil)
     (multiple-value-bind (body status headers)
@@ -169,6 +173,10 @@
         (is (equal-item-lists-p (octets-to-string body)
                                 item-plists))))))
 
+;; --------------------
+;; get specific item
+;; --------------------
+
 (test items--get-specific-item--200--ok
   (with-fixture api-start-stop (t)
     (let* ((apikey-id (apikey-store:create-apikey))
@@ -191,6 +199,10 @@
         (is (= status 404))
         (is (equal (octets-to-string body)
                    "{\"error\":\"Item 'FOO' not found\"}"))))))
+
+;; --------------------
+;; post item value
+;; --------------------
 
 (defun make-post-item-request (headers item-id value)
   (drakma:http-request (format nil "http://localhost:8765/items/~a" item-id)

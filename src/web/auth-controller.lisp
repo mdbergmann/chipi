@@ -10,9 +10,9 @@
 (in-package :chipi-web.auth-controller)
 
 (define-condition auth-apikey-error (simple-condition) ()
-  (:report (lambda (c s)
-             (format s "Auth API key error: ~a"
-                     (simple-condition-format-control c)))))
+  (:report (lambda (condition stream)
+             (format stream "Auth API key error: ~a"
+                     (simple-condition-format-control condition)))))
 
 (define-condition auth-apikey-unknown-error (auth-apikey-error)()
   (:default-initargs :format-control "Unknown API key"))
