@@ -74,7 +74,7 @@
 
 (defun @check-api-key ()
   (flet ((error-response (err-message)
-           (http-condition hunchentoot:+http-forbidden+ err-message)))
+           (http-condition hunchentoot:+http-authorization-required+ err-message)))
     ;; api-key header
     (let ((apikey (hunchentoot:header-in* "X-Api-Key")))
       (unless apikey

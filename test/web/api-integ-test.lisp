@@ -76,16 +76,16 @@
 ;; get all item
 ;; --------------------
 
-(test items--get-all--403--require-api-key
+(test items--get-all--401--require-api-key
   (with-fixture api-start-stop (nil)
     (multiple-value-bind (body status headers)
         (make-get-items-request nil)
       (declare (ignore headers))
-      (is (= status 403))
+      (is (= status 401))
       (is (equal (octets-to-string body)
                  "{\"error\":\"No API key provided\"}")))))
 
-(test items--get-all--403--apikey-not-known
+(test items--get-all--401--apikey-not-known
   (with-fixture api-start-stop (nil)
     (multiple-value-bind (_apikey id)
         (apikey-store::%make-signed-apikey)
@@ -93,18 +93,20 @@
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,id)))
         (declare (ignore headers))
-        (is (= status 403))
+        (is (= status 401))
         (is (equal (octets-to-string body)
                    "{\"error\":\"Unknown API key\"}"))))))
 
-(test items--get-all--403--apikey-invalid
+(test items--get-all--401--apikey-invalid
   (with-fixture api-start-stop (nil)
     (multiple-value-bind (body status headers)
         (make-get-items-request '(("X-Api-Key" . "abcdef")))
       (declare (ignore headers))
-      (is (= status 403))
+      (is (= status 401))
       (is (equal (octets-to-string body)
                  "{\"error\":\"Invalid API key\"}")))))
+
+(test items--get-all--403--no-access-rights)
 
 (test items--get-all--empty--200--ok
   (with-fixture api-start-stop (nil)
