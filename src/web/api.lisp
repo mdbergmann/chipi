@@ -91,6 +91,18 @@
           (error-response "Invalid API key"))
         ))))
 
+(defun @check-access-rights (required-rights)
+  "Assumes that API key exists and is valid"
+  (flet ((error-response (err-message)
+           (http-condition hunchentoot:+http-forbidden+ err-message)))
+    (let ((apikey (hunchentoot:header-in* "X-Api-Key")))
+      (handler-case
+          (authc:verify-access-rights apikey required-rights)
+        (authc:auth-access-rights-error (condition)
+          (log:info "~a" condition)
+          (error-response "Insufficient access rights"))
+        ))))
+
 (defun @check-payload-length ()
   (let ((content-len (parse-integer (hunchentoot:header-in* "Content-Length"))))
     (format t "Content len: ~a~%" content-len)
@@ -107,6 +119,8 @@
 (defroute items (:get "application/json" &optional item-name)
   (@protection-headers-out)
   (@check-api-key)
+  (@check-access-rights '(:read))
+  (@json-out)
   (log:info "item-name: ~a, type: ~a" item-name (type-of item-name))
   (cond
     ((null item-name)
@@ -139,6 +153,7 @@
   ;;"`item-name' is not optional"
   (@protection-headers-out)
   (@check-api-key)
+  (@check-access-rights '(:update))
   (@check-payload-length)
   (let ((item-value (%parse-item-value (payload-as-string))))
     (unless (itemsc:update-item-value item-name item-value)

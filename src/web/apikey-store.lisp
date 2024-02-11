@@ -5,10 +5,12 @@
                 #:duration
                 #:duration-as)
   (:import-from #:alexandria
-                #:when-let)
+                #:when-let
+                #:if-let)
   (:export #:create-apikey
            #:revoke-apikey
            #:exists-apikey-p
+           #:has-access-rights-p
            #:apikey-p
            #:signed-apikey-p
            #:*apikey-life-time-duration*
@@ -18,7 +20,8 @@
            ;; conditions
            #:apikey-store-error
            #:apikey-invalid-error
-           #:apikey-invalid-sig-error)
+           #:apikey-invalid-sig-error
+           #:access-rights-error)
   )
 
 (in-package :chipi-web.apikey-store)
@@ -38,15 +41,17 @@ This key is stored and loaded from the file `sign-key' in the runtime directory.
 ;; ----------------------------------------
 
 (define-condition apikey-store-error (simple-condition)()
-  (:report (lambda (c s)
-             (format s "API key store error: ~a"
-                     (simple-condition-format-control c)))))
+  (:report (lambda (condition stream)
+             (format stream "API key store error: ~a"
+                     (simple-condition-format-control condition)))))
 
 (define-condition apikey-invalid-error (apikey-store-error)()
   (:default-initargs :format-control "Invalid API key structure"))
 
 (define-condition apikey-invalid-sig-error (apikey-store-error)()
   (:default-initargs :format-control "Invalid API key signature"))
+
+(define-condition access-rights-error (apikey-store-error)())
 
 ;; ----------------------------------------
 ;; types
@@ -60,7 +65,11 @@ This key is stored and loaded from the file `sign-key' in the runtime directory.
            :initform (+ (get-universal-time)
                         (duration-as *apikey-life-time-duration* :sec))
            :reader expiry
-           :documentation "The universal-time when the apikey expires.")))
+           :documentation "The universal-time when the apikey expires.")
+   (access-rights :initarg :access-rights
+                  :initform '()
+                  :reader access-rights
+                  :documentation "The access rights of the apikey.")))
 
 ;; ----------------------------------------
 ;; helper functions
@@ -74,10 +83,11 @@ This key is stored and loaded from the file `sign-key' in the runtime directory.
          (sig (cryp:hmac-sign *sign-key* apikey-id)))
     (format nil "~a.~a" apikey-id sig)))
 
-(defun %make-signed-apikey ()
+(defun %make-signed-apikey (&key (access-rights '()))
   "Creates a new unstored apikey and returns values: apikey instance and signed identifier."
   (let ((apikey (make-instance 'apikey
-                               :identifier (%new-random-id))))
+                               :identifier (%new-random-id)
+                               :access-rights access-rights)))
     (values apikey (%sign-apikey-id apikey))))
 
 (defun %destructure-apikey-id (identifier)
@@ -113,11 +123,11 @@ This key is stored and loaded from the file `sign-key' in the runtime directory.
 ;; public interface
 ;; ----------------------------------------
 
-(defun create-apikey ()
+(defun create-apikey (&key (access-rights '()))
   "Creates a new apikey and stores it in the backend.
 Returns signed identifier."
   (multiple-value-bind (apikey signed-id)
-      (%make-signed-apikey)
+      (%make-signed-apikey :access-rights access-rights)
     (store-apikey *apikey-store-backend* apikey)
     signed-id))
     
@@ -142,6 +152,39 @@ If the apikey is expired, it is revoked and `NIL' is returned."
           (log:info "API key expired")
           nil)
         t)))
+
+;; ----------------------------------------
+;; access rights
+;; ----------------------------------------
+
+(defvar *access-rights* '((:read . 1)
+                          (:update . 5)
+                          (:delete . 10)
+                          (:admin . 100)))
+
+(defun access-right-value (right)
+  (if-let ((value (cdr (assoc right *access-rights*))))
+    value
+    0))
+
+
+(defun has-access-rights-p (identifier access-rights)
+  "Returns `T' if the apikey with the given identifier has the given access-rights, `NIL' otherwise."
+  (check-type identifier string)
+  (check-type access-rights list)
+  (when (not (car access-rights))
+    (error 'access-rights-error :format-controll "No access rights requested"))
+  (when-let ((apikey (retrieve-apikey identifier)))
+    (let ((key-rights (access-rights apikey)))
+      (when (not (car key-rights))
+        (return-from has-access-rights-p nil))
+      (let ((max-key-right (reduce #'max
+                                   (mapcar #'access-right-value
+                                           key-rights)))
+            (max-requested-right (reduce #'max
+                                         (mapcar #'access-right-value
+                                                 access-rights))))
+        (>= max-key-right max-requested-right)))))
 
 ;; ----------------------------------------
 ;; private interface

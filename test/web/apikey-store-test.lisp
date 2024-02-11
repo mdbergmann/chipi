@@ -107,3 +107,49 @@
         (is (= (length apikey-ids) 2))
         (is (every #'stringp apikey-ids))
         (is (every #'assert-signed-apikey apikey-ids))))))
+
+;; ---------------------------------
+;; access-rights
+;; ---------------------------------
+
+(test access-rights--invalid-args
+  (with-fixture simple-file-backend ()
+    (signals type-error
+      (has-access-rights-p 1234 '()))
+    (signals type-error
+      (has-access-rights-p 1234 "foo"))
+    ))
+
+(test access-rights--no-requested-access-rights-not-allowed
+  (with-fixture simple-file-backend ()
+    (let ((apikey-id (create-apikey :access-rights '())))
+      (signals access-rights-error
+        (has-access-rights-p apikey-id '())))))
+
+(test access-rights--returns-false-on-insufficient-rights
+  (with-fixture simple-file-backend ()
+    (let ((apikey-id (create-apikey :access-rights '())))
+      (is (not (has-access-rights-p apikey-id '(:read))))
+      (is (not (has-access-rights-p apikey-id '(:update))))
+      (is (not (has-access-rights-p apikey-id '(:admin))))
+      )
+    (let ((apikey-id (create-apikey :access-rights '(:read))))
+      (is (not (has-access-rights-p apikey-id '(:update))))
+      (is (not (has-access-rights-p apikey-id '(:admin))))
+      )
+    (let ((apikey-id (create-apikey :access-rights '(:update))))
+      (is (not (has-access-rights-p apikey-id '(:admin))))
+      )
+    ))
+
+(test access-rights--returns-true-on-sufficient-rights
+  (with-fixture simple-file-backend ()
+    (let ((apikey-id (create-apikey :access-rights '(:read))))
+      (is (has-access-rights-p apikey-id '(:read))))
+    (let ((apikey-id (create-apikey :access-rights '(:update))))
+      (is (has-access-rights-p apikey-id '(:read :update))))
+    (let ((apikey-id (create-apikey :access-rights '(:delete))))
+      (is (has-access-rights-p apikey-id '(:read :update :delete))))
+    (let ((apikey-id (create-apikey :access-rights '(:admin))))
+      (is (has-access-rights-p apikey-id '(:admin :delete :update :read))))))
+

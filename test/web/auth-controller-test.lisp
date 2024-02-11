@@ -33,3 +33,19 @@
         (is (equal "Invalid API key structure" (simple-condition-format-control c))))
       (:no-error ()
         (fail "Expected auth-apikey-invalid-error to be signaled")))))
+
+(test verify-access-rights--ok
+  (with-mocks ()
+    (answer apikey-store:has-access-rights-p t)
+    (verify-access-rights "apikey.id" '(:read))
+    (is (= 1 (length (invocations 'apikey-store:has-access-rights-p))))))
+
+(test verify-access-rights--not-allowed
+  (with-mocks ()
+    (answer apikey-store:has-access-rights-p nil)
+    (handler-case
+        (verify-access-rights "apikey.id" '(:read))
+      (auth-access-rights-error (c)
+        (is (equal "Insufficient access rights" (simple-condition-format-control c))))
+      (:no-error ()
+        (fail "Expected auth-access-rights-error to be signaled")))))

@@ -106,11 +106,19 @@
       (is (equal (octets-to-string body)
                  "{\"error\":\"Invalid API key\"}")))))
 
-(test items--get-all--403--no-access-rights)
+(test items--get-all--403--no-access-rights
+  (with-fixture api-start-stop (nil)
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '())))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
+        (declare (ignore headers))
+        (is (= status 403))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"Insufficient access rights\"}"))))))
 
 (test items--get-all--empty--200--ok
   (with-fixture api-start-stop (nil)
-    (let ((apikey-id (apikey-store:create-apikey)))
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:read))))
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
         (declare (ignore headers))
@@ -146,7 +154,7 @@
 
 (test items--get-all--some--200--ok
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey))
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read)))
            (items (list
                    (hab:defitem 'foo "label1" 'string :initial-value "bar")))
            (item-plists (mapcar #'itemsc:item-to-plist items)))
@@ -159,7 +167,7 @@
 
 (test items--get-all--supported-value-types--200--ok
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey))
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read)))
            (items (list
                    (hab:defitem 'foo "label-int" 'integer :initial-value 1)
                    (hab:defitem 'foo2 "label-float" 'float :initial-value 1.1)
@@ -181,7 +189,7 @@
 
 (test items--get-specific-item--200--ok
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey))
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read)))
            (items (list
                    (hab:defitem 'foo "label1" 'string :initial-value "bar")))
            (item-plists (mapcar #'itemsc:item-to-plist items)))
@@ -194,7 +202,7 @@
 
 (test items--get-specific-item--404--not-found
   (with-fixture api-start-stop (t)
-    (let ((apikey-id (apikey-store:create-apikey)))
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:read))))
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)) "foo")
         (declare (ignore headers))
@@ -218,7 +226,7 @@
 
 (test items--post-item-value--204--ok
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey)))
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:update))))
       (hab:defitem 'foo "label1" 'string :initial-value "bar")
       (multiple-value-bind (body status headers)
           (make-post-item-request `(("X-Api-Key" . ,apikey-id))
@@ -227,9 +235,21 @@
         (declare (ignore headers body))
         (is (= status 204))))))
 
+(test items--post-item-value--403--no-access-rights
+  (with-fixture api-start-stop (nil)
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:read))))
+      (multiple-value-bind (body status headers)
+          (make-post-item-request `(("X-Api-Key" . ,apikey-id))
+                                  "foo"
+                                  "{\"value\":\"baz\"}")
+        (declare (ignore headers))
+        (is (= status 403))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"Insufficient access rights\"}"))))))
+
 (test items--post-item-value--400--wrong-json-payload
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey)))
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:update))))
       (hab:defitem 'foo "label1" 'string :initial-value "bar")
       (multiple-value-bind (body status headers)
           (make-post-item-request `(("X-Api-Key" . ,apikey-id))
@@ -242,7 +262,7 @@
 
 (test items--post-item-value--404--not-found
   (with-fixture api-start-stop (t)
-    (let ((apikey-id (apikey-store:create-apikey)))
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:update))))
       (multiple-value-bind (body status headers)
           (make-post-item-request `(("X-Api-Key" . ,apikey-id))
                                   "foo" "{\"value\":\"baz\"}")
@@ -253,7 +273,7 @@
 
 (test items--post-item-value--supported-value-types--ok
   (with-fixture api-start-stop (t)
-    (let ((apikey-id (apikey-store:create-apikey))
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:update)))
           (item (hab:defitem 'foo "label1" nil :initial-value 0)))
       (labels ((get-item-value ()
                  (let ((value (item:item-state-value (item:get-item-stateq item))))
@@ -278,7 +298,7 @@
 
 (test items--post-item-value--500--parse-error
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey)))
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:update))))
       (hab:defitem 'foo "label1" 'string :initial-value "bar")
       (multiple-value-bind (body status headers)
           (make-post-item-request `(("X-Api-Key" . ,apikey-id))
@@ -291,7 +311,7 @@
 
 (test items--post--check-payload-length
   (with-fixture api-start-stop (t)
-    (let ((apikey-id (apikey-store:create-apikey)))
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:update))))
       (multiple-value-bind (body status headers)
           (make-post-item-request `(("X-Api-Key" . ,apikey-id))
                                   "foo"

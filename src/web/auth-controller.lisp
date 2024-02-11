@@ -2,23 +2,29 @@
   (:use :cl)
   (:nicknames :authc)
   (:export #:verify-apikey
-           #:auth-apikey-error
+           #:verify-access-rights
+           ;; conditions
+           #:auth-error
            #:auth-apikey-unknown-error
-           #:auth-apikey-invalid-error)
+           #:auth-apikey-invalid-error
+           #:auth-access-rights-error)
   )
 
 (in-package :chipi-web.auth-controller)
 
-(define-condition auth-apikey-error (simple-condition) ()
+(define-condition auth-error (simple-condition) ()
   (:report (lambda (condition stream)
-             (format stream "Auth API key error: ~a"
+             (format stream "Auth error: ~a"
                      (simple-condition-format-control condition)))))
 
-(define-condition auth-apikey-unknown-error (auth-apikey-error)()
+(define-condition auth-apikey-unknown-error (auth-error)()
   (:default-initargs :format-control "Unknown API key"))
 
-(define-condition auth-apikey-invalid-error (auth-apikey-error)()
+(define-condition auth-apikey-invalid-error (auth-error)()
   (:default-initargs :format-control "Invalid API key"))
+
+(define-condition auth-access-rights-error (auth-error)()
+  (:default-initargs :format-control "Insufficient access rights"))
 
 (defun verify-apikey (apikey)
   (handler-case
@@ -28,3 +34,7 @@
     (apikey-store:apikey-store-error (e)
       (error 'auth-apikey-invalid-error
              :format-control (simple-condition-format-control e)))))
+
+(defun verify-access-rights (apikey access-rights)
+  (unless (apikey-store:has-access-rights-p apikey access-rights)
+    (error 'auth-access-rights-error)))
