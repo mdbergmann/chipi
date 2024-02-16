@@ -10,7 +10,10 @@
                "drakma"
                "local-time"
                "binding-arrows"
-               "parse-float")
+               "parse-float"
+               ;; knx
+               "usocket"
+               "bit-smasher")
   :components ((:module "src"
                 :serial t
                 :components

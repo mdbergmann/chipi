@@ -6,3 +6,4 @@
 *.abcl
 /runtime/
 /src/logs/
+.qlot/

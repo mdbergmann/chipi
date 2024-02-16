@@ -46,6 +46,11 @@
                                         (uiop:find-symbol* '#:test-suite
                                                            '#:chipi-web.tests))))
 
+(defun add-dev-dirs ()
+  (push #P"~/Development/MySources/cl-hab/" asdf:*central-registry*)
+  (push #P"~/Development/MySources/cl-gserver/" asdf:*central-registry*)
+  )
+
 #|
 
 TODOS:
@@ -74,7 +79,8 @@ OK - hardening token storage by sha256/HMAC
 OK - apikey-store should raise condition if apikey signature is not correct, catch in auth-controller
 OK - refactor apikey-store return values indicating success or failure
 OK - refactor apiley-store to raise condition if structure invalid or wrongly signed key
-=> - access-control
+OK - access-control
+- documentation
 - audit log
 - abstract json to separate package
 - pre-flight?
