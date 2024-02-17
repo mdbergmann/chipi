@@ -31,7 +31,7 @@
         (is (not (null body))))
       (is (typep (descr-response-device-hardware result) 'dib))
       (is (typep (descr-response-supp-svc-families result) 'dib))
-      (is (typep (descr-response-other-dev-info result) 'list))
+      (is (typep (descr-response-other-dev-info result) 'dib-list))
       (is (not (endp (descr-response-other-dev-info result))))
       )
 

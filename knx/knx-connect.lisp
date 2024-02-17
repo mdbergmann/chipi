@@ -4,8 +4,9 @@
 (defpackage :chipi.knx-connect
   (:use :cl)
   (:nicknames :knxc)
-  (:export #:connect-to-knx
-           #:disconnect-from-knx
+  (:export #:connect
+           #:disconnect
+           ;; send requests
            #:send-descr-request
            ;; knx header
            #:knx-header
@@ -22,20 +23,22 @@
            #:descr-response-device-hardware
            #:descr-response-supp-svc-families
            #:descr-response-other-dev-info
+           ;; types
            #:dib
+           #:dib-list
            ))
 
 (in-package :chipi.knx-connect)
 
 (defvar *conn* nil)
-(defun connect-to-knx (address port)
+(defun connect (address port)
   (let ((conn (usocket:socket-connect
                address port
                :protocol :datagram
                :element-type '(unsigned-byte 8))))
     (setf *conn* conn)))
 
-(defun disconnect-from-knx ()
+(defun disconnect ()
   (when *conn*
     (usocket:socket-close *conn*)))
 
@@ -81,9 +84,6 @@
 (defconstant +knx-header-len+ #x06)
 (defconstant +knx-netip-version+ #x10)
 
-(defconstant +knx-descr-request+ #x0203)
-(defconstant +knx-descr-response+ #x0204)
-
 (defstruct (knx-header (:constructor %make-header)
                        (:conc-name header-))
   (len +knx-header-len+)
@@ -105,6 +105,14 @@
 (defstruct (dib (:constructor %make-dib))
   len type data)
 
+(defun dib-lisp-p (list)
+  (and (listp list)
+       (every #'dib-p list)))
+
+(deftype dib-list ()
+  "A list of dibs."
+  `(satisfies dib-lisp-p))
+
 (defun %parse-dibs (body-data)
   (let ((sub-data body-data)
         (dibs nil))
@@ -120,12 +128,15 @@
         (setf dibs (append dibs (list dib)))))
     dibs))
 
+(defconstant +knx-descr-request+ #x0203)
+(defconstant +knx-descr-response+ #x0204)
+
 (defstruct (knx-descr-response (:include knx-package)
                                (:constructor %make-descr-response)
                                (:conc-name descr-response-))
   (device-hardware (error "Required device-hardware (dip)") :type dib)
   (supp-svc-families (error "Required supp svc families (dip)") :type dib)
-  (other-dev-info nil))
+  (other-dev-info nil :type (or null dib-list)))
 
 (defun %parse-header (pkg-data)
   (let ((header-size (elt pkg-data 0))
