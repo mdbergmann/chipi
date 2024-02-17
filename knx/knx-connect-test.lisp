@@ -12,7 +12,10 @@
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
 
 (deftest suite ()
-  (send-descr-request--receive-response--check-package))
+  (send-descr-request--receive-response--check-package)
+  (descr-request--compare-to-raw)
+  (descr-request--compare-to-raw-2)
+  )
 
 (deftest send-descr-request--receive-response--check-package ()
   (with-mocks ()
@@ -32,10 +35,48 @@
       (is (typep (descr-response-device-hardware result) 'dib))
       (is (typep (descr-response-supp-svc-families result) 'dib))
       (is (typep (descr-response-other-dev-info result) 'dib-list))
-      (is (not (endp (descr-response-other-dev-info result))))
-      )
+      (is (not (endp (descr-response-other-dev-info result)))))
 
     (is (= 1 (length (invocations 'usocket:socket-send))))
     (is (= 1 (length (invocations 'usocket:socket-receive))))))
+
+(defparameter *raw-descr-request*
+  (make-array 14
+              :element-type '(unsigned-byte 8)
+              :initial-contents
+              '(#x06 #x10
+                #x02 #x03
+                #x00 #x0e
+                ;; HPAI
+                #x08
+                #x01                  ;; udp
+                #x00 #x00 #x00 #x00   ;; unbound address
+                #x00 #x00
+                )))
+
+(deftest descr-request--compare-to-raw ()
+  (is (equalp *raw-descr-request*
+              (knxc::%make-byte-array-from-byte-seq
+               (knxc::to-byte-seq
+                (knxc::%make-descr-request knxc::*hpai-unbound-addr*))))))
+
+(defparameter *raw-descr-request-2*
+  (make-array 14
+              :element-type '(unsigned-byte 8)
+              :initial-contents
+              '(#x06 #x10
+                #x02 #x03
+                #x00 #x0e
+                ;; HPAI
+                #x08
+                #x01                  ;; udp
+                192 168 50 100
+                195 180)))
+
+(deftest descr-request--compare-to-raw-2 ()
+  (is (equalp *raw-descr-request-2*
+              (knxc::%make-byte-array-from-byte-seq
+               (knxc::to-byte-seq
+                (knxc::%make-descr-request (knxc::%make-hpai "192.168.50.100" 50100)))))))
 
 (try 'suite)

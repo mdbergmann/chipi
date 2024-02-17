@@ -1,5 +1,5 @@
 (eval-when (:load-toplevel :compile-toplevel)
-  (ql:quickload '(:usocket :bit-smasher :try :cl-mock)))
+  (ql:quickload '(:usocket :try :cl-mock)))
 
 (defpackage :chipi.knx-connect
   (:use :cl)
@@ -51,49 +51,124 @@
 
 ;; ------------------------------------------
 
-(defun %make-pkg (pkg-data-lst)
-  (let ((pkg (alexandria:flatten pkg-data-lst)))
+(defun %byte-seq-to-byte-array (byte-seq)
+  (let ((pkg (alexandria:flatten byte-seq)))
     (make-array (list (length pkg))
                 :initial-contents pkg
                 :element-type '(unsigned-byte 8))))
 
-(defun %negative-p (byte)
-  (> (mask-field (byte 8 7) byte) 0))
-
 (defun %to-int (upper lower)
-  "On negatve values the number is sent as two complement."
-  (let ((neg-p (%negative-p upper)))
-    (if neg-p
-        (let* ((number (logior (ash upper 8) lower))
-               (bit-vector (bitsmash:bits<- number))
-               (complement (bit-not bit-vector)))
-          (* -1 (bitsmash:int<- complement)))
-        (+ (ash upper 8) lower))))
+  (+ (ash upper 8) lower))
 
-(defparameter *raw-descr-request*
-  (%make-pkg '(#x06 #x10
-               #x02 #x03
-               #x00 #x0e
-               ;; HPAI
-               #x08
-               #x01               ;; udp
-               #x00 #x00 #x00 #x00 ;; unbound address
-               #x00 #x00
-               )))
+(defun %to-vec (short)
+  "Converts a short integer to a vector of two bytes."
+  (make-array 2
+              :element-type '(unsigned-byte 8)
+              :initial-contents (list (ash short -8)
+                                      (logand short #xff))))
 
 (defconstant +knx-header-len+ #x06)
 (defconstant +knx-netip-version+ #x10)
 
 (defstruct (knx-header (:constructor %make-header)
                        (:conc-name header-))
+    "KNXnet/IP header
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| HEADER_SIZE_10              | KNXNETIP_VERSION                |
+| (06h)                       | (10h)                           |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| DESCRIPTION_RESPONSE                                          |
+| (0204h)                                                       |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| HEADER_SIZE_10 + sizeof(body)                                 |
+|                                                               |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
   (len +knx-header-len+)
   (knxnetip-version +knx-netip-version+)
   type
   body-len)
 
 (defstruct (knx-package (:conc-name package-))
-  (header nil :type (or null knx-header))
+  (header (error "Header is required!") :type knx-header)
   body)
+
+(defconstant +knx-descr-request+ #x0203)
+(defconstant +knx-descr-response+ #x0204)
+
+(defconstant +hpai-udp+ #x01
+  "Host Protocol Address Information (HPAI) UDP")
+
+(defstruct (hpai (:constructor %make-hpai-internal))
+  "
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Structure Length              | Host Protocol Code            |
+| (1 octet = 08h)               | (1 octet)                     |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+|                                                               |
+| IP Address                                                    |
+| (4 octets)                                                    |
+|                                                               |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| IP Port Number                                                |
+| (2 Octets)                                                    |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
+  (len #x08 :type (unsigned-byte 8))
+  (host-protocol-code +hpai-udp+ :type (unsigned-byte 8))
+  (ip-address (error "Required ip-address") :type (array (unsigned-byte 8) (4)))
+  (ip-port (error "Required ip-port") :type (array (unsigned-byte 8) (2))))
+
+(defun %make-hpai (ip-address ip-port)
+  "Creates a HPAI structure from the given ip-address and ip-port.
+The ip-address is a string in the form of \"192.168.1.1\".
+The ip-port is an integer between 0 and 65535."
+  (check-type ip-address string)
+  (check-type ip-port (integer 0 65535))
+  (let ((ip-addr (coerce
+                  (mapcar #'parse-integer
+                          (uiop:split-string ip-address :separator "."))
+                  '(array (unsigned-byte 8) (4))))
+        (ip-port (coerce (%to-vec ip-port)
+                         '(array (unsigned-byte 8) (2)))))
+    (%make-hpai-internal :ip-address ip-addr :ip-port ip-port)))
+
+(defparameter *hpai-unbound-addr*
+  (%make-hpai "0.0.0.0" 0))
+
+(defstruct (knx-descr-request (:include knx-package)
+                              (:constructor %make-descr-request-internal)
+                              (:conc-name descr-request-))
+  "KNXnet/IP header (see above)
+KNXnet/IP body
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| HPAI                                                          |
+| Control endpoint                                              |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
+  hpai)
+
+(defun %make-descr-request (hpai)
+  (make-knx-descr-request
+   :header (%make-header
+            :type +knx-descr-request+
+            :body-len (+ +knx-header-len+ (hpai-len hpai)))
+   :hpai hpai
+   :body hpai))
+
+(defgeneric to-byte-seq (obj))
+(defmethod to-byte-seq ((obj hpai))
+  (list (hpai-len obj)
+        (hpai-host-protocol-code obj)
+        (coerce (hpai-ip-address obj) 'list)
+        (coerce (hpai-ip-port obj) 'list)))
+
+(defmethod to-byte-seq ((obj knx-header))
+  (list (header-len obj)
+        (header-knxnetip-version obj)
+        (%to-list (header-type obj))
+        (%to-list (header-body-len obj))))
+
+(defmethod to-byte-seq ((obj knx-package))
+  (list (to-byte-seq (package-header obj))
+        (to-byte-seq (package-body obj))))
 
 (defconstant +dib-typecodes-device-info+ #x01)
 (defconstant +dib-typecodes-supp-svc-families+ #x02)
@@ -103,6 +178,15 @@
 (defconstant +dib-typecodes-mfr-data+ #xfe)
 
 (defstruct (dib (:constructor %make-dib))
+  "Device Information Block
+Generic DIB structure:
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Structure Length            | Description Type Code           |
+| (1 octet)                   | (1 octet)                       |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Description Information Block data                            |
+| (?? octets)                                                   |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+"
   len type data)
 
 (defun dib-lisp-p (list)
@@ -114,6 +198,7 @@
   `(satisfies dib-lisp-p))
 
 (defun %parse-dibs (body-data)
+  "Parses a variable list of dibs from the body data and returns them."
   (let ((sub-data body-data)
         (dibs nil))
     (loop
@@ -128,12 +213,22 @@
         (setf dibs (append dibs (list dib)))))
     dibs))
 
-(defconstant +knx-descr-request+ #x0203)
-(defconstant +knx-descr-response+ #x0204)
-
 (defstruct (knx-descr-response (:include knx-package)
                                (:constructor %make-descr-response)
                                (:conc-name descr-response-))
+  "KNXnet/IP header (see above)
+
+KNXnet/IP body
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| DIB                                                           |
+| device hardware                                               |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+| DIB                                                           |
+| supported service families                                    |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+| DIB                                                           |
+| other device information (optional)                           |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"  
   (device-hardware (error "Required device-hardware (dip)") :type dib)
   (supp-svc-families (error "Required supp svc families (dip)") :type dib)
   (other-dev-info nil :type (or null dib-list)))
