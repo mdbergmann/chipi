@@ -67,6 +67,19 @@
               :initial-contents (list (ash short -8)
                                       (logand short #xff))))
 
+;; -----------------------------
+;; knx generics
+;; -----------------------------
+
+(defconstant +knx-descr-request+ #x0203)
+(defconstant +knx-descr-response+ #x0204)
+
+(defgeneric to-byte-seq (obj))
+
+;; -----------------------------
+;; knx header
+;; -----------------------------
+
 (defconstant +knx-header-len+ #x06)
 (defconstant +knx-netip-version+ #x10)
 
@@ -88,12 +101,53 @@
   type
   body-len)
 
+(defun %parse-header (pkg-data)
+  (let ((header-size (elt pkg-data 0))
+        (knx-version (elt pkg-data 1))
+        (type (%to-int (elt pkg-data 2)
+                       (elt pkg-data 3)))
+        (body-size (%to-int (elt pkg-data 4)
+                            (elt pkg-data 5))))
+    (let ((eff-body-size (- body-size +knx-header-len+)))
+      (%make-header
+       :len header-size
+       :knxnetip-version knx-version
+       :type type
+       :body-len eff-body-size))))
+
+(defmethod to-byte-seq ((obj knx-header))
+  (list (header-len obj)
+        (header-knxnetip-version obj)
+        (%to-list (header-type obj))
+        (%to-list (header-body-len obj))))
+
+;; -----------------------------
+;; knx generic package
+;; -----------------------------
+
 (defstruct (knx-package (:conc-name package-))
   (header (error "Header is required!") :type knx-header)
   body)
 
-(defconstant +knx-descr-request+ #x0203)
-(defconstant +knx-descr-response+ #x0204)
+(defun %parse-knx-package (pkg-data)
+  (let* ((header (%parse-header pkg-data))
+         (header-len (header-len header))
+         (body (subseq pkg-data
+                       header-len
+                       (+ (header-body-len header)
+                          header-len)))
+         (type (header-type header)))
+    (cond
+      ((= type +knx-descr-response+)
+       (%parse-descr-response header body)))))
+
+(defmethod to-byte-seq ((obj knx-package))
+  (list (to-byte-seq (package-header obj))
+        (to-byte-seq (package-body obj))))
+
+;; -----------------------------
+;; knx HPAI
+;; -----------------------------
 
 (defconstant +hpai-udp+ #x01
   "Host Protocol Address Information (HPAI) UDP")
@@ -134,41 +188,15 @@ The ip-port is an integer between 0 and 65535."
 (defparameter *hpai-unbound-addr*
   (%make-hpai "0.0.0.0" 0))
 
-(defstruct (knx-descr-request (:include knx-package)
-                              (:constructor %make-descr-request-internal)
-                              (:conc-name descr-request-))
-  "KNXnet/IP header (see above)
-KNXnet/IP body
-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
-| HPAI                                                          |
-| Control endpoint                                              |
-+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
-  hpai)
-
-(defun %make-descr-request (hpai)
-  (make-knx-descr-request
-   :header (%make-header
-            :type +knx-descr-request+
-            :body-len (+ +knx-header-len+ (hpai-len hpai)))
-   :hpai hpai
-   :body hpai))
-
-(defgeneric to-byte-seq (obj))
 (defmethod to-byte-seq ((obj hpai))
   (list (hpai-len obj)
         (hpai-host-protocol-code obj)
         (coerce (hpai-ip-address obj) 'list)
         (coerce (hpai-ip-port obj) 'list)))
 
-(defmethod to-byte-seq ((obj knx-header))
-  (list (header-len obj)
-        (header-knxnetip-version obj)
-        (%to-list (header-type obj))
-        (%to-list (header-body-len obj))))
-
-(defmethod to-byte-seq ((obj knx-package))
-  (list (to-byte-seq (package-header obj))
-        (to-byte-seq (package-body obj))))
+;; -----------------------------
+;; knx description information block
+;; -----------------------------
 
 (defconstant +dib-typecodes-device-info+ #x01)
 (defconstant +dib-typecodes-supp-svc-families+ #x02)
@@ -213,6 +241,33 @@ Generic DIB structure:
         (setf dibs (append dibs (list dib)))))
     dibs))
 
+;; -----------------------------
+;; knx description request
+;; -----------------------------
+
+(defstruct (knx-descr-request (:include knx-package)
+                              (:constructor %make-descr-request-internal)
+                              (:conc-name descr-request-))
+  "KNXnet/IP header (see above)
+KNXnet/IP body
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| HPAI                                                          |
+| Control endpoint                                              |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
+  hpai)
+
+(defun %make-descr-request (hpai)
+  (make-knx-descr-request
+   :header (%make-header
+            :type +knx-descr-request+
+            :body-len (+ +knx-header-len+ (hpai-len hpai)))
+   :hpai hpai
+   :body hpai))
+
+;; -----------------------------
+;; knx description response
+;; -----------------------------
+
 (defstruct (knx-descr-response (:include knx-package)
                                (:constructor %make-descr-response)
                                (:conc-name descr-response-))
@@ -233,20 +288,6 @@ KNXnet/IP body
   (supp-svc-families (error "Required supp svc families (dip)") :type dib)
   (other-dev-info nil :type (or null dib-list)))
 
-(defun %parse-header (pkg-data)
-  (let ((header-size (elt pkg-data 0))
-        (knx-version (elt pkg-data 1))
-        (type (%to-int (elt pkg-data 2)
-                       (elt pkg-data 3)))
-        (body-size (%to-int (elt pkg-data 4)
-                            (elt pkg-data 5))))
-    (let ((eff-body-size (- body-size +knx-header-len+)))
-      (%make-header
-       :len header-size
-       :knxnetip-version knx-version
-       :type type
-       :body-len eff-body-size))))
-
 (defun %parse-descr-response (header body)
   (let ((dibs (%parse-dibs body)))
     (%make-descr-response
@@ -256,24 +297,14 @@ KNXnet/IP body
      :supp-svc-families (second dibs)
      :other-dev-info (nthcdr 2 dibs))))
 
-(defun %parse-knx-package (pkg-data)
-  (let* ((header (%parse-header pkg-data))
-         (header-len (header-len header))
-         (body (subseq pkg-data
-                       header-len
-                       (+ (header-body-len header)
-                          header-len)))
-         (type (header-type header)))
-    (cond
-      ((= type +knx-descr-response+)
-       (%parse-descr-response header body)))))
-
 ;; -----------------------------
 ;; high-level comm
 ;; -----------------------------
 
 (defun send-descr-request ()
-  (send-knx-request *raw-descr-request*)
-  (let ((response (receive-knx-response)))
-    (%parse-knx-package response)
-  ))
+  (let* ((request (%make-descr-request *hpai-unbound-addr*))
+         (bytes (%byte-seq-to-byte-array (to-byte-seq request))))
+    (send-knx-request bytes)
+    (let ((response (receive-knx-response)))
+      (%parse-knx-package response)
+      )))

@@ -56,7 +56,7 @@
 
 (deftest descr-request--compare-to-raw ()
   (is (equalp *raw-descr-request*
-              (knxc::%make-byte-array-from-byte-seq
+              (knxc::%byte-seq-to-byte-array
                (knxc::to-byte-seq
                 (knxc::%make-descr-request knxc::*hpai-unbound-addr*))))))
 
@@ -75,7 +75,7 @@
 
 (deftest descr-request--compare-to-raw-2 ()
   (is (equalp *raw-descr-request-2*
-              (knxc::%make-byte-array-from-byte-seq
+              (knxc::%byte-seq-to-byte-array
                (knxc::to-byte-seq
                 (knxc::%make-descr-request (knxc::%make-hpai "192.168.50.100" 50100)))))))
 
