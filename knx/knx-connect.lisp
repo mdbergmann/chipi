@@ -67,6 +67,12 @@
               :initial-contents (list (ash short -8)
                                       (logand short #xff))))
 
+(defun %to-list (int &optional (len 2))
+  "Converts an integer to a list of bytes."
+  (reverse
+   (loop :for i :from 0 :below len
+         :collect (logand (ash int (* i -8)) #xff))))
+
 ;; -----------------------------
 ;; knx generics
 ;; -----------------------------
@@ -257,7 +263,7 @@ KNXnet/IP body
   hpai)
 
 (defun %make-descr-request (hpai)
-  (make-knx-descr-request
+  (%make-descr-request-internal
    :header (%make-header
             :type +knx-descr-request+
             :body-len (+ +knx-header-len+ (hpai-len hpai)))
