@@ -84,6 +84,12 @@
       (coerce obj `(,type (unsigned-byte 8) (,len)))
       (coerce obj `(,type (unsigned-byte 8)))))
 
+(defun %to-bit-vector (num bit-len)
+  (coerce (reverse
+           (loop :for i :from 0 :below bit-len
+                 :collect (logand (ash num i) 1)))
+          `(vector bit ,bit-len)))
+
 ;; -----------------------------
 ;; knx generics
 ;; -----------------------------
@@ -266,7 +272,7 @@ Generic DIB structure:
 +- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -+
 +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
   (knx-medium 0 :type (unsigned-byte 8))
-  (device-status 0 :type (unsigned-byte 8))
+  (device-status (%to-bit-vector 0 8) :type (vector bit 8))
   (knx-individual-address (error "Required knx-individual-address")
    :type (array (unsigned-byte 8) (2)))
   (proj-inst-identifier (error "Required proj-inst-identifier")
@@ -290,25 +296,18 @@ Generic DIB structure:
   "KNX medium IP")
 
 (defun %parse-dib-device-info (len data)
-  (let ((knx-medium (elt data 0))
-        (device-status (elt data 1))
-        (knx-individual-address (subseq data 2 4))
-        (proj-inst-identifier (subseq data 4 6))
-        (knx-serial-number (subseq data 6 12))
-        (knx-routing-multicast-addr (subseq data 12 16))
-        (knx-mac-addr (subseq data 16 22))
-        (device-friendly-name (subseq data 22 52)))
+  (let ((device-friendly-name (subseq data 22 52)))
     (%make-dib-device-info
      :len len
      :type +dib-typecodes-device-info+
      :data data
-     :knx-medium knx-medium
-     :device-status device-status
-     :knx-individual-address (%to-array knx-individual-address :len 2)
-     :proj-inst-identifier (%to-array proj-inst-identifier :len 2)
-     :knx-serial-number (%to-array knx-serial-number :len 6)
-     :knx-routing-multicast-addr (%to-array knx-routing-multicast-addr :len 4)
-     :knx-mac-addr (%to-array knx-mac-addr :len 6)
+     :knx-medium (elt data 0)
+     :device-status (%to-bit-vector (elt data 1) 8)
+     :knx-individual-address (%to-array (subseq data 2 4) :len 2)
+     :proj-inst-identifier (%to-array (subseq data 4 6) :len 2)
+     :knx-serial-number (%to-array (subseq data 6 12) :len 6)
+     :knx-routing-multicast-addr (%to-array (subseq data 12 16) :len 4)
+     :knx-mac-addr (%to-array (subseq data 16 22) :len 6)
      :device-friendly-name (babel:octets-to-string
                                (%to-array
                                 (subseq device-friendly-name
