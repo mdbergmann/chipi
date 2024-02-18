@@ -35,9 +35,11 @@
         (is (= (- 84 knxc::+knx-header-len+) (header-body-len header))))
       ;; check knx-body
       (let ((body (package-body result)))
-        (is (not (null body))))
+        (is (not (null body)))
+        (is (= 78 (length body))))
       ;; check dibs
       (is (typep (descr-response-device-hardware result) 'dib))
+      (is (typep (descr-response-device-hardware result) 'dib-device-info))
       (is (typep (descr-response-supp-svc-families result) 'dib))
       (is (typep (descr-response-other-dev-info result) 'dib-list))
       (is (not (endp (descr-response-other-dev-info result)))))
@@ -82,6 +84,7 @@
   (is (equalp *raw-descr-request-2*
               (knxc::%byte-seq-to-byte-array
                (knxc::to-byte-seq
-                (knxc::%make-descr-request (knxc::%make-hpai "192.168.50.100" 50100)))))))
+                (knxc::%make-descr-request
+                 (knxc::%make-hpai "192.168.50.100" 50100)))))))
 
 (try 'suite)

@@ -1,5 +1,5 @@
 (eval-when (:load-toplevel :compile-toplevel)
-  (ql:quickload '(:usocket :try :cl-mock :log4cl)))
+  (ql:quickload '(:usocket :babel :try :cl-mock :log4cl)))
 
 (defpackage :chipi.knx-connect
   (:use :cl)
@@ -25,6 +25,7 @@
            #:descr-response-other-dev-info
            ;; types
            #:dib
+           #:dib-device-info
            #:dib-list
            ))
 
@@ -77,6 +78,11 @@
   (reverse
    (loop :for i :from 0 :below len
          :collect (logand (ash int (* i -8)) #xff))))
+
+(defun %to-array (obj &key (len 0 len-present-p) (type 'simple-array))
+  (if len-present-p
+      (coerce obj `(,type (unsigned-byte 8) (,len)))
+      (coerce obj `(,type (unsigned-byte 8)))))
 
 ;; -----------------------------
 ;; knx generics
@@ -227,6 +233,91 @@ Generic DIB structure:
 +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+"
   len type data)
 
+(defstruct (dib-device-info (:include dib)
+                            (:constructor %make-dib-device-info))
+  "
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Structure Length            | Description Type Code           |
+| (1 octet)                   | (1 octet)                       |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| KNX medium                  | Device Status                   |
+| (1 Octet)                   | (1 Octet)                       |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| KNX Individual Address                                        |
+| (2 Octets)                                                    |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Project-Installation identifier                               |
+| (2 Octets)                                                    |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| KNXnet/IP device KNX Serial Number                            |
+| (6 octets)                                                    |
++- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -+
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| KNXnet/IP device routing multicast address                    |
+| (4 octets)                                                    |
++- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -+
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| KNXnet/IP device MAC address                                  |
+| (6 octets)                                                    |
++- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -+
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Device Friendly Name                                          |
+| (30 octets)                                                   |
++- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -+
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
+  (knx-medium 0 :type (unsigned-byte 8))
+  (device-status 0 :type (unsigned-byte 8))
+  (knx-individual-address (error "Required knx-individual-address")
+   :type (array (unsigned-byte 8) (2)))
+  (proj-inst-identifier (error "Required proj-inst-identifier")
+   :type (array (unsigned-byte 8) (2)))
+  (knx-serial-number (error "Required knx-serial-number")
+   :type (array (unsigned-byte 8) (6)))
+  (knx-routing-multicast-addr (error "Required knx-routing-multicast-addr")
+   :type (array (unsigned-byte 8) (4)))
+  (knx-mac-addr (error "Required knx-mac-addr")
+   :type (array (unsigned-byte 8) (6)))
+  (device-friendly-name (error "Required device-friendly-name")
+   :type string))
+
+(defconstant +knx-medium-tp1+ #x02
+  "KNX medium TP1")
+(defconstant +knx-medium-pl110+ #x04
+  "KNX medium PL110")
+(defconstant +knx-medium-rf+ #x10
+  "KNX medium RF")
+(defconstant +knx-medium-ip+ #x20
+  "KNX medium IP")
+
+(defun %parse-dib-device-info (len data)
+  (let ((knx-medium (elt data 0))
+        (device-status (elt data 1))
+        (knx-individual-address (subseq data 2 4))
+        (proj-inst-identifier (subseq data 4 6))
+        (knx-serial-number (subseq data 6 12))
+        (knx-routing-multicast-addr (subseq data 12 16))
+        (knx-mac-addr (subseq data 16 22))
+        (device-friendly-name (subseq data 22 52)))
+    (%make-dib-device-info
+     :len len
+     :type +dib-typecodes-device-info+
+     :data data
+     :knx-medium knx-medium
+     :device-status device-status
+     :knx-individual-address (%to-array knx-individual-address :len 2)
+     :proj-inst-identifier (%to-array proj-inst-identifier :len 2)
+     :knx-serial-number (%to-array knx-serial-number :len 6)
+     :knx-routing-multicast-addr (%to-array knx-routing-multicast-addr :len 4)
+     :knx-mac-addr (%to-array knx-mac-addr :len 6)
+     :device-friendly-name (babel:octets-to-string
+                               (%to-array
+                                (subseq device-friendly-name
+                                        0
+                                        (or
+                                         (position 0 device-friendly-name)
+                                         30))
+                                :type 'vector)))))
+
 (defun dib-lisp-p (list)
   (and (listp list)
        (every #'dib-p list)))
@@ -246,7 +337,12 @@ Generic DIB structure:
              (typecode (elt sub-data 1))
              (end-index (+ 2 len))
              (data (subseq sub-data 2 end-index))
-             (dib (%make-dib :len len :type typecode :data data)))
+             (dib 
+               (cond
+                 ((= typecode +dib-typecodes-device-info+)
+                  (%parse-dib-device-info len data))
+                 (t
+                  (%make-dib :len len :type typecode :data data)))))
         (setf sub-data (subseq sub-data end-index))
         (setf dibs (append dibs (list dib)))))
     dibs))
@@ -294,7 +390,7 @@ KNXnet/IP body
 | DIB                                                           |
 | other device information (optional)                           |
 +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"  
-  (device-hardware (error "Required device-hardware (dip)") :type dib)
+  (device-hardware (error "Required device-hardware (dip)") :type dib-device-info)
   (supp-svc-families (error "Required supp svc families (dip)") :type dib)
   (other-dev-info nil :type (or null dib-list)))
 
