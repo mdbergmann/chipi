@@ -26,6 +26,7 @@
            ;; types
            #:dib
            #:dib-device-info
+           #:dib-supp-svc-families
            #:dib-list
            ))
 
@@ -317,6 +318,58 @@ Generic DIB structure:
                                          30))
                                 :type 'vector)))))
 
+(defstruct (service-family (:constructor %make-service-family))
+  "Service Family"
+  (id (error "Required id") :type (unsigned-byte 8))
+  (version (error "Required version") :type (unsigned-byte 8)))
+
+(defun service-family-list-p (list)
+  (and (listp list)
+       (every #'service-family-p list)))
+
+(deftype service-family-list ()
+  "A list of service families."
+  `(satisfies service-family-list-p))
+
+(defstruct (dib-supp-svc-families (:include dib)
+                                  (:constructor %make-dib-supp-svc-families))
+  "Supported Service Families
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Structure Length            | Description Type Code           |
+| (1 octet)                   | (1 octet)                       |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Service Family ID           | Service Family version          |
+| (1 Octet)                   | (1 Octet)                       |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Service Family ID           | Service Family version          |
+| (1 Octet)                   | (1 Octet)                       |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| ....                        | ....                            |
+|                             |                                 |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Service Family ID           | Service Family version          |
+| (1 Octet)                   | (1 Octet)                       |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
+  (service-families (error "Required service-families")
+   :type service-family-list))
+
+(defun %parse-dib-supp-svc-families (len data)
+  (let ((service-families nil)
+        (sub-data data))
+    (loop
+      (when (= 0 (length sub-data))
+        (return))
+      (let* ((id (elt sub-data 0))
+             (version (elt sub-data 1))
+             (service-family (%make-service-family :id id :version version)))
+        (setf sub-data (subseq sub-data 2))
+        (setf service-families (append service-families (list service-family)))))
+    (%make-dib-supp-svc-families
+     :len len
+     :type +dib-typecodes-supp-svc-families+
+     :data data
+     :service-families service-families)))
+
 (defun dib-lisp-p (list)
   (and (listp list)
        (every #'dib-p list)))
@@ -340,11 +393,19 @@ Generic DIB structure:
                (cond
                  ((= typecode +dib-typecodes-device-info+)
                   (%parse-dib-device-info len data))
+                 ((= typecode +dib-typecodes-supp-svc-families+)
+                  (%parse-dib-supp-svc-families len data))
                  (t
                   (%make-dib :len len :type typecode :data data)))))
         (setf sub-data (subseq sub-data end-index))
         (setf dibs (append dibs (list dib)))))
     dibs))
+
+;; TODO:
+;; - IP Config DIB
+;; - IP Current Config DIB
+;; - KNX Addresses DIB
+;; - MFR Data DIB
 
 ;; -----------------------------
 ;; knx description request
@@ -391,7 +452,7 @@ KNXnet/IP body
 +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"  
   (device-hardware (error "Required device-hardware (dip)") :type dib-device-info)
   (supp-svc-families (error "Required supp svc families (dip)") :type dib)
-  (other-dev-info nil :type (or null dib-list)))
+  (other-deb-info nil :type (or null dib-list)))
 
 (defun %parse-descr-response (header body)
   (let ((dibs (%parse-dibs body)))
@@ -400,7 +461,7 @@ KNXnet/IP body
      :body body
      :device-hardware (first dibs)
      :supp-svc-families (second dibs)
-     :other-dev-info (nthcdr 2 dibs))))
+     :other-deb-info (nthcdr 2 dibs))))
 
 ;; -----------------------------
 ;; high-level comm
