@@ -1,5 +1,5 @@
 (eval-when (:load-toplevel :compile-toplevel)
-  (ql:quickload '(:usocket :try :cl-mock)))
+  (ql:quickload '(:usocket :try :cl-mock :log4cl)))
 
 (defpackage :chipi.knx-connect
   (:use :cl)
@@ -7,7 +7,7 @@
   (:export #:connect
            #:disconnect
            ;; send requests
-           #:send-descr-request
+           #:retrieve-descr-info
            ;; knx header
            #:knx-header
            #:header-len
@@ -30,22 +30,27 @@
 
 (in-package :chipi.knx-connect)
 
+(defparameter *knx-if* "192.168.50.41")
+
 (defvar *conn* nil)
-(defun connect (address port)
+(defun connect (address &optional (port 3761))
   (let ((conn (usocket:socket-connect
                address port
                :protocol :datagram
                :element-type '(unsigned-byte 8))))
+    (log:info "Connected to ~a on port ~a" address port)
     (setf *conn* conn)))
 
 (defun disconnect ()
-  (when *conn*
-    (usocket:socket-close *conn*)))
+  (assert *conn* nil "No connection to disconnect from!")
+  (usocket:socket-close *conn*))
 
 (defun send-knx-request (request)
+  (assert *conn* nil "No connection to disconnect from!")
   (usocket:socket-send *conn* request (length request)))
 
 (defun receive-knx-response ()
+  (assert *conn* nil "No connection to disconnect from!")
   (let ((buf (make-array 1024 :element-type '(unsigned-byte 8))))
     (usocket:socket-receive *conn* buf 1024)))
 
@@ -60,14 +65,14 @@
 (defun %to-int (upper lower)
   (+ (ash upper 8) lower))
 
-(defun %to-vec (short)
-  "Converts a short integer to a vector of two bytes."
-  (make-array 2
-              :element-type '(unsigned-byte 8)
-              :initial-contents (list (ash short -8)
-                                      (logand short #xff))))
+(defun %int-to-byte-vec (int &optional (len 2))
+  "Converts an integer to a simple-array (unsigned-int 8)."
+  (let ((byte-list (%int-to-byte-list int len)))
+    (make-array (length byte-list)
+                :element-type '(unsigned-byte 8)
+                :initial-contents byte-list)))
 
-(defun %to-list (int &optional (len 2))
+(defun %int-to-byte-list (int &optional (len 2))
   "Converts an integer to a list of bytes."
   (reverse
    (loop :for i :from 0 :below len
@@ -124,8 +129,8 @@
 (defmethod to-byte-seq ((obj knx-header))
   (list (header-len obj)
         (header-knxnetip-version obj)
-        (%to-list (header-type obj))
-        (%to-list (header-body-len obj))))
+        (%int-to-byte-list (header-type obj))
+        (%int-to-byte-list (header-body-len obj))))
 
 ;; -----------------------------
 ;; knx generic package
@@ -187,8 +192,7 @@ The ip-port is an integer between 0 and 65535."
                   (mapcar #'parse-integer
                           (uiop:split-string ip-address :separator "."))
                   '(array (unsigned-byte 8) (4))))
-        (ip-port (coerce (%to-vec ip-port)
-                         '(array (unsigned-byte 8) (2)))))
+        (ip-port (%int-to-byte-vec ip-port)))
     (%make-hpai-internal :ip-address ip-addr :ip-port ip-port)))
 
 (defparameter *hpai-unbound-addr*
@@ -307,10 +311,12 @@ KNXnet/IP body
 ;; high-level comm
 ;; -----------------------------
 
-(defun send-descr-request ()
+(defun retrieve-descr-info ()
   (let* ((request (%make-descr-request *hpai-unbound-addr*))
          (bytes (%byte-seq-to-byte-array (to-byte-seq request))))
+    (log:debug "Sending request: ~a" request)
     (send-knx-request bytes)
-    (let ((response (receive-knx-response)))
-      (%parse-knx-package response)
-      )))
+    (let* ((response (receive-knx-response))
+           (parsed-response (%parse-knx-package response)))
+      (log:debug "Received response: ~a" parsed-response)
+      parsed-response)))
