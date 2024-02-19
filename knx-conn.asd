@@ -13,7 +13,7 @@
                  (:file "knx-obj")
                  (:file "hpai")
                  (:file "dib")
-                 (:file "knx-descr-info")
+                 (:file "descr-info")
                  (:file "knx-connect")
                  )))
   :in-order-to ((test-op (test-op "knx-conn/tests"))))

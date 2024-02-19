@@ -1,5 +1,5 @@
 (defpackage :knx-conn.knx-connect-test
-  (:use :cl :cl-mock :try :knxutil :knxobj :descr-info :dib :knxc))
+  (:use :cl :cl-mock :try :knxutil :knxobj :descr-info :connect :dib :knxc))
 
 (in-package :knx-conn.knx-connect-test)
 
@@ -97,8 +97,19 @@
 ;; connect request/response
 ;; --------------------------------------
 
+(defparameter *connect-response-data* nil)
+
 (deftest connect-suite ()
-  )
+  (with-mocks ()
+    (answer usocket:socket-send t)
+    (answer usocket:socket-receive *connect-response-data*)
+
+    (let ((response (connect-to-endpoint)))
+      ;;(is (typep response 'knx-connect-response))
+      )
+    
+    (is (= 1 (length (invocations 'usocket:socket-send))))
+    (is (= 1 (length (invocations 'usocket:socket-receive))))))
 
 (deftest suite ()
   (descr-info-suite)

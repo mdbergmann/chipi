@@ -17,9 +17,13 @@
            ;; generic
            #:to-byte-seq
            #:parse-to-obj
+           ;; types
+           #:octet
            ))
 
 (in-package :knx-conn.knx-obj)
+
+(deftype octet () '(unsigned-byte 8))
 
 (defgeneric to-byte-seq (knx-obj))
 (defgeneric parse-to-obj (obj-type header-data body-data))
@@ -103,3 +107,7 @@ Returns the parsed object."
 (defmethod to-byte-seq ((obj knx-package))
   (list (to-byte-seq (package-header obj))
         (to-byte-seq (package-body obj))))
+
+(defmethod to-byte-seq ((obj list))
+  "Converts a list of objects to a byte sequence."
+  (apply #'append (mapcar #'to-byte-seq obj)))

@@ -1,10 +1,11 @@
 (defpackage :knx-conn.knx-connect
-  (:use :cl :knxutil :knxobj :descr-info :hpai)
+  (:use :cl :knxutil :knxobj :descr-info :connect :hpai)
   (:nicknames :knxc)
   (:export #:connect
            #:disconnect
            ;; send requests
            #:retrieve-descr-info
+           #:connect-to-endpoint
            ))
 
 (in-package :knx-conn.knx-connect)
@@ -33,15 +34,23 @@
   (let ((buf (make-array 1024 :element-type '(unsigned-byte 8))))
     (usocket:socket-receive *conn* buf 1024)))
 
-(defconstant +knx-connect-request+ #x0205)
-(defconstant +knx-connect-response+ #x0206)
-
 ;; -----------------------------
 ;; high-level comm
 ;; -----------------------------
 
 (defun retrieve-descr-info ()
   (let* ((request (make-descr-request *hpai-unbound-addr*))
+         (bytes (byte-seq-to-byte-array (to-byte-seq request))))
+    (log:debug "Sending request: ~a" request)
+    (send-knx-request bytes)
+    (let* ((response (receive-knx-response))
+           (parsed-response
+             (parse-root-knx-object response)))
+      (log:debug "Received response: ~a" parsed-response)
+      parsed-response)))
+
+(defun connect-to-endpoint ()
+  (let* ((request (make-connect-request))
          (bytes (byte-seq-to-byte-array (to-byte-seq request))))
     (log:debug "Sending request: ~a" request)
     (send-knx-request bytes)
