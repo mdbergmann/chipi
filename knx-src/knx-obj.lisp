@@ -19,11 +19,32 @@
            #:parse-to-obj
            ;; types
            #:octet
+           ;; conditions
+           #:knx-unable-to-parse
+           #:knx-unable-to-parse-msg-type
            ))
 
 (in-package :knx-conn.knx-obj)
 
+;; -----------------------------
+;; types
+;; -----------------------------
+
 (deftype octet () '(unsigned-byte 8))
+
+;; -----------------------------
+;; conditions
+;; -----------------------------
+
+(define-condition knx-unable-to-parse (simple-error)
+  ((msg-type :initarg :msg-type
+             :reader knx-unable-to-parse-msg-type
+             :initform "Unable to parse the package.")))
+
+;; -----------------------------
+;; generic functions
+;; -----------------------------
+
 
 (defgeneric to-byte-seq (knx-obj))
 (defgeneric parse-to-obj (obj-type header-data body-data))
@@ -102,7 +123,12 @@ Returns the parsed object."
                        (+ (header-body-len header)
                           header-len)))
          (type (header-type header)))
-    (parse-to-obj type header body)))
+    (handler-case
+        (parse-to-obj type header body)
+      (error (e)
+        (log:warn "Unable to parse the package: ~a" e)
+        (error 'knx-unable-to-parse
+               :msg-type type)))))
 
 (defmethod to-byte-seq ((obj knx-package))
   (list (to-byte-seq (package-header obj))

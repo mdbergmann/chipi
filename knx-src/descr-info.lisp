@@ -29,7 +29,7 @@ KNXnet/IP body
 | HPAI                                                          |
 | Control endpoint                                              |
 +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
-  hpai)
+  (hpai (error "hpai required!") :type hpai))
 
 (defun make-descr-request (hpai)
   (%make-descr-request

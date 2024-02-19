@@ -4,6 +4,7 @@
   (:export #:hpai
            #:make-hpai
            #:hpai-len
+           #:parse-hpai
            #:*hpai-unbound-addr*
            ))
 
@@ -27,10 +28,10 @@
 | IP Port Number                                                |
 | (2 Octets)                                                    |
 +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
-  (len #x08 :type (unsigned-byte 8))
-  (host-protocol-code +hpai-udp+ :type (unsigned-byte 8))
-  (ip-address (error "Required ip-address") :type (array (unsigned-byte 8) (4)))
-  (ip-port (error "Required ip-port") :type (array (unsigned-byte 8) (2))))
+  (len #x08 :type octet)
+  (host-protocol-code +hpai-udp+ :type octet)
+  (ip-address (error "Required ip-address") :type (vector octet 4))
+  (ip-port (error "Required ip-port") :type (vector octet 2)))
 
 (defun make-hpai (ip-address ip-port)
   "Creates a HPAI structure from the given ip-address and ip-port.
@@ -38,15 +39,19 @@ The ip-address is a string in the form of \"192.168.1.1\".
 The ip-port is an integer between 0 and 65535."
   (check-type ip-address string)
   (check-type ip-port (integer 0 65535))
-  (let ((ip-addr (coerce
-                  (mapcar #'parse-integer
-                          (uiop:split-string ip-address :separator "."))
-                  '(array (unsigned-byte 8) (4))))
+  (let ((ip-addr (map '(vector octet)
+                      #'parse-integer
+                      (uiop:split-string ip-address :separator ".")))
         (ip-port (int-to-byte-vec ip-port)))
     (%make-hpai :ip-address ip-addr :ip-port ip-port)))
 
 (defparameter *hpai-unbound-addr*
   (make-hpai "0.0.0.0" 0))
+
+(defun parse-hpai (pkg-data)
+  (%make-hpai :host-protocol-code (elt pkg-data 1)
+              :ip-address (seq-to-array (subseq pkg-data 2 6) :len 4)
+              :ip-port (seq-to-array (subseq pkg-data 6 8) :len 2)))
 
 (defmethod to-byte-seq ((obj hpai))
   (list (hpai-len obj)

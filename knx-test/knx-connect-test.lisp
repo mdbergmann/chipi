@@ -1,5 +1,7 @@
 (defpackage :knx-conn.knx-connect-test
-  (:use :cl :cl-mock :try :knxutil :knxobj :descr-info :connect :dib :knxc))
+  (:use :cl :cl-mock :try
+   :knxutil :knxobj :descr-info :connect
+   :dib :knxc))
 
 (in-package :knx-conn.knx-connect-test)
 
@@ -97,21 +99,50 @@
 ;; connect request/response
 ;; --------------------------------------
 
-(defparameter *connect-response-data* nil)
+(defparameter *connect-response-data-ok*
+  #(6 16 2 6 0 20 78 0 8 1 0 0 0 0 0 0 4 4 238 255 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
 
-(deftest connect-suite ()
+(deftest connect-ok ()
   (with-mocks ()
     (answer usocket:socket-send t)
-    (answer usocket:socket-receive *connect-response-data*)
+    (answer usocket:socket-receive *connect-response-data-ok*)
 
     (let ((response (connect-to-endpoint)))
-      ;;(is (typep response 'knx-connect-response))
-      )
+      (is (typep response 'knx-connect-response))
+      ;; check knx-header
+      (let ((header (package-header response)))
+        (is (typep header 'knx-header)))
+      ;; check connect response body
+      (is (= +connect-status-no-error+ (connect-response-status response)))
+      (is (= 78 (connect-response-channel-id response))))
+    
+    (is (= 1 (length (invocations 'usocket:socket-send))))
+    (is (= 1 (length (invocations 'usocket:socket-receive))))))
+
+(defparameter *connect-response-data-err*
+  #(6 16 4 32 0 23 4 76 0 0 41 0 188 208 19 14 4 10 3 0 128 12 104
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
+
+(deftest connect-err ()
+  (with-mocks ()
+    (answer usocket:socket-send t)
+    (answer usocket:socket-receive *connect-response-data-err*)
+
+    (handler-case
+        (progn 
+          (connect-to-endpoint)
+          (is nil))
+      (knx-unable-to-parse (c)
+        (is (= 1056 (knx-unable-to-parse-msg-type c)))))
     
     (is (= 1 (length (invocations 'usocket:socket-send))))
     (is (= 1 (length (invocations 'usocket:socket-receive))))))
 
 (deftest suite ()
   (descr-info-suite)
-  (connect-suite)
+  (connect-ok)
+  (connect-err)
   )
