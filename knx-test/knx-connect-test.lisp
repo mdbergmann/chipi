@@ -1,9 +1,20 @@
-(defpackage :chipi.knx-connect-test
-  (:use :cl :cl-mock :try :chipi.knx-connect))
+(defpackage :knx-conn.knx-connect-test
+  (:use :cl :cl-mock :try :knxutil :knxobj :descr-info :dib :knxc))
 
-(in-package :chipi.knx-connect-test)
+(in-package :knx-conn.knx-connect-test)
 
 (log:config :debug)
+
+;; --------------------------------------
+;; description request/response
+;; --------------------------------------
+
+(setf knxc::*conn* 'foo)
+
+(deftest descr-info-suite ()
+  (retrieve-descr-info--receive-response--check-package)
+  (descr-request--compare-to-raw)
+  (descr-request--compare-to-raw-2))
 
 (defparameter *descr-response-data*
   #(6 16 2 4 0 84 54 1 2 0 17 1 0 0 0 1 0 53 81 241 0 0 0 0 0 14 140 0 107 180 73
@@ -12,12 +23,6 @@
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
-
-(deftest suite ()
-  (retrieve-descr-info--receive-response--check-package)
-  (descr-request--compare-to-raw)
-  (descr-request--compare-to-raw-2)
-  )
 
 (deftest retrieve-descr-info--receive-response--check-package ()
   (with-mocks ()
@@ -29,10 +34,10 @@
       ;; check knx-header
       (let ((header (package-header result)))
         (is (typep header 'knx-header))
-        (is (= knxc::+knx-header-len+ (header-len header)))
-        (is (= knxc::+knx-descr-response+ (header-type header)))
-        (is (= knxc::+knx-netip-version+ (header-knxnetip-version header)))
-        (is (= (- 84 knxc::+knx-header-len+) (header-body-len header))))
+        (is (= knxobj::+knx-header-len+ (header-len header)))
+        (is (= descr-info::+knx-descr-response+ (header-type header)))
+        (is (= knxobj::+knx-netip-version+ (header-knxnetip-version header)))
+        (is (= (- 84 knxobj::+knx-header-len+) (header-body-len header))))
       ;; check knx-body
       (let ((body (package-body result)))
         (is (not (null body)))
@@ -42,8 +47,8 @@
       (is (typep (descr-response-device-hardware result) 'dib-device-info))
       (is (typep (descr-response-supp-svc-families result) 'dib))
       (is (typep (descr-response-supp-svc-families result) 'dib-supp-svc-families))
-      (is (typep (descr-response-other-dev-info result) 'dib-list))
-      (is (not (endp (descr-response-other-dev-info result)))))
+      (is (typep (descr-response-other-dib-info result) 'dib-list))
+      (is (not (endp (descr-response-other-dib-info result)))))
 
     (is (= 1 (length (invocations 'usocket:socket-send))))
     (is (= 1 (length (invocations 'usocket:socket-receive))))))
@@ -64,9 +69,9 @@
 
 (deftest descr-request--compare-to-raw ()
   (is (equalp *raw-descr-request*
-              (knxc::%byte-seq-to-byte-array
-               (knxc::to-byte-seq
-                (knxc::%make-descr-request knxc::*hpai-unbound-addr*))))))
+              (byte-seq-to-byte-array
+               (to-byte-seq
+                (make-descr-request hpai:*hpai-unbound-addr*))))))
 
 (defparameter *raw-descr-request-2*
   (make-array 14
@@ -83,9 +88,19 @@
 
 (deftest descr-request--compare-to-raw-2 ()
   (is (equalp *raw-descr-request-2*
-              (knxc::%byte-seq-to-byte-array
-               (knxc::to-byte-seq
-                (knxc::%make-descr-request
-                 (knxc::%make-hpai "192.168.50.100" 50100)))))))
+              (byte-seq-to-byte-array
+               (to-byte-seq
+                (make-descr-request
+                 (hpai:make-hpai "192.168.50.100" 50100)))))))
 
-(try 'suite)
+;; --------------------------------------
+;; connect request/response
+;; --------------------------------------
+
+(deftest connect-suite ()
+  )
+
+(deftest suite ()
+  (descr-info-suite)
+  (connect-suite)
+  )
