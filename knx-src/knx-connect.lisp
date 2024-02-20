@@ -38,24 +38,21 @@
 ;; high-level comm
 ;; -----------------------------
 
-(defun retrieve-descr-info ()
-  (let* ((request (make-descr-request *hpai-unbound-addr*))
-         (bytes (byte-seq-to-byte-array (to-byte-seq request))))
-    (log:debug "Sending request: ~a" request)
-    (send-knx-request bytes)
-    (let* ((response (receive-knx-response))
-           (parsed-response
-             (parse-root-knx-object response)))
-      (log:debug "Received response: ~a" parsed-response)
-      parsed-response)))
+(defmacro with-request (request)
+  (let ((bytes (gensym))
+        (response (gensym))
+        (parsed-response (gensym)))
+    `(let ((,bytes (byte-seq-to-byte-array (to-byte-seq ,request))))
+       (log:debug "Sending request: ~a" ,request)
+       (send-knx-request ,bytes)
+       (let* ((,response (receive-knx-response))
+              (,parsed-response
+                (parse-root-knx-object ,response)))
+         (log:debug "Received response: ~a" ,parsed-response)
+         ,parsed-response))))
 
+(defun retrieve-descr-info ()
+  (with-request (make-descr-request *hpai-unbound-addr*)))
+  
 (defun connect-to-endpoint ()
-  (let* ((request (make-connect-request))
-         (bytes (byte-seq-to-byte-array (to-byte-seq request))))
-    (log:debug "Sending request: ~a" request)
-    (send-knx-request bytes)
-    (let* ((response (receive-knx-response))
-           (parsed-response
-             (parse-root-knx-object response)))
-      (log:debug "Received response: ~a" parsed-response)
-      parsed-response)))
+  (with-request (make-connect-request)))

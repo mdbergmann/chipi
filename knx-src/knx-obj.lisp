@@ -62,7 +62,8 @@
 (defstruct (knx-header (:include knx-obj)
                        (:constructor %make-header)
                        (:conc-name header-))
-    "KNXnet/IP header
+  "KNXnet/IP header
+
 +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 | HEADER_SIZE_10              | KNXNETIP_VERSION                |
 | (06h)                       | (10h)                           |
@@ -113,8 +114,8 @@
 
 (defun parse-root-knx-object (pkg-data)
   "Root object parse function.
-PKG-DATA: package data, array of bytes representing the package.
-PARSE-TYPE-FUN: function to parse the package body based on the specific object type.
+`PKG-DATA`: package data, array of bytes representing the package.
+`PARSE-TYPE-FUN`: function to parse the package body based on the specific object type.
 Returns the parsed object."
   (let* ((header (%parse-header pkg-data))
          (header-len (header-len header))
