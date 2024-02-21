@@ -20,8 +20,8 @@
            ;; types
            #:octet
            ;; conditions
+           #:knx-error-condition
            #:knx-unable-to-parse
-           #:knx-unable-to-parse-msg-type
            ))
 
 (in-package :knx-conn.knx-obj)
@@ -36,10 +36,13 @@
 ;; conditions
 ;; -----------------------------
 
-(define-condition knx-unable-to-parse (simple-error)
-  ((msg-type :initarg :msg-type
-             :reader knx-unable-to-parse-msg-type
-             :initform "Unable to parse the package.")))
+(define-condition knx-error-condition (simple-condition) ()
+  (:report (lambda (condition stream)
+             (format stream "Error condition: ~a, args: ~a"
+                     (simple-condition-format-control condition)
+                     (simple-condition-format-arguments condition)))))
+
+(define-condition knx-unable-to-parse (knx-error-condition) ())
 
 ;; -----------------------------
 ;; generic functions
@@ -126,10 +129,13 @@ Returns the parsed object."
          (type (header-type header)))
     (handler-case
         (parse-to-obj type header body)
+      (knx-error-condition (e)
+        (error e))
       (error (e)
         (log:warn "Unable to parse the package: ~a" e)
         (error 'knx-unable-to-parse
-               :msg-type type)))))
+               :format-control "Unable to parse data. Message type: "
+               :format-arguments (list type))))))
 
 (defmethod to-byte-seq ((obj knx-package))
   (list (to-byte-seq (package-header obj))

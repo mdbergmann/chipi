@@ -1,9 +1,15 @@
 (defpackage :knx-conn.knx-connect-test
-  (:use :cl :cl-mock :try
+  (:use :cl :cl-mock :fiveam
    :knxutil :knxobj :descr-info :connect
    :dib :knxc))
 
 (in-package :knx-conn.knx-connect-test)
+
+(def-suite knx-connect-tests
+  :description "Tests for KNX connection handling"
+  );;:in projname.tests:test-suite)
+
+(in-suite knx-connect-tests)
 
 (log:config :debug)
 
@@ -13,11 +19,6 @@
 
 (setf knxc::*conn* 'foo)
 
-(deftest descr-info-suite ()
-  (retrieve-descr-info--receive-response--check-package)
-  (descr-request--compare-to-raw)
-  (descr-request--compare-to-raw-2))
-
 (defparameter *descr-response-data*
   #(6 16 2 4 0 84 54 1 2 0 17 1 0 0 0 1 0 53 81 241 0 0 0 0 0 14 140 0 107 180 73
     80 32 73 110 116 101 114 102 97 99 101 32 78 49 52 56 0 0 0 0 0 0 0 0 0 0 0 0
@@ -26,7 +27,7 @@
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
 
-(deftest retrieve-descr-info--receive-response--check-package ()
+(test retrieve-descr-info--receive-response--check-package
   (with-mocks ()
     (answer usocket:socket-send t)
     (answer usocket:socket-receive *descr-response-data*)
@@ -36,24 +37,24 @@
       ;; check knx-header
       (let ((header (package-header result)))
         (is (typep header 'knx-header))
-        (is (= knxobj::+knx-header-len+ (header-len header)))
-        (is (= descr-info::+knx-descr-response+ (header-type header)))
-        (is (= knxobj::+knx-netip-version+ (header-knxnetip-version header)))
-        (is (= (- 84 knxobj::+knx-header-len+) (header-body-len header))))
+        (is (eql knxobj::+knx-header-len+ (header-len header)))
+        (is (eql descr-info::+knx-descr-response+ (header-type header)))
+        (is (eql knxobj::+knx-netip-version+ (header-knxnetip-version header)))
+        (is (eql (- 84 knxobj::+knx-header-len+) (header-body-len header))))
       ;; check knx-body
       (let ((body (package-body result)))
-        (is (not (null body)))
-        (is (= 78 (length body))))
+        (is-true (not (null body)))
+        (is (eql 78 (length body))))
       ;; check dibs
       (is (typep (descr-response-device-hardware result) 'dib))
       (is (typep (descr-response-device-hardware result) 'dib-device-info))
       (is (typep (descr-response-supp-svc-families result) 'dib))
       (is (typep (descr-response-supp-svc-families result) 'dib-supp-svc-families))
       (is (typep (descr-response-other-dib-info result) 'dib-list))
-      (is (not (endp (descr-response-other-dib-info result)))))
+      (is-true (not (endp (descr-response-other-dib-info result)))))
 
-    (is (= 1 (length (invocations 'usocket:socket-send))))
-    (is (= 1 (length (invocations 'usocket:socket-receive))))))
+    (is (eql 1 (length (invocations 'usocket:socket-send))))
+    (is (eql 1 (length (invocations 'usocket:socket-receive))))))
 
 (defparameter *raw-descr-request*
   (make-array 14
@@ -69,7 +70,7 @@
                 #x00 #x00
                 )))
 
-(deftest descr-request--compare-to-raw ()
+(test descr-request--compare-to-raw
   (is (equalp *raw-descr-request*
               (byte-seq-to-byte-array
                (to-byte-seq
@@ -88,7 +89,7 @@
                 192 168 50 100
                 195 180)))
 
-(deftest descr-request--compare-to-raw-2 ()
+(test descr-request--compare-to-raw-2
   (is (equalp *raw-descr-request-2*
               (byte-seq-to-byte-array
                (to-byte-seq
@@ -105,44 +106,68 @@
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
 
-(deftest connect-ok ()
+(test connect-ok
   (with-mocks ()
     (answer usocket:socket-send t)
     (answer usocket:socket-receive *connect-response-data-ok*)
 
-    (let ((response (connect-to-endpoint)))
+    (multiple-value-bind (response err)
+        (connect-to-endpoint)
+      (is (eq nil err))
       (is (typep response 'knx-connect-response))
       ;; check knx-header
       (let ((header (package-header response)))
         (is (typep header 'knx-header)))
       ;; check connect response body
-      (is (= +connect-status-no-error+ (connect-response-status response)))
-      (is (= 78 (connect-response-channel-id response))))
+      (is (eql +connect-status-no-error+ (connect-response-status response)))
+      (is (eql 78 (connect-response-channel-id response))))
     
-    (is (= 1 (length (invocations 'usocket:socket-send))))
-    (is (= 1 (length (invocations 'usocket:socket-receive))))))
+    (is (eql 1 (length (invocations 'usocket:socket-send))))
+    (is (eql 1 (length (invocations 'usocket:socket-receive))))))
 
 (defparameter *connect-response-data-err*
-  #(6 16 4 32 0 23 4 76 0 0 41 0 188 208 19 14 4 10 3 0 128 12 104
-    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
+  #(6 16 2 6 0 20 78 34 8 1 0 0 0 0 0 0 4 4 238 255 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+  "Connect response with error status")
 
-(deftest connect-err ()
+(test connect-err
   (with-mocks ()
     (answer usocket:socket-send t)
     (answer usocket:socket-receive *connect-response-data-err*)
 
-    (handler-case
-        (progn 
-          (connect-to-endpoint)
-          (is nil))
-      (knx-unable-to-parse (c)
-        (is (= 1056 (knx-unable-to-parse-msg-type c)))))
+    (multiple-value-bind (response err)
+        (connect-to-endpoint)
+      (is (null response))
+      (is (equal (format nil "~a" err)
+                 (format nil
+                         "Error condition: Connect response status, args: (~a)"
+                         +connect-status-err-conn-type+))))
     
-    (is (= 1 (length (invocations 'usocket:socket-send))))
-    (is (= 1 (length (invocations 'usocket:socket-receive))))))
+    (is (eql 1 (length (invocations 'usocket:socket-send))))
+    (is (eql 1 (length (invocations 'usocket:socket-receive))))))
 
-(deftest suite ()
-  (descr-info-suite)
-  (connect-ok)
-  (connect-err)
-  )
+
+;; --------------------------------------
+;; tunneling request receival
+;; --------------------------------------
+
+;; (defparameter *tunneling-request-data*
+;;   #(6 16 4 32 0 23 4 76 0 0 41 0 188 208 19 14 4 10 3 0 128 12 104
+;;     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
+
+;; (test tunneling-request-ok ()
+;;   (with-mocks ()
+;;     (answer usocket:socket-receive *connect-response-data-err*)
+
+;;     (handler-case
+;;         (progn 
+;;           (connect-to-endpoint)
+;;           (assert-true nil))
+;;       (knx-unable-to-parse (c)
+;;         (assert-true (= #x420 (knx-unable-to-parse-msg-type c)))))
+    
+;;     (assert-true (= 1 (length (invocations 'usocket:socket-receive))))))
+
+(run! 'knx-connect-tests)

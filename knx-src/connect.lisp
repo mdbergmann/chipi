@@ -7,6 +7,7 @@
            #:connect-response-channel-id
            #:connect-response-status
            #:+connect-status-no-error+
+           #:+connect-status-err-conn-type+
            ))
 
 
@@ -87,10 +88,16 @@ KNXnet/IP body
 
 
 (defmethod parse-to-obj ((obj-type (eql +knx-connect-response+)) header body)
-  (%make-connect-response
-   :header header
-   :body body
-   :channel-id (elt body 0)
-   :status (elt body 1)
-   :hpai (parse-hpai (subseq body 2 10))
-   :crd (parse-crd (subseq body 10))))
+  (let ((channel-id (elt body 0))
+        (status (elt body 1)))
+    (unless (eql status 0)
+      (error 'knx-error-condition
+             :format-control "Connect response status"
+             :format-arguments (list status)))
+    (%make-connect-response
+     :header header
+     :body body
+     :channel-id channel-id
+     :status status
+     :hpai (parse-hpai (subseq body 2 10))
+     :crd (parse-crd (subseq body 10)))))

@@ -1,10 +1,4 @@
 (defpackage :knx-conn.test-all
-  (:use :cl :try))
+  (:use :cl :fiveam))
 (in-package :knx-conn.test-all)
 
-(deftest test-all ()
-  (knx-conn.knx-connect-test::suite)
-  )
-
-(defun test ()
-  (try 'test-all))

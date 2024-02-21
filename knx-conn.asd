@@ -24,7 +24,7 @@
 (defsystem "knx-conn/tests"
   :author "Manfred Bergmann"
   :depends-on ("knx-conn"
-               "try"
+               "fiveam"
                "cl-mock"
                )
   :components ((:module "knx-test"
