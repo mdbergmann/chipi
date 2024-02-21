@@ -6,6 +6,8 @@
            ;; send requests
            #:retrieve-descr-info
            #:connect-to-endpoint
+           ;; receive data
+           #:receive-knx-request
            ))
 
 (in-package :knx-conn.knx-connect)
@@ -29,7 +31,7 @@
   (assert *conn* nil "No connection!")
   (usocket:socket-send *conn* request (length request)))
 
-(defun receive-knx-response ()
+(defun receive-knx-data ()
   (assert *conn* nil "No connection!")
   (let ((buf (make-array 1024 :element-type 'octet)))
     (usocket:socket-receive *conn* buf 1024)))
@@ -38,7 +40,14 @@
 ;; high-level comm
 ;; -----------------------------
 
-(defmacro with-request (request)
+(defun receive-knx-request ()
+  (let* ((data (receive-knx-data))
+         (parsed-obj
+           (parse-root-knx-object data)))
+    (log:debug "Received obj: ~a" parsed-obj)
+    parsed-obj))
+
+(defmacro with-request-and-response (request)
   (let ((bytes (gensym))
         (response (gensym))
         (parsed-response (gensym))
@@ -47,12 +56,12 @@
        (log:debug "Sending request: ~a" ,request)
        (send-knx-request ,bytes)
        (handler-case 
-           (let* ((,response (receive-knx-response))
+           (let* ((,response (receive-knx-data))
                   (,parsed-response
                     (parse-root-knx-object ,response)))
              (log:debug "Received response: ~a" ,parsed-response)
              (values ,parsed-response nil))
-         (knx-error-condition (,c)
+         (condition (,c)
            (log:info "Condition: ~a" ,c)
            (values nil ,c))
          (error (e)
@@ -60,7 +69,7 @@
            (values nil e))))))
 
 (defun retrieve-descr-info ()
-  (with-request (make-descr-request *hpai-unbound-addr*)))
+  (with-request-and-response (make-descr-request *hpai-unbound-addr*)))
   
 (defun connect-to-endpoint ()
-  (with-request (make-connect-request)))
+  (with-request-and-response (make-connect-request)))

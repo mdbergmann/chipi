@@ -129,8 +129,6 @@ Returns the parsed object."
          (type (header-type header)))
     (handler-case
         (parse-to-obj type header body)
-      (knx-error-condition (e)
-        (error e))
       (error (e)
         (log:warn "Unable to parse the package: ~a" e)
         (error 'knx-unable-to-parse

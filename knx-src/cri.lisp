@@ -16,6 +16,8 @@
 
 ;; KNX Layer Type
 (defconstant +tunnel-link-layer+ #x02)
+(defconstant +tunnel-raw+ #x04)
+(defconstant +tunnel-busmonitor+ #x80)
 
 
 (defstruct (cri (:include knx-obj)

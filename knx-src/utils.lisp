@@ -41,5 +41,5 @@
 (defun number-to-bit-vector (num bit-len)
   (coerce (reverse
            (loop :for i :from 0 :below bit-len
-                 :collect (logand (ash num i) 1)))
+                 :collect (logand (ash num (* i -1)) 1)))
           `(vector bit ,bit-len)))

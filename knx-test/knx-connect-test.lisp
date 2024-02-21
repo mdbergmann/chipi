@@ -1,6 +1,6 @@
 (defpackage :knx-conn.knx-connect-test
   (:use :cl :cl-mock :fiveam
-   :knxutil :knxobj :descr-info :connect
+   :knxutil :knxobj :descr-info :connect :tunnelling
    :dib :knxc))
 
 (in-package :knx-conn.knx-connect-test)
@@ -153,21 +153,20 @@
 ;; tunneling request receival
 ;; --------------------------------------
 
-;; (defparameter *tunneling-request-data*
-;;   #(6 16 4 32 0 23 4 76 0 0 41 0 188 208 19 14 4 10 3 0 128 12 104
-;;     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
+(defparameter *tunnelling-request-data*
+  #(6 16 4 32 0 23 4 76 0 0 41 0 188 208 19 14 4 10 3 0 128 12 104
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
 
-;; (test tunneling-request-ok ()
-;;   (with-mocks ()
-;;     (answer usocket:socket-receive *connect-response-data-err*)
+(test tunneling-request-ok ()
+  (with-mocks ()
+    (answer usocket:socket-receive *tunnelling-request-data*)
 
-;;     (handler-case
-;;         (progn 
-;;           (connect-to-endpoint)
-;;           (assert-true nil))
-;;       (knx-unable-to-parse (c)
-;;         (assert-true (= #x420 (knx-unable-to-parse-msg-type c)))))
+    (multiple-value-bind (request err)
+        (receive-knx-request)
+      (is (not (null request)))
+      (is (typep request 'knx-tunnelling-request))
+      )
     
-;;     (assert-true (= 1 (length (invocations 'usocket:socket-receive))))))
+    (is (= 1 (length (invocations 'usocket:socket-receive))))))
 
 (run! 'knx-connect-tests)
