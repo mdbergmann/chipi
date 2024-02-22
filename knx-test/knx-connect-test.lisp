@@ -1,6 +1,6 @@
 (defpackage :knx-conn.knx-connect-test
   (:use :cl :cl-mock :fiveam
-   :knxutil :knxobj :descr-info :connect :tunnelling
+   :knxutil :knxobj :descr-info :connect :tunnelling :cemi
    :dib :knxc))
 
 (in-package :knx-conn.knx-connect-test)
@@ -165,7 +165,21 @@
         (receive-knx-request)
       (is (not (null request)))
       (is (typep request 'knx-tunnelling-request))
-      )
+      (let ((conn-header (tunnelling-request-conn-header request)))
+        (is (= (conn-header-channel-id conn-header) 76))
+        (is (= (conn-header-seq-counter conn-header) 0)))
+      (let ((cemi (tunnelling-request-cemi request)))
+        (is (typep cemi 'cemi-l-data))
+        (is (= (cemi-message-code cemi) +cemi-mc-l_data.ind+))
+        (is (equal (cemi-ctrl1 cemi) #*10111100))
+        (is (equal (cemi-ctrl2 cemi) #*11010000))
+        (is (equalp (cemi-source-addr cemi) #(19 14)))
+        (is (equalp (cemi-destination-addr cemi) #(4 10)))
+        (is (equalp (cemi-npdu cemi) #(0 128 12)))
+
+        ;; TODO: group-address / individual-address
+        
+        ))
     
     (is (= 1 (length (invocations 'usocket:socket-receive))))))
 

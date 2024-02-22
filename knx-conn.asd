@@ -15,8 +15,10 @@
                  (:file "dib")
                  (:file "cri")
                  (:file "crd")
+                 (:file "cemi")
                  (:file "descr-info")
                  (:file "connect")
+                 (:file "tunneling")
                  (:file "knx-connect")
                  )))
   :in-order-to ((test-op (test-op "knx-conn/tests"))))
@@ -29,9 +31,10 @@
                )
   :components ((:module "knx-test"
                 :components
-                ((:file "knx-connect-test")
-                 (:file "test-all")
+                ((:file "test-all")
+                 (:file "knx-connect-test")
                  )))
   :description "Test system for knx"
-  :perform (asdf:test-op (o s)
-                         (uiop:symbol-call '#:knx-conn.test-all '#:test)))
+  :perform (test-op (op c) (symbol-call :fiveam :run!
+                                        (uiop:find-symbol* '#:test-suite
+                                                           '#:knx-conn.tests))))

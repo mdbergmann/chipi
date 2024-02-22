@@ -2,6 +2,10 @@
   (:use :cl :knxobj :cemi)
   (:nicknames :tunnelling)
   (:export #:knx-tunnelling-request
+           #:tunnelling-request-conn-header
+           #:tunnelling-request-cemi
+           #:conn-header-channel-id
+           #:conn-header-seq-counter
            ))
 
 (in-package :knx-conn.tunnelling)
