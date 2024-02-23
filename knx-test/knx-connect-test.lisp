@@ -1,7 +1,7 @@
 (defpackage :knx-conn.knx-connect-test
   (:use :cl :cl-mock :fiveam
-   :knxutil :knxobj :descr-info :connect :tunnelling :cemi
-   :dib :knxc))
+   :knxutil :knxobj :descr-info :connect :tunnelling
+        :crd :cemi :address :dib :knxc))
 
 (in-package :knx-conn.knx-connect-test)
 
@@ -120,7 +120,12 @@
         (is (typep header 'knx-header)))
       ;; check connect response body
       (is (eql +connect-status-no-error+ (connect-response-status response)))
-      (is (eql 78 (connect-response-channel-id response))))
+      (is (eql 78 (connect-response-channel-id response)))
+      (is (equal (address-string-rep
+                  (crd:crd-individual-address
+                   (connect-response-crd response)))
+                 "14.14.255"))
+      )
     
     (is (eql 1 (length (invocations 'usocket:socket-send))))
     (is (eql 1 (length (invocations 'usocket:socket-receive))))))
@@ -173,11 +178,11 @@
         (is (= (cemi-message-code cemi) +cemi-mc-l_data.ind+))
         (is (equal (cemi-ctrl1 cemi) #*10111100))
         (is (equal (cemi-ctrl2 cemi) #*11010000))
-        (is (typep (cemi-source-addr cemi) 'cemi::knx-individual-address))
-        (is (typep (cemi-destination-addr cemi) 'cemi::knx-group-address))
-        (is (string= (address:address-string-rep
+        (is (typep (cemi-source-addr cemi) 'knx-individual-address))
+        (is (typep (cemi-destination-addr cemi) 'knx-group-address))
+        (is (string= (address-string-rep
                       (cemi-source-addr cemi)) "1.3.14"))
-        (is (string= (address:address-string-rep
+        (is (string= (address-string-rep
                       (cemi-destination-addr cemi)) "0/4/10"))
         (is (equalp (cemi-npdu cemi) #(0 128 12)))
         ))

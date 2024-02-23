@@ -6,6 +6,7 @@
            #:knx-connect-response
            #:connect-response-channel-id
            #:connect-response-status
+           #:connect-response-crd
            #:+connect-status-no-error+
            #:+connect-status-err-conn-type+
            ))
