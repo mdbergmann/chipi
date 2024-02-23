@@ -43,11 +43,11 @@
 ;; high-level comm
 ;; -----------------------------
 
-(defun on-request-received (request)
+(defun %on-request-received (request)
   (multiple-value-bind (req err) request
     (when err
       (log:info "Error: ~a" err)
-      (return-from on-request-received))
+      (return-from %on-request-received))
     (typecase req
       (knx-tunnelling-request
        (progn
@@ -61,7 +61,7 @@
 
 (defun receive-knx-request (&optional
                               (request-handler-fun
-                               #'on-request-received))
+                               #'%on-request-received))
   (let ((request (receive-knx-data)))
     (log:debug "Received obj: ~a" request)
     (when request-handler-fun

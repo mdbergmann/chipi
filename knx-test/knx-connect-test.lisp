@@ -195,8 +195,7 @@
     (answer (usocket:socket-send _ buf _)
       (let ((resp (parse-root-knx-object buf)))
         (assert (typep resp 'knx-tunnelling-ack) nil
-                "Expected a knx-tunnelling-ack, got ~a" resp)
-        ))
+                "Expected a knx-tunnelling-ack, got ~a" resp)))
 
     (receive-knx-request)
       
