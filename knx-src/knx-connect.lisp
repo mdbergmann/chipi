@@ -1,5 +1,5 @@
 (defpackage :knx-conn.knx-connect
-  (:use :cl :knxutil :knxobj :descr-info :connect :hpai)
+  (:use :cl :knxutil :knxobj :descr-info :connect :tunnelling :hpai)
   (:nicknames :knxc)
   (:export #:connect
            #:disconnect
@@ -27,7 +27,7 @@
   (assert *conn* nil "No connection!")
   (usocket:socket-close *conn*))
 
-(defun send-knx-request (request)
+(defun send-knx-data (request)
   (assert *conn* nil "No connection!")
   (usocket:socket-send *conn* request (length request)))
 
@@ -40,12 +40,32 @@
 ;; high-level comm
 ;; -----------------------------
 
-(defun receive-knx-request ()
+(defun on-request-received (request)
+  (typecase request
+    (knx-tunnelling-request
+     (progn
+       (log:info "Received knx-tunnelling-request")
+       (log:info "Sending tunnelling-ack...")
+       (send-knx-data
+        (byte-seq-to-byte-array
+         (to-byte-seq (make-tunnelling-ack request))))
+       (log:debug "Sent tunnelling-ack")))
+    (t
+     (log:info "Received unknown request: ~a" request))))
+
+
+(defun receive-knx-request (&optional
+                              (request-handler-fun
+                               #'on-request-received))
   (let* ((data (receive-knx-data))
          (parsed-obj
            (parse-root-knx-object data)))
     (log:debug "Received obj: ~a" parsed-obj)
+    (when request-handler-fun
+      (funcall request-handler-fun parsed-obj))
     parsed-obj))
+
+;; ---------------------------------
 
 (defmacro with-request-and-response (request)
   (let ((bytes (gensym))
@@ -54,7 +74,7 @@
         (c (gensym)))
     `(let ((,bytes (byte-seq-to-byte-array (to-byte-seq ,request))))
        (log:debug "Sending request: ~a" ,request)
-       (send-knx-request ,bytes)
+       (send-knx-data ,bytes)
        (handler-case 
            (let* ((,response (receive-knx-data))
                   (,parsed-response

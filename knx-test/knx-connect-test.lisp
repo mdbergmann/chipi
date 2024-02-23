@@ -167,7 +167,7 @@
     (answer usocket:socket-receive *tunnelling-request-data*)
 
     (multiple-value-bind (request err)
-        (receive-knx-request)
+        (receive-knx-request nil)
       (is (not (null request)))
       (is (typep request 'knx-tunnelling-request))
       (let ((conn-header (tunnelling-request-conn-header request)))
@@ -188,5 +188,19 @@
         ))
     
     (is (= 1 (length (invocations 'usocket:socket-receive))))))
+
+(test tunnelling-request-ack-response
+  (with-mocks ()
+    (answer usocket:socket-receive *tunnelling-request-data*)
+    (answer (usocket:socket-send _ buf _)
+      (let ((resp (parse-root-knx-object buf)))
+        (assert (typep resp 'knx-tunnelling-ack) nil
+                "Expected a knx-tunnelling-ack, got ~a" resp)
+        ))
+
+    (receive-knx-request)
+      
+    (is (= 1 (length (invocations 'usocket:socket-receive))))
+    (is (= 1 (length (invocations 'usocket:socket-send))))))
 
 (run! 'knx-connect-tests)

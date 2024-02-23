@@ -4,6 +4,8 @@
   (:export #:knx-tunnelling-request
            #:tunnelling-request-conn-header
            #:tunnelling-request-cemi
+           #:knx-tunnelling-ack
+           #:make-tunnelling-ack
            #:conn-header-channel-id
            #:conn-header-seq-counter
            ))
@@ -11,8 +13,9 @@
 (in-package :knx-conn.tunnelling)
 
 (defconstant +knx-tunnelling-request+ #x0420)
+(defconstant +knx-tunnelling-ack+ #x0421)
 
-(defconstant +structure-len+ #x04)
+(defconstant +conn-header-structure-len+ #x04)
 
 (defstruct (connection-header (:include knx-obj)
                               (:conc-name conn-header-)
@@ -25,7 +28,7 @@
 | Sequence Counter            | reserved                        |
 | (1 octet)                   | (1 octet)                       |
 +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+"
-  (len +structure-len+ :type octet)
+  (len +conn-header-structure-len+ :type octet)
   (channel-id (error "Required channel.id!") :type octet)
   (seq-counter (error "Required sequence-counter!") :type octet)
   (reserved 0 :type octet))
@@ -36,10 +39,17 @@
    :seq-counter (elt data 2)
    :reserved (elt data 3)))
 
+(defmethod to-byte-seq ((obj connection-header))
+  (list (conn-header-len obj)
+        (conn-header-channel-id obj)
+        (conn-header-seq-counter obj)
+        (conn-header-reserved obj)))
+
+
 (defstruct (knx-tunnelling-request (:include knx-package)
                                    (:conc-name tunnelling-request-)
                                    (:constructor %make-tunnelling-request))
-  "KNXnet/IP header (see above)
+  "KNXnet/IP header
 
 KNXnet/IP body
 Connection header
@@ -66,9 +76,46 @@ cEMI frame
 
 (defmethod parse-to-obj ((obj-type (eql +knx-tunnelling-request+)) header body)
   (let ((conn-header (%parse-conn-header
-                      (subseq body 0 +structure-len+))))
+                      (subseq body 0 +conn-header-structure-len+))))
     (%make-tunnelling-request
      :header header
      :body body
      :conn-header conn-header
-     :cemi (parse-cemi (subseq body +structure-len+)))))
+     :cemi (parse-cemi (subseq body +conn-header-structure-len+)))))
+
+;; -------------------------------
+;; Tunnelling ack
+;; -------------------------------
+
+(defstruct (knx-tunnelling-ack (:include knx-package)
+                               (:conc-name tunnelling-ack-)
+                               (:constructor %make-tunnelling-ack))
+  "KNXnet/IP header
+
+KNXnet/IP body
+Connection header
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
+| Structure Length            | Communication Channel ID        |
+| (1 octet)                   | (1 octet)                       |
++---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+| Sequence Counter            | Status                          |
+| (1 octet)                   | (1 octet)                       |
++-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+"
+  (conn-header (error "Required conn-header!") :type connection-header))
+
+(defmethod parse-to-obj ((obj-type (eql +knx-tunnelling-ack+)) header body)
+  (let ((conn-header (%parse-conn-header
+                      (subseq body 0 +conn-header-structure-len+))))
+    (%make-tunnelling-ack
+     :header header
+     :body body
+     :conn-header conn-header)))
+
+(defun make-tunnelling-ack (tunnelling-request)
+  (let ((request-conn-header
+          (tunnelling-request-conn-header tunnelling-request)))
+    (%make-tunnelling-ack
+     :header (make-header +knx-tunnelling-ack+
+                          +conn-header-structure-len+)
+     :body request-conn-header
+     :conn-header request-conn-header)))
