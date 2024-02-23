@@ -11,6 +11,7 @@
                 :components
                 ((:file "utils")
                  (:file "knx-obj")
+                 (:file "address")
                  (:file "hpai")
                  (:file "dib")
                  (:file "cri")
