@@ -7,6 +7,7 @@
            #:int-to-byte-list
            #:seq-to-array
            #:number-to-bit-vector
+           #:bit-vector-to-number
            ))
 
 (in-package :knx-conn.utils)
@@ -43,3 +44,8 @@
            (loop :for i :from 0 :below bit-len
                  :collect (logand (ash num (* i -1)) 1)))
           `(vector bit ,bit-len)))
+
+(defun bit-vector-to-number (bit-vec)
+  (let ((len (length bit-vec)))
+    (loop :for i :from 0 :below len
+          :sum (ash (elt bit-vec i) (- (1- len) i)))))

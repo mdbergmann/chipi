@@ -173,12 +173,26 @@
         (is (= (cemi-message-code cemi) +cemi-mc-l_data.ind+))
         (is (equal (cemi-ctrl1 cemi) #*10111100))
         (is (equal (cemi-ctrl2 cemi) #*11010000))
-        (is (equalp (cemi-source-addr cemi) #(19 14)))
-        (is (equalp (cemi-destination-addr cemi) #(4 10)))
+        (is (typep (cemi-source-addr cemi) 'cemi::knx-individual-address))
+        (is (typep (cemi-destination-addr cemi) 'cemi::knx-group-address))
         (is (equalp (cemi-npdu cemi) #(0 128 12)))
 
         ;; TODO: group-address / individual-address
-        
+
+        ;; group address if (elt (cemi-ctrl2 cemi) 0) is 1
+
+;; [1] KNX-CONNECT-TEST> (subseq #v5 0 5)
+;; #*00000
+;; [1] KNX-CONNECT-TEST> (subseq #v5 5 8)
+;; #*100
+;; [1] KNX-CONNECT-TEST> (subseq #v5 8)
+;; #*00001010
+
+;; KNX-CONNECT-TEST> (bit-vector-to-number #v10)
+;; 10 (4 bits, #xA, #o12, #b1010)
+;; KNX-CONNECT-TEST> (bit-vector-to-number #v9)
+;; 4 (3 bits, #x4, #o4, #b100)
+;; KNX-CONNECT-TEST> "0/4/10"        
         ))
     
     (is (= 1 (length (invocations 'usocket:socket-receive))))))
