@@ -29,58 +29,57 @@
 
 (defun send-knx-data (request)
   (assert *conn* nil "No connection!")
-  (usocket:socket-send *conn* request (length request)))
+  (let ((req-bytes (byte-seq-to-byte-array
+                    (to-byte-seq request))))
+    (usocket:socket-send *conn* req-bytes (length req-bytes))))
 
 (defun receive-knx-data ()
   (assert *conn* nil "No connection!")
   (let ((buf (make-array 1024 :element-type 'octet)))
-    (usocket:socket-receive *conn* buf 1024)))
+    (parse-root-knx-object
+     (usocket:socket-receive *conn* buf 1024))))
 
 ;; -----------------------------
 ;; high-level comm
 ;; -----------------------------
 
 (defun on-request-received (request)
-  (typecase request
-    (knx-tunnelling-request
-     (progn
-       (log:info "Received knx-tunnelling-request")
-       (log:info "Sending tunnelling-ack...")
-       (send-knx-data
-        (byte-seq-to-byte-array
-         (to-byte-seq (make-tunnelling-ack request))))
-       (log:debug "Sent tunnelling-ack")))
-    (t
-     (log:info "Received unknown request: ~a" request))))
+  (multiple-value-bind (req err) request
+    (when err
+      (log:info "Error: ~a" err)
+      (return-from on-request-received))
+    (typecase req
+      (knx-tunnelling-request
+       (progn
+         (log:info "Received knx-tunnelling-request")
+         (log:info "Sending tunnelling-ack...")
+         (send-knx-data (make-tunnelling-ack request))
+         (log:debug "Sent tunnelling-ack")))
+      (t
+       (log:info "Received unknown request: ~a" request)))))
 
 
 (defun receive-knx-request (&optional
                               (request-handler-fun
                                #'on-request-received))
-  (let* ((data (receive-knx-data))
-         (parsed-obj
-           (parse-root-knx-object data)))
-    (log:debug "Received obj: ~a" parsed-obj)
+  (let ((request (receive-knx-data)))
+    (log:debug "Received obj: ~a" request)
     (when request-handler-fun
-      (funcall request-handler-fun parsed-obj))
-    parsed-obj))
+      (funcall request-handler-fun request))
+    request))
 
 ;; ---------------------------------
 
 (defmacro with-request-and-response (request)
-  (let ((bytes (gensym))
-        (response (gensym))
-        (parsed-response (gensym))
+  (let ((response (gensym))
         (c (gensym)))
-    `(let ((,bytes (byte-seq-to-byte-array (to-byte-seq ,request))))
+    `(progn
        (log:debug "Sending request: ~a" ,request)
-       (send-knx-data ,bytes)
+       (send-knx-data ,request)
        (handler-case 
-           (let* ((,response (receive-knx-data))
-                  (,parsed-response
-                    (parse-root-knx-object ,response)))
-             (log:debug "Received response: ~a" ,parsed-response)
-             (values ,parsed-response nil))
+           (let ((,response (receive-knx-data)))
+             (log:debug "Received response: ~a" ,response)
+             (values ,response nil))
          (condition (,c)
            (log:info "Condition: ~a" ,c)
            (values nil ,c))
