@@ -202,4 +202,3 @@
     (is (= 1 (length (invocations 'usocket:socket-receive))))
     (is (= 1 (length (invocations 'usocket:socket-send))))))
 
-(run! 'knx-connect-tests)
