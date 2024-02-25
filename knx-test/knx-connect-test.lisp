@@ -117,7 +117,7 @@
     (answer usocket:socket-receive *connect-response-data-ok*)
 
     (multiple-value-bind (response err)
-        (connect-to-endpoint)
+        (establish-tunnel-connection)
       (is (eq nil err))
       (is (typep response 'knx-connect-response))
       ;; check knx-header
@@ -148,7 +148,7 @@
     (answer usocket:socket-receive *connect-response-data-err*)
 
     (multiple-value-bind (response err)
-        (connect-to-endpoint)
+        (establish-tunnel-connection)
       (is (null response))
       (is (equal (format nil "~a" err)
                  (format nil
@@ -217,3 +217,5 @@
                    (make-dpt1 :switch :on))
     (is (= 1 (length (invocations 'usocket:socket-send))))    
     ))
+
+(run! 'knx-connect-tests)

@@ -5,7 +5,7 @@
            #:disconnect
            ;; send requests
            #:retrieve-descr-info
-           #:connect-to-endpoint
+           #:establish-tunnel-connection
            ;; receive data
            #:receive-knx-request
            ))
@@ -83,13 +83,13 @@
 
 ;; ---------------------------------
 
-(defmacro with-request-response (request)
+(defmacro %with-request-response (request)
   `(progn
      (send-knx-data ,request)
      (receive-knx-data)))
 
 (defun retrieve-descr-info ()
-  (with-request-response (make-descr-request *hpai-unbound-addr*)))
+  (%with-request-response (make-descr-request *hpai-unbound-addr*)))
   
-(defun connect-to-endpoint ()
-  (with-request-response (make-connect-request)))
+(defun establish-tunnel-connection ()
+  (%with-request-response (make-connect-request)))
