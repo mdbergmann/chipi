@@ -163,13 +163,13 @@
 ;; tunneling request receival
 ;; --------------------------------------
 
-(defparameter *tunnelling-request-data*
+(defparameter *raw-tunnelling-request-data*
   #(6 16 4 32 0 23 4 76 0 0 41 0 188 208 19 14 4 10 3 0 128 12 104
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
 
 (test tunneling-request-ok ()
   (with-mocks ()
-    (answer usocket:socket-receive *tunnelling-request-data*)
+    (answer usocket:socket-receive *raw-tunnelling-request-data*)
 
     (multiple-value-bind (request err)
         (receive-knx-request nil)
@@ -196,7 +196,7 @@
 
 (test tunnelling-request-ack-response
   (with-mocks ()
-    (answer usocket:socket-receive *tunnelling-request-data*)
+    (answer usocket:socket-receive *raw-tunnelling-request-data*)
     (answer (usocket:socket-send _ buf _)
       (let ((resp (parse-root-knx-object buf)))
         (assert (typep resp 'knx-tunnelling-ack) nil
@@ -206,3 +206,14 @@
       
     (is (= 1 (length (invocations 'usocket:socket-receive))))
     (is (= 1 (length (invocations 'usocket:socket-send))))))
+
+;; --------------------------------------
+;; switch value on group address
+;; --------------------------------------
+
+(test switch-value-on-group-address
+  (with-mocks ()
+    (write-request (make-group-address "0/4/10")
+                   (make-dpt1 :switch :on))
+    (is (= 1 (length (invocations 'usocket:socket-send))))    
+    ))

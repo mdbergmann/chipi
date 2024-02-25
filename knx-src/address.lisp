@@ -4,6 +4,8 @@
   (:export #:knx-address
            #:knx-individual-address
            #:knx-group-address
+           #:make-group-address
+           #:knx-group-address-p
            #:parse-individual-address
            #:parse-group-address
            #:address-string-rep))
@@ -14,6 +16,8 @@
                         (:constructor nil)
                         (:conc-name address-))
   "Base structure for individual (physical) and group-address."
+  ;; NOTE: addr is the byte representation as in the knx data stream
+  ;; and needs no conversion.
   (addr (error "Required address!") :type (vector octet 2))
   (string-rep (error "Required string representation!") :type string))
 
@@ -32,13 +36,15 @@ address, i.e., and described by the higher 8 bits of the address value.<br>
 The sometimes used term _zone_ is synonymous with _area_.")
 
 (defun parse-individual-address (addr-vector)
-  (let ((addr (to-int (elt addr-vector 0) (elt addr-vector 1))))
-    (%make-individual-address
-     :addr (seq-to-array addr-vector :len 2)
-     :string-rep (format nil "~a.~a.~a"
-                         (logand (ash addr -12) #x0f)
-                         (logand (ash addr -8) #x0f)
-                         (logand addr #xff)))))
+  "Parse a vector of 2 octets to an individual address.
+The vector has two elements in the knx spec."
+  (let ((upper (elt addr-vector 0)))
+    (let ((area (ash upper -4))
+          (line (logand upper #x0f))
+          (device (elt addr-vector 1)))
+      (%make-individual-address
+       :addr (seq-to-array addr-vector :len 2)
+       :string-rep (format nil "~a.~a.~a" area line device)))))
 
 (defstruct (knx-group-address (:include knx-address)
                               (:constructor %make-group-address))
@@ -54,11 +60,32 @@ Note, that the most significant bit of the main group, i.e., bit 15 in the unstr
 address, is reserved, but not in use for now. This bit is not checked for, but
 nevertheless stored and returned by this implementation.")
 
+(defgeneric make-group-address (addr)
+  (:documentation "Create a group addres."))
+
+(defmethod make-group-address ((addr-string string))
+  (let ((addr (map '(vector octet 3) #'parse-integer
+                   (uiop:split-string addr-string :separator "/"))))
+    (make-group-address addr)))
+
+(defmethod make-group-address ((addr-vector vector))
+  (let ((main (elt addr-vector 0))
+        (middle (elt addr-vector 1))
+        (sub (elt addr-vector 2)))
+    (let* ((upper (ash main 3))
+           (upper (logior upper middle))
+           (lower sub))
+      (%make-group-address
+       :addr (seq-to-array (vector upper lower) :len 2)
+       :string-rep (format nil "~a/~a/~a"
+                           main middle sub)))))
+  
 (defun parse-group-address (addr-vector)
-  (let ((addr (to-int (elt addr-vector 0) (elt addr-vector 1))))
-    (%make-group-address
-     :addr (seq-to-array addr-vector :len 2)
-     :string-rep (format nil "~a/~a/~a"
-                         (logand (ash addr -11) #x1f)
-                         (logand (ash addr -8) #x07)
-                         (logand addr #xff)))))
+  "Parse a vector of 2 octets to a group address."
+  (let ((upper (elt addr-vector 0)))
+    (let ((main (ash upper -3))
+          (middle (logand upper #x07))
+          (sub (elt addr-vector 1) ))
+      (%make-group-address
+       :addr (seq-to-array addr-vector :len 2)
+       :string-rep (format nil "~a/~a/~a" main middle sub)))))
