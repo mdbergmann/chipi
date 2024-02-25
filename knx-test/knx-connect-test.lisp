@@ -46,11 +46,16 @@
         (is-true (not (null body)))
         (is (eql 78 (length body))))
       ;; check dibs
-      (is (typep (descr-response-device-hardware result) 'dib))
-      (is (typep (descr-response-device-hardware result) 'dib-device-info))
-      (is (typep (descr-response-supp-svc-families result) 'dib))
-      (is (typep (descr-response-supp-svc-families result) 'dib-supp-svc-families))
-      (is (typep (descr-response-other-dib-info result) 'dib-list))
+      (is (typep (descr-response-device-hardware result)
+                 'dib))
+      (is (typep (descr-response-device-hardware result)
+                 'dib-device-info))
+      (is (typep (descr-response-supp-svc-families result)
+                 'dib))
+      (is (typep (descr-response-supp-svc-families result)
+                 'dib-supp-svc-families))
+      (is (typep (descr-response-other-dib-info result)
+                 'dib-list))
       (is-true (not (endp (descr-response-other-dib-info result)))))
 
     (is (eql 1 (length (invocations 'usocket:socket-send))))
@@ -201,4 +206,3 @@
       
     (is (= 1 (length (invocations 'usocket:socket-receive))))
     (is (= 1 (length (invocations 'usocket:socket-send))))))
-

@@ -20,6 +20,7 @@
                address port
                :protocol :datagram
                :element-type 'octet)))
+    (assert conn nil "Could not connect to ~a on port ~a" address port)
     (log:info "Connected to ~a on port ~a" address port)
     (setf *conn* conn)))
 
@@ -29,15 +30,27 @@
 
 (defun send-knx-data (request)
   (assert *conn* nil "No connection!")
+  (log:debug "Sending obj: ~a" request)
   (let ((req-bytes (byte-seq-to-byte-array
                     (to-byte-seq request))))
+    (log:debug "Sending bytes: ~a" req-bytes)
     (usocket:socket-send *conn* req-bytes (length req-bytes))))
 
 (defun receive-knx-data ()
   (assert *conn* nil "No connection!")
   (let ((buf (make-array 1024 :element-type 'octet)))
-    (parse-root-knx-object
-     (usocket:socket-receive *conn* buf 1024))))
+    (handler-case 
+        (let ((received-obj
+                (parse-root-knx-object
+                 (usocket:socket-receive *conn* buf 1024))))
+          (log:debug "Received obj: ~a" received-obj)
+          (values received-obj nil))
+      (condition (c)
+        (log:info "Condition: ~a" c)
+        (values nil c))
+      (error (e)
+        (log:info "Error: ~a" e)
+        (values nil e)))))
 
 ;; -----------------------------
 ;; high-level comm
@@ -70,25 +83,13 @@
 
 ;; ---------------------------------
 
-(defmacro with-request-and-response (request)
-  (let ((response (gensym))
-        (c (gensym)))
-    `(progn
-       (log:debug "Sending request: ~a" ,request)
-       (send-knx-data ,request)
-       (handler-case 
-           (let ((,response (receive-knx-data)))
-             (log:debug "Received response: ~a" ,response)
-             (values ,response nil))
-         (condition (,c)
-           (log:info "Condition: ~a" ,c)
-           (values nil ,c))
-         (error (e)
-           (log:info "Error: ~a" e)
-           (values nil e))))))
+(defmacro with-request-response (request)
+  `(progn
+     (send-knx-data ,request)
+     (receive-knx-data)))
 
 (defun retrieve-descr-info ()
-  (with-request-and-response (make-descr-request *hpai-unbound-addr*)))
+  (with-request-response (make-descr-request *hpai-unbound-addr*)))
   
 (defun connect-to-endpoint ()
-  (with-request-and-response (make-connect-request)))
+  (with-request-response (make-connect-request)))

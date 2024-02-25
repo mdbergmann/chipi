@@ -28,10 +28,6 @@
     (is (equalp (cemi-npdu cut) #(0 128 12)))
     (is (equalp (cemi-tpci cut) +tcpi-ucd+))
     (is (= (cemi-packet-num cut) 0))
-    (is (= (cemi-apci cut) +apci-gv-read+))
+    (is (apci-gv-read-p (cemi-apci cut)))
     (is (null (cemi-data cut)))
     ))
-
-;; parsing of mc-l_data.ind also applies to other l_data types
-
-(run! 'cemi-tests)

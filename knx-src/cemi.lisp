@@ -21,11 +21,12 @@
            ;; tpci
            #:+tcpi-ucd+
            ;; apci
-           #:+apci-gv-read+
-           #:+apci-gv-response+
-           #:+apci-gv-response-end+
-           #:+apci-gv-write+
-           #:+apci-gv-write-end+
+           #:apci-gv-read-p
+           #:apci-gv-read
+           #:apci-gv-response-p
+           #:apci-gv-response
+           #:apci-gv-write-p
+           #:apci-gv-write
            ))
 
 (in-package :knx-conn.cemi)
@@ -36,6 +37,11 @@
   "L_Data.con (data service confirmation")
 (defconstant +cemi-mc-l_data.ind+ #x29
   "L_Data.ind (data service indication")
+(defun cemi-l_data-p (message-code)
+  "Return T if MESSAGE-CODE is a L_Data.*"
+  (or (= message-code +cemi-mc-l_data.req+)
+      (= message-code +cemi-mc-l_data.con+)
+      (= message-code +cemi-mc-l_data.ind+)))
 
 ;; TCPI
 (defconstant +tcpi-udt+ #x00
@@ -53,6 +59,13 @@
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
 (defconstant +apci-gv-read+ #x00
   "Group Value Read")
+(defun apci-gv-read-p (apci)
+  "Return T if APCI is a Group Value Read"
+  (= apci +apci-gv-read+))
+(deftype apci-gv-read ()
+  "APCI is a Group Value Read"
+  `(satisfies apci-gv-read-p))
+
 ;; +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 ;; |                         0   0 | 0   1   n   n   n   n   n   n |
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
@@ -60,6 +73,14 @@
   "Group Value Response")
 (defconstant +apci-gv-response-end+ #x7f
   "Group Value Response End")
+(defun apci-gv-response-p (apci)
+  "Return T if APCI is a Group Value Response"
+  (and (>= apci +apci-gv-response+)
+       (< apci +apci-gv-response-end+)))
+(deftype apci-gv-response ()
+  "APCI is a Group Value Response"
+  `(satisfies apci-gv-response-p))
+
 ;; +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 ;; |                         0   0 | 1   0   n   n   n   n   n   n |
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
@@ -67,7 +88,13 @@
   "Group Value Write")
 (defconstant +apci-gv-write-end+ #xbf
   "Group Value Write End")
-
+(defun apci-gv-write-p (apci)
+  "Return T if APCI is a Group Value Write"
+  (and (>= apci +apci-gv-write+)
+       (< apci +apci-gv-write-end+)))
+(deftype apci-gv-write ()
+  "APCI is a Group Value Write"
+  `(satisfies apci-gv-write-p))
 
 
 (defstruct (cemi (:include knx-obj)
@@ -131,7 +158,7 @@ cEMI frame
                               nil))
          (service-info (subseq data service-info-start)))
     (cond
-      ((= message-code +cemi-mc-l_data.ind+)
+      ((cemi-l_data-p message-code)
        (let* ((ctrl1 (elt service-info 0))
               (ctrl2 (elt service-info 1))
               (source-addr (subseq service-info 2 4))

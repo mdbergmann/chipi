@@ -33,6 +33,7 @@
   :components ((:module "knx-test"
                 :components
                 ((:file "test-all")
+                 (:file "cemi-test")
                  (:file "knx-connect-test")
                  )))
   :description "Test system for knx"
