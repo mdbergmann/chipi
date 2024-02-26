@@ -12,6 +12,7 @@
                 ((:file "utils")
                  (:file "knx-obj")
                  (:file "address")
+                 (:file "dpt")
                  (:file "hpai")
                  (:file "dib")
                  (:file "cri")
@@ -33,6 +34,7 @@
   :components ((:module "knx-test"
                 :components
                 ((:file "test-all")
+                 (:file "address-test")
                  (:file "cemi-test")
                  (:file "knx-connect-test")
                  )))

@@ -2,7 +2,9 @@
   (:use :cl :knxutil :knxobj)
   (:nicknames :address)
   (:export #:knx-address
+           #:address-len
            #:knx-individual-address
+           #:make-individual-address
            #:knx-group-address
            #:make-group-address
            #:knx-group-address-p
@@ -34,6 +36,27 @@ required separator of type '.'.
 The combined address levels _area_ and _line_ are referred to as subnetwork
 address, i.e., and described by the higher 8 bits of the address value.<br>
 The sometimes used term _zone_ is synonymous with _area_.")
+
+(defun address-len () 2)
+
+(defgeneric make-individual-address (addr)
+  (:documentation "Create an individual address."))
+
+(defmethod make-individual-address ((addr-string string))
+  (let ((addr (map '(vector octet 2) #'parse-integer
+                   (uiop:split-string addr-string :separator "."))))
+    (make-individual-address addr)))
+
+(defmethod make-individual-address ((addr-vector vector))
+  (let ((area (elt addr-vector 0))
+        (line (elt addr-vector 1))
+        (device (elt addr-vector 2)))
+    (let* ((upper (ash area 4))
+           (upper (logior upper line))
+           (lower device))
+      (%make-individual-address
+       :addr (seq-to-array (vector upper lower) :len 2)
+       :string-rep (format nil "~a.~a.~a" area line device)))))
 
 (defun parse-individual-address (addr-vector)
   "Parse a vector of 2 octets to an individual address.

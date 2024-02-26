@@ -1,7 +1,7 @@
 (defpackage :knx-conn.knx-connect-test
   (:use :cl :cl-mock :fiveam
    :knxutil :knxobj :descr-info :connect :tunnelling
-        :crd :cemi :address :dib :knxc))
+        :crd :cemi :address :dib :dpt :knxc))
 
 (in-package :knx-conn.knx-connect-test)
 

@@ -2,6 +2,7 @@
   (:use :cl :knxobj :cemi)
   (:nicknames :tunnelling)
   (:export #:knx-tunnelling-request
+           #:make-tunnelling-request
            #:tunnelling-request-conn-header
            #:tunnelling-request-cemi
            #:knx-tunnelling-ack
@@ -83,6 +84,16 @@ cEMI frame
      :conn-header conn-header
      :cemi (parse-cemi (subseq body +conn-header-structure-len+)))))
 
+(defun make-tunnelling-request (&key channel-id seq-counter cemi)
+  (%make-tunnelling-request
+   :header (make-header +knx-tunnelling-request+
+                        (+ +conn-header-structure-len+
+                           (cemi-len cemi)))
+   :conn-header (%make-connection-header
+                 :channel-id channel-id
+                 :seq-counter seq-counter)
+   :cemi cemi))
+
 ;; -------------------------------
 ;; Tunnelling ack
 ;; -------------------------------
@@ -117,5 +128,5 @@ Connection header
     (%make-tunnelling-ack
      :header (make-header +knx-tunnelling-ack+
                           +conn-header-structure-len+)
-     :body request-conn-header
+     :body nil
      :conn-header request-conn-header)))

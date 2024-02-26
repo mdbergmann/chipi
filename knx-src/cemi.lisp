@@ -1,7 +1,10 @@
 (defpackage :knx-conn.cemi
-  (:use :cl :knxutil :knxobj :address)
+  (:use :cl :knxutil :knxobj :address :dpt)
   (:nicknames :cemi)
   (:export #:cemi
+           #:make-cemi
+           #:make-default-cemi
+           #:cemi-len
            #:cemi-l-data
            #:cemi-message-code
            #:cemi-ctrl1
@@ -22,11 +25,15 @@
            #:+tcpi-ucd+
            ;; apci
            #:apci-gv-read-p
+           #:apci-gv-read-equal-p
            #:apci-gv-read
            #:apci-gv-response-p
+           #:apci-gv-response-equal-p
            #:apci-gv-response
            #:apci-gv-write-p
+           #:apci-gv-write-equal-p
            #:apci-gv-write
+           #:make-apci-gv-write
            ))
 
 (in-package :knx-conn.cemi)
@@ -53,48 +60,62 @@
 (defconstant +tcpi-ncd+ #xc0
   "NCD (Numbered Control Data")
 
+;; Broadcast Type
+(defconstant +broadcast-type-system+ #x00)
+(defconstant +broadcast-type-normal+ #x01)
+
+;; Priority
+(defconstant +priority-system+ #x00)
+(defconstant +priority-normal+ #x01)
+(defconstant +priority-urgent+ #x02)
+(defconstant +priority-low+ #x03)
+
+;; ctrl2 values
+(defconstant +hop-count-default+ 6)
+(defconstant +frame-format-default+ 0)
+
 ;; APCI
+(defstruct (apci-gv (:conc-name nil)))
 ;; +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 ;; |                         0   0 | 0   0   0   0   0   0   0   0 |
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-(defconstant +apci-gv-read+ #x00
-  "Group Value Read")
-(defun apci-gv-read-p (apci)
+(defstruct (apci-gv-read (:include apci-gv))
+  "Group Value Read"
+  (start-mask #x00 :type octet :read-only t)
+  (end-mask #x00 :type octet :read-only t))
+
+(defun apci-gv-read-equal-p (apci-value)
   "Return T if APCI is a Group Value Read"
-  (= apci +apci-gv-read+))
-(deftype apci-gv-read ()
-  "APCI is a Group Value Read"
-  `(satisfies apci-gv-read-p))
+  (let ((apci (make-apci-gv-read)))
+    (= apci-value (apci-gv-read-start-mask apci))))
 
 ;; +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 ;; |                         0   0 | 0   1   n   n   n   n   n   n |
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-(defconstant +apci-gv-response+ #x40
-  "Group Value Response")
-(defconstant +apci-gv-response-end+ #x7f
-  "Group Value Response End")
-(defun apci-gv-response-p (apci)
+(defstruct (apci-gv-response (:include apci-gv))
+  "Group Value Response"
+  (start-mask #x40 :type octet :read-only t)
+  (end-mask #x7f :type octet :read-only t))
+
+(defun apci-gv-response-equal-p (apci-value)
   "Return T if APCI is a Group Value Response"
-  (and (>= apci +apci-gv-response+)
-       (< apci +apci-gv-response-end+)))
-(deftype apci-gv-response ()
-  "APCI is a Group Value Response"
-  `(satisfies apci-gv-response-p))
+  (let ((apci (make-apci-gv-response)))
+    (and (>= apci-value (apci-gv-response-start-mask apci))
+         (< apci-value (apci-gv-response-end-mask apci)))))
 
 ;; +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 ;; |                         0   0 | 1   0   n   n   n   n   n   n |
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-(defconstant +apci-gv-write+ #x80
-  "Group Value Write")
-(defconstant +apci-gv-write-end+ #xbf
-  "Group Value Write End")
-(defun apci-gv-write-p (apci)
+(defstruct (apci-gv-write (:include apci-gv))
+  "Group Value Write"
+  (start-mask #x80 :type octet :read-only t)
+  (end-mask #xbf :type octet :read-only t))
+
+(defun apci-gv-write-equal-p (apci-value)
   "Return T if APCI is a Group Value Write"
-  (and (>= apci +apci-gv-write+)
-       (< apci +apci-gv-write-end+)))
-(deftype apci-gv-write ()
-  "APCI is a Group Value Write"
-  `(satisfies apci-gv-write-p))
+  (let ((apci (make-apci-gv-write)))
+    (and (>= apci-value (apci-gv-write-start-mask apci))
+         (< apci-value (apci-gv-write-end-mask apci)))))
 
 
 (defstruct (cemi (:include knx-obj)
@@ -115,6 +136,13 @@ cEMI frame
   (message-code (error "Required message-code!") :type octet)
   (info-len (error "Required info-len!") :type octet)
   (additional-info nil :type (or null (vector octet))))
+
+(defgeneric cemi-len (cemi)
+  (:documentation "Return the length of the CEMI frame"))
+
+(defmethod cemi-len ((cemi cemi))
+  "Return the length of the CEMI frame"
+  (+ 2 (cemi-info-len cemi)))
 
 (defstruct (cemi-l-data (:include cemi)
                         (:conc-name cemi-)
@@ -147,6 +175,15 @@ cEMI frame
   ;; .... ..01 0100 0000 individual address response
   (apci (error "Required apci!") :type integer)
   (data nil :type (or null (vector octet))))
+
+(defmethod cemi-len ((cemi cemi-l-data))
+  "Return the length of the CEMI frame"
+  (+ (call-next-method cemi)
+     1 ; ctrl1
+     1 ; ctrl2
+     (* 2 (address:address-len))
+     1 ; npdu-len
+     (cemi-npdu-len cemi)))
 
 (defun parse-cemi (data)
   "Parse CEMI frame from `DATA`"
@@ -206,3 +243,50 @@ cEMI frame
           :apci apci
           :data data
           ))))))
+
+(defun %make-ctrl1-octet (&key (standard-frame t)
+                            (repeat nil)
+                            (broadcast-type +broadcast-type-normal+)
+                            (priority +priority-low+)
+                            (ack-request nil)
+                            (err-confirm nil))
+  (logior (if standard-frame (ash #x01 7) #x00)
+          (if repeat 0 (ash #x01 5))
+          (ash broadcast-type 4)
+          (ash priority 2)
+          (if ack-request #x02 #x00)
+          (if err-confirm #x01 #x00)))
+
+(defun %make-ctrl2-octet (address)
+  (logior (if (knx-group-address-p address) #x80 #x00)
+          (ash (logand +hop-count-default+ #x07) 4)
+          (logand +frame-format-default+ #x0f)))
+
+(defun make-default-cemi (&key message-code dest-address apci dpt)
+  (let ((add-info nil)
+        (ctrl1 (%make-ctrl1-octet))
+        (ctrl2 (%make-ctrl2-octet dest-address))
+        (source-addr (make-individual-address "0.0.0"))
+        (tpci +tcpi-udt+)
+        (packet-num 0))
+    (%make-cemi-l-data
+     :message-code message-code
+     :info-len (length add-info)
+     :additional-info add-info
+     :ctrl1 (number-to-bit-vector ctrl1 8)
+     :ctrl2 (number-to-bit-vector ctrl2 8)
+     :source-addr source-addr
+     :destination-addr dest-address
+     :npdu-len (cond
+                 ((apci-gv-read-p apci) 1)
+                 ((or
+                   (apci-gv-response-p apci)
+                   (apci-gv-write-p apci))
+                  ;; TODO: support for optimized dpts
+                  (+ 1 (dpt-len dpt)))
+                 (t (error "APCI not supported")))
+     :npdu nil
+     :tpci tpci
+     :packet-num packet-num
+     :apci apci
+     :data dpt)))

@@ -48,9 +48,11 @@
 ;; generic functions
 ;; -----------------------------
 
-
 (defgeneric to-byte-seq (knx-obj))
 (defgeneric parse-to-obj (obj-type header-data body-data))
+
+
+;; -----------------------------
 
 (defstruct (knx-obj (:constructor nil))
   "Root knx object")

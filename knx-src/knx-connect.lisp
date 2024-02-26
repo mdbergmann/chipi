@@ -1,5 +1,5 @@
 (defpackage :knx-conn.knx-connect
-  (:use :cl :knxutil :knxobj :descr-info :connect :tunnelling :hpai)
+  (:use :cl :knxutil :knxobj :descr-info :connect :tunnelling :hpai :cemi)
   (:nicknames :knxc)
   (:export #:connect
            #:disconnect
@@ -93,3 +93,13 @@
   
 (defun establish-tunnel-connection ()
   (%with-request-response (make-connect-request)))
+
+(defun write-request (group-address dpt)
+  (%with-request-response
+   (make-tunnelling-request
+    :channel-id 0
+    :seq-counter 0
+    :cemi (make-cemi
+           :message-code +cemi-mc-l_data.req+
+           :apci (make-apci-gv-write)
+           :dpt dpt))))

@@ -1,5 +1,5 @@
 (defpackage :knx-conn.cemi-test
-  (:use :cl :fiveam :knx-conn.cemi :address)
+  (:use :cl :fiveam :knx-conn.cemi :address :dpt)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -28,6 +28,16 @@
     (is (equalp (cemi-npdu cut) #(0 128 12)))
     (is (equalp (cemi-tpci cut) +tcpi-ucd+))
     (is (= (cemi-packet-num cut) 0))
-    (is (apci-gv-read-p (cemi-apci cut)))
+    (is (apci-gv-read-equal-p (cemi-apci cut)))
     (is (null (cemi-data cut)))
     ))
+
+(test make-cemi--default
+  (let ((cemi (make-default-cemi
+               :message-code +cemi-mc-l_data.req+
+               :apci (make-apci-gv-write)
+               :dpt (make-dpt1 :switch :on))))
+    (is-true cemi)
+    ))
+
+(run! 'cemi-tests)
