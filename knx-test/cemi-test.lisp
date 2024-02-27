@@ -25,16 +25,16 @@
                   (cemi-source-addr cut)) "1.3.14"))
     (is (string= (address-string-rep
                   (cemi-destination-addr cut)) "0/4/10"))
-    (is (equalp (cemi-npdu cut) #(0 128 12)))
     (is (equalp (cemi-tpci cut) +tcpi-ucd+))
     (is (= (cemi-packet-num cut) 0))
-    (is (apci-gv-read-equal-p (cemi-apci cut)))
+    (is (apci-gv-read-p (cemi-apci cut)))
     (is (null (cemi-data cut)))
     ))
 
 (test make-cemi--default
   (let ((cemi (make-default-cemi
                :message-code +cemi-mc-l_data.req+
+               :dest-address (make-group-address "0/4/10")
                :apci (make-apci-gv-write)
                :dpt (make-dpt1 :switch :on))))
     (is-true cemi)

@@ -1,7 +1,8 @@
 (defpackage :knx-conn.dpt
   (:use :cl :knxobj)
   (:nicknames :dpt)
-  (:export #:dpt1
+  (:export #:dpt
+           #:dpt1
            #:dpt-len
            #:dpt-value
            #:make-dpt1))
@@ -11,7 +12,11 @@
 (defgeneric dpt-len (dpt)
   (:documentation "Return the length of the DPT"))
 
-(defstruct (dpt1 (:include knx-obj)
+(defstruct (dpt (:include knx-obj)
+                (:constructor nil))
+  "A DPT is a data point type. It is a data structure that represents a")
+
+(defstruct (dpt1 (:include dpt)
                  (:conc-name dpt-)
                  (:constructor %make-dpt1))
   "

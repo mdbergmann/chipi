@@ -43,7 +43,7 @@ The sometimes used term _zone_ is synonymous with _area_.")
   (:documentation "Create an individual address."))
 
 (defmethod make-individual-address ((addr-string string))
-  (let ((addr (map '(vector octet 2) #'parse-integer
+  (let ((addr (map '(vector octet 3) #'parse-integer
                    (uiop:split-string addr-string :separator "."))))
     (make-individual-address addr)))
 

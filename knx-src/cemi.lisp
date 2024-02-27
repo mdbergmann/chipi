@@ -11,7 +11,6 @@
            #:cemi-ctrl2
            #:cemi-source-addr
            #:cemi-destination-addr
-           #:cemi-npdu
            #:cemi-tpci
            #:cemi-packet-num
            #:cemi-apci
@@ -25,14 +24,12 @@
            #:+tcpi-ucd+
            ;; apci
            #:apci-gv-read-p
-           #:apci-gv-read-equal-p
            #:apci-gv-read
            #:apci-gv-response-p
-           #:apci-gv-response-equal-p
            #:apci-gv-response
            #:apci-gv-write-p
-           #:apci-gv-write-equal-p
            #:apci-gv-write
+           #:apci-equal-p
            #:make-apci-gv-write
            ))
 
@@ -75,47 +72,57 @@
 (defconstant +frame-format-default+ 0)
 
 ;; APCI
-(defstruct (apci-gv (:conc-name nil)))
+(defstruct (apci (:constructor nil)
+                 (:conc-name apci-))
+  (start-code #x00 :type octet :read-only t)
+  (end-code #x00 :type octet :read-only t))
 ;; +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 ;; |                         0   0 | 0   0   0   0   0   0   0   0 |
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-(defstruct (apci-gv-read (:include apci-gv))
-  "Group Value Read"
-  (start-mask #x00 :type octet :read-only t)
-  (end-mask #x00 :type octet :read-only t))
+(defstruct (apci-gv-read (:include apci)
+                         (:constructor %make-apci-gv-read))
+  "Group Value Read")
 
-(defun apci-gv-read-equal-p (apci-value)
-  "Return T if APCI is a Group Value Read"
-  (let ((apci (make-apci-gv-read)))
-    (= apci-value (apci-gv-read-start-mask apci))))
+(defun make-apci-gv-read ()
+  (%make-apci-gv-read :start-code #x00 :end-code #x00))
 
 ;; +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 ;; |                         0   0 | 0   1   n   n   n   n   n   n |
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-(defstruct (apci-gv-response (:include apci-gv))
-  "Group Value Response"
-  (start-mask #x40 :type octet :read-only t)
-  (end-mask #x7f :type octet :read-only t))
+(defstruct (apci-gv-response (:include apci)
+                             (:constructor %make-apci-gv-response))
+  "Group Value Response")
 
-(defun apci-gv-response-equal-p (apci-value)
-  "Return T if APCI is a Group Value Response"
-  (let ((apci (make-apci-gv-response)))
-    (and (>= apci-value (apci-gv-response-start-mask apci))
-         (< apci-value (apci-gv-response-end-mask apci)))))
+(defun make-apci-gv-response ()
+  (%make-apci-gv-read :start-code #x40 :end-code #x7f))
 
 ;; +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+
 ;; |                         0   0 | 1   0   n   n   n   n   n   n |
 ;; +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-(defstruct (apci-gv-write (:include apci-gv))
-  "Group Value Write"
-  (start-mask #x80 :type octet :read-only t)
-  (end-mask #xbf :type octet :read-only t))
+(defstruct (apci-gv-write (:include apci)
+                          (:constructor %make-apci-gv-write))
+  "Group Value Write")
 
-(defun apci-gv-write-equal-p (apci-value)
-  "Return T if APCI is a Group Value Write"
-  (let ((apci (make-apci-gv-write)))
-    (and (>= apci-value (apci-gv-write-start-mask apci))
-         (< apci-value (apci-gv-write-end-mask apci)))))
+(defun make-apci-gv-write ()
+  (%make-apci-gv-write :start-code #x80 :end-code #xbf))
+
+(defgeneric apci-equal-p (apci apci-value)
+  (:documentation "Return T if APCI is equal to APCI-VALUE"))
+
+(defmethod apci-equal-p ((apci apci-gv-write) apci-value)
+  (and (>= apci-value (apci-start-code apci))
+       (<= apci-value (apci-end-code apci))))
+
+(defmethod apci-equal-p ((apci apci-gv-response) apci-value)
+  (and (>= apci-value (apci-start-code apci))
+       (<= apci-value (apci-end-code apci))))
+
+(defmethod apci-equal-p ((apci apci-gv-read) apci-value)
+  (= apci-value (apci-start-code apci)))
+
+(defparameter *apcis* (list (make-apci-gv-read)
+                            (make-apci-gv-response)
+                            (make-apci-gv-write)))
 
 
 (defstruct (cemi (:include knx-obj)
@@ -156,7 +163,7 @@ cEMI frame
   (destination-addr (error "Required destination-address!")
    :type knx-address)
   (npdu-len (error "Required npcu-len!") :type octet)
-  (npdu nil :type (or nil (vector octet)))
+  ;; NPDU (Network Protocol Data Unit)
   ;; TPCI (Transport Layer Control Information)
   ;; first two bits of npdu+1
   ;; 00.. .... UDT unnumbered package
@@ -173,8 +180,8 @@ cEMI frame
   ;; .... ..00 1100 0000 individual address write
   ;; .... ..01 0000 0000 individual address read
   ;; .... ..01 0100 0000 individual address response
-  (apci (error "Required apci!") :type integer)
-  (data nil :type (or null (vector octet))))
+  (apci (error "Required apci!") :type apci)
+  (data nil :type (or null dpt)))
 
 (defmethod cemi-len ((cemi cemi-l-data))
   "Return the length of the CEMI frame"
@@ -211,12 +218,16 @@ cEMI frame
               (packet-num (when npdu
                             (ash (logand (elt npdu 1) #x3c) -2)))
               (apci (when npdu
-                      (to-int
-                       (logand (elt npdu 1) #x03)
-                       (logand (elt npdu 2) #xc0))))
+                      (let ((apci-value (to-int
+                                         (logand (elt npdu 1) #x03)
+                                         (logand (elt npdu 2) #xc0))))
+                        (find-if (lambda (apci)
+                                   (apci-equal-p
+                                    apci apci-value))
+                                 *apcis*))))
               (data (when npdu
                       (cond
-                        ((= apci +apci-gv-read+)
+                        ((apci-gv-read-p apci)
                          nil)
                         ((= npdu-len 1)
                          ;; 6 bits, part of apci
@@ -237,7 +248,6 @@ cEMI frame
                                 (parse-individual-address destination-addr)
                                 (parse-group-address destination-addr))
           :npdu-len npdu-len
-          :npdu npdu
           :tpci tpci
           :packet-num packet-num
           :apci apci
@@ -285,8 +295,9 @@ cEMI frame
                   ;; TODO: support for optimized dpts
                   (+ 1 (dpt-len dpt)))
                  (t (error "APCI not supported")))
-     :npdu nil
      :tpci tpci
      :packet-num packet-num
      :apci apci
      :data dpt)))
+
+;; TODO: remove npdu, not needed
