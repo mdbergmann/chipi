@@ -32,6 +32,9 @@ Range:      b = {0 = off, 1 = on}"
 (defmethod dpt-len ((dpt dpt1))
   1)
 
+(defmethod to-byte-seq ((dpt dpt1))
+  (vector (dpt-value dpt)))
+
 (defun make-dpt1 (value-sym value)
   (ecase value-sym
     (:switch

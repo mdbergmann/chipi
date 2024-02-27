@@ -22,6 +22,9 @@
            #:+cemi-mc-l_data.ind+
            ;; tpci
            #:+tcpi-ucd+
+           #:+tcpi-udt+
+           #:+tcpi-ncd+
+           #:+tcpi-ndt+
            ;; apci
            #:apci-gv-read-p
            #:apci-gv-read
@@ -181,7 +184,84 @@ cEMI frame
   ;; .... ..01 0000 0000 individual address read
   ;; .... ..01 0100 0000 individual address response
   (apci (error "Required apci!") :type apci)
-  (data nil :type (or null dpt)))
+  (data nil :type (or null dpt (vector octet))))
+
+(defun array-copy (target source &key (start-target 0))
+  "Copy elements from SOURCE to TARGET"
+  (let ((target-index start-target)
+        (copied 0))
+    (loop :for b :across source
+          :do (setf (elt target target-index) b)
+              (incf target-index)
+              (incf copied))
+    copied))
+
+(defmethod to-byte-seq ((cemi cemi-l-data))
+  (let ((bytes (make-array 255 :element-type 'octet))
+        (byte-count 0)
+        (optimized-apci nil)
+        (apci-data-byte-array #()))
+    (setf (elt bytes byte-count) (cemi-message-code cemi))
+    (incf byte-count)
+    (setf (elt bytes byte-count) (cemi-info-len cemi))
+    (incf byte-count)
+    (when (cemi-additional-info cemi)
+      (incf byte-count
+            (array-copy bytes
+                        (cemi-additional-info cemi)
+                        :start-target byte-count)))
+    (setf (elt bytes byte-count) (bit-vector-to-number (cemi-ctrl1 cemi)))
+    (incf byte-count)
+    (setf (elt bytes byte-count) (bit-vector-to-number (cemi-ctrl2 cemi)))
+    (incf byte-count)
+    (incf byte-count
+          (array-copy bytes
+                      (to-byte-seq (cemi-source-addr cemi))
+                      :start-target byte-count))
+    (incf byte-count
+          (array-copy bytes
+                      (to-byte-seq (cemi-destination-addr cemi))
+                      :start-target byte-count))
+    (setf (elt bytes byte-count) (cemi-npdu-len cemi))
+    (incf byte-count)
+    (setf (elt bytes byte-count)
+          (logior (cemi-tpci cemi)
+                  (ash (cemi-packet-num cemi) 2)
+                  (ash (apci-start-code (cemi-apci cemi)) -8)))
+    (incf byte-count)
+    (setf (elt bytes byte-count)
+          (let* ((apci (cemi-apci cemi))
+                 (data (cemi-data cemi))
+                 (npdu-len (cemi-npdu-len cemi))
+                 (dpt-value (cond
+                              ((null data) 0)
+                              ((arrayp data) (elt data 0)) ; ?
+                              (t (dpt-value data)))))
+            (logior (logand (apci-start-code apci) #xff)
+                    (cond
+                      ((apci-gv-read-p apci) #x00)
+                      ((or
+                        (apci-gv-response-p apci)
+                        (apci-gv-write-p apci))
+                       (if (= 1 npdu-len)
+                           (prog1
+                               (logand dpt-value #x3f)
+                             (setf optimized-apci t))
+                           (prog1
+                               #x00
+                             (setf apci-data-byte-array
+                                   (cond
+                                     ((arrayp data) data)
+                                     (t (to-byte-seq data)))))))
+                      (t (error "APCI not supported"))))))
+    (incf byte-count)
+    (when (not optimized-apci)
+      (incf byte-count
+            (array-copy bytes
+                        apci-data-byte-array
+                        :start-target byte-count)))
+    (log:debug "CEMI byte len: ~a" byte-count)
+    (subseq bytes 0 byte-count)))
 
 (defmethod cemi-len ((cemi cemi-l-data))
   "Return the length of the CEMI frame"
@@ -198,9 +278,10 @@ cEMI frame
          (info-len (elt data 1))
          (service-info-start (+ 2 info-len))
          (additional-info (if (> info-len 0)
-                              (subseq data 2 service-info-start)
+                              (subseq data 2 (1- service-info-start)) ; ?
                               nil))
-         (service-info (subseq data service-info-start)))
+         (service-info (subseq data service-info-start))
+         (_ (log:debug "service-info: ~a" service-info)))
     (cond
       ((cemi-l_data-p message-code)
        (let* ((ctrl1 (elt service-info 0))
@@ -213,30 +294,38 @@ cEMI frame
                          (subseq service-info 7 (+ 7 npdu-len))
                          :type 'vector)
                         nil))
+              (_ (log:debug "npdu: ~a" npdu))
+              (_ (log:debug "npdu-len: ~a" npdu-len))
               (tpci (when npdu
-                      (logand (elt npdu 1) #xc0)))
+                      (logand (elt npdu 0) #xc0)))
+              (_ (log:debug "tcpi: ~a" tpci))
               (packet-num (when npdu
-                            (ash (logand (elt npdu 1) #x3c) -2)))
+                            (ash (logand (elt npdu 0) #x3c) -2)))
+              (_ (log:debug "packet-num: ~a" packet-num))
               (apci (when npdu
                       (let ((apci-value (to-int
-                                         (logand (elt npdu 1) #x03)
-                                         (logand (elt npdu 2) #xc0))))
+                                         (logand (elt npdu 0) #x03)
+                                         (logand (elt npdu 1) #xc0))))
                         (find-if (lambda (apci)
                                    (apci-equal-p
                                     apci apci-value))
                                  *apcis*))))
+              (_ (log:debug "apci: ~a" apci))
               (data (when npdu
                       (cond
                         ((apci-gv-read-p apci)
                          nil)
                         ((= npdu-len 1)
-                         ;; 6 bits, part of apci
-                         (vector (logand (elt npdu 2) #x3f)))
+                         ;; 6 bits, part of apci / optimized dpt
+                         (vector (logand (elt npdu 1) #x3f)))
                         (t
                          ;; then bytes are beyond the apci
-                         (seq-to-array
-                          (subseq npdu (+ 0 3) (+ 0 3 npdu-len))
-                          :type 'vector))))))
+                         (let ((end-index (1- (+ 2 (1- npdu-len)))))
+                           (log:debug "end-index: ~a" end-index)
+                           (seq-to-array
+                            (subseq npdu 2 end-index)
+                            :type 'vector))))))
+              (_ (log:debug "data: ~a" data)))
          (%make-cemi-l-data
           :message-code message-code
           :info-len info-len
@@ -299,5 +388,3 @@ cEMI frame
      :packet-num packet-num
      :apci apci
      :data dpt)))
-
-;; TODO: remove npdu, not needed

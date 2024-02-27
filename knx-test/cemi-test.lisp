@@ -24,11 +24,11 @@
     (is (string= (address-string-rep
                   (cemi-source-addr cut)) "1.3.14"))
     (is (string= (address-string-rep
-                  (cemi-destination-addr cut)) "0/4/10"))
-    (is (equalp (cemi-tpci cut) +tcpi-ucd+))
+                  (cemi-destination-addr cut)) "0/4/10")) ; Temp_EG_Az
+    (is (equalp (cemi-tpci cut) +tcpi-udt+));;   +tcpi-ucd+))
     (is (= (cemi-packet-num cut) 0))
-    (is (apci-gv-read-p (cemi-apci cut)))
-    (is (null (cemi-data cut)))
+    (is (apci-gv-write-p (cemi-apci cut)))
+    (is (equalp #(12) (cemi-data cut)))
     ))
 
 (test make-cemi--default
@@ -38,6 +38,12 @@
                :apci (make-apci-gv-write)
                :dpt (make-dpt1 :switch :on))))
     (is-true cemi)
-    ))
+    (is (typep cemi 'cemi-l-data))))
+
+(test cemi-to-bytes--parse-from-bytes
+  (let ((cemi (parse-cemi *l-data*)))
+    (print cemi)
+    (is (equalp *l-data* (knxobj:to-byte-seq cemi))))
+  )
 
 (run! 'cemi-tests)

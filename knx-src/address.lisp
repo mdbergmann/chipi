@@ -23,6 +23,10 @@
   (addr (error "Required address!") :type (vector octet 2))
   (string-rep (error "Required string representation!") :type string))
 
+(defmethod to-byte-seq ((addr knx-address))
+  "Convert the address to a byte sequence."
+  (address-addr addr))
+
 (defstruct (knx-individual-address (:include knx-address)
                                    (:constructor %make-individual-address))
   "Individual address
