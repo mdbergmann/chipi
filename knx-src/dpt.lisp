@@ -16,6 +16,10 @@
                 (:constructor nil))
   "A DPT is a data point type. It is a data structure that represents a")
 
+;; ------------------------------
+;; DPT1
+;; ------------------------------
+
 (defstruct (dpt1 (:include dpt)
                  (:conc-name dpt-)
                  (:constructor %make-dpt1))
@@ -42,3 +46,6 @@ Range:      b = {0 = off, 1 = on}"
                     :value (ecase value
                              (:on 1)
                              (:off 0))))))
+
+;; more
+

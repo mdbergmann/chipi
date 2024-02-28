@@ -135,7 +135,8 @@
 
 (defparameter *apcis* (list (make-apci-gv-read)
                             (make-apci-gv-response)
-                            (make-apci-gv-write)))
+                            (make-apci-gv-write))
+  "List of supported APCI values")
 
 
 (defstruct (cemi (:include knx-obj)
@@ -338,7 +339,7 @@ x... .... destination address type
         (byte-count 0)
         (optimized-apci nil)
         (apci-data-byte-array #()))
-    (setf (elt bytes byte-count) (cemi-message-code cemi))
+    (setf (elt bytes byte-count) (cemi-message-code cemi)
     (incf byte-count)
     (setf (elt bytes byte-count) (cemi-info-len cemi))
     (incf byte-count)
@@ -397,7 +398,6 @@ x... .... destination address type
             (array-copy bytes
                         apci-data-byte-array
                         :start-target byte-count)))
-    (log:debug "CEMI byte len: ~a" byte-count)
     (subseq bytes 0 byte-count)))
 
 (defun parse-cemi (data)
@@ -461,8 +461,7 @@ x... .... destination address type
           :tpci tpci
           :packet-num packet-num
           :apci apci
-          :data data
-          ))))))
+          :data data)))))))
 
 (defun make-default-cemi (&key message-code dest-address apci dpt)
   (let ((add-info nil)
