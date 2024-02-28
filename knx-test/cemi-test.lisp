@@ -30,6 +30,10 @@
                 (ctrl1-rep cut)))
 
     (is (equal (cemi-ctrl2 cut) #*11010000))
+    (is (equalp `(:address-type knx-group-address
+                  :hop-count 5
+                  :frame-format 0)
+                (ctrl2-rep cut)))
 
     (is (typep (cemi-source-addr cut) 'knx-individual-address))
     (is (typep (cemi-destination-addr cut) 'knx-group-address))

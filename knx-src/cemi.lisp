@@ -28,6 +28,8 @@
            #:+priority-normal+
            #:+priority-urgent+
            #:+priority-low+
+           ;; ctrl2
+           #:ctrl2-rep
            ;; tpci
            #:+tcpi-ucd+
            #:+tcpi-udt+
@@ -80,7 +82,7 @@
 
 ;; ctrl2 values
 (defconstant +hop-count-default+ 6)
-(defconstant +frame-format-default+ 0)
+(defconstant +frame-format-standard+ #x0)
 
 ;; APCI
 (defstruct (apci (:constructor nil)
@@ -288,7 +290,34 @@ x... .... frame type
 (defun %make-ctrl2-octet (address)
   (logior (if (knx-group-address-p address) #x80 #x00)
           (ash (logand +hop-count-default+ #x07) 4)
-          (logand +frame-format-default+ #x0f)))
+          (logand +frame-format-standard+ #x0f)))
+
+(defun ctrl2-rep (cemi)
+  (list :address-type (%ctrl2-address-type cemi)
+        :hop-count (%ctrl2-hop-count cemi)
+        :frame-format (%ctrl2-frame-format cemi)))
+
+(defun %ctrl2-address-type (cemi)
+  "Return T if CEMI is a group address
+x... .... destination address type
+0 = individual address
+1 = group address"
+  (if (= 1 (elt (cemi-ctrl2 cemi) 0))
+      'knx-group-address
+      'knx-individual-address))
+
+(defun %ctrl2-hop-count (cemi)
+  "Return the hop count of CEMI
+.xxx .... routing / hop count"
+  (ash (logand (bit-vector-to-number (cemi-ctrl2 cemi)) #x70) -4))
+
+(defun %ctrl2-frame-format (cemi)
+  "Return the frame format of CEMI
+.... xxxx extended frame format
+.... 0000 for standard frame
+.... 01xx for LTE frames
+.... 1111 for Escape (reserved by KNX Association)"
+  (logand (bit-vector-to-number (cemi-ctrl2 cemi)) #x0f))    
 
 ;; --------------------------
 ;; parsing and construction
