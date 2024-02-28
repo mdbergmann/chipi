@@ -139,6 +139,5 @@ Returns the parsed object."
                :format-arguments (list type))))))
 
 (defmethod to-byte-seq ((obj knx-package))
-  (concatenate 'vector
-               (to-byte-seq (package-header obj))
-               (to-byte-seq (package-body obj))))
+  (to-byte-seq (package-header obj)))
+  ;; body is handled in the separate sub-structs

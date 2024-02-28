@@ -57,10 +57,10 @@ KNXnet/IP body
 
 (defmethod to-byte-seq ((obj knx-connect-request))
   (concatenate 'vector
-                (to-byte-seq (connect-request-header obj))
-                (to-byte-seq (connect-request-hpai-ctrl-endpoint obj))
-                (to-byte-seq (connect-request-hpai-data-endpoint obj))
-                (to-byte-seq (connect-request-cri obj))))
+               (call-next-method obj)
+               (to-byte-seq (connect-request-hpai-ctrl-endpoint obj))
+               (to-byte-seq (connect-request-hpai-data-endpoint obj))
+               (to-byte-seq (connect-request-cri obj))))
 
 ;; -----------------------------
 ;; knx description response
@@ -112,7 +112,7 @@ KNXnet/IP body
 
 (defmethod to-byte-seq ((obj knx-connect-response))
   (concatenate 'vector
-               (to-byte-seq (connect-response-header obj))
+               (call-next-method obj)
                (vector (connect-response-channel-id obj)
                        (connect-response-status obj))
                (to-byte-seq (connect-response-hpai obj))
