@@ -55,6 +55,13 @@ KNXnet/IP body
      :cri cri
      :body (list hpai-ctrl-endpoint hpai-data-endpoint cri))))
 
+(defmethod to-byte-seq ((obj knx-connect-request))
+  (concatenate 'vector
+                (to-byte-seq (connect-request-header obj))
+                (to-byte-seq (connect-request-hpai-ctrl-endpoint obj))
+                (to-byte-seq (connect-request-hpai-data-endpoint obj))
+                (to-byte-seq (connect-request-cri obj))))
+
 ;; -----------------------------
 ;; knx description response
 ;; -----------------------------
@@ -102,3 +109,11 @@ KNXnet/IP body
      :status status
      :hpai (parse-hpai (subseq body 2 10))
      :crd (parse-crd (subseq body 10)))))
+
+(defmethod to-byte-seq ((obj knx-connect-response))
+  (concatenate 'vector
+               (to-byte-seq (connect-response-header obj))
+               (vector (connect-response-channel-id obj)
+                       (connect-response-status obj))
+               (to-byte-seq (connect-response-hpai obj))
+               (to-byte-seq (connect-response-crd obj))))

@@ -77,9 +77,8 @@
 
 (test descr-request--compare-to-raw
   (is (equalp *raw-descr-request*
-              (byte-seq-to-byte-array
-               (to-byte-seq
-                (make-descr-request hpai:*hpai-unbound-addr*))))))
+              (to-byte-seq
+               (make-descr-request hpai:*hpai-unbound-addr*)))))
 
 (defparameter *raw-descr-request-2*
   (make-array 14
@@ -96,10 +95,9 @@
 
 (test descr-request--compare-to-raw-2
   (is (equalp *raw-descr-request-2*
-              (byte-seq-to-byte-array
-               (to-byte-seq
-                (make-descr-request
-                 (hpai:make-hpai "192.168.50.100" 50100)))))))
+              (to-byte-seq
+               (make-descr-request
+                (hpai:make-hpai "192.168.50.100" 50100))))))
 
 ;; --------------------------------------
 ;; connect request/response
