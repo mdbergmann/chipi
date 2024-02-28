@@ -42,3 +42,18 @@
   :perform (test-op (op c) (symbol-call :fiveam :run!
                                         (uiop:find-symbol* '#:test-suite
                                                            '#:knx-conn.tests))))
+
+#|
+TODOs:
+
+=> - separate 'write' request, without waiting for response
+- separate 'read' request, 'read' will get a result asynchonously.
+- move to separate project
+- more dpt types
+- dpt1, more on/off options like (t / nil)
+- default cemi tests
+- more error handling tests
+- add a 'client' top-level package (rename knx-connect to knx-client)
+- add separate 'server' package based on Sento
+
+|#
