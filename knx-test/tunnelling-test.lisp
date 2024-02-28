@@ -15,7 +15,13 @@
   (let ((req (make-tunnelling-request
               :channel-id 0
               :seq-counter 0
-              :cemi (make-cemi 1 2 3))))
-    (is-true req)))
+              :cemi (make-default-cemi
+                     :message-code +cemi-mc-l_data.ind+
+                     :dest-address (address:make-group-address "1/2/3")
+                     :apci (make-apci-gv-write)
+                     :dpt (dpt:make-dpt1 :switch :off)))))
+    (is (not (null req)))))
+
+;; TODO: Add more tests
 
 (run! 'tunnelling-tests)

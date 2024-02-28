@@ -41,10 +41,10 @@
    :reserved (elt data 3)))
 
 (defmethod to-byte-seq ((obj connection-header))
-  (list (conn-header-len obj)
-        (conn-header-channel-id obj)
-        (conn-header-seq-counter obj)
-        (conn-header-reserved obj)))
+  (vector (conn-header-len obj)
+          (conn-header-channel-id obj)
+          (conn-header-seq-counter obj)
+          (conn-header-reserved obj)))
 
 
 (defstruct (knx-tunnelling-request (:include knx-package)

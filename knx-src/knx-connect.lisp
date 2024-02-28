@@ -31,8 +31,7 @@
 (defun send-knx-data (request)
   (assert *conn* nil "No connection!")
   (log:debug "Sending obj: ~a" request)
-  (let ((req-bytes (byte-seq-to-byte-array
-                    (to-byte-seq request))))
+  (let ((req-bytes (to-byte-seq request)))
     (log:debug "Sending bytes: ~a" req-bytes)
     (usocket:socket-send *conn* req-bytes (length req-bytes))))
 

@@ -46,10 +46,6 @@
     (is (= (cemi-packet-num cut) 0))
     (is (apci-gv-write-p (cemi-apci cut)))
     (is (equalp #(12 104) (cemi-data cut)))
-
-    ;; check broadcast, priority, ack, error, from control byte 1
-    ;; check hop count, frame format, address type from control byte 2
-    
     ))
 
 (test make-cemi--default

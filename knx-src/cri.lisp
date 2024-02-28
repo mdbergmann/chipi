@@ -59,10 +59,10 @@
   (knx-layer-type (error "knx-layer-type is a required field") :type octet))
 
 (defmethod to-byte-seq ((cri tunneling-cri))
-  (list (cri-len cri)
-        (cri-conn-type cri)
-        (cri-knx-layer-type cri)
-        0))
+  (vector (cri-len cri)
+          (cri-conn-type cri)
+          (cri-knx-layer-type cri)
+          0))
 
 (defun make-tunneling-cri ()
   (%make-tunneling-cri :len +structure-len+

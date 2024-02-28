@@ -79,10 +79,10 @@
 | HEADER_SIZE_10 + sizeof(body)                                 |
 |                                                               |
 +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
-  (len +knx-header-len+)
-  (knxnetip-version +knx-netip-version+)
-  type
-  body-len)
+  (len +knx-header-len+ :type octet)
+  (knxnetip-version +knx-netip-version+ :type octet)
+  (type (error "Type is required!") :type (integer 2))
+  (body-len (error "Body length is required!") :type (integer 2)))
 
 (defun make-header (type body-len)
   (%make-header :type type
@@ -103,10 +103,11 @@
        :body-len eff-body-size))))
 
 (defmethod to-byte-seq ((obj knx-header))
-  (list (header-len obj)
-        (header-knxnetip-version obj)
-        (int-to-byte-list (header-type obj))
-        (int-to-byte-list (header-body-len obj))))
+  (concatenate 'vector
+               (vector (header-len obj)
+                       (header-knxnetip-version obj))
+               (int-to-byte-vec (header-type obj))
+               (int-to-byte-vec (header-body-len obj))))
 
 ;; -----------------------------
 ;; knx generic package
@@ -138,9 +139,6 @@ Returns the parsed object."
                :format-arguments (list type))))))
 
 (defmethod to-byte-seq ((obj knx-package))
-  (list (to-byte-seq (package-header obj))
-        (to-byte-seq (package-body obj))))
-
-(defmethod to-byte-seq ((obj list))
-  "Converts a list of objects to a byte sequence."
-  (apply #'append (mapcar #'to-byte-seq obj)))
+  (concatenate 'vector
+               (to-byte-seq (package-header obj))
+               (to-byte-seq (package-body obj))))

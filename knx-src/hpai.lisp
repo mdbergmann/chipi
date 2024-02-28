@@ -54,7 +54,8 @@ The ip-port is an integer between 0 and 65535."
               :ip-port (seq-to-array (subseq pkg-data 6 8) :len 2)))
 
 (defmethod to-byte-seq ((obj hpai))
-  (list (hpai-len obj)
-        (hpai-host-protocol-code obj)
-        (coerce (hpai-ip-address obj) 'list)
-        (coerce (hpai-ip-port obj) 'list)))
+  (concatenate 'vector
+               (vector (hpai-len obj)
+                       (hpai-host-protocol-code obj))
+               (hpai-ip-address obj)
+               (hpai-ip-port obj)))
