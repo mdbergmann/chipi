@@ -11,24 +11,41 @@
 
 (in-suite cemi-tests)
 
+;; CEMI{messageCode=L_DATA_IND, additionalInfo=AdditionalInfo{bytes=}, controlByte1=ControlByte1{standardFrame=true, repeatEnabled=false, broadcastType=NORMAL, priority=LOW, requestAcknowledge=false, errorConfirmation=false}, controlByte2=ControlByte2{addressType=GROUP, hopCount=5, frameFormat=0}, sourceAddress=IndividualAddress{address=1.3.14}, destinationAddress=GroupAddress{address=1034, address(2-level)=0/1034, address(3-level)=0/4/10}, npduLength=3, tpci=UNNUMBERED_PACKAGE, packetNumber=0, apci=GROUP_VALUE_WRITE, data=0x0C 68}
+
 (defparameter *l-data* #(41 0 188 208 19 14 4 10 3 0 128 12 104))
 
 (test parse-l-data.ind
   (let ((cut (parse-cemi *l-data*)))
     (is (typep cut 'cemi-l-data))
     (is (= (cemi-message-code cut) +cemi-mc-l_data.ind+))
+    
     (is (equal (cemi-ctrl1 cut) #*10111100))
+    (is (equalp `(:standard-frame t
+                  :repeat-enabled nil
+                  :broadcast-type ,+broadcast-type-normal+
+                  :priority ,+priority-low+
+                  :ack-requested nil
+                  :error-confirmation nil)
+                (ctrl1-rep cut)))
+
     (is (equal (cemi-ctrl2 cut) #*11010000))
+
     (is (typep (cemi-source-addr cut) 'knx-individual-address))
     (is (typep (cemi-destination-addr cut) 'knx-group-address))
     (is (string= (address-string-rep
                   (cemi-source-addr cut)) "1.3.14"))
     (is (string= (address-string-rep
                   (cemi-destination-addr cut)) "0/4/10")) ; Temp_EG_Az
-    (is (equalp (cemi-tpci cut) +tcpi-udt+));;   +tcpi-ucd+))
+
+    (is (equalp (cemi-tpci cut) +tcpi-udt+))
     (is (= (cemi-packet-num cut) 0))
     (is (apci-gv-write-p (cemi-apci cut)))
-    (is (equalp #(12) (cemi-data cut)))
+    (is (equalp #(12 104) (cemi-data cut)))
+
+    ;; check broadcast, priority, ack, error, from control byte 1
+    ;; check hop count, frame format, address type from control byte 2
+    
     ))
 
 (test make-cemi--default

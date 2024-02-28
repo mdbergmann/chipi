@@ -20,6 +20,14 @@
            #:+cemi-mc-l_data.req+
            #:+cemi-mc-l_data.con+
            #:+cemi-mc-l_data.ind+
+           ;; ctrl1
+           #:ctrl1-rep
+           #:+broadcast-type-system+
+           #:+broadcast-type-normal+
+           #:+priority-system+
+           #:+priority-normal+
+           #:+priority-urgent+
+           #:+priority-low+
            ;; tpci
            #:+tcpi-ucd+
            #:+tcpi-udt+
@@ -52,13 +60,13 @@
 
 ;; TCPI
 (defconstant +tcpi-udt+ #x00
-  "UDT (Unnumbered Package")
+  "UDT (Unnumbered Package)")
 (defconstant +tcpi-ndt+ #x40
-  "NDT (Numbered Package")
+  "NDT (Numbered Package)")
 (defconstant +tcpi-ucd+ #x80
-  "UCD (Unnumbered Control Data")
+  "UCD (Unnumbered Control Data)")
 (defconstant +tcpi-ncd+ #xc0
-  "NCD (Numbered Control Data")
+  "NCD (Numbered Control Data)")
 
 ;; Broadcast Type
 (defconstant +broadcast-type-system+ #x00)
@@ -186,6 +194,106 @@ cEMI frame
   (apci (error "Required apci!") :type apci)
   (data nil :type (or null dpt (vector octet))))
 
+(defmethod cemi-len ((cemi cemi-l-data))
+  "Return the length of the CEMI frame"
+  (+ (call-next-method cemi)
+     1 ; ctrl1
+     1 ; ctrl2
+     (* 2 (address:address-len))
+     1 ; npdu-len
+     (cemi-npdu-len cemi)))
+
+;; --------------------------
+;; control octet 1
+;; --------------------------
+
+(defun %make-ctrl1-octet (&key (standard-frame t)
+                            (repeat nil)
+                            (broadcast-type +broadcast-type-normal+)
+                            (priority +priority-low+)
+                            (ack-request nil)
+                            (err-confirm nil))
+  (logior (if standard-frame (ash #x01 7) #x00)
+          (if repeat 0 (ash #x01 5))
+          (ash broadcast-type 4)
+          (ash priority 2)
+          (if ack-request #x02 #x00)
+          (if err-confirm #x01 #x00)))
+
+(defun ctrl1-rep (cemi)
+  (list :standard-frame (%ctrl1-standard-frame-p cemi)
+        :repeat-enabled (%ctrl1-repeat-p cemi)
+        :broadcast-type (%ctrl1-broadcast-type cemi)
+        :priority (%ctrl1-priority cemi)
+        :ack-requested (%ctrl1-ack-p cemi)
+        :error-confirmation (%ctrl1-error-confirm-p cemi)))
+
+(defun %ctrl1-standard-frame-p (cemi)
+  "Return T if CEMI is a standard frame
+x... .... frame type
+0 = extended frame (9-263 octets)
+1 = standard frame (8-23 octets)"
+  (= 1 (elt (cemi-ctrl1 cemi) 0)))
+
+(defun %ctrl1-repeat-p (cemi)
+  "Return T if CEMI is a repeat frame
+..x. .... repeat
+0 = repeat on medium if error
+1 = do not repeat"
+  (= 0 (elt (cemi-ctrl1 cemi) 2)))
+
+(defun %ctrl1-broadcast-type (cemi)
+  "Return the broadcast type of CEMI
+...x .... broadcast
+0 = system broadcast
+1 = normal broadcast"
+  (cond
+    ((= 0 (elt (cemi-ctrl1 cemi) 3))
+     +broadcast-type-system+)
+    ((= 1 (elt (cemi-ctrl1 cemi) 3))
+     +broadcast-type-normal+)))
+
+(defun %ctrl1-priority (cemi)
+  "Return the priority of CEMI
+.... xx.. priority"
+  (let ((ctrl1 (cemi-ctrl1 cemi)))
+    (cond
+      ((and (elt ctrl1 4) (elt ctrl1 5))
+       +priority-low+)
+      ((and (elt ctrl1 4) (not (elt ctrl1 5)))
+       +priority-urgent+)
+      ((and (not (elt ctrl1 4)) (elt ctrl1 5))
+       +priority-normal+)
+      ((and (not (elt ctrl1 4)) (not (elt ctrl1 5)))
+       +priority-system+))))
+
+(defun %ctrl1-ack-p (cemi)
+  "Return T if CEMI requests an ACK
+.... ..x. acknowledge request flag
+0 = no ACK requested
+1 = ACK requested"
+  (= 1 (elt (cemi-ctrl1 cemi) 6)))
+
+(defun %ctrl1-error-confirm-p (cemi)
+  "Return T if CEMI is an error confirmation
+.... ...x confirmation flag
+0 = no error (confirm)
+1 = error (L-Data.Connection)"
+  (= 1 (elt (cemi-ctrl1 cemi) 7)))
+
+;; --------------------------
+;; control octet 2
+;; --------------------------
+
+(defun %make-ctrl2-octet (address)
+  (logior (if (knx-group-address-p address) #x80 #x00)
+          (ash (logand +hop-count-default+ #x07) 4)
+          (logand +frame-format-default+ #x0f)))
+
+;; --------------------------
+;; parsing and construction
+;; --------------------------
+
 (defun array-copy (target source &key (start-target 0))
   "Copy elements from SOURCE to TARGET"
   (let ((target-index start-target)
@@ -263,15 +371,6 @@ cEMI frame
     (log:debug "CEMI byte len: ~a" byte-count)
     (subseq bytes 0 byte-count)))
 
-(defmethod cemi-len ((cemi cemi-l-data))
-  "Return the length of the CEMI frame"
-  (+ (call-next-method cemi)
-     1 ; ctrl1
-     1 ; ctrl2
-     (* 2 (address:address-len))
-     1 ; npdu-len
-     (cemi-npdu-len cemi)))
-
 (defun parse-cemi (data)
   "Parse CEMI frame from `DATA`"
   (let* ((message-code (elt data 0))
@@ -280,8 +379,7 @@ cEMI frame
          (additional-info (if (> info-len 0)
                               (subseq data 2 (1- service-info-start)) ; ?
                               nil))
-         (service-info (subseq data service-info-start))
-         (_ (log:debug "service-info: ~a" service-info)))
+         (service-info (subseq data service-info-start)))
     (cond
       ((cemi-l_data-p message-code)
        (let* ((ctrl1 (elt service-info 0))
@@ -291,41 +389,35 @@ cEMI frame
               (npdu-len (elt service-info 6))
               (npdu (if (> npdu-len 0)
                         (seq-to-array
-                         (subseq service-info 7 (+ 7 npdu-len))
+                         (subseq service-info 6); (+ 6 (1+ npdu-len))) ; + len-byte
                          :type 'vector)
                         nil))
-              (_ (log:debug "npdu: ~a" npdu))
-              (_ (log:debug "npdu-len: ~a" npdu-len))
               (tpci (when npdu
-                      (logand (elt npdu 0) #xc0)))
-              (_ (log:debug "tcpi: ~a" tpci))
+                      (logand (elt npdu 1) #xc0)))
               (packet-num (when npdu
-                            (ash (logand (elt npdu 0) #x3c) -2)))
-              (_ (log:debug "packet-num: ~a" packet-num))
+                            (ash (logand (elt npdu 1) #x3c) -2)))
               (apci (when npdu
                       (let ((apci-value (to-int
-                                         (logand (elt npdu 0) #x03)
-                                         (logand (elt npdu 1) #xc0))))
+                                         (logand (elt npdu 1) #x03)
+                                         (logand (elt npdu 2) #xc0))))
                         (find-if (lambda (apci)
                                    (apci-equal-p
                                     apci apci-value))
                                  *apcis*))))
-              (_ (log:debug "apci: ~a" apci))
               (data (when npdu
                       (cond
                         ((apci-gv-read-p apci)
                          nil)
                         ((= npdu-len 1)
                          ;; 6 bits, part of apci / optimized dpt
-                         (vector (logand (elt npdu 1) #x3f)))
+                         (vector (logand (elt npdu 2) #x3f)))
                         (t
                          ;; then bytes are beyond the apci
-                         (let ((end-index (1- (+ 2 (1- npdu-len)))))
-                           (log:debug "end-index: ~a" end-index)
+                         (let* ((start-index 3)
+                                (end-index (1- (+ start-index npdu-len))))
                            (seq-to-array
-                            (subseq npdu 2 end-index)
-                            :type 'vector))))))
-              (_ (log:debug "data: ~a" data)))
+                            (subseq npdu start-index end-index)
+                            :type 'vector)))))))
          (%make-cemi-l-data
           :message-code message-code
           :info-len info-len
@@ -342,24 +434,6 @@ cEMI frame
           :apci apci
           :data data
           ))))))
-
-(defun %make-ctrl1-octet (&key (standard-frame t)
-                            (repeat nil)
-                            (broadcast-type +broadcast-type-normal+)
-                            (priority +priority-low+)
-                            (ack-request nil)
-                            (err-confirm nil))
-  (logior (if standard-frame (ash #x01 7) #x00)
-          (if repeat 0 (ash #x01 5))
-          (ash broadcast-type 4)
-          (ash priority 2)
-          (if ack-request #x02 #x00)
-          (if err-confirm #x01 #x00)))
-
-(defun %make-ctrl2-octet (address)
-  (logior (if (knx-group-address-p address) #x80 #x00)
-          (ash (logand +hop-count-default+ #x07) 4)
-          (logand +frame-format-default+ #x0f)))
 
 (defun make-default-cemi (&key message-code dest-address apci dpt)
   (let ((add-info nil)
