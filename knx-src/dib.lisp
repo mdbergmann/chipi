@@ -32,7 +32,9 @@ Generic DIB structure:
 | Description Information Block data                            |
 | (?? octets)                                                   |
 +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+"
-  len type data)
+  (len (error "Required len") :type octet)
+  (type (error "Required type") :type octet)
+  (data (error "Required data") :type (vector octet)))
 
 (defstruct (dib-device-info (:include dib)
                             (:constructor %make-dib-device-info))
@@ -66,8 +68,8 @@ Generic DIB structure:
 | (30 octets)                                                   |
 +- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -+
 +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
-  (knx-medium 0 :type (unsigned-byte 8))
-  (device-status (number-to-bit-vector 0 8) :type (vector bit 8))
+  (knx-medium 0 :type octet)
+  (device-status (number-to-bit-vector 0 8) :type (bit-vector 8))
   (knx-individual-address (error "Required knx-individual-address")
    :type (vector octet 2))
   (proj-inst-identifier (error "Required proj-inst-identifier")

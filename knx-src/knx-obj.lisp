@@ -48,7 +48,9 @@
 ;; generic functions
 ;; -----------------------------
 
-(defgeneric to-byte-seq (knx-obj))
+(defgeneric to-byte-seq (knx-obj)
+  (:documentation "Converts the object to the byte sequence.
+The byte-sequence should be a flat vector of octets."))
 (defgeneric parse-to-obj (obj-type header-data body-data))
 
 
@@ -81,8 +83,8 @@
 +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+"
   (len +knx-header-len+ :type octet)
   (knxnetip-version +knx-netip-version+ :type octet)
-  (type (error "Type is required!") :type (integer 2))
-  (body-len (error "Body length is required!") :type (integer 2)))
+  (type (error "Type is required!") :type integer)
+  (body-len (error "Body length is required!") :type integer))
 
 (defun make-header (type body-len)
   (%make-header :type type
@@ -116,7 +118,8 @@
 (defstruct (knx-package (:include knx-obj)
                         (:conc-name package-))
   (header (error "Header is required!") :type knx-header)
-  body)
+  ;; body is handled in the separate sub-structs
+  )
 
 (defun parse-root-knx-object (pkg-data)
   "Root object parse function.
@@ -140,4 +143,3 @@ Returns the parsed object."
 
 (defmethod to-byte-seq ((obj knx-package))
   (to-byte-seq (package-header obj)))
-  ;; body is handled in the separate sub-structs
