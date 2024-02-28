@@ -6,6 +6,7 @@
            ;; send requests
            #:retrieve-descr-info
            #:establish-tunnel-connection
+           #:write-request
            ;; receive data
            #:receive-knx-request
            ))
@@ -98,7 +99,8 @@
    (make-tunnelling-request
     :channel-id 0
     :seq-counter 0
-    :cemi (make-cemi
+    :cemi (make-default-cemi
            :message-code +cemi-mc-l_data.req+
+           :dest-address group-address
            :apci (make-apci-gv-write)
            :dpt dpt))))

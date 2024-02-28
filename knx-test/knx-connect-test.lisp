@@ -210,6 +210,7 @@
 
 (test switch-value-on-group-address
   (with-mocks ()
+    (answer usocket:socket-send t)
     (write-request (make-group-address "0/4/10")
                    (make-dpt1 :switch :on))
     (is (= 1 (length (invocations 'usocket:socket-send))))    

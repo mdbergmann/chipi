@@ -37,6 +37,11 @@ KNXnet/IP body
    :hpai hpai
    :body hpai))
 
+(defmethod to-byte-seq ((obj knx-descr-request))
+  (concatenate 'vector
+               (call-next-method obj)
+               (to-byte-seq (descr-request-hpai obj))))
+
 ;; -----------------------------
 ;; knx description response
 ;; -----------------------------
@@ -69,3 +74,10 @@ KNXnet/IP body
      :device-hardware (first dibs)
      :supp-svc-families (second dibs)
      :other-dib-info (nthcdr 2 dibs))))
+
+(defmethod to-byte-seq ((obj knx-descr-response))
+  (concatenate 'vector
+               (call-next-method obj)
+               (to-byte-seq (descr-response-device-hardware obj))
+               (to-byte-seq (descr-response-supp-svc-families obj))
+               (map 'vector #'to-byte-seq (descr-response-other-dib-info obj))))

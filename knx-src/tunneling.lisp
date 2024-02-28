@@ -84,6 +84,12 @@ cEMI frame
      :conn-header conn-header
      :cemi (parse-cemi (subseq body +conn-header-structure-len+)))))
 
+(defmethod to-byte-seq ((obj knx-tunnelling-request))
+  (concatenate 'vector
+               (call-next-method obj)
+               (to-byte-seq (tunnelling-request-conn-header obj))
+               (to-byte-seq (tunnelling-request-cemi obj))))
+
 (defun make-tunnelling-request (&key channel-id seq-counter cemi)
   (%make-tunnelling-request
    :header (make-header +knx-tunnelling-request+
@@ -121,6 +127,11 @@ Connection header
      :header header
      :body body
      :conn-header conn-header)))
+
+(defmethod to-byte-seq ((obj knx-tunnelling-ack))
+  (concatenate 'vector
+               (call-next-method obj)
+               (to-byte-seq (tunnelling-ack-conn-header obj))))
 
 (defun make-tunnelling-ack (tunnelling-request)
   (let ((request-conn-header
