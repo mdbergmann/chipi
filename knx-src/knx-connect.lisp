@@ -18,6 +18,7 @@
 
 (defvar *conn* nil)
 (defun connect (address &optional (port 3761))
+  "Connect to the KNXnet/IP gateway at the given `address` and `port`."
   (let ((conn (usocket:socket-connect
                address port
                :protocol :datagram
@@ -27,10 +28,12 @@
     (setf *conn* conn)))
 
 (defun disconnect ()
+  "Disconnect from the KNXnet/IP gateway."
   (assert *conn* nil "No connection!")
   (usocket:socket-close *conn*))
 
 (defun send-knx-data (request)
+  "Send the given `request` to the KNXnet/IP gateway."
   (assert *conn* nil "No connection!")
   (log:debug "Sending obj: ~a" request)
   (let ((req-bytes (to-byte-seq request)))
@@ -38,6 +41,7 @@
     (usocket:socket-send *conn* req-bytes (length req-bytes))))
 
 (defun receive-knx-data ()
+  "Receive a KNXnet/IP request from the KNXnet/IP gateway."
   (assert *conn* nil "No connection!")
   (let ((buf (make-array 1024 :element-type 'octet)))
     (handler-case 
@@ -56,13 +60,6 @@
 ;; -----------------------------
 ;; high-level comm
 ;; -----------------------------
-
-(defun receive-knx-request ()
-  (let ((request (receive-knx-data)))
-    (log:debug "Received obj: ~a" request)
-    request))
-
-;; ---------------------------------
 
 (defmacro %with-request-response (request)
   `(progn

@@ -48,7 +48,7 @@ TODOs:
 
 OK - separate 'write' request, without waiting for response
 OK - separate 'read' request, 'read' will get a result asynchonously.
-- move to separate project
+=> - move to separate project
 - do something with channel-id and seq-counter
 - implement disconnect
 - more dpt types
