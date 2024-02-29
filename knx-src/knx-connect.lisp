@@ -6,7 +6,8 @@
            ;; send requests
            #:retrieve-descr-info
            #:establish-tunnel-connection
-           #:write-dpt-request
+           #:send-write-request
+           #:send-read-request
            ;; receive data
            #:receive-knx-request
            ))
@@ -76,7 +77,8 @@
 
 ;; ---------------------------------
 
-(defun write-dpt-request (group-address dpt)
+(defun send-write-request (group-address dpt)
+  "Send a tunnelling-request as L-Data.Req with APCI Group-Value-Write to the given `address:knx-group-address` with the given data point type to be set."
   (send-knx-data
    (make-tunnelling-request
     :channel-id 0
@@ -86,3 +88,15 @@
            :dest-address group-address
            :apci (make-apci-gv-write)
            :dpt dpt))))
+
+(defun send-read-request (group-address)
+  "Send a tunnelling-request as L-Data.Req with APCI Group-Value-Read to the given `address:knx-group-address`. The response to this request will be received asynchronously."
+  (send-knx-data
+   (make-tunnelling-request
+    :channel-id 0
+    :seq-counter 0
+    :cemi (make-default-cemi
+           :message-code +cemi-mc-l_data.req+
+           :dest-address group-address
+           :apci (make-apci-gv-read)
+           :dpt nil))))

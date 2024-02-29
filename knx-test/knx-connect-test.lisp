@@ -173,16 +173,22 @@
     (is (= 1 (length (invocations 'usocket:socket-receive))))))
 
 ;; --------------------------------------
-;; tunneling request receival
+;; tunneling request sending
 ;; --------------------------------------
 
 ;; switch value on group address
 
-(test switch-value-on-group-address
+(test send-write-request--switch-on
   (with-mocks ()
     (answer usocket:socket-send t)
-    (write-dpt-request (make-group-address "0/4/10")
+    (send-write-request (make-group-address "0/4/10")
                        (make-dpt1 :switch :on))
+    (is (= 1 (length (invocations 'usocket:socket-send))))))
+
+(test send-read-request
+  (with-mocks ()
+    (answer usocket:socket-send t)
+    (send-read-request (make-group-address "0/4/10"))
     (is (= 1 (length (invocations 'usocket:socket-send))))))
 
 (run! 'knx-connect-tests)
