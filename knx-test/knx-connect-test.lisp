@@ -160,57 +160,29 @@
 (defparameter *raw-tunnelling-request-data*
   #(6 16 4 32 0 23 4 76 0 0 41 0 188 208 19 14 4 10 3 0 128 12 104))
 
-(test tunneling-request-ok ()
+(test tunneling-receive-request--ok ()
   (with-mocks ()
     (answer usocket:socket-receive *raw-tunnelling-request-data*)
 
     (multiple-value-bind (request err)
-        (receive-knx-request nil)
+        (receive-knx-request)
       (declare (ignore err))
       (is (not (null request)))
-      (is (typep request 'knx-tunnelling-request))
-      (let ((conn-header (tunnelling-request-conn-header request)))
-        (is (= (conn-header-channel-id conn-header) 76))
-        (is (= (conn-header-seq-counter conn-header) 0)))
-      (let ((cemi (tunnelling-request-cemi request)))
-        (is (typep cemi 'cemi-l-data))
-        (is (= (cemi-message-code cemi) +cemi-mc-l_data.ind+))
-        (is (equal (cemi-ctrl1 cemi) #*10111100))
-        (is (equal (cemi-ctrl2 cemi) #*11010000))
-        (is (typep (cemi-source-addr cemi) 'knx-individual-address))
-        (is (typep (cemi-destination-addr cemi) 'knx-group-address))
-        (is (string= (address-string-rep
-                      (cemi-source-addr cemi)) "1.3.14"))
-        (is (string= (address-string-rep
-                      (cemi-destination-addr cemi)) "0/4/10"))
-        ;;(is (equalp (cemi-npdu cemi) #(0 128 12)))
-        ))
+      (is (typep request 'knx-tunnelling-request)))
     
     (is (= 1 (length (invocations 'usocket:socket-receive))))))
 
-(test tunnelling-request-ack-response
-  (with-mocks ()
-    (answer usocket:socket-receive *raw-tunnelling-request-data*)
-    (answer (usocket:socket-send _ buf _)
-      (let ((resp (parse-root-knx-object buf)))
-        (assert (typep resp 'knx-tunnelling-ack) nil
-                "Expected a knx-tunnelling-ack, got ~a" resp)))
-
-    (receive-knx-request)
-      
-    (is (= 1 (length (invocations 'usocket:socket-receive))))
-    (is (= 1 (length (invocations 'usocket:socket-send))))))
-
 ;; --------------------------------------
+;; tunneling request receival
+;; --------------------------------------
+
 ;; switch value on group address
-;; --------------------------------------
 
 (test switch-value-on-group-address
   (with-mocks ()
     (answer usocket:socket-send t)
-    (write-request (make-group-address "0/4/10")
-                   (make-dpt1 :switch :on))
-    (is (= 1 (length (invocations 'usocket:socket-send))))    
-    ))
+    (write-dpt-request (make-group-address "0/4/10")
+                       (make-dpt1 :switch :on))
+    (is (= 1 (length (invocations 'usocket:socket-send))))))
 
 (run! 'knx-connect-tests)

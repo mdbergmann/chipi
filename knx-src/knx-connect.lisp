@@ -6,7 +6,7 @@
            ;; send requests
            #:retrieve-descr-info
            #:establish-tunnel-connection
-           #:write-request
+           #:write-dpt-request
            ;; receive data
            #:receive-knx-request
            ))
@@ -56,29 +56,9 @@
 ;; high-level comm
 ;; -----------------------------
 
-(defun %on-request-received (request)
-  (multiple-value-bind (req err) request
-    (when err
-      (log:info "Error: ~a" err)
-      (return-from %on-request-received))
-    (typecase req
-      (knx-tunnelling-request
-       (progn
-         (log:info "Received knx-tunnelling-request")
-         (log:info "Sending tunnelling-ack...")
-         (send-knx-data (make-tunnelling-ack request))
-         (log:debug "Sent tunnelling-ack")))
-      (t
-       (log:info "Received unknown request: ~a" request)))))
-
-
-(defun receive-knx-request (&optional
-                              (request-handler-fun
-                               #'%on-request-received))
+(defun receive-knx-request ()
   (let ((request (receive-knx-data)))
     (log:debug "Received obj: ~a" request)
-    (when request-handler-fun
-      (funcall request-handler-fun request))
     request))
 
 ;; ---------------------------------
@@ -94,8 +74,10 @@
 (defun establish-tunnel-connection ()
   (%with-request-response (make-connect-request)))
 
-(defun write-request (group-address dpt)
-  (%with-request-response
+;; ---------------------------------
+
+(defun write-dpt-request (group-address dpt)
+  (send-knx-data
    (make-tunnelling-request
     :channel-id 0
     :seq-counter 0

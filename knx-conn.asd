@@ -46,7 +46,7 @@
 #|
 TODOs:
 
-=> - separate 'write' request, without waiting for response
+OK - separate 'write' request, without waiting for response
 - separate 'read' request, 'read' will get a result asynchonously.
 - move to separate project
 - more dpt types
