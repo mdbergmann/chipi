@@ -80,7 +80,6 @@ cEMI frame
                       (subseq body 0 +conn-header-structure-len+))))
     (%make-tunnelling-request
      :header header
-     :body body
      :conn-header conn-header
      :cemi (parse-cemi (subseq body +conn-header-structure-len+)))))
 
@@ -125,7 +124,6 @@ Connection header
                       (subseq body 0 +conn-header-structure-len+))))
     (%make-tunnelling-ack
      :header header
-     :body body
      :conn-header conn-header)))
 
 (defmethod to-byte-seq ((obj knx-tunnelling-ack))
@@ -139,5 +137,4 @@ Connection header
     (%make-tunnelling-ack
      :header (make-header +knx-tunnelling-ack+
                           +conn-header-structure-len+)
-     :body nil
      :conn-header request-conn-header)))

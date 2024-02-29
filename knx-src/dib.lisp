@@ -33,8 +33,7 @@ Generic DIB structure:
 | (?? octets)                                                   |
 +-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+-7-+-6-+-5-+-4-+-3-+-2-+-1-+-0-+"
   (len (error "Required len") :type octet)
-  (type (error "Required type") :type octet)
-  (data (error "Required data") :type (vector octet)))
+  (type (error "Required type") :type octet))
 
 (defstruct (dib-device-info (:include dib)
                             (:constructor %make-dib-device-info))
@@ -97,7 +96,6 @@ Generic DIB structure:
     (%make-dib-device-info
      :len len
      :type +dib-typecodes-device-info+
-     :data data
      :knx-medium (elt data 0)
      :device-status (number-to-bit-vector (elt data 1) 8)
      :knx-individual-address (seq-to-array (subseq data 2 4) :len 2)
@@ -164,7 +162,6 @@ Generic DIB structure:
     (%make-dib-supp-svc-families
      :len len
      :type +dib-typecodes-supp-svc-families+
-     :data data
      :service-families service-families)))
 
 (defun dib-lisp-p (list)
@@ -193,7 +190,8 @@ Generic DIB structure:
                  ((= typecode +dib-typecodes-supp-svc-families+)
                   (%parse-dib-supp-svc-families len data))
                  (t
-                  (%make-dib :len len :type typecode :data data)))))
+                  (log:warn "Unknown dib: ~a" typecode)
+                  (%make-dib :len len :type typecode)))))
         (setf sub-data (subseq sub-data end-index))
         (setf dibs (append dibs (list dib)))))
     dibs))

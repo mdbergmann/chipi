@@ -41,10 +41,6 @@
         (is (eql descr-info::+knx-descr-response+ (header-type header)))
         (is (eql knxobj::+knx-netip-version+ (header-knxnetip-version header)))
         (is (eql (- 84 knxobj::+knx-header-len+) (header-body-len header))))
-      ;; check knx-body
-      (let ((body (package-body result)))
-        (is-true (not (null body)))
-        (is (eql 78 (length body))))
       ;; check dibs
       (is (typep (descr-response-device-hardware result)
                  'dib))
@@ -56,7 +52,7 @@
                  'dib-supp-svc-families))
       (is (typep (descr-response-other-dib-info result)
                  'dib-list))
-      (is-true (not (endp (descr-response-other-dib-info result)))))
+      (is-false (endp (descr-response-other-dib-info result))))
 
     (is (eql 1 (length (invocations 'usocket:socket-send))))
     (is (eql 1 (length (invocations 'usocket:socket-receive))))))
@@ -170,6 +166,7 @@
 
     (multiple-value-bind (request err)
         (receive-knx-request nil)
+      (declare (ignore err))
       (is (not (null request)))
       (is (typep request 'knx-tunnelling-request))
       (let ((conn-header (tunnelling-request-conn-header request)))

@@ -339,7 +339,7 @@ x... .... destination address type
         (byte-count 0)
         (optimized-apci nil)
         (apci-data-byte-array #()))
-    (setf (elt bytes byte-count) (cemi-message-code cemi)
+    (setf (elt bytes byte-count) (cemi-message-code cemi))
     (incf byte-count)
     (setf (elt bytes byte-count) (cemi-info-len cemi))
     (incf byte-count)
@@ -461,7 +461,7 @@ x... .... destination address type
           :tpci tpci
           :packet-num packet-num
           :apci apci
-          :data data)))))))
+          :data data))))))
 
 (defun make-default-cemi (&key message-code dest-address apci dpt)
   (let ((add-info nil)

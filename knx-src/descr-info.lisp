@@ -34,8 +34,7 @@ KNXnet/IP body
 (defun make-descr-request (hpai)
   (%make-descr-request
    :header (make-header +knx-descr-request+ (hpai-len hpai))
-   :hpai hpai
-   :body hpai))
+   :hpai hpai))
 
 (defmethod to-byte-seq ((obj knx-descr-request))
   (concatenate 'vector
@@ -70,7 +69,6 @@ KNXnet/IP body
   (let ((dibs (parse-dibs body)))
     (%make-descr-response
      :header header
-     :body body
      :device-hardware (first dibs)
      :supp-svc-families (second dibs)
      :other-dib-info (nthcdr 2 dibs))))
