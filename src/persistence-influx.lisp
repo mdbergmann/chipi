@@ -75,7 +75,7 @@ Specify those types as 'type-hint' in the item definition."))
              (format nil "~a,item=~a value=~ai ~a"
                      item-name item-name item-value item-timestamp))
             ((floatp item-value)
-             (format nil "~a,item=~a value=~a ~a"
+             (format nil "~a,item=~a value=~f ~a"
                      item-name item-name item-value item-timestamp))
             ((or (eq item-value 'item:true)
                  (eq item-value 'item:false))
