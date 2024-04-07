@@ -82,7 +82,6 @@ When triggered, the rule will log a message to the info log.
                 (log:info "Rule '~a' destroyed." name)))))
 
 (defun %receive-fun (msg name do-fun item-names)
-  (format t "Received msg: ~a at rule: ~a~%" msg name)
   (log:debug "Received msg: ~a at rule: ~a" msg name)
   (when do-fun
     (when (typep msg 'item:item-changed-event)
