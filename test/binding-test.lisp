@@ -111,8 +111,8 @@
         (answer (item:set-value _ value)
           (assert (>= value 0)))
         (bind-item binding 'my-fake-item)
-        (is-true (await-cond 0.3
-                   (>= 2 (length (invocations 'item:set-value)))))))))
+        (is-true (await-cond 1.5
+                   (>= call-count 3)))))))
 
 (test binding--delay-calls-to-all-bound-items
   "`pulled' value should be set on all bound items."

@@ -89,7 +89,7 @@ The output value will be set on the item, should an item be attached.")
       (when (and delay (not (second bound-items)))
         (log:info "Scheduling recurring delay: " delay " on: " binding)
         (%add-timer binding
-                    (timer:schedule-once delay timer-fun)
+                    (timer:schedule-recurring delay timer-fun)
                     :delay)))))
 
 (defun %add-timer (binding timer timer-type)

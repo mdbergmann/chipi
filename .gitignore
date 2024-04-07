@@ -7,3 +7,4 @@
 /runtime/
 /src/logs/
 .qlot/
+*.lx64fsl
