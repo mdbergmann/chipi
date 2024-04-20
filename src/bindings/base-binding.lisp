@@ -33,9 +33,9 @@ The output value will be set on the item, should an item be attached.")
 (defmethod print-object ((obj binding) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (with-slots (initial-delay delay call-push-p) obj
-        (format stream "initial-delay: ~a, delay: ~a, call-push-p: ~a"
-                initial-delay delay call-push-p))
+      (with-slots (initial-delay delay call-push-p bound-items) obj
+        (format stream "initial-delay: ~a, delay: ~a, call-push-p: ~a, bound-items: ~a"
+                initial-delay delay call-push-p bound-items))
       (get-output-stream-string string-stream))))
 
 (defun make-function-binding (&key
@@ -66,7 +66,7 @@ The output value will be set on the item, should an item be attached.")
             (dolist (item bound-items)
               (item:set-value item result)))
         (error (c)
-          (log:warn "Error pulling value from: " binding ", error: " c))))))
+          (log:warn "Error pulling value from: ~a, error: ~a" binding c))))))
 
 (defun exec-push (binding value)
   (log:debug "Pushing value: " value " to: " binding)
