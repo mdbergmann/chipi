@@ -30,7 +30,6 @@
 (defmacro assert-fetch-error (fetched)
   `(is-true (miscutils:await-cond 2.0
               (let ((resolved (future:fresult ,fetched)))
-                (format t "resolved: ~a~%" resolved)
                 (and (not (eq resolved :not-ready))
                      (consp resolved)
                      (equal (car resolved) :error))))))

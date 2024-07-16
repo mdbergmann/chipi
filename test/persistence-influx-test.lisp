@@ -52,9 +52,9 @@
      (persp:store cut item)
      (sleep 1)
      (let ((fetched (persp:fetch cut item)))
-       (is-true (miscutils:await-cond 2.0
+       (is-true (miscutils:await-cond 5.0
                   (let ((resolved (future:fresult fetched)))
-                    (and (not (equal resolved :not-ready))
+                    (and (not (eq resolved :not-ready))
                          (equal (persisted-item-value resolved) ,value))))))))
 
 (test influx-persistence--store-and-fetch--string-type

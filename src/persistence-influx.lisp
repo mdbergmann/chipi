@@ -10,15 +10,20 @@
 (in-package :chipi.influx-persistence)
 
 (defclass influx-persistence (persistence)
-  ((base-url :initform nil
+  ((base-url :initarg :base-url
+             :initform nil
              :reader base-url)
-   (token :initform nil
+   (token :initarg :token
+          :initform nil
           :reader token)
-   (org :initform nil
+   (org :initarg :org
+        :initform nil
         :reader org)
-   (bucket :initform nil
+   (bucket :initarg :bucket
+           :initform nil
            :reader bucket)
-   (precision :initform nil
+   (precision :initarg :precision
+              :initform "s"
               :reader precision))
   (:documentation "Influx persistence implementation.
 Influx persistence supports the following value types:
@@ -41,19 +46,6 @@ Specify those types as 'type-hint' in the item definition."))
                            :token token
                            :org org
                            :bucket bucket))
-
-(defmethod act:pre-start ((persistence influx-persistence))
-  (log:debug "Pre-starting persistence: ~a" persistence)
-  (let ((other-args (act:other-init-args persistence)))
-    (log:debug "Other args: ~a" other-args)
-    (when other-args
-      (with-slots (base-url token org bucket precision) persistence
-        (setf base-url (getf other-args :base-url)
-              token (getf other-args :token)
-              org (getf other-args :org)
-              bucket (getf other-args :bucket)
-              precision "s"))))
-  (call-next-method))
 
 (defmethod initialize ((persistence influx-persistence))
   (log:info "Initializing persistence: ~a" persistence))
@@ -185,7 +177,7 @@ Specify those types as 'type-hint' in the item definition."))
             ((eq type-hint 'integer)
              (parse-integer value))
             ((eq type-hint 'float)
-             (parse-float:parse-float value))
+             (coerce (parse-float:parse-float value) 'single-float))
             ((eq type-hint 'boolean)
              (if (string= "true" value)
                  'item:true
@@ -208,6 +200,7 @@ Specify those types as 'type-hint' in the item definition."))
            (value (cdr last-pair))
            (persisted-item (%make-persisted-item timestamp value type-hint)))
       (log:debug "Loaded persisted item: ~a" persisted-item)
+      (log:trace "Loaded persisted item value type: ~a" (type-of (persisted-item-value persisted-item)))
       persisted-item)))
 
 (defmethod retrieve ((persistence influx-persistence) item)

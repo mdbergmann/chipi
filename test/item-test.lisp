@@ -278,7 +278,7 @@ that when loading the value the second (or any more) persistence does not persit
     (let* ((item (make-item 'my-item))
            (pushed-value)
            (binding1 (binding:make-function-binding
-                      :push (lambda (value) (error "on push!"))
+                      :push (lambda (value) (declare (ignore value)) (error "on push!"))
                       :call-push-p t))
            (binding2 (binding:make-function-binding
                       :push (lambda (value) (setf pushed-value value))
