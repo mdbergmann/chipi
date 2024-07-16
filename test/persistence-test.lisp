@@ -12,20 +12,25 @@
 
 (in-suite persistence-tests)
 
+(defun cleanup-tmp-dir ()
+  (uiop:delete-directory-tree
+   (uiop:ensure-directory-pathname #P"/tmp/chipi")
+   :validate t
+   :if-does-not-exist :ignore))
+
 (def-fixture init-destroy-env ()
+  (cleanup-tmp-dir)
   (unwind-protect
        (progn 
          (&body))
     (progn
       (envi:shutdown-env)
-      (uiop:delete-directory-tree
-       (uiop:ensure-directory-pathname #P"/tmp/chipi")
-       :validate t
-       :if-does-not-exist :ignore))))
+      (cleanup-tmp-dir))))
 
 (defmacro assert-fetch-error (fetched)
   `(is-true (miscutils:await-cond 2.0
               (let ((resolved (future:fresult ,fetched)))
+                (format t "resolved: ~a~%" resolved)
                 (and (not (eq resolved :not-ready))
                      (consp resolved)
                      (equal (car resolved) :error))))))
@@ -54,7 +59,7 @@
       (let ((fetched (persp:fetch cut item)))
         (is-true (miscutils:await-cond 0.5
                    (let ((resolved (future:fresult fetched)))
-                     (and (not (equal resolved :not-ready))
+                     (and (not (eq resolved :not-ready))
                           (equal (persisted-item-value resolved) "foobar")))))))))
 
 (test simple-persistence--error-on-use-of-range

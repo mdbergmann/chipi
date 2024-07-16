@@ -9,23 +9,17 @@
 (in-package :chipi.simple-persistence)
 
 (defclass simple-persistence (persistence)
-  ((storage-root-path :initform #P""
-                      :documentation "The root path where item values are stored.")))
+  ((storage-root-path :initarg :storage-root-path
+                      :initform #P""
+                      :reader storage-root-path))
+  (:documentation "The root path where item values are stored."))
 
 (defun make-simple-persistence (id &key storage-root-path)
   (persp::make-persistence id
-                           :type 'simple-persistence
-                           :storage-root-path storage-root-path))
-
-(defmethod act:pre-start ((persistence simple-persistence))
-  (log:debug "Pre-starting persistence: ~a" persistence)
-  (let ((other-args (act:other-init-args persistence)))
-    (log:debug "Other args: ~a" other-args)
-    (when other-args
-      (setf (slot-value persistence 'storage-root-path)
-            (uiop:ensure-directory-pathname
-             (getf other-args :storage-root-path #P"")))))
-  (call-next-method))
+                           :type
+                           'simple-persistence
+                           :storage-root-path
+                           (uiop:ensure-directory-pathname storage-root-path)))
 
 (defmethod initialize ((persistence simple-persistence))
   (log:info "Initializing persistence: ~a" persistence)

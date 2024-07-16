@@ -3,39 +3,39 @@
 (eval-when (:compile-toplevel)
   (shadowing-import '(act:!
                       act:?
-                      act:reply)))
+                      act:reply
+                      act:*self*)))
 
 (defun make-persistence (id &rest other-args &key type &allow-other-keys)
   "Creates a persistence actor with the given `id' and `other-args'.
 The type of the persistence actor can be specified with the
 `:type' keyword.
-`other-args' can be used by sub-classes to pass additional arguments to the underlying actor
-which may be necessary to configure the persistence, i.e.: in `act:pre-start'.
+`other-args' can be used by sub-classes to pass additional arguments to the underlying actor.
 See `simple-persistence' as example.
 This constructor is not public, subclasses should provide their own constructor but call this one."
   (let ((isys (isys:ensure-isys)))
-    (ac:actor-of isys
-                 :name id
-                 :type type
-                 :receive (lambda (msg)
-                            (log:debug "Received: ~a, msg: ~a" (car msg) msg)
-                            (case (car msg)
-                              (:store (persist act:*self* (cadr msg)))
-                              (:fetch
-                               (let ((item (cadr msg))
-                                     (range (cddr msg)))
-                                 (handler-case
-                                     (if range
-                                         (reply (retrieve-range act:*self* item range))
-                                         (reply (retrieve act:*self* item)))
-                                   (error (e)
-                                     (log:warn "Error on retrieving persisted data: ~a" e)
-                                     (reply `(:error . ,e))))))))
-                 :init (lambda (self)
-                         (initialize self))
-                 :destroy (lambda (self)
-                            (shutdown self))
-                 :other-args other-args)))
+    (apply #'ac:actor-of isys
+           :name id
+           :type type
+           :receive (lambda (msg)
+                      (log:debug "Received: ~a, msg: ~a" (car msg) msg)
+                      (case (car msg)
+                        (:store (persist *self* (cadr msg)))
+                        (:fetch
+                         (let ((item (cadr msg))
+                               (range (cddr msg)))
+                           (handler-case
+                               (if range
+                                   (reply (retrieve-range *self* item range))
+                                   (reply (retrieve *self* item)))
+                             (error (e)
+                               (log:warn "Error on retrieving persisted data: ~a" e)
+                               (reply `(:error . ,e))))))))
+           :init (lambda (self)
+                   (initialize self))
+           :destroy (lambda (self)
+                      (shutdown self))
+           other-args)))
 
 (defun make-relative-range (&key
                               (seconds nil)
