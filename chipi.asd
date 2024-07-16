@@ -1,19 +1,16 @@
 (defsystem "chipi"
-  :version "0.2.2"
+  :version "0.3.1"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
-               "sento"
+               (:version "sento" "3.3.0")
                "timer-wheel"
                "cl-cron"
                "yason"  ;; replace usage with jzon
                "drakma"
                "local-time"
                "binding-arrows"
-               "parse-float"
-               ;; knx
-               "usocket"
-               "bit-smasher")
+               "parse-float")
   :components ((:module "src"
                 :serial t
                 :components
