@@ -20,3 +20,13 @@
   :perform (test-op (op c) (symbol-call :fiveam :run!
                                         (uiop:find-symbol* '#:test-suite
                                                            '#:binding-knx.tests))))
+
+#|
+TODOs:
+
+- don't push value when received via listener
+- implement read request via pull (timed pull)
+- implement write via push
+- test initialization of knx
+
+|#
