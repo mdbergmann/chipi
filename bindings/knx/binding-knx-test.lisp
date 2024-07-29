@@ -60,6 +60,3 @@
 
         (is (equal 'item:true item-set-called-with))
         ))))
-
-
-(run! 'knx-binding-tests)

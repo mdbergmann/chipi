@@ -16,39 +16,50 @@
         :reader dpt-type)))
 
 (defun %make-listener-fun (binding ga dpt-type)
-  (lambda (req)
-    (let* ((cemi (tunnelling:tunnelling-request-cemi req))
-           (req-ga (cemi:cemi-destination-addr cemi)))
-      (log:debug "Received request for ga: ~a, required: ~a" req-ga ga)
-      (when (and (equalp req-ga ga)
-                 (eql (tunnelling:tunnelling-cemi-message-code req)
-                      cemi:+cemi-mc-l_data.ind+)
-                 (cemi:apci-gv-write-p (cemi:cemi-apci cemi)))
-        (handler-case
-            (let* ((cemi-data (cemi:cemi-data cemi))
-                   (dpt (etypecase cemi-data
-                          (dpt
-                           cemi-data)
-                          ((vector octet)
-                           (parse-to-dpt dpt-type
-                                         cemi-data))))
-                   (value (dpt:dpt-value dpt)))
-              (log:info "Write value: ~a for ga: ~a"
-                        dpt ga)
-              ;; set item value
-              (let ((converted-value
-                      (cond
-                        ((eq dpt-type 'dpt:dpt-1.001)
-                         (cond
-                           ((eq :on value) 'item:true)
-                           ((eq :off value) 'item:false)))
-                        (t value))))
-                (loop :for item :in (binding::bound-items binding)
-                      :do (progn
-                            (log:debug "Setting on item: ~a" item)
-                            (item:set-value item converted-value)))))
-          (error (e)
-            (log:error "Error in listener-fun: ~a" e)))))))
+  (flet ((assert-ga (req requested-ga)
+           (let* ((cemi (tunnelling:tunnelling-request-cemi req))
+                  (ga (cemi:cemi-destination-addr cemi)))
+             (log:debug "Received request for ga: ~a, required: ~a" ga requested-ga)
+             (unless (equalp ga requested-ga)
+               (error "Not required ga!"))))
+         (assert-mc (req mc-type)
+           (unless (eql (tunnelling:tunnelling-cemi-message-code req) mc-type)
+             (error "Not required mc!")))
+         (assert-apci (req apci-type)
+           (let ((cemi (tunnelling:tunnelling-request-cemi req)))
+             (unless (typep (cemi:cemi-apci cemi) apci-type)
+               (error "Not required apci!"))))
+         (coerce-dpt (req dpt-type)
+           (let* ((cemi (tunnelling:tunnelling-request-cemi req))
+                  (cemi-data (cemi:cemi-data cemi))
+                  (dpt (etypecase cemi-data
+                         (dpt cemi-data)
+                         ((vector octet) (parse-to-dpt dpt-type cemi-data))))
+                  (value (dpt:dpt-value dpt)))
+             (log:info "Write value: ~a for ga: ~a" dpt ga)
+             value))
+         (convert-1.001-to-item-bool (value dpt-type)
+           (cond
+             ((eq dpt-type 'dpt:dpt-1.001)
+              (case value
+                (:on 'item:true)
+                (:off 'item:false)))
+             (t value))))
+    (lambda (req)
+      (handler-case
+          (progn
+            (assert-ga req ga)
+            (assert-mc req cemi:+cemi-mc-l_data.ind+)
+            (assert-apci req 'cemi:apci-gv-write)
+            (let ((value (convert-1.001-to-item-bool
+                          (coerce-dpt req dpt-type) dpt-type)))
+              (log:debug "Setting on items...")
+              (loop :for item :in (binding::bound-items binding)
+                    :do (progn
+                          (log:debug "Setting on item: ~a" item)
+                          (item:set-value item value)))))
+        (error (e)
+          (log:error "Error in listener-fun: ~a" e))))))
 
 (defun %make-knx-binding (&key ga dpt)
   (let* ((ga-obj (make-group-address ga))
