@@ -25,7 +25,7 @@
       (is (eq 'dpt:dpt-9.001 (dpt-type cut)))
       (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener)))))))
 
-(defun %make-test-tun-req (ga mc apci)
+(defun %make-test-tun-req (ga mc apci &optional (dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on)))
   (tunnelling:make-tunnelling-request
    :channel-id 1
    :seq-counter 0
@@ -33,7 +33,7 @@
           :message-code mc
           :dest-address (address:make-group-address ga)
           :apci apci
-          :dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on))))
+          :dpt dpt)))
 
 (test binding-listens-on-ga-changes
   (with-mocks ()
@@ -94,3 +94,33 @@
            (%make-test-tun-req "1/2/3"
                                cemi:+cemi-mc-l_data.ind+
                                (cemi:make-apci-gv-read))))))))
+
+(test binding-listens-on-ga-changes--other-value-than-1.001
+  (with-mocks ()
+    (let ((item-set-called-with nil)
+          (listener-fun-registered nil))
+      ;; binding should register listener function
+      (answer (knx-client:add-tunnelling-request-listener fun)
+        (progn
+          (setf listener-fun-registered fun)
+          t))
+      ;; binding should call `set-value' on bound items
+      (answer (item:set-value _ value)
+        (progn
+          (setf item-set-called-with value)
+          t))
+
+      (let ((cut (knx-binding :ga "1/2/3" :dpt "5.001")))
+        (binding:bind-item cut :foo-item)
+
+        (is (functionp listener-fun-registered))
+        ;; we call the registered fun manually
+        ;; in production this is done automatically
+        (funcall listener-fun-registered
+                 (%make-test-tun-req "1/2/3"
+                                     cemi:+cemi-mc-l_data.ind+
+                                     (cemi:make-apci-gv-write)
+                                     (dpt:make-dpt5 'dpt:dpt-5.001 11)))
+
+        (is (equal 11 item-set-called-with))
+        ))))
