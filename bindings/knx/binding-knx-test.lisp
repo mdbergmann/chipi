@@ -25,14 +25,14 @@
       (is (eq 'dpt:dpt-9.001 (dpt-type cut)))
       (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener)))))))
 
-(defun %make-test-tun-req ()
+(defun %make-test-tun-req (ga mc apci)
   (tunnelling:make-tunnelling-request
    :channel-id 1
    :seq-counter 0
    :cemi (cemi:make-default-cemi
-          :message-code cemi:+cemi-mc-l_data.ind+
-          :dest-address (address:make-group-address "1/2/3")
-          :apci (cemi:make-apci-gv-write)
+          :message-code mc
+          :dest-address (address:make-group-address ga)
+          :apci apci
           :dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on))))
 
 (test binding-listens-on-ga-changes
@@ -56,7 +56,41 @@
         (is (functionp listener-fun-registered))
         ;; we call the registered fun manually
         ;; in production this is done automatically
-        (funcall listener-fun-registered (%make-test-tun-req))
+        (funcall listener-fun-registered
+                 (%make-test-tun-req "1/2/3"
+                                     cemi:+cemi-mc-l_data.ind+
+                                     (cemi:make-apci-gv-write)))
 
         (is (equal 'item:true item-set-called-with))
         ))))
+
+(test binding-listens-on-ga-changes--check-errors
+  (with-mocks ()
+    (let ((item-set-called-with nil)
+          (listener-fun-registered nil))
+      (answer (knx-client:add-tunnelling-request-listener fun)
+        (progn
+          (setf listener-fun-registered fun)
+          t))
+
+      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001")))
+        (binding:bind-item cut :foo-item)
+
+        (flet ((assert-no-processing (req)
+                 (funcall listener-fun-registered req)
+                 (is (eq nil item-set-called-with))))
+          ;; wrong ga
+          (assert-no-processing
+           (%make-test-tun-req "9/8/7"
+                               cemi:+cemi-mc-l_data.ind+
+                               (cemi:make-apci-gv-write)))
+          ;; wrong mc
+          (assert-no-processing
+           (%make-test-tun-req "1/2/3"
+                               cemi:+cemi-mc-l_data.con+
+                               (cemi:make-apci-gv-write)))
+          ;; wrong apci
+          (assert-no-processing
+           (%make-test-tun-req "1/2/3"
+                               cemi:+cemi-mc-l_data.ind+
+                               (cemi:make-apci-gv-read))))))))

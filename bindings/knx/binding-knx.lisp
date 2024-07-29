@@ -54,10 +54,9 @@
             (let ((value (convert-1.001-to-item-bool
                           (coerce-dpt req dpt-type) dpt-type)))
               (log:debug "Setting on items...")
-              (loop :for item :in (binding::bound-items binding)
-                    :do (progn
-                          (log:debug "Setting on item: ~a" item)
-                          (item:set-value item value)))))
+              (dolist (item (binding::bound-items binding))
+                (log:debug "Setting on item: ~a" item)
+                (item:set-value item value))))
         (error (e)
           (log:error "Error in listener-fun: ~a" e))))))
 
