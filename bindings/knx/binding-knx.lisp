@@ -56,7 +56,7 @@
               (log:debug "Setting on items...")
               (dolist (item (binding::bound-items binding))
                 (log:debug "Setting on item: ~a" item)
-                (item:set-value item value))))
+                (item:set-value item value :push nil))))
         (error (e)
           (log:error "Error in listener-fun: ~a" e))))))
 
