@@ -6,7 +6,8 @@
                 :documentation "The bound items. On operation the value will be updated to each item.")
    (pull-fun :initarg :pull-fun
              :initform nil
-             :documentation "The function that retrieves the value.")
+             :accessor pull-fun
+             :documentation "0-arity function that retrieves the value.")
    (push-fun :initarg :push-fun
              :initform nil
              :documentation "Function to push the item values to some receiver.

@@ -19,7 +19,8 @@
     (answer knx-client:add-tunnelling-request-listener t)
     (let ((cut (knx-binding
                 :ga "1/2/3"
-                :dpt "9.001")))
+                :dpt "9.001"
+                :initial-delay nil)))
       (is-true cut)
       (is (address:knx-group-address-p (group-address cut)))
       (is (eq 'dpt:dpt-9.001 (dpt-type cut)))
@@ -50,7 +51,7 @@
           (setf item-set-called-with value)
           t))
 
-      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001")))
+      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
         (binding:bind-item cut :foo-item)
 
         (is (functionp listener-fun-registered))
@@ -73,7 +74,7 @@
           (setf listener-fun-registered fun)
           t))
 
-      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001")))
+      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
         (binding:bind-item cut :foo-item)
 
         (flet ((assert-no-processing (req)
@@ -110,7 +111,7 @@
           (setf item-set-called-with value)
           t))
 
-      (let ((cut (knx-binding :ga "1/2/3" :dpt "5.001")))
+      (let ((cut (knx-binding :ga "1/2/3" :dpt "5.001" :initial-delay nil)))
         (binding:bind-item cut :foo-item)
 
         (is (functionp listener-fun-registered))
@@ -124,3 +125,24 @@
 
         (is (equal 11 item-set-called-with))
         ))))
+
+(test binding-can-pull
+  (with-mocks ()
+    (let ((item-set-called-with nil))
+      (answer knx-client:add-tunnelling-request-listener t)
+
+      (answer (knxc:request-value _ 'dpt:dpt-1.001)
+        (future:with-fut :on))
+
+      (answer (item:set-value _ value :push nil)
+        (progn
+          (setf item-set-called-with value)
+          t))
+
+      (binding:bind-item
+       (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay 1)
+       :foo-item)
+
+      (is-true (miscutils:await-cond 2.5
+                 (eq item-set-called-with 'item:true)))
+      )))
