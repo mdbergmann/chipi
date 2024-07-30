@@ -105,7 +105,7 @@
           (setf listener-fun-registered fun)
           t))
       ;; binding should call `set-value' on bound items
-      (answer (item:set-value _ value)
+      (answer (item:set-value _ value :push nil)
         (progn
           (setf item-set-called-with value)
           t))

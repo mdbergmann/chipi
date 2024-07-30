@@ -24,8 +24,8 @@
 #|
 TODOs:
 
-- don't push value when received via listener
-- implement read request via pull (timed pull)
+OK - don't push value when received via listener
+=> - implement read request via pull (timed pull)
 - implement write via push
 - test initialization of knx
 
