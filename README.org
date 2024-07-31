@@ -22,7 +22,7 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 - binding: bindings are a means to update an items value or distribute a value change to somewhere
 
 - persistence: persistences allow to persist and load the state of items. Currently two types of persistences are supported:
-    - simple-persistence that just stores the current state and can retrieve it
+    - simple-persistence that just stores the current state to file and can retrieve it
     - historic persistence with a support for influxdb to store each changed item value in influxdb and also retrieve values for a specific time range to calculate averages, peaks or whatever.
 
 - rules: rules are kind of scripts that are run on certain 'triggers'. Triggers may be a change of an item value, or a cron timing.
