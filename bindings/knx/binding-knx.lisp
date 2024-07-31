@@ -102,5 +102,6 @@ Relevant arguments:
 - dpt: dpt-type symbol, i.e. 'item:dpt-1.001
 
 Creating the binding expects an initialized knx-conn environment.
-The binding will pull the value from the ga initially with a 2 seconds delay. Delay can be overriden by specifying `:initial-delay' in full seconds."
+The binding will pull the value from the ga initially with a 2 seconds delay.
+Delay can be overriden by specifying `:initial-delay' in full seconds."
   `(%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args))

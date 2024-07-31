@@ -126,7 +126,7 @@
         (is (equal 11 item-set-called-with))
         ))))
 
-(test binding-can-pull
+(test binding-can-pull--initially
   "Pull is done after initializing the binding (and only once)."
   (with-mocks ()
     (let ((item-set-called-with nil))
