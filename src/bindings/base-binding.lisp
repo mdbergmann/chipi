@@ -10,6 +10,7 @@
              :documentation "0-arity function that retrieves the value.")
    (push-fun :initarg :push-fun
              :initform nil
+             :accessor push-fun
              :documentation "Function to push the item values to some receiver.
 Beware that `pull' will only call `push' when `call-push-p' is set.
 Make sure you do the right thing in `pull-fun'.")

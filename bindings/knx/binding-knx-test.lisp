@@ -147,3 +147,15 @@
       (is-true (miscutils:await-cond 2.5
                  (eq item-set-called-with 'item:true)))
       )))
+
+(test binding-can-push-on-item-value-change
+  (with-mocks ()
+    (answer knx-client:add-tunnelling-request-listener t)
+    (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001"))
+          (pushed-value nil))
+      (answer (knxc:write-value _ _ push-value)
+        (setf pushed-value push-value))
+      
+      (binding:exec-push cut 'item:false)
+      
+      (is (eq pushed-value :off)))))

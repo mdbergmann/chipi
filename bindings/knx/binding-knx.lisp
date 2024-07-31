@@ -21,6 +21,14 @@
        (:off 'item:false)))
     (t value)))
 
+(defun %convert-item-bool-to-1.001 (value dpt-type)
+  (cond
+    ((eq dpt-type 'dpt:dpt-1.001)
+     (cond 
+       ((eq value 'item:true) :on)
+       ((eq value 'item:false) :off)))
+    (t value)))
+
 (defun %make-listener-fun (binding ga dpt-type)
   (flet ((assert-ga (req requested-ga)
            (let* ((cemi (tunnelling:tunnelling-request-cemi req))
@@ -78,6 +86,12 @@
              (item:set-value item value :push nil)))))
       )))
 
+(defun %make-binding-push-fun (ga-obj dpt-type)
+  (lambda (value)
+    (let ((converted-value (%convert-item-bool-to-1.001 value dpt-type)))
+      (log:info "Writing value: ~a to: ~a" value ga-obj)
+      (knxc:write-value ga-obj dpt-type converted-value))))
+
 (defun %make-knx-binding (&rest other-args &key ga dpt &allow-other-keys)
   (let* ((ga-obj (make-group-address ga))
          (dpt-type (value-type-string-to-symbol dpt))
@@ -85,7 +99,10 @@
                                  :ga ga-obj
                                  :dpt dpt-type
                                  :initial-delay (getf other-args :initial-delay 2))))
-    (setf (binding::pull-fun binding) (%make-binding-pull-fun binding ga-obj dpt-type))
+    (setf (binding::pull-fun binding)
+          (%make-binding-pull-fun binding ga-obj dpt-type))
+    (setf (binding::push-fun binding)
+          (%make-binding-push-fun ga-obj dpt-type))
     (knx-client:add-tunnelling-request-listener
      (%make-listener-fun binding ga-obj dpt-type))
     binding))
