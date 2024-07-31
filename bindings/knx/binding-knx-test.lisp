@@ -22,8 +22,8 @@
                 :dpt "9.001"
                 :initial-delay nil)))
       (is-true cut)
-      (is (address:knx-group-address-p (group-address cut)))
-      (is (eq 'dpt:dpt-9.001 (dpt-type cut)))
+      (is (address:knx-group-address-p (binding-knx::group-address cut)))
+      (is (eq 'dpt:dpt-9.001 (binding-knx::dpt-type cut)))
       (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener)))))))
 
 (defun %make-test-tun-req (ga mc apci &optional (dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on)))
@@ -97,15 +97,15 @@
                                (cemi:make-apci-gv-read))))))))
 
 (test binding-listens-on-ga-changes--other-value-than-1.001
+  "1.001 must be converted from :on/:off to 'item:true/'item:false"
   (with-mocks ()
     (let ((item-set-called-with nil)
           (listener-fun-registered nil))
-      ;; binding should register listener function
       (answer (knx-client:add-tunnelling-request-listener fun)
         (progn
           (setf listener-fun-registered fun)
           t))
-      ;; binding should call `set-value' on bound items
+
       (answer (item:set-value _ value :push nil)
         (progn
           (setf item-set-called-with value)
@@ -127,6 +127,7 @@
         ))))
 
 (test binding-can-pull
+  "Pull is done after initializing the binding (and only once)."
   (with-mocks ()
     (let ((item-set-called-with nil))
       (answer knx-client:add-tunnelling-request-listener t)

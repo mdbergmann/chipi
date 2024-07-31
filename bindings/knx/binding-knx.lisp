@@ -1,9 +1,7 @@
 (defpackage :chipi.binding.knx
   (:use :cl :binding :knxc :knx-conn.address :knx-conn.dpt :knx-conn.knx-obj)
   (:nicknames :binding-knx)
-  (:export #:knx-binding
-           #:group-address
-           #:dpt-type))
+  (:export #:knx-binding))
 
 (in-package :chipi.binding.knx)
 
@@ -91,6 +89,10 @@
     (knx-client:add-tunnelling-request-listener
      (%make-listener-fun binding ga-obj dpt-type))
     binding))
+
+;; -----------------------------
+;; Public API
+;; -----------------------------
 
 (defmacro knx-binding (&rest other-args &key ga dpt &allow-other-keys)
   "Creates a knx-binding.
