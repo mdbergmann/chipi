@@ -26,7 +26,8 @@ TODOs:
 
 OK - don't push value when received via listener
 OK - implement read request via pull (timed pull)
-=> - implement write via push
+OK - implement write via push
+=> - implement more value types for push
 - rework pull tests to just work with 'exec-pull'
 - test initialization of knx
 

@@ -148,14 +148,18 @@
                  (eq item-set-called-with 'item:true)))
       )))
 
-(test binding-can-push-on-item-value-change
+(defun binding-can-push-value (dpt-type-str push-value expected-value)
   (with-mocks ()
     (answer knx-client:add-tunnelling-request-listener t)
-    (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001"))
+    (let ((cut (knx-binding :ga "1/2/3" :dpt dpt-type-str))
           (pushed-value nil))
       (answer (knxc:write-value _ _ push-value)
         (setf pushed-value push-value))
-      
-      (binding:exec-push cut 'item:false)
-      
-      (is (eq pushed-value :off)))))
+      (binding:exec-push cut push-value)
+      (is (equalp pushed-value expected-value)))))
+
+(test binding-can-push-on-item-value-change
+  (binding-can-push-value "1.001" 'item:false nil))
+
+(test binding-can-push-on-item-value-change--uint
+  (binding-can-push-value "5.010" 123 123))

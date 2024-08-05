@@ -22,11 +22,12 @@
     (t value)))
 
 (defun %convert-item-bool-to-1.001 (value dpt-type)
+  "Converts between `item:true'/`item:false' and `:on'/`:off' as knxc:write-value wants it."
   (cond
     ((eq dpt-type 'dpt:dpt-1.001)
      (cond 
-       ((eq value 'item:true) :on)
-       ((eq value 'item:false) :off)))
+       ((eq value 'item:true) t)
+       ((eq value 'item:false) nil)))
     (t value)))
 
 (defun %make-listener-fun (binding ga dpt-type)
@@ -90,6 +91,7 @@
   (lambda (value)
     (let ((converted-value (%convert-item-bool-to-1.001 value dpt-type)))
       (log:info "Writing value: ~a to: ~a" value ga-obj)
+      ;; wants `t' and `nil' for 1.001
       (knxc:write-value ga-obj dpt-type converted-value))))
 
 (defun %make-knx-binding (&rest other-args &key ga dpt &allow-other-keys)
