@@ -29,6 +29,6 @@ OK - implement read request via pull (timed pull)
 OK - implement write via push
 OK - implement more value types for push
 OK - rework pull tests to just work with 'exec-pull'
-- test initialization of knx
+OK - test initialization of knx
 
 |#

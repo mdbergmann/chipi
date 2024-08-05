@@ -1,7 +1,9 @@
 (defpackage :chipi.binding.knx
   (:use :cl :binding :knxc :knx-conn.address :knx-conn.dpt :knx-conn.knx-obj)
   (:nicknames :binding-knx)
-  (:export #:knx-binding))
+  (:export #:knx-binding
+           #:knx-defconfig
+           #:knx-shutdown))
 
 (in-package :chipi.binding.knx)
 
@@ -113,14 +115,21 @@
 ;; Public API
 ;; -----------------------------
 
-(defmacro knx-binding (&rest other-args &key ga dpt &allow-other-keys)
+(defun knx-binding (&rest other-args &key ga dpt &allow-other-keys)
   "Creates a knx-binding.
 
 Relevant arguments:
 - ga: group-address in string representation like '1/2/3'
-- dpt: dpt-type symbol, i.e. 'item:dpt-1.001
+- dpt: dpt-type symbol, i.e. 'dpt:dpt-1.001
 
 Creating the binding expects an initialized knx-conn environment.
 The binding will pull the value from the ga initially with a 2 seconds delay.
 Delay can be overriden by specifying `:initial-delay' in full seconds."
-  `(%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args))
+  (apply #'%make-knx-binding :ga ga :dpt dpt other-args))
+
+(defun knx-defconfig (&key gw-host (gw-port 3671))
+  (knxc:knx-conn-init gw-host
+                      :port gw-port))
+
+(defun knx-shutdown ()
+  (knxc:knx-conn-destroy))

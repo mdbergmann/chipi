@@ -10,8 +10,6 @@
 
 (in-suite knx-binding-tests)
 
-;; your test code here
-
 (test make-knx-binding
   "Tests creating a knx binding"
   (with-mocks ()
@@ -163,3 +161,15 @@
 
 (test binding-can-push-on-item-value-change--uint
   (binding-can-push-value "5.010" 123 123))
+
+(test knx-defconfig--initializes-knx
+  (with-mocks ()
+    (answer knxc:knx-conn-init t)
+    (knx-defconfig :gw-host "foo.bar" :gw-port 3671)
+    (is (= 1 (length (invocations 'knxc:knx-conn-init))))))
+
+(test shutdown-knx--closes-knx
+  (with-mocks ()
+    (answer knxc:knx-conn-destroy t)
+    (knx-shutdown)
+    (is (= 1 (length (invocations 'knxc:knx-conn-destroy))))))
