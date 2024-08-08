@@ -6,7 +6,8 @@
 (in-package :chipi.binding.knx-test)
 
 (def-suite knx-binding-tests
-  :description "KNX binding tests")
+  :description "KNX binding tests"
+  :in chipi.binding.knx-test-suite:test-suite)
 
 (in-suite knx-binding-tests)
 

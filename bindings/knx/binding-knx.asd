@@ -3,8 +3,7 @@
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("chipi"
-               "knx-conn"
-               )
+               "knx-conn")
   :components ((:file "binding-knx"))
   :in-order-to ((test-op (test-op "binding-knx/tests"))))
 
@@ -12,14 +11,14 @@
   :author "Manfred Bergmann"
   :depends-on ("binding-knx"
                "fiveam"
-               "cl-mock"
-               )
-  :components ((:file "binding-knx-test")
-               )
+               "cl-mock")
+  :components ((:file "binding-knx-test-suite")
+               (:file "binding-knx-test")
+               (:file "binding-knx-integtest"))
   :description "Test system for knx binding"
   :perform (test-op (op c) (symbol-call :fiveam :run!
                                         (uiop:find-symbol* '#:test-suite
-                                                           '#:binding-knx.tests))))
+                                                           '#:chipi.binding.knx-test-suite))))
 
 #|
 TODOs:
