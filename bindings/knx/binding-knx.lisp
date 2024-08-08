@@ -104,8 +104,8 @@
                                  :dpt dpt-type
                                  :initial-delay (getf other-args :initial-delay 2))))
     (setf (binding::pull-fun binding)
-          (%make-binding-pull-fun binding ga-obj dpt-type))
-    (setf (binding::push-fun binding)
+          (%make-binding-pull-fun binding ga-obj dpt-type)
+          (binding::push-fun binding)
           (%make-binding-push-fun ga-obj dpt-type))
     (knx-client:add-tunnelling-request-listener
      (%make-listener-fun binding ga-obj dpt-type))
