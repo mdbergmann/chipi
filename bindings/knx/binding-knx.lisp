@@ -104,8 +104,8 @@
                                  :dpt dpt-type
                                  :initial-delay (getf other-args :initial-delay 2))))
     (setf (binding::pull-fun binding)
-          (%make-binding-pull-fun binding ga-obj dpt-type)
-          (binding::push-fun binding)
+          (%make-binding-pull-fun binding ga-obj dpt-type))
+    (setf (binding::push-fun binding)
           (%make-binding-push-fun ga-obj dpt-type))
     (knx-client:add-tunnelling-request-listener
      (%make-listener-fun binding ga-obj dpt-type))
@@ -128,8 +128,14 @@ Delay can be overriden by specifying `:initial-delay' in full seconds."
   (apply #'%make-knx-binding :ga ga :dpt dpt other-args))
 
 (defun knx-defconfig (&key gw-host (gw-port 3671))
+  "Config and initialize KNX binding.
+This should be called right after `hab:defconfig'.
+
+`gw-host': host or UP address to a KNXNet/IP router/gateway.
+`gw-port': port to the gateway, default 3671."
   (knxc:knx-conn-init gw-host
                       :port gw-port))
 
 (defun knx-shutdown ()
+  "Shutdown KNX binding and release/clean all resources."
   (knxc:knx-conn-destroy))
