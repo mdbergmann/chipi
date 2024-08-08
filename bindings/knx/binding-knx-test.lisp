@@ -169,10 +169,10 @@
 (test binding-can-push-on-item-value-change--uint
   (binding-can-push-value "5.010" 123 123))
 
-(test knx-defconfig--initializes-knx
+(test knx-init--initializes-knx
   (with-mocks ()
     (answer knxc:knx-conn-init t)
-    (knx-defconfig :gw-host "foo.bar" :gw-port 3671)
+    (knx-init :gw-host "foo.bar" :gw-port 3671)
     (is (= 1 (length (invocations 'knxc:knx-conn-init))))))
 
 (test shutdown-knx--closes-knx

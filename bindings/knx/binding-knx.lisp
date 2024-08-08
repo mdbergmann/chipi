@@ -2,7 +2,7 @@
   (:use :cl :binding :knxc :knx-conn.address :knx-conn.dpt :knx-conn.knx-obj)
   (:nicknames :binding-knx)
   (:export #:knx-binding
-           #:knx-defconfig
+           #:knx-init
            #:knx-shutdown))
 
 (in-package :chipi.binding.knx)
@@ -119,17 +119,17 @@
   "Creates a knx-binding.
 
 Relevant arguments:
-- ga: group-address in string representation like '1/2/3'
-- dpt: dpt-type symbol, i.e. 'dpt:dpt-1.001
+- `ga': group-address in string representation like '1/2/3'
+- `dpt': dpt-type symbol, i.e. 'dpt:dpt-1.001
 
 Creating the binding expects an initialized knx-conn environment.
 The binding will pull the value from the ga initially with a 2 seconds delay.
 Delay can be overriden by specifying `:initial-delay' in full seconds."
   (apply #'%make-knx-binding :ga ga :dpt dpt other-args))
 
-(defun knx-defconfig (&key gw-host (gw-port 3671))
+(defun knx-init (&key gw-host (gw-port 3671))
   "Config and initialize KNX binding.
-This should be called right after `hab:defconfig'.
+This should be as part of `hab:defconfig'.
 
 `gw-host': host or UP address to a KNXNet/IP router/gateway.
 `gw-port': port to the gateway, default 3671."
