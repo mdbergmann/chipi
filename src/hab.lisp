@@ -62,9 +62,9 @@ It also will setup items, rules and persistences storages."
 (defun shutdown ()
   "Shuts down the environment and cleans all items rules and persistences."
   (envi:shutdown-env)
-  (clrhash *items*)
-  (clrhash *rules*)
-  (clrhash *persistences*)
+  (when *items* (clrhash *items*))
+  (when *rules* (clrhash *rules*))
+  (when *persistences* (clrhash *persistences*))
   :ok)
 
 (defmacro defitem (id label type-hint &rest body)

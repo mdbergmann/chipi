@@ -10,6 +10,12 @@
 
 (in-suite knx-binding-tests)
 
+(def-fixture destroy-all ()
+  (unwind-protect
+       (progn
+         (&body))
+    (hab:shutdown)))
+
 (test make-knx-binding
   "Tests creating a knx binding"
   (with-mocks ()
@@ -126,25 +132,26 @@
 
 (test binding-can-pull--initially
   "Pull is done after initializing the binding (and only once)."
-  (with-mocks ()
-    (let ((item-set-called-with nil))
-      (answer knx-client:add-tunnelling-request-listener t)
+  (with-fixture destroy-all ()
+    (with-mocks ()
+      (let ((item-set-called-with nil))
+        (answer knx-client:add-tunnelling-request-listener t)
 
-      (answer (knxc:request-value _ 'dpt:dpt-1.001)
-        (future:with-fut :on))
+        (answer (knxc:request-value _ 'dpt:dpt-1.001)
+          (future:with-fut :on))
 
-      (answer (item:set-value _ value :push nil)
-        (progn
-          (setf item-set-called-with value)
-          t))
+        (answer (item:set-value _ value :push nil)
+          (progn
+            (setf item-set-called-with value)
+            t))
 
-      (binding:bind-item
-       (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay 1)
-       :foo-item)
+        (binding:bind-item
+         (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay 1)
+         :foo-item)
 
-      (is-true (miscutils:await-cond 2.5
-                 (eq item-set-called-with 'item:true)))
-      )))
+        (is-true (miscutils:await-cond 2.5
+                   (eq item-set-called-with 'item:true)))
+        ))))
 
 (defun binding-can-push-value (dpt-type-str push-value expected-value)
   (with-mocks ()
