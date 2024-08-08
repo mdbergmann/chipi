@@ -12,7 +12,8 @@
   :depends-on ("binding-knx"
                "fiveam"
                "cl-mock")
-  :components ((:file "binding-knx-test-suite")
+  :components ((:file "../binding-test-suite")
+               (:file "binding-knx-test-suite")
                (:file "binding-knx-test")
                (:file "binding-knx-integtest"))
   :description "Test system for knx binding"

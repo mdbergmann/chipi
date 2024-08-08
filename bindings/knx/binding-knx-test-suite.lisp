@@ -8,10 +8,7 @@
 (in-package :chipi.binding.knx-test-suite)
 
 (def-suite test-suite
-  :description "All catching test suite.")
+  :description "All catching test suite."
+  :in chipi.binding.test-suite:test-suite)
 
 (in-suite test-suite)
-
-(test foo
-  "Trivial test"
-  (is (= 1 1)))
