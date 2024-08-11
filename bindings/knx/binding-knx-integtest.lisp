@@ -1,5 +1,7 @@
 (defpackage :chipi.binding.knx-integtest
-  (:use :cl :fiveam :cl-mock :chipi.binding.knx)
+  (:use :cl :fiveam :cl-mock :chipi.binding.knx :hab)
+  (:import-from #:sento.miscutils
+                #:await-cond)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -11,6 +13,75 @@
 
 (in-suite knx-binding-integtests)
 
-;; create udp simulation endpoint (usocket)
-;; setup knx against it
-;; send bus event
+;; Inject KNX message as it it were received from bus
+;; => message to *async-handler* as `(:received . <knx-msg>)'
+
+(defun %make-test-tun-req (ga mc apci
+                           &optional (dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on)))
+  (tunnelling:make-tunnelling-request
+   :channel-id 1
+   :seq-counter 0
+   :cemi (cemi:make-default-cemi
+          :message-code mc
+          :dest-address (address:make-group-address ga)
+          :apci apci
+          :dpt dpt)))
+
+;; (%make-test-tun-req "1/2/3"
+;;                                  cemi:+cemi-mc-l_data.ind+
+;;                                  (cemi:make-apci-gv-write)
+;;                                  (dpt:make-dpt5 'dpt:dpt-5.010 123))
+
+(test bus-events-update-item-value
+  (handler-case
+      (progn
+        (start-knxnet-sim)
+        (sleep 1)
+        (defconfig
+          (knx-init :gw-host "127.0.0.1")
+          )
+        (format t "defconfig done~%")
+        (sleep 1)
+        (let ((item
+                (defitem 'foo "KNX item" '(unsigned-byte 8)
+                  (knx-binding :ga "1/2/3"
+                               :dpt 'dpt:dpt-5.010))))
+          (format t "defitem done~%")
+          (is-true item)
+          (is-true (await-cond 2.0
+                     (eql 123 (item:get-value item))))
+          ))
+    (error (c)
+      (format t "ERR: ~a~%" c)))
+  (ignore-errors
+   (knx-shutdown))
+  (ignore-errors
+   (shutdown))
+  (ignore-errors
+  (stop-knxnet-sim)))
+
+(defvar *sim-thread-and-socket* nil)
+(defun start-knxnet-sim ()
+  (flet ((handler-fun (buf)
+           (format t "KNXNet server: received message.~%")
+           (let ((knx-obj (knxobj:parse-root-knx-object buf)))
+             (format t "KNXNet server: knxobj received: ~a~%" knx-obj)
+             (let ((response-obj
+                     (etypecase knx-obj
+                       (connect:knx-connect-request
+                        (format t "KNXNet server: generating connect-response...~%")
+                        (connect:make-connect-response knx-obj 1 "127.0.0.1" 3671)))))
+               (knxobj:to-byte-seq response-obj)))))
+    (setf *sim-thread-and-socket*
+          (multiple-value-list
+           (usocket:socket-server "127.0.0.1" 3671
+                                  #'handler-fun nil
+                                  :in-new-thread t
+                                  :protocol :datagram)))
+    (format t "KNXNet server started~%")))
+
+(defun stop-knxnet-sim ()
+  (when *sim-thread-and-socket*
+    (usocket:socket-close (second *sim-thread-and-socket*))
+    (bt2:destroy-thread (car *sim-thread-and-socket*))
+    (setf *sim-thread-and-socket* nil)))

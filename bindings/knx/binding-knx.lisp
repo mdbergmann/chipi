@@ -24,7 +24,7 @@
     (t value)))
 
 (defun %convert-item-bool-to-1.001 (value dpt-type)
-  "Converts between `item:true'/`item:false' and `:on'/`:off' as knxc:write-value wants it."
+  "Converts between `item:true'/`item:false' and `:on'/`:off' as `knxc:write-value' wants it."
   (cond
     ((eq dpt-type 'dpt:dpt-1.001)
      (cond 
@@ -125,6 +125,7 @@ Relevant arguments:
 Creating the binding expects an initialized knx-conn environment.
 The binding will pull the value from the ga initially with a 2 seconds delay.
 Delay can be overriden by specifying `:initial-delay' in full seconds."
+  (log:info "Making knx binding...")
   (apply #'%make-knx-binding :ga ga :dpt dpt other-args))
 
 (defun knx-init (&key gw-host (gw-port 3671))

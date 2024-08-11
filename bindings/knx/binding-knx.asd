@@ -11,15 +11,18 @@
   :author "Manfred Bergmann"
   :depends-on ("binding-knx"
                "fiveam"
-               "cl-mock")
+               "cl-mock"
+               "usocket-server")
   :components ((:file "../binding-test-suite")
                (:file "binding-knx-test-suite")
                (:file "binding-knx-test")
                (:file "binding-knx-integtest"))
   :description "Test system for knx binding"
-  :perform (test-op (op c) (symbol-call :fiveam :run!
-                                        (uiop:find-symbol* '#:test-suite
-                                                           '#:chipi.binding.knx-test-suite))))
+  :perform (test-op (op c)
+                    (symbol-call
+                     :fiveam :run!
+                     (uiop:find-symbol* '#:test-suite
+                                        '#:chipi.binding.knx-test-suite))))
 
 #|
 TODOs:

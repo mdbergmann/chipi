@@ -113,8 +113,7 @@ See `hab-test.lisp' and `item' for more examples."
            (let ((,persp (get-persistence (getf ,p-rep :id))))
              (when ,persp
                (item:add-persistence ,item ,persp ,p-rep))))
-         (setf (gethash ,id *items*) ,item)
-         ,item))))
+         (setf (gethash ,id *items*) ,item)))))
 
 (defmacro binding (&rest args)
   "Creates a binding.
