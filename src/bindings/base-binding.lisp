@@ -82,7 +82,7 @@ The output value will be set on the item, should an item be attached.")
     (log:info "Binding item: ~a, on: ~a" item binding)
     (setf bound-items (cons item bound-items))
     (let ((timer-fun (lambda () (exec-pull binding))))
-      (when (and initial-delay (>= initial-delay 0))
+      (when initial-delay
         (log:info "Scheduling initial delay: " initial-delay " on: " binding)
         (%add-timer binding
                     (timer:schedule-once initial-delay timer-fun)

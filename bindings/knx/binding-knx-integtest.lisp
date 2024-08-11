@@ -46,7 +46,7 @@
                  (defitem 'foo "KNX item" '(unsigned-byte 8)
                    (knx-binding :ga "1/2/3"
                                 :dpt 'dpt:dpt-5.010
-                                :initial-delay -1))))
+                                :initial-delay nil))))
            (format t "defitem done~%")
            (is-true item)
            (is-true (await-cond 2.0
