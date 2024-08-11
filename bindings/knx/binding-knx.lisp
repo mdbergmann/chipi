@@ -53,18 +53,20 @@
                          (dpt cemi-data)
                          ((vector octet) (parse-to-dpt dpt-type cemi-data))))
                   (value (dpt:dpt-value dpt)))
-             (log:info "Write value: ~a for ga: ~a" dpt ga)
+             (log:info "Indicated value: ~a for ga: ~a" dpt ga)
              value)))
     (lambda (req)
       (handler-case
           (progn
+            (log:debug "KNX tunnel listener received: ~a" req)
             (assert-ga req ga)
             (assert-mc req cemi:+cemi-mc-l_data.ind+)
             (assert-apci req 'cemi:apci-gv-write)
             (let ((value (%convert-1.001-to-item-bool
-                          (coerce-dpt req dpt-type) dpt-type)))
-              (log:debug "Setting on items...")
-              (dolist (item (binding::bound-items binding))
+                          (coerce-dpt req dpt-type) dpt-type))
+                  (items (binding::bound-items binding)))
+              (log:debug "Setting on items (~a)..." (length items))
+              (dolist (item items)
                 (log:debug "Setting on item: ~a" item)
                 (item:set-value item value :push nil))))
         (error (e)
@@ -103,6 +105,8 @@
                                  :ga ga-obj
                                  :dpt dpt-type
                                  :initial-delay (getf other-args :initial-delay 2))))
+    (assert ga-obj nil "Unable to make group-address object!")
+    (assert dpt-type nil "Unable to parse dpt-type!")
     (setf (binding::pull-fun binding)
           (%make-binding-pull-fun binding ga-obj dpt-type))
     (setf (binding::push-fun binding)
@@ -115,18 +119,21 @@
 ;; Public API
 ;; -----------------------------
 
-(defun knx-binding (&rest other-args &key ga dpt &allow-other-keys)
+(defmacro knx-binding (&rest other-args &key ga dpt &allow-other-keys)
   "Creates a knx-binding.
 
 Relevant arguments:
 - `ga': group-address in string representation like '1/2/3'
-- `dpt': dpt-type symbol, i.e. 'dpt:dpt-1.001
+- `dpt': dpt-type string, i.e. '1.001'
 
 Creating the binding expects an initialized knx-conn environment.
 The binding will pull the value from the ga initially with a 2 seconds delay.
 Delay can be overriden by specifying `:initial-delay' in full seconds."
-  (log:info "Making knx binding...")
-  (apply #'%make-knx-binding :ga ga :dpt dpt other-args))
+  (check-type ga string "Parameter ga must be string!")
+  (check-type dpt string "Parameter dpt must be string!")
+  `(progn
+     (log:info "Make knx binding...")
+     (%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args)))
 
 (defun knx-init (&key gw-host (gw-port 3671))
   "Config and initialize KNX binding.
