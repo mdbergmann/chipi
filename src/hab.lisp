@@ -80,7 +80,8 @@ Persistences are references via `:persistence' key.
 `:id' specifies the persistence id.
 `:frequency' specifies the persistence frequency. Currently only `:every-change' exists.
 See `hab-test.lisp' and `item' for more examples."
-  (let ((item (gensym "item"))
+  (let ((body-forms (gensym "body-forms"))
+        (item (gensym "item"))
         (old-item (gensym "old-item"))
         (bindings (gensym "bindn"))
         (binding (gensym "bind"))
@@ -94,13 +95,14 @@ See `hab-test.lisp' and `item' for more examples."
          (let ((,old-item (get-item ,id)))
            (item:destroy ,old-item)
            (remhash ,id *items*)))
-       (let* ((,bindings (loop :for x :in (list ,@body)
+       (let* ((,body-forms (list ,@body))
+              (,bindings (loop :for x :in ,body-forms
                                :if (typep x 'binding::binding)
                                  :collect x))
-              (,p-reps (loop :for (k v) :on (list ,@body)
+              (,p-reps (loop :for (k v) :on ,body-forms
                              :if (eq k :persistence)
                                :collect v))
-              (,initial-value (loop :for (k v) :on (list ,@body)
+              (,initial-value (loop :for (k v) :on ,body-forms
                                     :if (eq k :initial-value)
                                       :return v))
               (,item (item:make-item ,id

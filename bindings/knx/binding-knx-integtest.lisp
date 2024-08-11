@@ -65,7 +65,9 @@
                                 cemi:+cemi-mc-l_data.ind+
                                 (cemi:make-apci-gv-write)
                                 (dpt:make-dpt5 'dpt:dpt-5.010 123)))
-           (is (eql 123 (future:fawait (item:get-value item) :timeout 2)))
+           (is-true (await-cond 5.0
+                      (let ((item-value (item:get-value item)))
+                        (eql 123 (future:fawait item-value :timeout 1)))))
            ))
     (progn
       (ignore-errors
