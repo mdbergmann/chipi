@@ -129,9 +129,9 @@ Relevant arguments:
 Creating the binding expects an initialized knx-conn environment.
 The binding will pull the value from the ga initially with a 2 seconds delay.
 Delay can be overriden by specifying `:initial-delay' in full seconds."
-  (check-type ga string "Parameter ga must be string!")
-  (check-type dpt string "Parameter dpt must be string!")
   `(progn
+     (assert (typep ,ga 'string) nil "Parameter ga must be string!")
+     (assert (typep ,dpt 'string) nil "Parameter dpt must be string!")
      (log:info "Make knx binding...")
      (%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args)))
 

@@ -13,9 +13,53 @@
 
 (in-suite knx-binding-integtests)
 
+;; ------------------------------
+;; KNXNet simulator
+;; ------------------------------
+
 (defvar *tunnel-established* nil)
 (defvar *conn-host* nil)
 (defvar *conn-port* nil)
+
+(defvar *sim-thread-and-socket* nil)
+
+(defun start-knxnet-sim ()
+  (flet ((handler-fun (buf)
+           (format t "KNXNet server: received message.~%")
+           (setf *conn-host* usocket:*remote-host*)
+           (setf *conn-port* usocket:*remote-port*)
+           (let ((knx-obj (knxobj:parse-root-knx-object buf)))
+             (format t "KNXNet server: knxobj received: ~a~%" knx-obj)
+             (let ((response-obj
+                     (etypecase knx-obj
+                       (connect:knx-connect-request
+                        (format t "KNXNet server: generating connect-response...~%")
+                        (prog1
+                            (connect:make-connect-response 1 "127.0.0.1" 3671)
+                          (setf *tunnel-established* t)))
+                       (tunnelling:knx-tunnelling-ack
+                        (format t "KNXNet server: tunnel-ack"))
+                       (connect:knx-disconnect-request
+                        (format t "KNXNet server: disconnect-request")
+                        (setf *tunnel-established* nil)))))
+               (knxobj:to-byte-seq response-obj)))))
+    (setf *sim-thread-and-socket*
+          (multiple-value-list
+           (usocket:socket-server "127.0.0.1" 3671
+                                  #'handler-fun nil
+                                  :in-new-thread t
+                                  :protocol :datagram)))
+    (format t "KNXNet server started~%")))
+
+(defun stop-knxnet-sim ()
+  (when *sim-thread-and-socket*
+    (usocket:socket-close (second *sim-thread-and-socket*))
+    (bt2:destroy-thread (car *sim-thread-and-socket*))
+    (setf *sim-thread-and-socket* nil)))
+
+;; -------------------------------
+;; tests
+;; -------------------------------
 
 (defun %make-test-tun-req (ga mc apci
                            &optional (dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on)))
@@ -47,8 +91,7 @@
          (start-knxnet-sim)
          (sleep .5)
          (defconfig
-           (knx-init :gw-host "127.0.0.1")
-           )
+           (knx-init :gw-host "127.0.0.1"))
          (format t "defconfig done~%")
          (sleep .5)
          (let ((item
@@ -76,33 +119,3 @@
        (shutdown))
       (ignore-errors
        (stop-knxnet-sim)))))
-
-(defvar *sim-thread-and-socket* nil)
-(defun start-knxnet-sim ()
-  (flet ((handler-fun (buf)
-           (format t "KNXNet server: received message.~%")
-           (setf *conn-host* usocket:*remote-host*)
-           (setf *conn-port* usocket:*remote-port*)
-           (let ((knx-obj (knxobj:parse-root-knx-object buf)))
-             (format t "KNXNet server: knxobj received: ~a~%" knx-obj)
-             (let ((response-obj
-                     (etypecase knx-obj
-                       (connect:knx-connect-request
-                        (format t "KNXNet server: generating connect-response...~%")
-                        (prog1
-                            (connect:make-connect-response 1 "127.0.0.1" 3671)
-                          (setf *tunnel-established* t))))))
-               (knxobj:to-byte-seq response-obj)))))
-    (setf *sim-thread-and-socket*
-          (multiple-value-list
-           (usocket:socket-server "127.0.0.1" 3671
-                                  #'handler-fun nil
-                                  :in-new-thread t
-                                  :protocol :datagram)))
-    (format t "KNXNet server started~%")))
-
-(defun stop-knxnet-sim ()
-  (when *sim-thread-and-socket*
-    (usocket:socket-close (second *sim-thread-and-socket*))
-    (bt2:destroy-thread (car *sim-thread-and-socket*))
-    (setf *sim-thread-and-socket* nil)))
