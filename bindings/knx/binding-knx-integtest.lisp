@@ -17,11 +17,10 @@
 ;; KNXNet simulator
 ;; ------------------------------
 
-(defvar *tunnel-established* nil)
+(defvar *sim-thread-and-socket* nil)
 (defvar *conn-host* nil)
 (defvar *conn-port* nil)
-
-(defvar *sim-thread-and-socket* nil)
+(defvar *tunnel-established* nil)
 
 (defun start-knxnet-sim ()
   (flet ((handler-fun (buf)
@@ -41,8 +40,9 @@
                         (format t "KNXNet server: tunnel-ack"))
                        (connect:knx-disconnect-request
                         (format t "KNXNet server: disconnect-request")
-                        ;; TODO: send disconnect response, or we'll wait longer than necessary on client side
-                        (setf *tunnel-established* nil)))))
+                        (prog1
+                            (connect:make-disconnect-response 1 0)
+                          (setf *tunnel-established* nil))))))
                (when response-obj
                  (knxobj:to-byte-seq response-obj))))))
     (setf *sim-thread-and-socket*
