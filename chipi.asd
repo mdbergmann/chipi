@@ -58,6 +58,7 @@
 
 #|
 hab:
+- test for shutdown-hook
 - replace yason code with jzon
 
 |#

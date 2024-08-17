@@ -173,8 +173,10 @@
 (test knx-init--initializes-knx
   (with-mocks ()
     (answer knxc:knx-conn-init t)
+    (answer hab:add-to-shutdown t)
     (knx-init :gw-host "foo.bar" :gw-port 3671)
-    (is (= 1 (length (invocations 'knxc:knx-conn-init))))))
+    (is (= 1 (length (invocations 'knxc:knx-conn-init))))
+    (is (= 1 (length (invocations 'hab:add-to-shutdown))))))
 
 (test shutdown-knx--closes-knx
   (with-mocks ()

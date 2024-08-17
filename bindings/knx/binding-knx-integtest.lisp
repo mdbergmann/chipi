@@ -107,8 +107,6 @@
          (&body))
     (progn
       (ignore-errors
-       (knx-shutdown))
-      (ignore-errors
        (shutdown))
       (ignore-errors
        (stop-knxnet-sim)))))

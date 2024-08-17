@@ -141,9 +141,12 @@ This should be as part of `hab:defconfig'.
 
 `gw-host': host or UP address to a KNXNet/IP router/gateway.
 `gw-port': port to the gateway, default 3671."
+  ;; register shutdown hook
+  (hab:add-to-shutdown #'knx-shutdown)
   (knxc:knx-conn-init gw-host
                       :port gw-port))
 
 (defun knx-shutdown ()
-  "Shutdown KNX binding and release/clean all resources."
+  "Shutdown KNX binding and release/clean all resources.
+Be aware that the global shutdown function (`hab:shutdown') will also call this."
   (knxc:knx-conn-destroy))

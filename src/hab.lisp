@@ -13,7 +13,8 @@
            #:binding
            #:defrule
            #:defpersistence
-           #:shutdown)
+           #:shutdown
+           #:add-to-shutdown)
   )
 
 (in-package :chipi.hab)
@@ -21,6 +22,7 @@
 (defvar *items* nil "All items")
 (defvar *rules* nil "All rules")
 (defvar *persistences* nil "All persistences")
+(defvar *shutdown-hooks* nil "Shutdown hooks for plugins")
 
 (defun get-item (id)
   "Returns the item with the given id from the created items."
@@ -57,15 +59,28 @@ It also will setup items, rules and persistences storages."
        (setf *rules* (make-hash-table :test #'equal)))
      (unless *persistences*
        (setf *persistences* (make-hash-table :test #'eq)))
+     (setf *shutdown-hooks* nil)
      ,@body))
 
 (defun shutdown ()
-  "Shuts down the environment and cleans all items rules and persistences."
+  "Shuts down the environment, calls shutdown hooks and cleans all items rules and persistences."
+  (log:info "Executing shutdown hooks (~a)..." (length *shutdown-hooks*))
+  (dolist (hook *shutdown-hooks*)
+    (multiple-value-bind (ret condition)
+        (ignore-errors
+         (funcall hook))
+      (declare (ignore ret))
+      (when condition
+        (log:info "Condition on shutdown hook: ~a" condition))))
   (envi:shutdown-env)
   (when *items* (clrhash *items*))
   (when *rules* (clrhash *rules*))
   (when *persistences* (clrhash *persistences*))
+  (when *shutdown-hooks* (setf *shutdown-hooks* nil))
   :ok)
+
+(defun add-to-shutdown (fun)
+  (push fun *shutdown-hooks*))
 
 (defmacro defitem (id label type-hint &rest body)
   "Defines an item.
