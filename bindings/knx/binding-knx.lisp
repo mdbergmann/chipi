@@ -32,20 +32,20 @@
        ((eq value 'item:false) nil)))
     (t value)))
 
-(defun %make-listener-fun (binding ga dpt-type)
+(defun %make-ind-write-listener-fun (binding ga dpt-type)
   (flet ((assert-ga (req requested-ga)
            (let* ((cemi (tunnelling:tunnelling-request-cemi req))
                   (ga (cemi:cemi-destination-addr cemi)))
              (log:debug "Received request for ga: ~a, required: ~a" ga requested-ga)
              (unless (equalp ga requested-ga)
-               (error "Not required ga!"))))
+               (error "GA not of required value!"))))
          (assert-mc (req mc-type)
            (unless (eql (tunnelling:tunnelling-cemi-message-code req) mc-type)
-             (error "Not required mc!")))
+             (error "MC not of required value!")))
          (assert-apci (req apci-type)
            (let ((cemi (tunnelling:tunnelling-request-cemi req)))
              (unless (typep (cemi:cemi-apci cemi) apci-type)
-               (error "Not required apci!"))))
+               (error "APCI not of required value!"))))
          (coerce-dpt (req dpt-type)
            (let* ((cemi (tunnelling:tunnelling-request-cemi req))
                   (cemi-data (cemi:cemi-data cemi))
@@ -112,7 +112,7 @@
     (setf (binding::push-fun binding)
           (%make-binding-push-fun ga-obj dpt-type))
     (knx-client:add-tunnelling-request-listener
-     (%make-listener-fun binding ga-obj dpt-type))
+     (%make-ind-write-listener-fun binding ga-obj dpt-type))
     binding))
 
 ;; -----------------------------

@@ -33,7 +33,8 @@ OK - implement write via push
 OK - implement more value types for push
 OK - rework pull tests to just work with 'exec-pull'
 OK - test initialization of knx
-=> - more integration tests
-
+OK - more integration tests
+- shutdown hook?
+- documentation
 
 |#
