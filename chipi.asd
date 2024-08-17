@@ -1,12 +1,12 @@
 (defsystem "chipi"
-  :version "0.3.1"
+  :version "0.3.2"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
                (:version "sento" "3.3.0")
                "timer-wheel"
                "cl-cron"
-               "yason"  ;; replace usage with jzon
+               "yason"
                "drakma"
                "local-time"
                "binding-arrows"
@@ -58,5 +58,6 @@
 
 #|
 hab:
+- replace yason code with jzon
 
 |#

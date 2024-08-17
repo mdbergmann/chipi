@@ -85,5 +85,6 @@ OK - access-control
 - abstract json to separate package
 - pre-flight?
 - CORS headers
+- replace marshal for json representation
 
 |#
