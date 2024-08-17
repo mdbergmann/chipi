@@ -47,6 +47,19 @@
     )
   (is (= 0 (hash-table-count *items*))))
 
+(test shutdown-calls-shutdown-hooks
+  (let ((called nil))
+    (add-to-shutdown (lambda () (setf called t)))
+    (shutdown)
+    (is-true called)))
+
+(test shutdown-calls-shutdown-hooks--and-continous-on-error
+  (let ((called nil))
+    (add-to-shutdown (lambda () (setf called t)))
+    (add-to-shutdown (lambda () (error "Foo err")))
+    (shutdown)
+    (is-true called)))
+
 (test define-rules
   "Tests defining rules."
   (with-fixture clean-after ()

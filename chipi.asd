@@ -1,5 +1,5 @@
 (defsystem "chipi"
-  :version "0.3.2"
+  :version "0.3.3"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
@@ -58,7 +58,7 @@
 
 #|
 hab:
-- test for shutdown-hook
+OK - test for shutdown-hook
 - replace yason code with jzon
 
 |#
