@@ -138,10 +138,10 @@ Delay can be overriden by specifying `:initial-delay' in full seconds."
 (defun knx-init (&key gw-host (gw-port 3671))
   "Config and initialize KNX binding.
 This should be as part of `hab:defconfig'.
+A shutdown hook is added via `hab:add-to-shutdown' which calls `knx-shutdown'.
 
 `gw-host': host or UP address to a KNXNet/IP router/gateway.
 `gw-port': port to the gateway, default 3671."
-  ;; register shutdown hook
   (hab:add-to-shutdown #'knx-shutdown)
   (knxc:knx-conn-init gw-host
                       :port gw-port))
