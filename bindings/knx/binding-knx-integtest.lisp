@@ -130,7 +130,7 @@
                  (let ((item-value (item:get-value item)))
                    (eql 123 (future:fawait item-value :timeout 1))))))))
 
-(test retrieve-ga-value
+(test retrieve-ga-value-initially
   (with-fixture simulator ("127.0.0.1")
     (let ((item
             (defitem 'foo "KNX item" 'boolean
