@@ -77,7 +77,7 @@
       (is-true (await-cond 0.5 (eq 124 push-value))))))
 
 (test binding--initial-delay->0--execute-pull
-  "`initial-delay' >= 0 means execute `pull' function after bind."
+  "`initial-delay' > 0 means execute `pull' function after bind."
   (with-fixture init-destroy-timer ()
     (with-mocks ()
       (let ((binding (make-function-binding

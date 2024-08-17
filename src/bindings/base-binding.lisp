@@ -77,6 +77,12 @@ The output value will be set on the item, should an item be attached.")
     (when push-fun
       (funcall push-fun value))))
 
+(defun %add-timer (binding timer timer-type)
+  "`TIMER' is a just a signature."
+  (with-slots (timers) binding
+    (log:debug "Adding timer: " timer " of type: " timer-type " to: " binding)
+    (setf (gethash timer-type timers) timer)))
+
 (defun bind-item (binding item)
   (with-slots (bound-items initial-delay delay) binding
     (log:info "Binding item: ~a, on: ~a" item binding)
@@ -84,6 +90,7 @@ The output value will be set on the item, should an item be attached.")
     (let ((timer-fun (lambda () (exec-pull binding))))
       (when initial-delay
         (log:info "Scheduling initial delay: " initial-delay " on: " binding)
+        (assert (> initial-delay 0) nil "Initial delay must be > 0, use 0.1 for a small value!")
         (%add-timer binding
                     (timer:schedule-once initial-delay timer-fun)
                     :initial-delay))
@@ -93,12 +100,6 @@ The output value will be set on the item, should an item be attached.")
         (%add-timer binding
                     (timer:schedule-recurring delay timer-fun)
                     :delay)))))
-
-(defun %add-timer (binding timer timer-type)
-  "`TIMER' is a just a signature."
-  (with-slots (timers) binding
-    (log:debug "Adding timer: " timer " of type: " timer-type " to: " binding)
-    (setf (gethash timer-type timers) timer)))
 
 (defun destroy (binding)
   (log:info "Destroying binding: " binding)

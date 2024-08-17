@@ -13,6 +13,26 @@
 
 (in-suite knx-binding-integtests)
 
+(defun %make-test-tun-req (ga mc apci
+                           &optional (dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on)))
+  (tunnelling:make-tunnelling-request
+   :channel-id 1
+   :seq-counter 0
+   :cemi (cemi:make-default-cemi
+          :message-code mc
+          :dest-address (address:make-group-address ga)
+          :apci apci
+          :dpt dpt)))
+
+(defun %send-knx-msg (knx-msg)
+  (let ((socket (second *sim-thread-and-socket*))
+        (buffer (knxobj:to-byte-seq knx-msg)))
+    (usocket:socket-send socket
+                         buffer
+                         (length buffer)
+                         :port *conn-port*
+                         :host *conn-host*)))
+
 ;; ------------------------------
 ;; KNXNet simulator
 ;; ------------------------------
@@ -36,6 +56,13 @@
                         (prog1
                             (connect:make-connect-response 1 "127.0.0.1" 3671)
                           (setf *tunnel-established* t)))
+                       (tunnelling:knx-tunnelling-request
+                        (format t "KNXNet server: tunnel-req")
+                        (%send-knx-msg (tunnelling:make-tunnelling-ack knx-obj))
+                        (%make-test-tun-req "1/2/3"
+                                            cemi:+cemi-mc-l_data.ind+
+                                            (cemi:make-apci-gv-response)
+                                            (dpt:make-dpt1 'dpt:dpt-1.001 :off)))
                        (tunnelling:knx-tunnelling-ack
                         (format t "KNXNet server: tunnel-ack"))
                        (connect:knx-disconnect-request
@@ -86,26 +113,6 @@
       (ignore-errors
        (stop-knxnet-sim)))))
 
-(defun %make-test-tun-req (ga mc apci
-                           &optional (dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on)))
-  (tunnelling:make-tunnelling-request
-   :channel-id 1
-   :seq-counter 0
-   :cemi (cemi:make-default-cemi
-          :message-code mc
-          :dest-address (address:make-group-address ga)
-          :apci apci
-          :dpt dpt)))
-
-(defun %send-knx-msg (knx-msg)
-  (let ((socket (second *sim-thread-and-socket*))
-        (buffer (knxobj:to-byte-seq knx-msg)))
-    (usocket:socket-send socket
-                         buffer
-                         (length buffer)
-                         :port *conn-port*
-                         :host *conn-host*)))
-
 (test bus-events-update-item-value
   (with-fixture simulator ("127.0.0.1")
     (let ((item
@@ -122,3 +129,16 @@
       (is-true (await-cond 5.0
                  (let ((item-value (item:get-value item)))
                    (eql 123 (future:fawait item-value :timeout 1))))))))
+
+(test retrieve-ga-value
+  (with-fixture simulator ("127.0.0.1")
+    (let ((item
+            (defitem 'foo "KNX item" 'boolean
+              (knx-binding :ga "1/2/3"
+                           :dpt "1.001"
+                           :initial-delay 0.1)
+              :initial-value 'item:true)))
+      (is-true item)
+      (is-true (await-cond 3.0
+                 (let ((item-value (item:get-value item)))
+                   (eql 'item:false (future:fawait item-value :timeout 1))))))))
