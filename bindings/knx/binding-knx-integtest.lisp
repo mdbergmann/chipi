@@ -24,15 +24,6 @@
           :apci apci
           :dpt dpt)))
 
-(defun %send-knx-msg (knx-msg)
-  (let ((socket (second *sim-thread-and-socket*))
-        (buffer (knxobj:to-byte-seq knx-msg)))
-    (usocket:socket-send socket
-                         buffer
-                         (length buffer)
-                         :port *conn-port*
-                         :host *conn-host*)))
-
 ;; ------------------------------
 ;; KNXNet simulator
 ;; ------------------------------
@@ -41,6 +32,15 @@
 (defvar *conn-host* nil)
 (defvar *conn-port* nil)
 (defvar *tunnel-established* nil)
+
+(defun %send-knx-msg (knx-msg)
+  (let ((socket (second *sim-thread-and-socket*))
+        (buffer (knxobj:to-byte-seq knx-msg)))
+    (usocket:socket-send socket
+                         buffer
+                         (length buffer)
+                         :port *conn-port*
+                         :host *conn-host*)))
 
 (defun start-knxnet-sim ()
   (flet ((handler-fun (buf)
