@@ -32,6 +32,7 @@
 (defvar *conn-host* nil)
 (defvar *conn-port* nil)
 (defvar *tunnel-established* nil)
+(defvar *last-received-tun-req* nil)
 
 (defun %send-knx-msg (knx-msg)
   (let ((socket (second *sim-thread-and-socket*))
@@ -47,10 +48,10 @@
            (format t "KNXNet server: received message.~%")
            (setf *conn-host* usocket:*remote-host*)
            (setf *conn-port* usocket:*remote-port*)
-           (let ((knx-obj (knxobj:parse-root-knx-object buf)))
-             (format t "KNXNet server: knxobj received: ~a~%" knx-obj)
+           (let ((received-knx-obj (knxobj:parse-root-knx-object buf)))
+             (format t "KNXNet server: knxobj received: ~a~%" received-knx-obj)
              (let ((response-obj
-                     (etypecase knx-obj
+                     (etypecase received-knx-obj
                        (connect:knx-connect-request
                         (format t "KNXNet server: generating connect-response...~%")
                         (prog1
@@ -58,7 +59,8 @@
                           (setf *tunnel-established* t)))
                        (tunnelling:knx-tunnelling-request
                         (format t "KNXNet server: tunnel-req")
-                        (%send-knx-msg (tunnelling:make-tunnelling-ack knx-obj))
+                        (setf *last-received-tun-req* received-knx-obj)
+                        (%send-knx-msg (tunnelling:make-tunnelling-ack received-knx-obj))
                         (%make-test-tun-req "1/2/3"
                                             cemi:+cemi-mc-l_data.ind+
                                             (cemi:make-apci-gv-response)
@@ -90,18 +92,19 @@
 ;; tests
 ;; -------------------------------
 
-(def-fixture simulator (host)
+(def-fixture simulator ()
   (unwind-protect
        (progn
          (setf *tunnel-established* nil)
          (setf *conn-port* nil)
          (setf *conn-host* nil)
+         (setf *last-received-tun-req* nil)
          
          (start-knxnet-sim)
          (sleep .5)
          
          (defconfig
-           (knx-init :gw-host host))
+           (knx-init :gw-host "127.0.0.1"))
          (is-true (await-cond 2.0
                     *tunnel-established*))
          (&body))
@@ -112,7 +115,7 @@
        (stop-knxnet-sim)))))
 
 (test bus-events-update-item-value
-  (with-fixture simulator ("127.0.0.1")
+  (with-fixture simulator ()
     (let ((item
             (defitem 'foo "KNX item" '(unsigned-byte 8)
               (knx-binding :ga "1/2/3"
@@ -129,7 +132,7 @@
                    (eql 123 (future:fawait item-value :timeout 1))))))))
 
 (test retrieve-ga-value-initially
-  (with-fixture simulator ("127.0.0.1")
+  (with-fixture simulator ()
     (let ((item
             (defitem 'foo "KNX item" 'boolean
               (knx-binding :ga "1/2/3"
@@ -140,3 +143,26 @@
       (is-true (await-cond 3.0
                  (let ((item-value (item:get-value item)))
                    (eql 'item:false (future:fawait item-value :timeout 1))))))))
+
+(test write-value-to-ga-on-item-update
+  (with-fixture simulator ()
+    (let ((item
+            (defitem 'foo "KNX item" 'boolean
+              (knx-binding :ga "1/2/3"
+                           :dpt "1.001"
+                           :initial-delay nil
+                           :call-push-p t)
+              :initial-value 'item:true)))
+      (item:set-value item 'item:false)
+      (is-true (await-cond 3.0
+                 (let* ((cemi (tunnelling:tunnelling-request-cemi *last-received-tun-req*))
+                        (ga (cemi:cemi-destination-addr cemi))
+                        (ga-str (address:address-string-rep ga))
+                        (mc (tunnelling:tunnelling-cemi-message-code *last-received-tun-req*))
+                        (apci (cemi:cemi-apci cemi))
+                        (cemi-data (cemi:cemi-data cemi)))
+                   (and (typep *last-received-tun-req* 'tunnelling:knx-tunnelling-request)
+                        (string= ga-str "1/2/3")
+                        (eql mc cemi:+cemi-mc-l_data.req+)
+                        (cemi:apci-gv-write-p apci)
+                        (equalp cemi-data #(0)))))))))

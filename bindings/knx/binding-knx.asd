@@ -35,6 +35,7 @@ OK - rework pull tests to just work with 'exec-pull'
 OK - test initialization of knx
 OK - more integration tests
 OK - shutdown hook?
-- documentation
+- write value test
+=> - documentation
 
 |#

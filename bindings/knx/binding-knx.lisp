@@ -9,7 +9,7 @@
 
 (defclass knx-binding (binding)
   ((ga :initarg :ga
-       :initform (error "Group-address must exist!")
+       :initform (error "Group-address required!")
        :reader group-address)
    (dpt :initarg :dpt
         :initform (error "DPT type required!")
@@ -96,15 +96,16 @@
     (let ((converted-value (%convert-item-bool-to-1.001 value dpt-type)))
       (log:info "Writing value: ~a to: ~a" value ga-obj)
       ;; wants `t' and `nil' for 1.001
-      (knxc:write-value ga-obj dpt-type converted-value))))
+      (knxc:write-value (address:address-string-rep ga-obj) dpt-type converted-value))))
 
 (defun %make-knx-binding (&rest other-args &key ga dpt &allow-other-keys)
   (let* ((ga-obj (make-group-address ga))
          (dpt-type (value-type-string-to-symbol dpt))
-         (binding (make-instance 'knx-binding
-                                 :ga ga-obj
-                                 :dpt dpt-type
-                                 :initial-delay (getf other-args :initial-delay 2))))
+         (binding (apply #'make-instance 'knx-binding
+                         :ga ga-obj
+                         :dpt dpt-type
+                         :initial-delay (getf other-args :initial-delay 2)
+                         other-args)))
     (assert ga-obj nil "Unable to make group-address object!")
     (assert dpt-type nil "Unable to parse dpt-type!")
     (setf (binding::pull-fun binding)
@@ -128,7 +129,10 @@ Relevant arguments:
 
 Creating the binding expects an initialized knx-conn environment.
 The binding will pull the value from the ga initially with a 2 seconds delay.
-Delay can be overriden by specifying `:initial-delay' in full seconds."
+Delay can be overriden by specifying `:initial-delay' in full seconds.
+Other 'base-binding' arguments like `:call-push-p' and `:delay' also work here.
+`:call-push-p' allows to forward item value changes which come from other places than the KNX bus
+to push to the bus."
   `(progn
      (assert (typep ,ga 'string) nil "Parameter ga must be string!")
      (assert (typep ,dpt 'string) nil "Parameter dpt must be string!")
