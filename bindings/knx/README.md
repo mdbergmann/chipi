@@ -67,7 +67,7 @@ To connect items to KNX bus GAs (group-addresses) you do like this:
 ```
 
 This creates a new item and attaches a `knx-binding`. `:ga` specifies the group-address as string.
-`:dpt` specified the type of DPT. This is required to make the right value conversions since the DPT type is not known in the KNXNet/IP protocol. `:initial-delay 2` specifies that after 2 seconds the value of the light is requested from the bus to initialize the item with. `:call-push-p` set to `T` allows to also post item value updates to send to the KNX bus. In other words, this allows to set the state of the light via the bus.
+`:dpt` specifies the type of DPT. This is required to make the right value conversions since the DPT type of the GA is not known in the KNXNet/IP protocol. `:initial-delay 2` specifies that after 2 seconds the value of the light is requested from the bus to initialize the item with. `:call-push-p` set to `T` allows to also post item value updates to send to the KNX bus. In other words, this allows to set the state of the light via the bus when the item value is changed via `item-set-value`.
 
 It'a also possible to use `:delay` to periodically update the item value from the bus but this is actually not needed as the binding listens on bus changes for the specified GA and updates the item value asynchronously.  
 If some action should be performed upon a certain item value change it is possible to specify a Chipi rule via `defrule`.
