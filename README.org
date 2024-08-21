@@ -9,7 +9,7 @@ I use home automation in my home. Currently utilizing [[https://www.openhab.org/
 
 So my aim was to eventually replace openHAB. There are a few things still missing to do this. The current state of the Chipi project lacks the following for me to be able to replace openHAB:
 
-- support for KNX bus (in progress)
+- support for KNX bus (finished)
 - a REST interface (in progress, implemented, documentation missing)
 - a UI to interact with the system
 
@@ -109,6 +109,8 @@ Thinking further, I'd like to have bindings that are specific to pulling from ht
 
 See next how to define and attach bindings on items.
 
+(Also see below for bindings available as plugins.)
+
 ***** Defining items
 The simplest form to define an item is:
 
@@ -204,3 +206,8 @@ Caveeat: if a persistence is changed and re-evaluated also the items where it is
 **** Logging
 
 The project uses log4cl. You can change the log level for '=(chipi)= to suite your needs of granularity. The underlying Sento actor framework will log extensively on =:debug= level so a good idea is to silence this via =(log:config '(sento) :warn)=.
+
+**** Available binding plugins
+
+***** KNXNet/IP binding: see [[https://github.com/mdbergmann/chipi/blob/main/bindings/knx/README.md][README]]
+
