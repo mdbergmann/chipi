@@ -207,7 +207,7 @@ Caveeat: if a persistence is changed and re-evaluated also the items where it is
 
 The project uses log4cl. You can change the log level for '=(chipi)= to suite your needs of granularity. The underlying Sento actor framework will log extensively on =:debug= level so a good idea is to silence this via =(log:config '(sento) :warn)=.
 
-**** Available binding plugins
+*** Available binding plugins
 
-***** KNXNet/IP binding: see [[https://github.com/mdbergmann/chipi/blob/main/bindings/knx/README.md][README]]
+**** KNXNet/IP binding: see [[https://github.com/mdbergmann/chipi/blob/main/bindings/knx/README.md][README]]
 
