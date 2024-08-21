@@ -130,8 +130,9 @@ Relevant arguments:
 Creating the binding expects an initialized knx-conn environment.
 The binding will pull the value from the ga initially with a 2 seconds delay.
 Delay can be overriden by specifying `:initial-delay' in full seconds.
-Other 'base-binding' arguments like `:call-push-p' and `:delay' also work here.
-`:call-push-p' allows to forward item value changes which come from other places than the KNX bus
+
+`other-args' will be forwarded to the `base-binding' constructor. So things like `:call-push-p' and `:delay' also work here. However, be careful with `:push' and `:pull'. Using them redefine the behavior of the knx-binding.
+In particular, `:call-push-p' allows to forward item value changes which come from other places than the KNX bus
 to push to the bus."
   `(progn
      (assert (typep ,ga 'string) nil "Parameter ga must be string!")
@@ -152,5 +153,5 @@ A shutdown hook is added via `hab:add-to-shutdown' which calls `knx-shutdown'.
 
 (defun knx-shutdown ()
   "Shutdown KNX binding and release/clean all resources.
-Be aware that the global shutdown function (`hab:shutdown') will also call this."
+Be aware that the global shutdown function (`hab:shutdown') will also call this so this usually doesn't need to be called manually except in test setups."
   (knxc:knx-conn-destroy))
