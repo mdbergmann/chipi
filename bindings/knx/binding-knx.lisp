@@ -72,24 +72,25 @@
         (error (e)
           (log:debug "From listener-fun: ~a" e))))))
 
-(defun %make-binding-pull-fun (binding ga-obj dpt-type)
+(defun %make-binding-pull-fun (ga-obj dpt-type)
   (lambda ()
-    (future:fcompleted
-        (knxc:request-value (address:address-string-rep ga-obj)
-                            dpt-type)
-        (result)
-      (cond
-        ((null result)
-         (log:warn "Timed out!"))
-        ((typep result 'error)
-         (log:warn "Error: ~a" result))
-        (t
-         (let ((value (%convert-1.001-to-item-bool result dpt-type)))
-           (log:info "Received value: ~a" value)
-           (dolist (item (binding::bound-items binding))
-             (log:debug "Setting on item: ~a" item)
-             (item:set-value item value :push nil)))))
-      )))
+    (let ((fut
+            (future:fmap
+                (knxc:request-value (address:address-string-rep ga-obj)
+                                    dpt-type)
+                (result)
+              (cond
+                ((null result)
+                 (error "Timed out!"))
+                ((typep result 'error)
+                 (error "Error: ~a" result))
+                (t
+                 (let ((value (%convert-1.001-to-item-bool result dpt-type)))
+                   (log:info "Received value: ~a" value)
+                   value))))))
+      (values 
+       fut
+       '(:push nil)))))
 
 (defun %make-binding-push-fun (ga-obj dpt-type)
   (lambda (value)
@@ -105,13 +106,11 @@
                          :ga ga-obj
                          :dpt dpt-type
                          :initial-delay (getf other-args :initial-delay 2)
+                         :push-fun (%make-binding-push-fun ga-obj dpt-type)
+                         :pull-fun (%make-binding-pull-fun ga-obj dpt-type)
                          other-args)))
     (assert ga-obj nil "Unable to make group-address object!")
     (assert dpt-type nil "Unable to parse dpt-type!")
-    (setf (binding::pull-fun binding)
-          (%make-binding-pull-fun binding ga-obj dpt-type))
-    (setf (binding::push-fun binding)
-          (%make-binding-push-fun ga-obj dpt-type))
     (knx-client:add-tunnelling-request-listener
      (%make-ind-write-listener-fun binding ga-obj dpt-type))
     binding))

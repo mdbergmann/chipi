@@ -69,15 +69,15 @@ The output value will be set on the item, should an item be attached.")
       (handler-case
           (multiple-value-bind (pull-result opts)
               (funcall pull-fun)
-            (when (not (future:futurep pull-result))
+            (log:debug "Pulled value: ~a, opts: ~a" pull-result opts)
+            (unless (future:futurep pull-result)
               (setf pull-result (future:with-fut pull-result)))
             (future:fcompleted pull-result
                 (result)
-              (log:debug "Pulling value from: ~a, result: ~a" binding result)
               (when transform-fun
                 (setf result (funcall transform-fun result))
                 (log:debug "Transformed value to: ~a" result))
-              (log:debug "Setting on items (~a), opts: ~a" (length bound-items) opts)
+              (log:debug "Setting on items (~a)" (length bound-items))
               (dolist (item bound-items)
                 (item:set-value item result :push (getf opts :push t)))))
         (error (c)

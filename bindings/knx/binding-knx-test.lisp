@@ -147,7 +147,7 @@
             t))
 
         (binding:bind-item
-         (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay 1)
+         (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay .1)
          :foo-item)
 
         (is-true (miscutils:await-cond 2.5
