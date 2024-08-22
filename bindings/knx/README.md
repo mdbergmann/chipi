@@ -12,6 +12,8 @@ The interaction with a temperatur sensor is most likely only unidirectional wher
 
 In case of (i.e.) a light you's want the item state be updated from the bus but also switch the light on/off through changing the item value (i.e. via API or UI).
 
+(Please see a [full example script](example-script.lisp))
+
 #### Setup
 
 In order to use the KNX binding it must be loaded via:
