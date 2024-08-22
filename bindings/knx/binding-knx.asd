@@ -1,5 +1,5 @@
 (defsystem "binding-knx"
-  :version "0.1.0"
+  :version "0.2.0"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("chipi"
@@ -37,6 +37,6 @@ OK - more integration tests
 OK - shutdown hook?
 OK - write value test
 OK - documentation
-- %make-binding-pull-fun return future which is set as is to item.
-=> pull-fun should not set item values itself.
+OK - %make-binding-pull-fun return future which is set as is to item.
+OK - pull-fun should not set item values itself.
 |#
