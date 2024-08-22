@@ -10,7 +10,7 @@ For example:
 
 The interaction with a temperatur sensor is most likely only unidirectional where the item state (though the knx-binding) is updated asynchronously from the KNX bus where the temperature sensor posts it's temperatur updates.
 
-In case of (i.e.) a light you's want the item state be updated from the bus but also switch the light on/off through changing the item value (i.e. via API or UI).
+In case of (i.e.) a light you'd want the item state be updated from the bus but also switch the light on/off through changing the item value (bidirectional, i.e. via API or UI).
 
 (Please see a [full example script](example-script.lisp))
 
