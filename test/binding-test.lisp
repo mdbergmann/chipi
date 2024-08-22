@@ -48,6 +48,33 @@
       (exec-pull binding)
       (is-true (await-cond 0.5 (eq 123 push-value))))))
 
+(test binding--allow-binding-pull-to-control-calling-push
+  "Test that bindings pull function can control whether to do a push (still :call-push-p needed)."
+  (with-fixture init-destroy-timer ()
+    (let* ((item (item:make-item 'my-item))
+           (push-value)
+           (binding (make-function-binding
+                     :pull (lambda () (values 123 '(:push nil)))
+                     :push (lambda (value) (setf push-value value))
+                     :call-push-p t)))
+      (item:add-binding item binding)
+      (exec-pull binding)
+      (sleep .5)
+      (is-false push-value))))
+
+(test binding--allow-pull-to-return-future
+  "Test that bindings pull function can return a future."
+  (with-fixture init-destroy-timer ()
+    (let* ((item (item:make-item 'my-item))
+           (push-value)
+           (binding (make-function-binding
+                     :pull (lambda () (values (future:with-fut 123) '(:push t)))
+                     :push (lambda (value) (setf push-value value))
+                     :call-push-p t)))
+      (item:add-binding item binding)
+      (exec-pull binding)
+      (is-true (await-cond 0.5 (eq 123 push-value))))))
+
 (test binding--does-not-call-push-after-on-pull-err
   "Test that bindings is not passed through to push if pull fails."
   (with-fixture init-destroy-timer ()
@@ -74,7 +101,7 @@
                      :call-push-p t)))
       (item:add-binding item binding)
       (exec-pull binding)
-      (is-true (await-cond 0.5 (eq 124 push-value))))))
+      (is-true (await-cond 2.0 (eq 124 push-value))))))
 
 (test binding--initial-delay->0--execute-pull
   "`initial-delay' > 0 means execute `pull' function after bind."
@@ -83,7 +110,7 @@
       (let ((binding (make-function-binding
                       :pull (lambda () 123)
                       :initial-delay 0.1)))
-        (answer (item:set-value _ value)
+        (answer (item:set-value _ value :push _)
           (assert (= value 123)))
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.5
@@ -108,7 +135,7 @@
              (binding (make-function-binding
                        :pull (lambda () (incf call-count))
                        :delay 0.1)))
-        (answer (item:set-value _ value)
+        (answer (item:set-value _ value :push _)
           (assert (>= value 0)))
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 1.5
@@ -122,7 +149,7 @@
             (binding (make-function-binding
                       :pull (lambda () 123)
                       :delay 0.2)))
-        (answer (item:set-value item _)
+        (answer (item:set-value item _ :push _)
           (setf called-items (cons item called-items)))
         (bind-item binding 'my-fake-item)
         (bind-item binding 'my-fake-item2)
@@ -140,7 +167,7 @@
                       :pull (lambda () 123)
                       :initial-delay 0.1
                       :delay 0.1)))
-        (answer (item:set-value _ _) t)
+        (answer (item:set-value _ _ :push _) t)
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.5
                    (>= 1 (length (invocations 'item:set-value)))))

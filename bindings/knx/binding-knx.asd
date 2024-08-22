@@ -36,6 +36,7 @@ OK - test initialization of knx
 OK - more integration tests
 OK - shutdown hook?
 OK - write value test
-=> - documentation
-
+OK - documentation
+- %make-binding-pull-fun return future which is set as is to item.
+=> pull-fun should not set item values itself.
 |#

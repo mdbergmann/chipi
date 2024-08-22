@@ -1,5 +1,5 @@
 (defsystem "chipi"
-  :version "0.3.3"
+  :version "0.3.4"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
@@ -59,6 +59,8 @@
 #|
 hab:
 OK - test for shutdown-hook
+- allow `pull-fun` to decide on calling push via returning (values val '(:pull))
+- allow `pull-fun` to return future which is then just `fcompleted`.
 - replace yason code with jzon
 
 |#

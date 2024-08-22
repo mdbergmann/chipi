@@ -53,7 +53,6 @@
                          (dpt cemi-data)
                          ((vector octet) (parse-to-dpt dpt-type cemi-data))))
                   (value (dpt:dpt-value dpt)))
-             (log:info "Indicated value: ~a for ga: ~a" dpt ga)
              value)))
     (lambda (req)
       (handler-case
@@ -65,12 +64,13 @@
             (let ((value (%convert-1.001-to-item-bool
                           (coerce-dpt req dpt-type) dpt-type))
                   (items (binding::bound-items binding)))
+              (log:info "Indicated value: ~a for ga: ~a" value ga)
               (log:debug "Setting on items (~a)..." (length items))
               (dolist (item items)
                 (log:debug "Setting on item: ~a" item)
                 (item:set-value item value :push nil))))
         (error (e)
-          (log:error "Error in listener-fun: ~a" e))))))
+          (log:debug "From listener-fun: ~a" e))))))
 
 (defun %make-binding-pull-fun (binding ga-obj dpt-type)
   (lambda ()
@@ -94,7 +94,7 @@
 (defun %make-binding-push-fun (ga-obj dpt-type)
   (lambda (value)
     (let ((converted-value (%convert-item-bool-to-1.001 value dpt-type)))
-      (log:info "Writing value: ~a to: ~a" value ga-obj)
+      (log:info "Writing to bus, value: ~a ga: ~a, dpt: ~a" value ga-obj dpt-type)
       ;; wants `t' and `nil' for 1.001
       (knxc:write-value (address:address-string-rep ga-obj) dpt-type converted-value))))
 

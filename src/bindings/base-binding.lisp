@@ -7,7 +7,13 @@
    (pull-fun :initarg :pull-fun
              :initform nil
              :accessor pull-fun
-             :documentation "0-arity function that retrieves the value.")
+             :documentation "0-arity function that retrieves the value.
+The function must return a value representing the new item value.
+The returned value can be wrapped in a `future`, if the pull is performed asynchronously.
+To allow control over the subsequent call chain it is possible to return `values' with options indicating whether a subsequent 'push' should be performed.
+I.e. `(values <value> '(:push [nil|t]))`.
+If `:push' is `NIL' then no push will be performed.
+The default, if omitted and also when a single value is returned is to push.")
    (push-fun :initarg :push-fun
              :initform nil
              :accessor push-fun
@@ -56,22 +62,29 @@ The output value will be set on the item, should an item be attached.")
                  :call-push-p call-push-p))
 
 (defun exec-pull (binding)
-  (log:debug "Pulling value from: " binding)
+  (log:debug "Pulling value from: ~a" binding)
   (with-slots (bound-items pull-fun transform-fun) binding
     ;; maybe execute using tasks
     (when pull-fun
       (handler-case
-          (let ((result (funcall pull-fun)))
-            (log:debug "Pulling value from: " binding ", result: " result)
-            (when transform-fun
-              (setf result (funcall transform-fun result)))
-            (dolist (item bound-items)
-              (item:set-value item result)))
+          (multiple-value-bind (pull-result opts)
+              (funcall pull-fun)
+            (when (not (future:futurep pull-result))
+              (setf pull-result (future:with-fut pull-result)))
+            (future:fcompleted pull-result
+                (result)
+              (log:debug "Pulling value from: ~a, result: ~a" binding result)
+              (when transform-fun
+                (setf result (funcall transform-fun result))
+                (log:debug "Transformed value to: ~a" result))
+              (log:debug "Setting on items (~a), opts: ~a" (length bound-items) opts)
+              (dolist (item bound-items)
+                (item:set-value item result :push (getf opts :push t)))))
         (error (c)
           (log:warn "Error pulling value from: ~a, error: ~a" binding c))))))
 
 (defun exec-push (binding value)
-  (log:debug "Pushing value: " value " to: " binding)
+  (log:debug "Pushing value: ~a to: ~a" value binding)
   (with-slots (push-fun) binding
     ;; maybe execute using tasks
     (when push-fun
