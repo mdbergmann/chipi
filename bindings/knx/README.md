@@ -1,7 +1,7 @@
 
 ### Chipi - KNX binding plugin documentation
 
-The Chipi KNX binding allows items to interact with the KNX BUS and group-addresses.
+The Chipi KNX binding allows items to interact with the KNX bus system and group-addresses.
 
 For example:
 
