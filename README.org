@@ -1,7 +1,7 @@
 
 *** Chipi - A (House) Automation for Common Lisp
 
-!!! Still in alpha state, API design changes are probably required !!!
+!!! I'm running the core framework in production 24/7 for many months. But still considered beta. !!!
 
 ****  Motivation
 
@@ -12,6 +12,8 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 - support for KNX bus (finished)
 - a REST interface (in progress, implemented, documentation missing)
 - a UI to interact with the system
+
+See plugin section below.
 
 **** What does Chipi currently do
 
