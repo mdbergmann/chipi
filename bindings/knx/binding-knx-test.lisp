@@ -27,8 +27,25 @@
                 :dpt "9.001"
                 :initial-delay nil)))
       (is-true cut)
-      (is (address:knx-group-address-p (binding-knx::group-address cut)))
+      (is (address:knx-group-address-p (binding-knx::group-address-read cut)))
+      (is (address:knx-group-address-p (binding-knx::group-address-write cut)))
       (is (eq 'dpt:dpt-9.001 (binding-knx::dpt-type cut)))
+      (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener)))))))
+
+(test make-knx-binding--with-separate-read-write-gas
+  "Tests creating a knx binding that specifies separate read and write GAs."
+  (with-mocks ()
+    ;; binding should register listener function
+    (answer knx-client:add-tunnelling-request-listener t)
+    (let ((cut (knx-binding
+                :ga '(:read "1/2/3" :write "1/2/4")
+                :dpt "9.001"
+                :initial-delay nil)))
+      (is-true cut)
+      (is (address:knx-group-address-p (binding-knx::group-address-read cut)))
+      (is (string= "1/2/3" (address:address-string-rep (binding-knx::group-address-read cut))))
+      (is (address:knx-group-address-p (binding-knx::group-address-write cut)))
+      (is (string= "1/2/4" (address:address-string-rep (binding-knx::group-address-write cut))))
       (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener)))))))
 
 (defun %make-test-tun-req (ga mc apci &optional (dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on)))

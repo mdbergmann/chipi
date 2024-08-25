@@ -62,14 +62,18 @@ To connect items to KNX bus GAs (group-addresses) you do like this:
 
 ```lisp
 (defitem 'my-light-foo "Light Foo" 'boolean
-  (knx-binding :ga "1/2/3"
+  (knx-binding :ga "1/2/3" ;; or: '(:read "1/2/3" :write "1/2/4")
                :dpt "1.001"
                :initial-delay 2
                :call-push-p t))
 ```
 
-This creates a new item and attaches a `knx-binding`. `:ga` specifies the group-address as string.
-`:dpt` specifies the type of DPT. This is required to make the right value conversions since the DPT type of the GA is not known in the KNXNet/IP protocol. `:initial-delay 2` specifies that after 2 seconds the value of the light is requested from the bus to initialize the item with. `:call-push-p` set to `T` allows to also post item value updates to send to the KNX bus. In other words, this allows to set the state of the light via the bus when the item value is changed via `item-set-value`.
+This creates a new item and attaches a `knx-binding`.
+
+`:ga` specifies the group-address as string if the same ga should be used for read and write. Sometimes actors define separate connections for write and read (status) in which case `:ga` allows to specify separate group-addresses, i.e. this is also allowed: `'(:read "1/2/3" :write "1/2/4")`.  
+`:dpt` specifies the type of DPT. This is required to make the right value conversions since the DPT type of the GA is not known in the KNXNet/IP protocol.  
+`:initial-delay 2` specifies that after 2 seconds the value of the light is requested from the bus to initialize the item with.  
+`:call-push-p` set to `T` allows to also post item value updates to send to the KNX bus. In other words, this allows to set the state of the light via the bus when the item value is changed via `item-set-value`.
 
 It'a also possible to use `:delay` to periodically update the item value from the bus but this is actually not needed as the binding listens on bus changes for the specified GA and updates the item value asynchronously.  
 If some action should be performed upon a certain item value change it is possible to specify a Chipi rule via `defrule`.

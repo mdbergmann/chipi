@@ -1,6 +1,8 @@
 (defpackage :chipi.binding.knx
   (:use :cl :binding :knxc :knx-conn.address :knx-conn.dpt :knx-conn.knx-obj)
   (:nicknames :binding-knx)
+  (:import-from #:alexandria
+                #:remove-from-plist)
   (:export #:knx-binding
            #:knx-init
            #:knx-shutdown))
@@ -8,9 +10,12 @@
 (in-package :chipi.binding.knx)
 
 (defclass knx-binding (binding)
-  ((ga :initarg :ga
-       :initform (error "Group-address required!")
-       :reader group-address)
+  ((ga-read :initarg :ga-read
+            :initform (error "Read group-address required!")
+            :reader group-address-read)
+   (ga-write :initarg :ga-write
+             :initform (error "Write group-address required!")
+             :reader group-address-write)
    (dpt :initarg :dpt
         :initform (error "DPT type required!")
         :reader dpt-type)))
@@ -100,19 +105,26 @@
       (knxc:write-value (address:address-string-rep ga-obj) dpt-type converted-value))))
 
 (defun %make-knx-binding (&rest other-args &key ga dpt &allow-other-keys)
-  (let* ((ga-obj (make-group-address ga))
+  (let* ((ga-read-obj (if (stringp ga)
+                          (make-group-address ga)
+                          (make-group-address (getf ga :read))))
+         (ga-write-obj (if (stringp ga)
+                           (make-group-address ga)
+                           (make-group-address (getf ga :write))))
          (dpt-type (value-type-string-to-symbol dpt))
+         (rest-args (remove-from-plist other-args :ga :dpt))
          (binding (apply #'make-instance 'knx-binding
-                         :ga ga-obj
+                         :ga-read ga-read-obj
+                         :ga-write ga-write-obj
                          :dpt dpt-type
                          :initial-delay (getf other-args :initial-delay 2)
-                         :push-fun (%make-binding-push-fun ga-obj dpt-type)
-                         :pull-fun (%make-binding-pull-fun ga-obj dpt-type)
-                         other-args)))
-    (assert ga-obj nil "Unable to make group-address object!")
+                         :push-fun (%make-binding-push-fun ga-write-obj dpt-type)
+                         :pull-fun (%make-binding-pull-fun ga-read-obj dpt-type)
+                         rest-args)))
+    (assert (and ga-read-obj ga-write-obj) nil "Unable to make group-address objects!")
     (assert dpt-type nil "Unable to parse dpt-type!")
     (knx-client:add-tunnelling-request-listener
-     (%make-ind-write-listener-fun binding ga-obj dpt-type))
+     (%make-ind-write-listener-fun binding ga-read-obj dpt-type))
     binding))
 
 ;; -----------------------------
@@ -134,7 +146,8 @@ Delay can be overriden by specifying `:initial-delay' in full seconds.
 In particular, `:call-push-p' allows to forward item value changes which come from other places than the KNX bus
 to push to the bus."
   `(progn
-     (assert (typep ,ga 'string) nil "Parameter ga must be string!")
+     (assert (or (stringp ,ga)
+                 (listp ,ga)) nil "Parameter ga must be string or a plist with :read and :write keys!")
      (assert (typep ,dpt 'string) nil "Parameter dpt must be string!")
      (log:info "Make knx binding...")
      (%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args)))
