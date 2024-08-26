@@ -62,6 +62,7 @@ The output value will be set on the item, should an item be attached.")
                  :call-push-p call-push-p))
 
 (defun exec-pull (binding)
+  (log:debug "Pulling value from: ~a" binding)
   (with-slots (bound-items pull-fun transform-fun) binding
     ;; maybe execute using tasks
     (when pull-fun
@@ -71,14 +72,22 @@ The output value will be set on the item, should an item be attached.")
             (log:debug "Pulled value: ~a, opts: ~a" pull-result opts)
             (unless (future:futurep pull-result)
               (setf pull-result (future:with-fut pull-result)))
-            (future:fcompleted pull-result
-                (result)
-              (when transform-fun
-                (setf result (funcall transform-fun result))
-                (log:debug "Transformed value to: ~a" result))
-              (log:debug "Setting on items (~a)" (length bound-items))
-              (dolist (item bound-items)
-                (item:set-value item result :push (getf opts :push t)))))
+	    (future:frecover
+	     (future:fcompleted pull-result
+		 (result)
+               (when transform-fun
+                 (setf result (funcall transform-fun result))
+                 (log:debug "Transformed value to: ~a" result))
+               (log:debug "Setting on items (~a)" (length bound-items))
+               (dolist (item bound-items)
+		 (item:set-value item result
+				 :push
+				 (getf (if (listp opts)
+					   opts
+					   nil)
+				       :push t))))
+	     (error (c)
+		    (log:error "Error on handling pull future: ~a" c))))
         (error (c)
           (log:warn "Error pulling value from: ~a, error: ~a" binding c))))))
 
@@ -93,7 +102,7 @@ The output value will be set on the item, should an item be attached.")
           (log:warn "Error funcalling push-fun from: ~a, error: ~a" binding c))))))
 
 (defun %add-timer (binding timer timer-type)
-  "`TIMER' is a just a signature."
+  "`TIMER' is just a signature."
   (with-slots (timers) binding
     (log:debug "Adding timer: " timer " of type: " timer-type " to: " binding)
     (setf (gethash timer-type timers) timer)))
