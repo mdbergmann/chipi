@@ -134,20 +134,23 @@
 (defmacro knx-binding (&rest other-args &key ga dpt &allow-other-keys)
   "Creates a knx-binding.
 
+Creating the binding expects an initialized knx-conn environment.
+
 Relevant arguments:
-- `ga': group-address in string representation like '1/2/3'
+- `ga': group-address in
+string representation like \"1/2/3\" or a
+list like `'(:read \"1/2/3\" :write \"1/2/4\")`
+Note, that `:read' is also used to listen (on the bus). A read request only happens when `:initial-delay' (is default with 2 seconds. Can be disabled with `nil') or `:delay' is specified. Otherwise the item value will only be set when changes to the GA happened on the bus.
+That means with `:initial-delay' or `:delay' the GA specified must have the 'read' flag set.
+
 - `dpt': dpt-type string, i.e. '1.001'
 
-Creating the binding expects an initialized knx-conn environment.
-The binding will pull the value from the ga initially with a 2 seconds delay.
-Delay can be overriden by specifying `:initial-delay' in full seconds.
-
 `other-args' will be forwarded to the `base-binding' constructor. So things like `:call-push-p' and `:delay' also work here. However, be careful with `:push' and `:pull'. Using them redefine the behavior of the knx-binding.
-In particular, `:call-push-p' allows to forward item value changes which come from other places than the KNX bus
-to push to the bus."
+In particular, `:call-push-p' allows to forward item value changes which come from other places than the KNX bus to push to the bus."
   `(progn
      (assert (or (stringp ,ga)
-                 (listp ,ga)) nil "Parameter ga must be string or a plist with :read and :write keys!")
+                 (listp ,ga))
+             nil "Parameter ga must be string or a plist with :read and :write keys!")
      (assert (typep ,dpt 'string) nil "Parameter dpt must be string!")
      (log:info "Make knx binding...")
      (%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args)))
