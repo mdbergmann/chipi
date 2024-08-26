@@ -62,7 +62,6 @@ The output value will be set on the item, should an item be attached.")
                  :call-push-p call-push-p))
 
 (defun exec-pull (binding)
-  (log:debug "Pulling value from: ~a" binding)
   (with-slots (bound-items pull-fun transform-fun) binding
     ;; maybe execute using tasks
     (when pull-fun
@@ -84,11 +83,14 @@ The output value will be set on the item, should an item be attached.")
           (log:warn "Error pulling value from: ~a, error: ~a" binding c))))))
 
 (defun exec-push (binding value)
-  (log:debug "Pushing value: ~a to: ~a" value binding)
   (with-slots (push-fun) binding
     ;; maybe execute using tasks
     (when push-fun
-      (funcall push-fun value))))
+      (log:debug "Pushing value: ~a to: ~a" value binding)
+      (handler-case
+          (funcall push-fun value)
+        (error (c)
+          (log:warn "Error funcalling push-fun from: ~a, error: ~a" binding c))))))
 
 (defun %add-timer (binding timer timer-type)
   "`TIMER' is a just a signature."
