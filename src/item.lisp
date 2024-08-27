@@ -91,7 +91,7 @@ This is in particular important for persistences that are type specific, like in
            (push-to-bindings (new-value push) 
              (with-slots (bindings) self
                (log:debug "Processing ~a binding(s)." (length bindings))
-               (dolist (binding bindings)
+               (dolist (binding (reverse bindings))
                  (handler-case
                      (let ((effective-push (if push 
                                                (binding:call-push-p binding)
@@ -182,7 +182,7 @@ If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on bi
 (defun add-binding (item binding)
   (log:info "Adding binding: ~a to item: ~a" binding item)
   (with-slots (bindings) item
-    (push binding bindings)
+    (pushnew binding bindings)
     (binding:bind-item binding item))
   item)
 

@@ -272,19 +272,23 @@ that when loading the value the second (or any more) persistence does not persit
       (set-value item 1)
       (is-true (await-cond 2 (equal pushed-value 1))))))
 
-(test item--pushes-on-all-bindings-even-if-previous-raises-err
-  "Tests that item value is pushed to all bindings even if previous fails."
+(test item--pushes-on-all-bindings-even-if-previous-raises-err--with-order-check
+  "Tests that item value is pushed to all bindings even if previous fails with error.
+This also tests the error handling in item calling `exec-push' of the binding."
   (with-fixture init-destroy-env ()
     (let* ((item (make-item 'my-item))
            (pushed-value)
            (binding1 (binding:make-function-binding
-                      :push (lambda (value) (declare (ignore value)) (error "on push!"))
+                      :push (lambda (value) (declare (ignore value))
+                              (push value pushed-value)
+                              (error "on push!"))
                       :call-push-p t))
            (binding2 (binding:make-function-binding
-                      :push (lambda (value) (setf pushed-value value))
+                      :push (lambda (value)
+                              (push (1+ value) pushed-value))
                       :call-push-p t)))
       (add-binding item binding1)
       (add-binding item binding2)
-      (sleep 0.5)
       (set-value item 1)
-      (is-true (await-cond 2 (equal pushed-value 1))))))
+      (is-true (await-cond 2 (equalp
+                              pushed-value (list 2 1)))))))
