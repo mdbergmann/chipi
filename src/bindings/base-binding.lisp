@@ -1,5 +1,13 @@
 (in-package :chipi.binding)
 
+(eval-when (:compile-toplevel)
+  (shadowing-import '(future:fcompleted
+                      future:frecover
+                      future:futurep
+                      future:fmap
+                      future:with-fut
+                      binding-arrows:->)))
+
 (defclass binding ()
   ((bound-items :initform '()
                 :reader bound-items
@@ -62,44 +70,47 @@ The output value will be set on the item, should an item be attached.")
                  :call-push-p call-push-p))
 
 (defun exec-pull (binding)
+  "Executes the `pull-fun' as defined on the binding.
+Beware that `pull-fun' is executed by the thread that calls `exec-pull'. This may differ. I.e.when called from timer when `:initial-delay' or `:delay' is defined.
+In order to not unwind/collapse a timer stack execution of `pull-fun' is error checked (handler-case).
+`exec-pull' will set pulled value to bound items, or if a `transform-fun' is defined will call that first."
   (log:debug "Pulling value from: ~a" binding)
   (with-slots (bound-items pull-fun transform-fun) binding
-    ;; maybe execute using tasks
     (when pull-fun
       (handler-case
           (multiple-value-bind (pull-result opts)
               (funcall pull-fun)
             (log:debug "Pulled value: ~a, opts: ~a" pull-result opts)
-            (unless (future:futurep pull-result)
-              (setf pull-result (future:with-fut pull-result)))
-	    (future:frecover
-	     (future:fcompleted pull-result
-		 (result)
-               (when transform-fun
-                 (setf result (funcall transform-fun result))
-                 (log:debug "Transformed value to: ~a" result))
-               (log:debug "Setting on items (~a)" (length bound-items))
-               (dolist (item bound-items)
-		 (item:set-value item result
-				 :push
-				 (getf (if (listp opts)
-					   opts
-					   nil)
-				       :push t))))
-	     (error (c)
-		    (log:error "Error on handling pull future: ~a" c))))
+            (-> (if (futurep pull-result) pull-result (with-fut pull-result))
+              (fmap (result)
+                  (if transform-fun
+                      (prog1 (funcall transform-fun result)
+                        (log:debug "Transformed value to: ~a" result))
+                      result))
+              (fcompleted (result)
+                  (progn
+                    (log:debug "Setting on items (~a)" (length bound-items))
+                    (dolist (item bound-items)
+		              (item:set-value item result
+				                      :push
+				                      (getf (if (listp opts)
+					                            opts
+					                            nil)
+				                            :push t)))))
+              (frecover
+               (error (c)
+                      (log:error "Error on handling pull future: ~a" c)))))
         (error (c)
           (log:warn "Error pulling value from: ~a, error: ~a" binding c))))))
 
 (defun exec-push (binding value)
+  "`exec-push' is called after an item value change. It executed `push-fun' as defined on the binding.
+The caller of `exec-push' is responsible for unwind protection. No error handling is done here.
+This is to have the higher-level module decide how to handle the error."
   (with-slots (push-fun) binding
-    ;; maybe execute using tasks
     (when push-fun
       (log:debug "Pushing value: ~a to: ~a" value binding)
-      (handler-case
-          (funcall push-fun value)
-        (error (c)
-          (log:warn "Error funcalling push-fun from: ~a, error: ~a" binding c))))))
+      (funcall push-fun value))))
 
 (defun %add-timer (binding timer timer-type)
   "`TIMER' is just a signature."
