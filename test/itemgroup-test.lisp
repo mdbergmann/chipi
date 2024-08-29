@@ -12,6 +12,9 @@
 (in-suite itemgroup-tests)
 
 (test itemgroup-create
-  (is (typep (make-itemgroup 'foo :label "Foo") 'itemgroup)))
+  (let ((cut (make-itemgroup 'foo :label "Foo")))
+    (is (typep cut 'itemgroup))
+    (is (string= (label cut) "Foo"))
+    (is (string= (name cut) "FOO"))))
 
 (run! 'itemgroup-tests)

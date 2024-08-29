@@ -50,6 +50,23 @@ This is in particular important for persistences that are type specific, like in
    (persistences :initform '()
                  :reader persistences
                  :documentation "The items persistences")))
+
+(defgeneric name (item)
+  (:documentation "Returns name of the item."))
+
+(defgeneric label (item)
+  (:documentation "returns the label of the item."))
+
+(defgeneric get-value (item)
+  (:documentation "Generic function for retreieving the value of the item.
+Returns `future:future'."))
+
+(defgeneric set-value (item value &key push timestamp persist)
+  (:documentation "Updates item value with push to bindings.
+If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on binding definition.
+`TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
+`PERSIST': if non-nil, persistences will be applied."))
+
 (defstruct item-state
   (value t)
   (timestamp (get-universal-time)))
@@ -158,19 +175,6 @@ This is in particular important for persistences that are type specific, like in
               (act-cell:state obj)
               (value-type-hint obj))
       (get-output-stream-string string-stream))))
-
-(defgeneric name (item)
-  (:documentation "Returns name of the item."))
-
-(defgeneric get-value (item)
-  (:documentation "Generic function for retreieving the value of the item.
-Returns `future:future'."))
-
-(defgeneric set-value (item value &key push timestamp persist)
-  (:documentation "Updates item value with push to bindings.
-If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on binding definition.
-`TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
-`PERSIST': if non-nil, persistences will be applied."))
 
 (defmethod name (item)
   (act-cell:name item))
