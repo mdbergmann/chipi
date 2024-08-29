@@ -15,12 +15,21 @@
   (let ((cut (make-itemgroup 'foo :label "Foo")))
     (is (typep cut 'itemgroup))
     (is (string= (label cut) "Foo"))
+    (is (eq (name cut) 'foo))
     (is (string= (name cut) "FOO"))))
 
 (test itemgroup-can-add-items
   (let ((cut (make-itemgroup 'foo)))
     ;; we consiously don't use the item factory function because it requires actor system
-    (is-true (add-item cut (make-instance 'item:item :receive t :name "FOO")))
-    (is (typep (get-item cut 'foo) 'item:item))))
+    (is-true (add-item cut (make-instance 'item:item :receive t :name "BAR")))
+    (is (typep (get-item cut 'bar) 'item:item))))
+
+(test itemgroup-remove-item
+  (let ((cut (make-itemgroup 'foo)))
+    (is-true (add-item cut (make-instance 'item:item :receive t :name "BAR")))
+    (is-true (remove-item cut 'bar))
+    (is-false (get-item cut 'bar))))
+
+
 
 (run! 'itemgroup-tests)

@@ -6,7 +6,8 @@
            #:label
            #:name
            #:add-item
-           #:get-item)
+           #:get-item
+           #:remove-item)
   (:import-from #:item
                 #:name
                 #:label)
@@ -42,3 +43,5 @@
 (defun get-item (itemgroup id)
   (gethash (symbol-name id) (items itemgroup)))
 
+(defun remove-item (itemgroup id)
+  (remhash (symbol-name id) (items itemgroup)))
