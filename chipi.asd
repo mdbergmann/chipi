@@ -44,6 +44,7 @@
                 ((:file "all-tests")
                  (:file "binding-test")
                  (:file "item-test")
+                 (:file "itemgroup-test")
                  (:file "rule-test")
                  (:file "persistence-test")
                  (:file "persistence-influx-test")

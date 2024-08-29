@@ -52,5 +52,3 @@
       (is-true (set-value cut counter))
       (is (= 2 (length (invocations 'item:set-value))))
       )))
-
-(run! 'itemgroup-tests)
