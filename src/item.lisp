@@ -159,17 +159,26 @@ This is in particular important for persistences that are type specific, like in
               (value-type-hint obj))
       (get-output-stream-string string-stream))))
 
-(defun name (item)
-  (act-cell:name item))
+(defgeneric name (item)
+  (:documentation "Returns name of the item."))
 
-(defun get-value (item)
-  (? item '(:get-state . nil)))
+(defgeneric get-value (item)
+  (:documentation "Generic function for retreieving the value of the item.
+Returns `future:future'."))
 
-(defun set-value (item value &key (push t) (timestamp nil) (persist t))
-  "Updates item value with push to bindings.
+(defgeneric set-value (item value &key push timestamp persist)
+  (:documentation "Updates item value with push to bindings.
 If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on binding definition.
 `TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
-`PERSIST': if non-nil, persistences will be applied."
+`PERSIST': if non-nil, persistences will be applied."))
+
+(defmethod name (item)
+  (act-cell:name item))
+
+(defmethod get-value ((item item))
+  (? item '(:get-state . nil)))
+
+(defmethod set-value ((item item) value &key (push t) (timestamp nil) (persist t))
   (! item `(:set-state . (:value ,value
                           :push-p ,push
                           :timestamp ,timestamp
