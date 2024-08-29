@@ -7,10 +7,8 @@
            #:name
            #:add-item
            #:get-item
-           #:remove-item)
-  (:import-from #:item
-                #:name
-                #:label)
+           #:remove-item
+           #:get-value)
   )
 
 (in-package :chipi.itemgroup)
@@ -34,14 +32,21 @@
                  :id id
                  :label label))
 
-(defmethod name ((group itemgroup))
-  (id group))
+(defun name (itemgroup)
+  (id itemgroup))
 
 (defun add-item (itemgroup item)
-  (setf (gethash (name item) (items itemgroup)) item))
+  (setf (gethash (item:name item) (items itemgroup)) item))
 
 (defun get-item (itemgroup id)
   (gethash (symbol-name id) (items itemgroup)))
 
 (defun remove-item (itemgroup id)
   (remhash (symbol-name id) (items itemgroup)))
+
+(defun get-value (itemgroup)
+  (let ((items
+          (loop :for item :being :the :hash-values :of (items itemgroup)
+                :collect item)))
+    (mapcar #'item:get-value items)))
+

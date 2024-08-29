@@ -1,5 +1,5 @@
 (defpackage :chipi.itemgroup-test
-  (:use :cl :fiveam :chipi.itemgroup)
+  (:use :cl :fiveam :cl-mock :chipi.itemgroup)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -30,6 +30,16 @@
     (is-true (remove-item cut 'bar))
     (is-false (get-item cut 'bar))))
 
-
+(test itemgroup-collects--get-value--from-items
+  (let ((cut (make-itemgroup 'foo))
+        (counter 0))
+    (with-mocks ()
+      (answer item:get-value (future:with-fut (incf counter)))
+      (is-true (add-item cut (make-instance 'item:item :receive t :name "BAR")))
+      (is-true (add-item cut (make-instance 'item:item :receive t :name "BAZ")))
+      (is (equalp (list 1 2) (mapcar (lambda (x)
+                                       (future:fawait x :timeout .5))
+                                     (get-value cut))))
+      )))
 
 (run! 'itemgroup-tests)
