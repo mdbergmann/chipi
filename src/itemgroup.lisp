@@ -8,8 +8,8 @@
            #:add-item
            #:get-item
            #:remove-item
-           #:get-value)
-  )
+           #:get-value
+           #:set-value))
 
 (in-package :chipi.itemgroup)
 
@@ -45,8 +45,17 @@
   (remhash (symbol-name id) (items itemgroup)))
 
 (defun get-value (itemgroup)
+  "Collects values (as futures) from all added items."
   (let ((items
           (loop :for item :being :the :hash-values :of (items itemgroup)
                 :collect item)))
     (mapcar #'item:get-value items)))
 
+(defun set-value (itemgroup value &key (push t) timestamp (persist t))
+  "Sets `value' to all added items.
+Parameters mimick the `item' interface."
+  (maphash (lambda (key item)
+             (declare (ignore key))
+             (item:set-value item value :push push :timestamp timestamp :persist persist))
+           (items itemgroup))
+  t)

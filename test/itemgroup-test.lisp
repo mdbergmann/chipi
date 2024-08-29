@@ -42,4 +42,15 @@
                                      (get-value cut))))
       )))
 
+(test itemgroup-distributes--set-value--to-items
+  (let ((cut (make-itemgroup 'foo))
+        (counter 0))
+    (with-mocks ()
+      (answer item:set-value (incf counter))
+      (is-true (add-item cut (make-instance 'item:item :receive t :name "BAR")))
+      (is-true (add-item cut (make-instance 'item:item :receive t :name "BAZ")))
+      (is-true (set-value cut counter))
+      (is (= 2 (length (invocations 'item:set-value))))
+      )))
+
 (run! 'itemgroup-tests)
