@@ -4,9 +4,12 @@
   (:export #:make-itemgroup
            #:itemgroup
            #:label
-           #:name)
+           #:name
+           #:add-item
+           #:get-item)
   (:import-from #:item
-                #:name)
+                #:name
+                #:label)
   )
 
 (in-package :chipi.itemgroup)
@@ -19,7 +22,9 @@
    (label :initarg :label
           :initform nil
           :reader label
-          :documentation "A displayable name of the itemgroup.")))
+          :documentation "A displayable name of the itemgroup.")
+   (items :initform (make-hash-table :test #'equal)
+          :reader items)))
 
 (defun make-itemgroup (id &key (label nil))
   (check-type id symbol)
@@ -30,3 +35,10 @@
 
 (defmethod name ((group itemgroup))
   (id group))
+
+(defun add-item (itemgroup item)
+  (setf (gethash (name item) (items itemgroup)) item))
+
+(defun get-item (itemgroup id)
+  (gethash (symbol-name id) (items itemgroup)))
+
