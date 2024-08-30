@@ -21,6 +21,8 @@ See plugin section below.
 
 - item: items are a primitive to represent the temperatur of a sensor, the state of light in your house, the state of your window being open or closed, etc.
 
+- itemgroup: items can be organized in groups
+
 - binding: bindings are a means to update an items value or distribute a value change to somewhere
 
 - persistence: persistences allow to persist and load the state of items. Currently two types of persistences are supported:
@@ -113,6 +115,13 @@ See next how to define and attach bindings on items.
 
 (Also see below for bindings available as plugins.)
 
+***** Defining item groups
+#+begin_src lisp
+  (defitemgroup 'group1 "Group1")
+#+end_src
+
+This defines a group ='group1= with label "Group1". See below for how to add items to groups.
+
 ***** Defining items
 The simplest form to define an item is:
 
@@ -129,6 +138,14 @@ Usually you'd want to at least define an initial value. You can do so by:
 #+begin_src lisp
   (defitem 'myitem "My Item" 'integer
     :initial-value 0)
+#+end_src
+
+Items can be defined for group membership. It can be done like so:
+
+#+begin_src lisp
+  (defitem 'myitem "My Item" 'integer
+    :initial-value 0
+    :group 'group1)
 #+end_src
 
 ****** Define and attach bindings
