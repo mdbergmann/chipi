@@ -35,30 +35,37 @@
     ;; recreate group should preserve the added item
     (defitemgroup 'group1 "Group1")
     (is (= 1 (hash-table-count *itemgroups*)))
-    (is (string= "ITEM1" (item:name (car (itemgroup:get-items (get-itemgroup 'group1)))))))
+    (is (string= "ITEM1" (item:name (get-items-on-group 'group1)))))
   (is (= 0 (hash-table-count *itemgroups*))))
 
 (test define-items
-  "Tests defining items."  
-  (with-fixture clean-after ()
-    (defconfig ())
-    (defitem 'temp-a "Temperatur A" nil)
-    ;; define item second time, first will be removed
-    (defitem 'temp-a "Temperatur A" nil)
-    (defitem 'temp-b "Temperatur B" nil
-      (binding
-       :initial-delay 0.1
-       :pull (lambda () 1)))
-    (defitem 'temp-c "Temperatur C" 'integer
-      :initial-value 1)
+  "Tests defining items."
+  (flet ((assert-groupitems (item-id group-id)
+           (is (= 1 (length (itemgroup:get-items (get-itemgroup group-id)))))
+           (is (eq (get-item item-id) (car (get-items-on-group group-id))))))
+    (with-fixture clean-after ()
+      (defconfig ())
+      (defitemgroup 'group1 "Group1")
+      (defitem 'temp-a "Temperatur A" nil
+        :group 'group1)
+      (assert-groupitems 'temp-a 'group1)
+      ;; define item second time, first will be removed
+      (defitem 'temp-a "Temperatur A" nil
+        :group 'group1)
+      (assert-groupitems 'temp-a 'group1)
+      (defitem 'temp-b "Temperatur B" nil
+        (binding
+         :initial-delay 0.1
+         :pull (lambda () 1)))
+      (defitem 'temp-c "Temperatur C" 'integer
+        :initial-value 1)
 
-    (is (= 3 (hash-table-count *items*)))
-    (is (typep (gethash 'temp-a *items*) 'item:item))
-    (is (typep (gethash 'temp-b *items*) 'item:item))
-    (is (typep (gethash 'temp-c *items*) 'item:item))
-    (is (= 1 (item:item-state-value (item:get-item-stateq (gethash 'temp-c *items*)))))
-    )
-  (is (= 0 (hash-table-count *items*))))
+      (is (= 3 (hash-table-count *items*)))
+      (is (typep (gethash 'temp-a *items*) 'item:item))
+      (is (typep (gethash 'temp-b *items*) 'item:item))
+      (is (typep (gethash 'temp-c *items*) 'item:item))
+      (is (= 1 (item:item-state-value (item:get-item-stateq (gethash 'temp-c *items*))))))
+    (is (= 0 (hash-table-count *items*)))))
 
 (test define-rules
   "Tests defining rules."

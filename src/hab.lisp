@@ -6,6 +6,7 @@
            #:*rules*
            #:*persistences*
            #:get-itemgroup
+           #:get-items-on-group
            #:get-item
            #:get-items
            #:get-persistence
@@ -32,6 +33,11 @@
   "Returns the itemgroup with `id' if exists, `nil' otherwise."
   (when *itemgroups*
     (gethash id *itemgroups*)))
+
+(defun get-items-on-group (id)
+  "Returns the items of group as list"
+  (when *itemgroups*
+    (itemgroup:get-items (get-itemgroup id))))
 
 (defun get-item (id)
   "Returns the item with the given id from the created items."
@@ -95,6 +101,8 @@ It also will setup items, rules and persistences storages."
   (push fun *shutdown-hooks*))
 
 (defmacro defitemgroup (id label)
+  "Defines an itemgroup.
+Itemgroups are containers for items."
   (let ((group (gensym "group"))
         (old-group (gensym "old-group"))
         (groupitem (gensym "groupitem"))
@@ -102,7 +110,8 @@ It also will setup items, rules and persistences storages."
     `(progn
        (let ((,old-group (get-itemgroup ,id)))
          (setf ,old-group-items
-               (if ,old-group (itemgroup:get-items ,old-group)
+               (if ,old-group
+                   (itemgroup:get-items ,old-group)
                    nil)))
        (let ((,group (itemgroup:make-itemgroup ,id :label ,label)))
          (dolist (,groupitem ,old-group-items)
@@ -130,7 +139,8 @@ See `hab-test.lisp' and `item' for more examples."
         (p-rep (gensym "p-rep"))
         (p-reps (gensym "p-reps"))
         (persp (gensym "persp"))
-        (initial-value (gensym "initial-value")))
+        (initial-value (gensym "initial-value"))
+        (itemgroup (gensym "itemgroup")))
     `(progn
        (when (get-item ,id)
          (log:info "Cleaning old item: " ,id)
@@ -147,10 +157,15 @@ See `hab-test.lisp' and `item' for more examples."
               (,initial-value (loop :for (k v) :on ,body-forms
                                     :if (eq k :initial-value)
                                       :return v))
+              (,itemgroup (loop :for (k v) :on ,body-forms
+                                :if (eq k :group)
+                                  :return v))
               (,item (item:make-item ,id
                                      :label ,label
                                      :type-hint ,type-hint
                                      :initial-value ,initial-value)))
+         (when ,itemgroup
+           (itemgroup:add-item (get-itemgroup ,itemgroup) ,item))
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
          (dolist (,p-rep ,p-reps)
