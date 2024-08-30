@@ -124,12 +124,17 @@ It will create the item if it does not exist.
 It will clean and re-create the item if it already exists.
 Cleaning means all attached bindings are re-created and persistence are re-attached.
 An `:initial-value' can be used to specify the initial value of the item.
+A `:group' key can used to specify to which `itemgroup' the `item' should belong.
+It will then be added to the group.
+
 Bindings can be defined as a list of `binding's.
 The `binding' arguments are passed to `binding:make-function-binding'.
 Persistences are references via `:persistence' key.
+
 `persistence' key allows to define a plist of `:id' and `:frequency' configuration.
 `:id' specifies the persistence id.
 `:frequency' specifies the persistence frequency. Currently only `:every-change' exists.
+
 See `hab-test.lisp' and `item' for more examples."
   (let ((body-forms (gensym "body-forms"))
         (item (gensym "item"))
@@ -165,6 +170,8 @@ See `hab-test.lisp' and `item' for more examples."
                                      :type-hint ,type-hint
                                      :initial-value ,initial-value)))
          (when ,itemgroup
+           ;; adding the new item will replace the previous item
+           ;; because use of hash-table where key is the item-id
            (itemgroup:add-item (get-itemgroup ,itemgroup) ,item))
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
