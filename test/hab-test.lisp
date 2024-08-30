@@ -25,6 +25,19 @@
       (shutdown)
       (delete-folder #P"/tmp/hab-test"))))
 
+(test define-itemgroups
+  "Tests creating itemgroups."
+  (with-fixture clean-after ()
+    (defconfig)
+    (defitemgroup 'group1 "Group1")
+    (itemgroup:add-item (get-itemgroup 'group1) (defitem 'item1 "Item1" nil))
+    (is (= 1 (hash-table-count *itemgroups*)))
+    ;; recreate group should preserve the added item
+    (defitemgroup 'group1 "Group1")
+    (is (= 1 (hash-table-count *itemgroups*)))
+    (is (string= "ITEM1" (item:name (car (itemgroup:get-items (get-itemgroup 'group1)))))))
+  (is (= 0 (hash-table-count *itemgroups*))))
+
 (test define-items
   "Tests defining items."  
   (with-fixture clean-after ()
@@ -46,19 +59,6 @@
     (is (= 1 (item:item-state-value (item:get-item-stateq (gethash 'temp-c *items*)))))
     )
   (is (= 0 (hash-table-count *items*))))
-
-(test shutdown-calls-shutdown-hooks
-  (let ((called nil))
-    (add-to-shutdown (lambda () (setf called t)))
-    (shutdown)
-    (is-true called)))
-
-(test shutdown-calls-shutdown-hooks--and-continous-on-error
-  (let ((called nil))
-    (add-to-shutdown (lambda () (setf called t)))
-    (add-to-shutdown (lambda () (error "Foo err")))
-    (shutdown)
-    (is-true called)))
 
 (test define-rules
   "Tests defining rules."
@@ -103,3 +103,15 @@
     ;; item contains persistence
     (is (= 2 (length (item::persistences (gethash 'temp-a *items*)))))))
 
+(test shutdown-calls-shutdown-hooks
+  (let ((called nil))
+    (add-to-shutdown (lambda () (setf called t)))
+    (shutdown)
+    (is-true called)))
+
+(test shutdown-calls-shutdown-hooks--and-continous-on-error
+  (let ((called nil))
+    (add-to-shutdown (lambda () (setf called t)))
+    (add-to-shutdown (lambda () (error "Foo err")))
+    (shutdown)
+    (is-true called)))

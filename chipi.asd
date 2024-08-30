@@ -22,6 +22,7 @@
                  (:file "binding-api")
                  (:file "persistence-api")
                  (:file "item")
+                 (:file "itemgroup")
                  (:file "persistence-simple")
                  (:file "persistence-influx")
                  (:file "rule")

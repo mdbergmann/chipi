@@ -8,6 +8,7 @@
            #:add-item
            #:get-item
            #:remove-item
+           #:get-items
            #:get-value
            #:set-value))
 
@@ -44,6 +45,12 @@
 (defun remove-item (itemgroup id)
   (remhash (symbol-name id) (items itemgroup)))
 
+(defun get-items (itemgroup)
+  (let ((items
+          (loop :for item :being :the :hash-values :of (items itemgroup)
+                :collect item)))
+    items))
+
 (defun get-value (itemgroup)
   "Collects values (as futures) from all added items."
   (let ((items
@@ -53,7 +60,7 @@
 
 (defun set-value (itemgroup value &key (push t) timestamp (persist t))
   "Sets `value' to all added items.
-Parameters mimick the `item' interface."
+Parameters mimick the `item:set-value' interface."
   (maphash (lambda (key item)
              (declare (ignore key))
              (item:set-value item value :push push :timestamp timestamp :persist persist))

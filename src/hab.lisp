@@ -2,13 +2,16 @@
   (:use :cl)
   (:nicknames :hab)
   (:export #:*items*
+           #:*itemgroups*
            #:*rules*
            #:*persistences*
+           #:get-itemgroup
            #:get-item
            #:get-items
            #:get-persistence
            #:get-rule
            #:defconfig
+           #:defitemgroup
            #:defitem
            #:binding
            #:defrule
@@ -19,10 +22,16 @@
 
 (in-package :chipi.hab)
 
+(defvar *itemgroups* nil "All itemgroups")
 (defvar *items* nil "All items")
 (defvar *rules* nil "All rules")
 (defvar *persistences* nil "All persistences")
 (defvar *shutdown-hooks* nil "Shutdown hooks for plugins")
+
+(defun get-itemgroup (id)
+  "Returns the itemgroup with `id' if exists, `nil' otherwise."
+  (when *itemgroups*
+    (gethash id *itemgroups*)))
 
 (defun get-item (id)
   "Returns the item with the given id from the created items."
@@ -53,6 +62,8 @@ But if environment is already configured/started it does nothing.
 It also will setup items, rules and persistences storages."
   `(progn
      (envi:ensure-env)
+     (unless *itemgroups*
+       (setf *itemgroups* (make-hash-table)))
      (unless *items*
        (setf *items* (make-hash-table)))
      (unless *rules*
@@ -73,6 +84,7 @@ It also will setup items, rules and persistences storages."
       (when condition
         (log:info "Condition on shutdown hook: ~a" condition))))
   (envi:shutdown-env)
+  (when *itemgroups* (clrhash *itemgroups*))
   (when *items* (clrhash *items*))
   (when *rules* (clrhash *rules*))
   (when *persistences* (clrhash *persistences*))
@@ -81,6 +93,20 @@ It also will setup items, rules and persistences storages."
 
 (defun add-to-shutdown (fun)
   (push fun *shutdown-hooks*))
+
+(defmacro defitemgroup (id label)
+  (let ((group (gensym "group"))
+        (old-group (gensym "old-group"))
+        (groupitem (gensym "groupitem"))
+        (old-group-items (gensym "old-group-items")))
+    `(progn
+       (when (get-itemgroup ,id)
+         (let ((,old-group (get-itemgroup ,id)))
+           (setf ,old-group-items (itemgroup:get-items ,old-group))))
+       (let ((,group (itemgroup:make-itemgroup ,id :label ,label)))
+         (dolist (,groupitem ,old-group-items)
+           (itemgroup:add-item ,group ,groupitem))
+         (setf (gethash ,id *itemgroups*) ,group)))))
 
 (defmacro defitem (id label type-hint &rest body)
   "Defines an item.
