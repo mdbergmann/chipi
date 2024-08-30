@@ -100,9 +100,10 @@ It also will setup items, rules and persistences storages."
         (groupitem (gensym "groupitem"))
         (old-group-items (gensym "old-group-items")))
     `(progn
-       (when (get-itemgroup ,id)
-         (let ((,old-group (get-itemgroup ,id)))
-           (setf ,old-group-items (itemgroup:get-items ,old-group))))
+       (let ((,old-group (get-itemgroup ,id)))
+         (setf ,old-group-items
+               (if ,old-group (itemgroup:get-items ,old-group)
+                   nil)))
        (let ((,group (itemgroup:make-itemgroup ,id :label ,label)))
          (dolist (,groupitem ,old-group-items)
            (itemgroup:add-item ,group ,groupitem))
