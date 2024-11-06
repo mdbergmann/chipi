@@ -11,6 +11,8 @@
            #:get-items
            #:get-persistence
            #:get-rule
+           #:set-item-value
+           #:get-item-valueq
            #:defconfig
            #:defitemgroup
            #:defitem
@@ -59,6 +61,21 @@
   "Returns the rule with the given name from the created rules."
   (when *rules*
     (gethash name *rules*)))
+
+(defun set-item-value (item-sym value &key (push t pushp)
+                                        (timestamp nil timestamp-p)
+                                        (persist t persistp))
+  (let ((args (list (get-item item-sym) value)))
+    (if pushp (append args (list :push push)))
+    (if timestamp-p (append args (list :timestamp timestamp)))
+    (if persistp (append args (list :persist persist)))
+    (apply #'item:set-value args)))
+
+(defun get-item-value (item-sym)
+  (let ((item-state (item:get-item-stateq (get-item item-sym))))
+    (values
+     (item:item-state-value item-state)
+     (item:item-state-timestamp item-state))))
 
 (defmacro defconfig (&body body)
   "Defines a configuration for the environment.
