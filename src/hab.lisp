@@ -66,9 +66,9 @@
                                         (timestamp nil timestamp-p)
                                         (persist t persistp))
   (let ((args (list (get-item item-sym) value)))
-    (if pushp (append args (list :push push)))
-    (if timestamp-p (append args (list :timestamp timestamp)))
-    (if persistp (append args (list :persist persist)))
+    (if pushp (setf args (append args (list :push push))))
+    (if timestamp-p (setf args (append args (list :timestamp timestamp))))
+    (if persistp (setf args (append args (list :persist persist))))
     (apply #'item:set-value args)))
 
 (defun get-item-value (item-sym)
