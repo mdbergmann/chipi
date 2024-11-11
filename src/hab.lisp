@@ -71,7 +71,7 @@
     (if persistp (setf args (append args (list :persist persist))))
     (apply #'item:set-value args)))
 
-(defun get-item-value (item-sym)
+(defun get-item-valueq (item-sym)
   (let ((item-state (item:get-item-stateq (get-item item-sym))))
     (values
      (item:item-state-value item-state)
