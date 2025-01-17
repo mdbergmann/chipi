@@ -201,6 +201,14 @@
         (is-true (await-cond 3
                    (= 2 (length (invocations 'persp:store)))))))))
 
+(test item--parse-persistence-frequency
+  "Tests the parsing of frequency that can be specified on the item."
+  (signals error (item::%parse-frequency "foo-bar"))
+  (is (= 12 (item::%parse-frequency :every-12s)))
+  (is (= (* 12 60) (item::%parse-frequency :every-12m)))
+  (is (= (* 30 60) (item::%parse-frequency :every-30m)))
+  (is (= (* 12 60 60) (item::%parse-frequency :every-12h))))
+
 (test item--with-persistence--should-not-persist-on-load-on-start
   "Test that when two persistences are defined, one with `:load-on-start',
 that when loading the value the second (or any more) persistence does not persit it."
