@@ -17,25 +17,27 @@ This constructor is not public, subclasses should provide their own constructor 
     (apply #'ac:actor-of isys
            :name id
            :type type
-           :receive (lambda (msg)
-                      (log:debug "Received: ~a, msg: ~a" (car msg) msg)
-                      (case (car msg)
-                        (:store (persist *self* (cadr msg)))
-                        (:fetch
-                         (let ((item (cadr msg))
-                               (range (cddr msg)))
-                           (handler-case
-                               (if range
-                                   (reply (retrieve-range *self* item range))
-                                   (reply (retrieve *self* item)))
-                             (error (e)
-                               (log:warn "Error on retrieving persisted data: ~a" e)
-                               (reply `(:error . ,e))))))))
+           :receive (lambda (msg) (%persp-receive msg))
            :init (lambda (self)
                    (initialize self))
            :destroy (lambda (self)
                       (shutdown self))
            other-args)))
+
+(defun %persp-receive (msg)
+  (log:debug "Received: ~a, msg: ~a" (car msg) msg)
+  (case (car msg)
+    (:store (persist *self* (cadr msg)))
+    (:fetch
+     (let ((item (cadr msg))
+           (range (cddr msg)))
+       (handler-case
+           (if range
+               (reply (retrieve-range *self* item range))
+               (reply (retrieve *self* item)))
+         (error (e)
+           (log:warn "Error on retrieving persisted data: ~a" e)
+           (reply `(:error . ,e))))))))
 
 (defun make-relative-range (&key
                               (seconds nil)
