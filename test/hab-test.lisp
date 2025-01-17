@@ -35,7 +35,7 @@
     ;; recreate group should preserve the added item
     (defitemgroup 'group1 "Group1")
     (is (= 1 (hash-table-count *itemgroups*)))
-    (is (string= "ITEM1" (item:name (get-items-on-group 'group1)))))
+    (is (string= "ITEM1" (item:name (car (get-items-on-group 'group1))))))
   (is (= 0 (hash-table-count *itemgroups*))))
 
 (test define-items
