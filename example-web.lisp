@@ -26,6 +26,9 @@
   ;;    you may change api-key life-time (optional)
   (api-env:init :apikey-store (apikey-store:make-simple-file-backend)
                 :apikey-lifetime (ltd:duration :days 100))
+
+  ;; maybe create additional api-keys with different access-rights
+  ;; see (apikey-store:create-apikey)
   
   ;; 3. start the API server
   (api:start)
