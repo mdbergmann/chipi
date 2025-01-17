@@ -150,7 +150,9 @@ Persistences are references via `:persistence' key.
 
 `persistence' key allows to define a plist of `:id' and `:frequency' configuration.
 `:id' specifies the persistence id.
-`:frequency' specifies the persistence frequency. Currently only `:every-change' exists.
+`:frequency' specifies the persistence frequency.
+  - can be `:every-change' or
+  - a notation of the form: `:every-N<s|m|h>' where N is the number, s (seconds), m (minutes) and h (hours).
 
 See `hab-test.lisp' and `item' for more examples."
   (let ((body-forms (gensym "body-forms"))
