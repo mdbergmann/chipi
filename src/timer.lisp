@@ -16,7 +16,7 @@
 (defun ensure-timer ()
   "Ensure that a timer is running."
   (unless *timer*
-    (setf *timer* (wt:make-wheel-timer :max-size 500 :resolution 500))))
+    (setf *timer* (wt:make-wheel-timer :max-size 300 :resolution 100))))
 
 (defun shutdown-timer ()
   (when *timer*
