@@ -67,4 +67,17 @@ OK - implement itemgroups
 - itemgroups: allow group in group
 - replace yason code with jzon
 
+- check:
+; in: CHIPI.HAB:DEFITEMGROUP 'CHIPI.HAB-TEST::GROUP1
+;     (CHIPI.HAB:DEFITEMGROUP 'CHIPI.HAB-TEST::GROUP1 "Group1")
+; 
+; caught WARNING:
+;   undefined variable: #:|old-group-items12|
+; 
+; caught WARNING:
+;   undefined variable: #:|old-group-items45|
+; 
+; caught WARNING:
+;   undefined variable: #:|old-group-items6|
+
 |#
