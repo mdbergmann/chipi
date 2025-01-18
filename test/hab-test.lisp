@@ -45,14 +45,14 @@
            (is (eq (get-item item-id) (car (get-items-on-group group-id))))))
     (with-fixture clean-after ()
       (defconfig ())
-      (defitemgroup 'group1 "Group1")
+      (defitemgroup 'group2 "Group2")
       (defitem 'temp-a "Temperatur A" nil
-        :group 'group1)
-      (assert-groupitems 'temp-a 'group1)
+        :group 'group2)
+      (assert-groupitems 'temp-a 'group2)
       ;; define item second time, first will be removed
       (defitem 'temp-a "Temperatur A" nil
-        :group 'group1)
-      (assert-groupitems 'temp-a 'group1)
+        :group 'group2)
+      (assert-groupitems 'temp-a 'group2)
       (defitem 'temp-b "Temperatur B" nil
         (binding
          :initial-delay 0.1

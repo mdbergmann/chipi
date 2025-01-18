@@ -124,12 +124,10 @@ Itemgroups are containers for items."
         (old-group (gensym "old-group"))
         (groupitem (gensym "groupitem"))
         (old-group-items (gensym "old-group-items")))
-    `(progn
-       (let ((,old-group (get-itemgroup ,id)))
-         (setf ,old-group-items
-               (if ,old-group
-                   (itemgroup:get-items ,old-group)
-                   nil)))
+    `(let* ((,old-group (get-itemgroup ,id))
+            (,old-group-items (if ,old-group
+                                  (itemgroup:get-items ,old-group)
+                                  nil)))
        (let ((,group (itemgroup:make-itemgroup ,id :label ,label)))
          (dolist (,groupitem ,old-group-items)
            (itemgroup:add-item ,group ,groupitem))
