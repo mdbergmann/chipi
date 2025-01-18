@@ -133,11 +133,11 @@ This is to have the higher-level module decide how to handle the error."
       (when (and delay (not (second bound-items)))
         (log:info "Scheduling recurring delay: " delay " on: " binding)
 	(let ((timer-sig (format nil "~a-~a"
-				 (gensym "binding-timer-")
-				 (item:name item))))
+                             (gensym "binding-timer-")
+                             (item:name item))))
 	  (%add-timer binding
-		      (timer:schedule-recurring delay timer-fun timer-sig)
-		      :delay))))))
+                  (timer:schedule-recurring delay timer-fun timer-sig)
+                  :delay))))))
 
 (defun destroy (binding)
   (log:info "Destroying binding: " binding)
