@@ -58,7 +58,7 @@ The actual persistence method called as a result is `persp:persist'."
   (future:fcompleted
       (item:get-value item)
       (result)
-    (! persistence `(:store . (,item . ,result))))
+    (act:! persistence `(:store . (,item . ,result))))
   t)
 
 (defun fetch (persistence item &optional range)

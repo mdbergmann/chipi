@@ -208,7 +208,9 @@ If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on bi
       (push item-persp persistences)
       (let ((load-on-start (item-persistence-load-on-start item-persp))
             (frequency (item-persistence-frequency item-persp))
-            (timer-sig (item-persistence-timer-sig item-persp))
+            (timer-sig (format nil "~a-~a"
+			       (item-persistence-timer-sig item-persp)
+			       (name item)))
             (persp (item-persistence-persp item-persp)))
         (when load-on-start
           (%fetch-persisted-value persistence item))
@@ -227,7 +229,7 @@ If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on bi
     (cond
       ((and (consp result) (eq (car result) :error))
        (log:warn "Error loading item (~a) value from persp: ~a"
-                 (act-cell:name item) persistence))
+                 (name item) persistence))
       (t
        (progn
          (log:debug "Setting loaded value to item: ~a" item)

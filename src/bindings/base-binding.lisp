@@ -132,9 +132,12 @@ This is to have the higher-level module decide how to handle the error."
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
         (log:info "Scheduling recurring delay: " delay " on: " binding)
-        (%add-timer binding
-                    (timer:schedule-recurring delay timer-fun)
-                    :delay)))))
+	(let ((timer-sig (format nil "~a-~a"
+				 (gensym "binding-timer-")
+				 (item:name item))))
+	  (%add-timer binding
+		      (timer:schedule-recurring delay timer-fun timer-sig)
+		      :delay))))))
 
 (defun destroy (binding)
   (log:info "Destroying binding: " binding)
