@@ -51,7 +51,13 @@ This is in particular important for persistences that are type specific, like in
                  :reader persistences
                  :documentation "The items persistences")))
 
-(defstruct item-state
+(defstruct (item-state
+	    (:print-function
+	     (lambda (struct stream depth)
+	       (declare (ignore depth))
+	       (format stream "[item-state value:~a, timestamp:~a]"
+		       (item-state-value struct)
+		       (local-time:universal-to-timestamp (item-state-timestamp struct))))))
   (value t)
   (timestamp (get-universal-time)))
 
