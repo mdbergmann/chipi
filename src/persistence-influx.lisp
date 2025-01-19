@@ -89,7 +89,7 @@ Specify those types as 'type-hint' in the item definition."))
                          :content data-string)))
 
 (defmethod persist ((persistence influx-persistence) item)
-  (log:debug "Persisting item: ~a" item)
+  (log:debug "Persisting item: ~a" (item:name item))
   (let* ((item-name (act-cell:name item))
          (item-state (item:get-item-stateq item))
          (item-value (item:item-state-value item-state))
@@ -100,7 +100,7 @@ Specify those types as 'type-hint' in the item definition."))
         (multiple-value-bind (body status headers)
             (%make-write-request persistence item-name item-value unix-timestamp)
           (case status
-            (204 (log:info "Persisted item OK: ~a" item))
+            (204 (log:info "Persisted item OK: ~a, timestamp: ~a" item-name item-timestamp))
             (t
              (let ((message (babel:octets-to-string body)))
                (log:warn "Failed to persist item: ~a" item)

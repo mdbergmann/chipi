@@ -58,6 +58,9 @@ The actual persistence method called as a result is `persp:persist'."
   (future:fcompleted
       (item:get-value item)
       (result)
+    (log:debug "Tell persist item: ~a, persp: ~a"
+	       (item:name item)
+	       (act-cell:name persistence))
     (act:! persistence `(:store . (,item . ,result))))
   t)
 
