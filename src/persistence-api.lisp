@@ -53,7 +53,11 @@ There may be different kinds of persistence with different storages."))
 
 (defgeneric persist (persistence item)
   (:documentation "Stores the item to file.
-The persistence is responsible to store all the data that is also expected to be retrieved later."))
+The persistence is responsible to store all the data that is also expected to be retrieved later.
+
+Note that the timestamp of the item of last changed value is persisted,
+which may differ of the timestamp when persisting.
+Depends on the `delay' setting of the persistence when applied on the item."))
 
 (defgeneric retrieve (persistence item)
   (:documentation "Fetches the last value of an item from the persistence as `persisted-item'.
