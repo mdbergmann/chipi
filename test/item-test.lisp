@@ -287,7 +287,7 @@ This also tests the error handling in item calling `exec-push' of the binding."
     (let* ((item (make-item 'my-item))
            (pushed-value)
            (binding1 (binding:make-function-binding
-                      :push (lambda (value) (declare (ignore value))
+                      :push (lambda (value)
                               (push value pushed-value)
                               (error "on push!"))
                       :call-push-p t))
