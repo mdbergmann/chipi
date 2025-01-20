@@ -135,6 +135,7 @@
              (binding (make-function-binding
                        :pull (lambda () (incf call-count))
                        :delay 0.1)))
+        (answer item:name "my-fake-item")
         (answer (item:set-value _ value :push _)
           (assert (>= value 0)))
         (bind-item binding 'my-fake-item)
@@ -149,6 +150,7 @@
             (binding (make-function-binding
                       :pull (lambda () 123)
                       :delay 0.2)))
+        (answer item:name "my-fake-item")
         (answer (item:set-value item _ :push _)
           (setf called-items (cons item called-items)))
         (bind-item binding 'my-fake-item)
@@ -167,6 +169,7 @@
                       :pull (lambda () 123)
                       :initial-delay 0.1
                       :delay 0.1)))
+        (answer item:name "my-fake-item")
         (answer (item:set-value _ _ :push _) t)
         (bind-item binding 'my-fake-item)
         (is-true (await-cond 0.5
