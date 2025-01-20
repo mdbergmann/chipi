@@ -37,7 +37,7 @@
   (alexandria:plist-hash-table plist :test 'equal))
 
 (defun ah (alist)
-  "Shorthand for plist-hash-table."
+  "Shorthand for alist-hash-table."
   (alexandria:alist-hash-table alist :test 'equal))
 
 (defun %alist-to-json (alist)
@@ -139,6 +139,7 @@
       (unless present
         (http-condition hunchentoot:+http-bad-request+
                         "No 'value' key found in JSON payload"))
+      ;; replace with item-ext
       (cond
         ((typep item-value 'double-float)
          (coerce item-value 'single-float))

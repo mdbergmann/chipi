@@ -1,12 +1,12 @@
 (defsystem "chipi"
-  :version "0.4.0"
+  :version "0.4.1"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
                (:version "sento" "3.3.0")
                "timer-wheel"
                "cl-cron"
-               "yason"
+               "com.inuoe.jzon"
                "drakma"
                "local-time"
                "binding-arrows"
@@ -22,6 +22,7 @@
                  (:file "binding-api")
                  (:file "persistence-api")
                  (:file "item")
+                 (:file "item-ext")
                  (:file "itemgroup")
                  (:file "persistence-simple")
                  (:file "persistence-influx")
@@ -45,6 +46,7 @@
                 ((:file "all-tests")
                  (:file "binding-test")
                  (:file "item-test")
+                 (:file "item-ext-test")
                  (:file "itemgroup-test")
                  (:file "rule-test")
                  (:file "persistence-test")
@@ -65,19 +67,6 @@ OK - allow `pull-fun` to decide on calling push via returning (values val '(:pul
 OK - allow `pull-fun` to return future which is then just `fcompleted`.
 OK - implement itemgroups
 - itemgroups: allow group in group
-- replace yason code with jzon
-
-- check:
-; in: CHIPI.HAB:DEFITEMGROUP 'CHIPI.HAB-TEST::GROUP1
-;     (CHIPI.HAB:DEFITEMGROUP 'CHIPI.HAB-TEST::GROUP1 "Group1")
-; 
-; caught WARNING:
-;   undefined variable: #:|old-group-items12|
-; 
-; caught WARNING:
-;   undefined variable: #:|old-group-items45|
-; 
-; caught WARNING:
-;   undefined variable: #:|old-group-items6|
+=> - replace yason code with jzon
 
 |#

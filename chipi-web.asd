@@ -11,7 +11,6 @@
                "ironclad/mac/hmac"
                "ironclad/digest/sha256"
                "cl-base64"
-               "com.inuoe.jzon"
                "marshal"
                "snooze")
   :components ((:module "src/web"

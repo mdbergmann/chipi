@@ -18,6 +18,7 @@
          (item-timestamp (item:item-state-timestamp item-state)))
     (list :name name
           :label label
+          ;; replace with item-ext
           :value (cond
                    ((eq item-value 'item:true) t)
                    ((eq item-value 'item:false) nil)

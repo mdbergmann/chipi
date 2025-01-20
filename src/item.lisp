@@ -20,6 +20,7 @@
            #:add-binding
            #:add-persistence
            #:destroy
+           #:make-item-state
            #:item-state
            #:item-state-value
            #:item-state-timestamp
@@ -55,7 +56,7 @@ This is in particular important for persistences that are type specific, like in
 	    (:print-function
 	     (lambda (struct stream depth)
 	       (declare (ignore depth))
-	       (format stream "[item-state value:~a, timestamp:~a]"
+	       (format stream "(item-state value:~a, timestamp:~a)"
 		       (item-state-value struct)
 		       (local-time:universal-to-timestamp (item-state-timestamp struct))))))
   (value t)

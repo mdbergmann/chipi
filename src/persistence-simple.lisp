@@ -1,6 +1,8 @@
 (defpackage :chipi.simple-persistence
   (:use :cl :chipi.persistence)
   (:nicknames :simple-persistence)
+  (:local-nicknames
+   (#:jzon #:com.inuoe.jzon))
   (:import-from #:persp
                 #:persistence)
   (:export #:simple-persistence
@@ -32,18 +34,16 @@
 (defmethod persist ((persistence simple-persistence) item)
   (with-slots (storage-root-path) persistence
     (handler-case
-        (let ((path (merge-pathnames (format nil "~a.store" (act-cell:name item))
+        (let ((path (merge-pathnames (format nil "~a.store" (item:name item))
                                      storage-root-path)))
           (log:debug "Persisting to file: ~a, item: ~a" path item)
           (alexandria:with-output-to-file (stream path
                                                   :if-exists :supersede
                                                   :if-does-not-exist :create)
-            (yason:with-output (stream)
-              (let ((item-state (item:get-item-stateq item)))
-                (yason:encode-plist `("value"
-                                      ,(item:item-state-value item-state)
-                                      "timestamp"
-                                      ,(item:item-state-timestamp item-state))))))
+            (let ((item-state (item:get-item-stateq item)))
+              (jzon:stringify (item-ext:item-state-to-ht item-state)
+                              :stream stream
+                              :pretty t)))
           (log:debug "Persisting to file OK, item: ~a" item))
       (error (e)
         (log:warn "Error persisting item: ~a, error: ~a" item e)))))
@@ -51,15 +51,16 @@
 (defmethod retrieve ((persistence simple-persistence) item)
   (with-slots (storage-root-path) persistence
     (handler-case
-        (let ((path (merge-pathnames (format nil "~a.store" (act-cell:name item))
+        (let ((path (merge-pathnames (format nil "~a.store" (item:name item))
                                      storage-root-path)))
           (log:debug "Reading from file: ~a, item: ~a" path item)
           (with-open-file (stream path)
-            (let ((alist (yason:parse stream :object-as :alist)))
+            (let* ((ht (jzon:parse stream))
+                   (item-state (item-ext:ht-to-item-state ht)))
               (make-persisted-item :value
-                                   (cdr (assoc "value" alist :test #'equal))
+                                   (item:item-state-value item-state)
                                    :timestamp
-                                   (cdr (assoc "timestamp" alist :test #'equal))))))
+                                   (item:item-state-timestamp item-state)))))
       (error (e)
         (log:warn "Error retrieving item: ~a, error: ~a" item e)
         `(:error . ,e)))))
