@@ -25,6 +25,12 @@
                                         '#:chipi.binding.knx-test-suite))))
 
 #|
+load with:
+(let* ((cwd (namestring (uiop:getcwd)))
+         (plugin-asd (format nil "~a~a" cwd "bindings/knx/binding-knx.asd")))
+    (asdf:load-asd plugin-asd :name "binding-knx")
+    (asdf:load-system :binding-knx/tests))
+
 TODOs:
 
 OK - don't push value when received via listener
