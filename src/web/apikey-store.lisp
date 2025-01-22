@@ -173,7 +173,7 @@ If the apikey is expired, it is revoked and `NIL' is returned."
   (check-type identifier string)
   (check-type access-rights list)
   (when (not (car access-rights))
-    (error 'access-rights-error :format-controll "No access rights requested"))
+    (error 'access-rights-error :format-control "No access rights requested"))
   (when-let ((apikey (retrieve-apikey identifier)))
     (let ((key-rights (access-rights apikey)))
       (when (not (car key-rights))
