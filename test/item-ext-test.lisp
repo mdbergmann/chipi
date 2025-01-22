@@ -11,6 +11,12 @@
 
 (in-suite item-ext-tests)
 
+(test item-value-ext-to-internal
+  (let* ((values (list t nil 'cl:null))
+         (values-inte (mapcar #'item-value-ext-to-internal values)))
+    (is (equalp (list 'item:true 'item:false nil)
+                values-inte))))
+
 (test item-state-to-ht
   (let* ((item-state (item:make-item-state))
          (item-state-ht (item-state-to-ht item-state))

@@ -1,11 +1,21 @@
 (defpackage :chipi.item-ext
   (:use :cl :item)
   (:nicknames :item-ext)
-  (:export #:item-state-to-ht
+  (:export #:item-value-ext-to-internal
+           #:item-state-to-ht
            #:ht-to-item-state
            #:item-to-ht))
 
 (in-package :chipi.item-ext)
+
+(defun item-value-ext-to-internal (item-value)
+  (cond
+    ((typep item-value 'double-float)
+     (coerce item-value 'single-float))
+    ((eq item-value t) 'item:true)
+    ((eq item-value nil) 'item:false)
+    ((eq item-value 'cl:null) nil)
+    (t item-value)))
 
 (defun item-state-to-ht (item-state)
   "Converts item-state to a hash-table with values converted ready for serialization."
@@ -25,12 +35,7 @@
   (let ((item-state (make-item-state)))
     (setf (item-state-timestamp item-state) (gethash "timestamp" ht))
     (setf (item-state-value item-state)
-          (let ((ht-value (gethash "value" ht)))
-            (cond
-              ((eq ht-value t) 'item:true)
-              ((eq ht-value nil) 'item:false)
-              ((eq ht-value 'cl:null) nil)
-              (t ht-value))))
+          (item-value-ext-to-internal (gethash "value" ht)))
     item-state))
 
 (defun item-to-ht (item)

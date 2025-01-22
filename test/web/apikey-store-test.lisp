@@ -25,7 +25,6 @@
          sign
          (> (length plain-id) 0)
          (> (length sign) 0))))
-
 (test create-apikey--ok
   (with-fixture simple-file-backend ()
     (let ((signed-apikey-id (create-apikey)))

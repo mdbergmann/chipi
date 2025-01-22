@@ -39,7 +39,7 @@
   (cdr (assoc name headers)))
 
 ;; --------------------
-;; item-plists
+;; item-hts
 ;; --------------------
 
 (defun make-get-items-request (headers &optional (item-name nil))
@@ -157,13 +157,13 @@
     (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read)))
            (items (list
                    (hab:defitem 'foo "label1" 'string :initial-value "bar")))
-           (item-plists (mapcar #'itemsc:item-to-plist items)))
+           (item-hts (mapcar #'item-ext:item-to-ht items)))
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
         (declare (ignore headers))
         (is (= status 200))
         (is (equal-item-lists-p (octets-to-string body)
-                                item-plists))))))
+                                item-hts))))))
 
 (test items--get-all--supported-value-types--200--ok
   (with-fixture api-start-stop (t)
@@ -175,13 +175,13 @@
                    (hab:defitem 'foo4 "label-true" 'boolean :initial-value 'item:true)
                    (hab:defitem 'foo5 "label-false" 'boolean :initial-value 'item:false)
                    (hab:defitem 'foo6 "label-null" nil :initial-value nil)))
-           (item-plists (mapcar #'itemsc:item-to-plist items)))
+           (item-hts (mapcar #'item-ext:item-to-ht items)))
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
         (declare (ignore headers))
         (is (= status 200))
         (is (equal-item-lists-p (octets-to-string body)
-                                item-plists))))))
+                                item-hts))))))
 
 ;; --------------------
 ;; get specific item
@@ -192,13 +192,13 @@
     (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read)))
            (items (list
                    (hab:defitem 'foo "label1" 'string :initial-value "bar")))
-           (item-plists (mapcar #'itemsc:item-to-plist items)))
+           (item-hts (mapcar #'item-ext:item-to-ht items)))
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)) "foo")
         (declare (ignore headers))
         (is (= status 200))
         (is (equal-item-lists-p (octets-to-string body)
-                                item-plists))))))
+                                item-hts))))))
 
 (test items--get-specific-item--404--not-found
   (with-fixture api-start-stop (t)
@@ -294,7 +294,7 @@
         (post-value "\"foo\"" "foo")
         (post-value "true" 'item:true)
         (post-value "false" 'item:false)
-        (post-value "null" 'cl:null)))))
+        (post-value "null" nil)))))
 
 (test items--post-item-value--500--parse-error
   (with-fixture api-start-stop (t)

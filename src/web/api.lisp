@@ -1,8 +1,6 @@
 (defpackage :chipi-web.api
   (:use :cl :snooze)
   (:nicknames :api)
-  (:import-from #:alexandria
-                #:plist-hash-table)
   (:local-nicknames
    (#:jzon #:com.inuoe.jzon))
   (:export #:start
@@ -31,10 +29,6 @@
 ;; -----------------------------------
 ;; helpers
 ;; -----------------------------------
-
-(defun ph (plist)
-  "Shorthand for plist-hash-table."
-  (alexandria:plist-hash-table plist :test 'equal))
 
 (defun ah (alist)
   "Shorthand for alist-hash-table."
@@ -112,8 +106,7 @@
 
 (defun %make-items-response (items)
   (cond
-    ((car items)
-     (jzon:stringify (mapcar #'ph items)))
+    ((car items) (jzon:stringify items))
     (t "[]")))
 
 (defroute items (:get "application/json" &optional item-name)
@@ -126,29 +119,20 @@
     ((null item-name)
      (%make-items-response (itemsc:retrieve-items)))
     (t
-     (let* ((item-plist (itemsc:retrieve-item item-name)))
-       (unless item-plist
+     (let* ((item-ht (itemsc:retrieve-item item-name)))
+       (unless item-ht
          (http-condition hunchentoot:+http-not-found+
                          (format nil "Item '~a' not found" item-name)))
-       (%make-items-response (list item-plist))))))
+       (%make-items-response (list item-ht))))))
 
 (defun %parse-item-value (json-payload)
-  (let* ((ht (jzon:parse json-payload)))
+  (let ((ht (jzon:parse json-payload)))
     (multiple-value-bind (item-value present)
         (gethash "value" ht)
       (unless present
         (http-condition hunchentoot:+http-bad-request+
                         "No 'value' key found in JSON payload"))
-      ;; replace with item-ext
-      (cond
-        ((typep item-value 'double-float)
-         (coerce item-value 'single-float))
-        ((eq item-value t)
-         'item:true)
-        ((eq item-value nil)
-         'item:false)
-        (t
-         item-value)))))
+      (item-ext:item-value-ext-to-internal item-value))))
 
 (defroute items (:post "application/json" &optional item-name)
   ;;"`item-name' is not optional"
