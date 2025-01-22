@@ -2,7 +2,8 @@
   (:use :cl :item)
   (:nicknames :item-ext)
   (:export #:item-state-to-ht
-           #:ht-to-item-state))
+           #:ht-to-item-state
+           #:item-to-ht))
 
 (in-package :chipi.item-ext)
 
@@ -31,3 +32,11 @@
               ((eq ht-value 'cl:null) nil)
               (t ht-value))))
     item-state))
+
+(defun item-to-ht (item)
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "name" ht) (name item))
+    (setf (gethash "label" ht) (label item))
+    (setf (gethash "item-state" ht) (item-state-to-ht (get-item-stateq item)))
+    ht
+  ))

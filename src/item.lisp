@@ -38,7 +38,8 @@
 (defstruct item-changed-event item)
 
 (defclass item (act:actor)
-  ((label :initform nil
+  ((label :initarg :label
+          :initform nil
           :reader label
           :documentation "An explanatory label.")
    (value-type-hint :initform nil

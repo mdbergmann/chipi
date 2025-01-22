@@ -45,3 +45,14 @@
                        values)))
         (is (equalp values-item-state
                     (list 'item:true 'item:false nil)))))))
+
+(test item-to-ht
+  (let* ((item (make-instance 'item :receive t
+                                    :state (make-item-state :value 1 :timestamp 1234)
+                                    :name "item1"
+                                    :label "label1"))
+         (ht (item-to-ht item)))
+    (is (not (null ht)))
+    (is (string= "item1" (gethash "name" ht)))
+    (is (string= "label1" (gethash "label" ht)))
+    (is (hash-table-p (gethash "item-state" ht)))))

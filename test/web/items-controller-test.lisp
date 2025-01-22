@@ -38,19 +38,19 @@
   (with-fixture with-isys-mock (nil)
     (is (= (length (retrieve-items)) 0))))
 
-(defun equal-item-props-p (item-plist name label value)
-  (and (equal (getf item-plist :name) name)
-       (equal (getf item-plist :label) label)
-       (equal (getf item-plist :value) value)
-       (> (getf item-plist :timestamp) 0)))
+(defun equal-item-props-p (item-ht name label value)
+  (and (equal (gethash "name" item-ht) name)
+       (equal (gethash "label" item-ht) label)
+       (equal (gethash "value" (gethash "item-state" item-ht)) value)
+       (> (gethash "timestamp" (gethash "item-state" item-ht)) 0)))
 
 (test retrieve-items--non-empty
   (with-fixture with-isys-mock ('((foo1 "foo1-label" 1)
                                   (foo2 "foo2-label" 2)))
     (let ((items (retrieve-items)))
       (is (= (length items) 2))
-      (is-true (equal-item-props-p (first items) "FOO1" "foo1-label" 1))
-      (is-true (equal-item-props-p (second items) "FOO2" "foo2-label" 2)))))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO1" "foo1-label" 1)) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO2" "foo2-label" 2)) items)))))
 
 (test retrieve-items--supported-value-types-mapping
   (with-fixture with-isys-mock ('((foo1 "foo1-label-int" 1)
@@ -62,19 +62,19 @@
     (let ((items (retrieve-items)))
       (is (= (length items) 6))
       (print items)
-      (is-true (equal-item-props-p (nth 0 items) "FOO1" "foo1-label-int" 1))
-      (is-true (equal-item-props-p (nth 1 items) "FOO2" "foo2-label-float" 2.1))
-      (is-true (equal-item-props-p (nth 2 items) "FOO3" "foo3-label-string" "bar"))
-      (is-true (equal-item-props-p (nth 3 items) "FOO4" "foo4-label-true" t))
-      (is-true (equal-item-props-p (nth 4 items) "FOO5" "foo5-label-false" nil))
-      (is-true (equal-item-props-p (nth 5 items) "FOO6" "foo6-label-null" 'cl:null))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO1" "foo1-label-int" 1)) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO2" "foo2-label-float" 2.1)) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO3" "foo3-label-string" "bar")) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO4" "foo4-label-true" t)) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO5" "foo5-label-false" nil)) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO6" "foo6-label-null" 'cl:null)) items))
       )))
 
 (test retrieve-item--existing
   (with-fixture with-isys-mock ('((foo1 "foo1-label" 1)))
     (let ((item (retrieve-item 'foo1)))
       (is-true item)
-      (is (listp item))
+      (is (hash-table-p item))
       (is-true (equal-item-props-p item "FOO1" "foo1-label" 1)))))
 
 (test retrieve-item--non-existing
