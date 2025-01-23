@@ -2,19 +2,30 @@
   (:use :cl :item)
   (:nicknames :item-ext)
   (:export #:item-value-ext-to-internal
+           #:item-value-internal-to-ext
            #:item-state-to-ht
            #:ht-to-item-state
            #:item-to-ht))
 
 (in-package :chipi.item-ext)
 
-(defun item-value-ext-to-internal (item-value)
+(defun item-value-ext-to-internal (ext-value)
+  "Converts externally delivered (read) ext-value (`item-state-value') to internal representation
+Used e.g. for API or persistences."
   (cond
-    ((typep item-value 'double-float)
-     (coerce item-value 'single-float))
-    ((eq item-value t) 'item:true)
-    ((eq item-value nil) 'item:false)
-    ((eq item-value 'cl:null) nil)
+    ((typep ext-value 'double-float)
+     (coerce ext-value 'single-float))
+    ((eq ext-value t) 'item:true)
+    ((eq ext-value nil) 'item:false)
+    ((eq ext-value 'cl:null) nil)
+    (t ext-value)))
+
+(defun item-value-internal-to-ext (item-value)
+  "Converts internal item-value (`item-state-value') to external representation, i.e. used for JSON."
+  (cond
+    ((eq item-value 'item:true) t)
+    ((eq item-value 'item:false) nil)
+    ((null item-value) 'cl:null)
     (t item-value)))
 
 (defun item-state-to-ht (item-state)
@@ -22,12 +33,7 @@
   (let ((ht (make-hash-table :test #'equal)))
     (setf (gethash "timestamp" ht) (item-state-timestamp item-state))
     (setf (gethash "value" ht)
-          (let ((item-value (item-state-value item-state)))
-            (cond
-              ((eq item-value 'item:true) t)
-              ((eq item-value 'item:false) nil)
-              ((null item-value) 'cl:null)
-              (t item-value))))
+          (item-value-internal-to-ext (item-state-value item-state)))
     ht))
 
 (defun ht-to-item-state (ht)
