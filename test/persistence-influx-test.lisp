@@ -112,7 +112,7 @@
 ;; history api tests
 ;; --------------------------------------
 
-(test influx-persistence--relative-range
+(test influx-persistence--range
   "Retrieves item value history for time frame."
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
@@ -138,6 +138,12 @@
                                           (persp:make-relative-range
                                            :seconds 20 :end-ts (get-universal-time)))))
           (assert-fetched fetched-range))
+        ;; absolute range
+        (let ((fetched-range (persp:fetch cut item
+                                          (persp:make-absolute-range
+                                           (- (get-universal-time) 20)
+                                           (get-universal-time)))))
+          (assert-fetched fetched-range))          
         ))))
 
 (test influx-persistence--range--fetch-with-error--api-response-4xy

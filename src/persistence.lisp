@@ -45,14 +45,19 @@ This constructor is not public, subclasses should provide their own constructor 
                               (hours nil)
                               (days nil)
                               (end-ts nil))
-  "Creates a relative range with the given `seconds', `minutes', `hours' and `days'.
-Specify only one.
+  "Creates a relative range with the given `seconds', `minutes', `hours' and `days'. Specify only one.
 `end-ts' is the end timestamp boundary. Specified values for relative time are substracted from `end-ts' for a start boundary. If `end-ts' is `nil' then end-time boundary is 'now'."
   (make-instance 'relative-range
                  :seconds seconds
                  :minutes minutes
                  :hours hours
                  :days days
+                 :end-ts end-ts))
+
+(defun make-absolute-range (start-ts end-ts)
+  "Creates an absolute range with given `start-ts' and `end-ts' as universal time(stamps)."
+  (make-instance 'absolute-range
+                 :start-ts start-ts
                  :end-ts end-ts))
 
 (defun store (persistence item)

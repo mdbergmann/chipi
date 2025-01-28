@@ -120,6 +120,11 @@ Specify those types as 'type-hint' in the item definition."))
   (local-time:timestamp-to-unix
    (local-time:universal-to-timestamp uts)))
 
+(defun %%absolute-range-to-string (start-ts end-ts)
+  (let ((end-unix-ts (%universal-to-unix-ts end-ts))
+        (start-unix-ts (%universal-to-unix-ts start-ts)))
+    (format nil "start: ~a, stop: ~a" start-unix-ts end-unix-ts)))
+
 (defun %relative-range-to-string (range)
   (let ((days (persp:days range))
         (hours (persp:hours range))
@@ -127,16 +132,14 @@ Specify those types as 'type-hint' in the item definition."))
         (seconds (persp:seconds range))
         (end-ts (persp:end-ts range)))
     (flet ((absolute ()
-             (let* ((start-ts
-                      (cond
-                        (days (- end-ts (* days 24 60 60)))
-                        (hours (- end-ts (* hours 60 60)))
-                        (minutes (- end-ts (* minutes 60)))
-                        (seconds (- end-ts seconds))
-                        (t end-ts)))
-                    (end-unix-ts (%universal-to-unix-ts end-ts))
-                    (start-unix-ts (%universal-to-unix-ts start-ts)))
-               (format nil "start: ~a, stop: ~a" start-unix-ts end-unix-ts)))
+             (let ((start-ts
+                     (cond
+                       (days (- end-ts (* days 24 60 60)))
+                       (hours (- end-ts (* hours 60 60)))
+                       (minutes (- end-ts (* minutes 60)))
+                       (seconds (- end-ts seconds))
+                       (t end-ts))))
+               (%%absolute-range-to-string start-ts end-ts)))
            (relative ()
              (format nil "start: ~a"
                      (cond
@@ -149,10 +152,15 @@ Specify those types as 'type-hint' in the item definition."))
           (absolute)
           (relative)))))
 
+(defun %absolute-range-to-string (range)
+  (%%absolute-range-to-string (persp:start-ts range)
+                              (persp:end-ts range)))
+
 (defun %range-to-string (range)
   (if (not range) "0"
       (typecase range
-        (relative-range (%relative-range-to-string range)))))
+        (relative-range (%relative-range-to-string range))
+        (absolute-range (%absolute-range-to-string range)))))
 
 (defun %make-single-query-string (persistence item-name)
   (format nil "from(bucket:\"~a\")

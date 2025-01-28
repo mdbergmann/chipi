@@ -20,13 +20,16 @@
            #:persisted-item-timestamp
            #:range
            #:relative-range
+           #:absolute-range
            #:make-relative-range
+           #:make-absolute-range
            ;; range accessors
            #:seconds
            #:minutes
            #:hours
            #:days
-           #:end-ts))
+           #:end-ts
+           #:start-ts))
 
 (in-package :chipi.persistence)
 
@@ -44,6 +47,10 @@ There may be different kinds of persistence with different storages."))
            :documentation "End universal timestamp. In case ommited `now' is used.
 Other values (seconds, minutes, etc.) are substracted."))
   (:documentation "A relative range is a range that is relative to an end boundary timestamp."))
+(defclass absolute-range (range)
+  ((start-ts :initarg :start-ts :initform nil :accessor start-ts)
+   (end-ts :initarg :end-ts :initform nil :accessor end-ts))
+  (:documentation "An absolute range by specifying start and end universal time (stamp)."))
 
 (defstruct persisted-item
   (value nil)
