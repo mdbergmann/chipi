@@ -116,16 +116,43 @@ Specify those types as 'type-hint' in the item definition."))
 ;; Querying
 ;; ---------------------------------------
 
+(defun %universal-to-unix-ts (uts)
+  (local-time:timestamp-to-unix
+   (local-time:universal-to-timestamp uts)))
+
+(defun %relative-range-to-string (range)
+  (let ((days (persp:days range))
+        (hours (persp:hours range))
+        (minutes (persp:minutes range))
+        (seconds (persp:seconds range))
+        (end-ts (persp:end-ts range)))
+    (flet ((absolute ()
+             (let* ((start-ts
+                      (cond
+                        (days (- end-ts (* days 24 60 60)))
+                        (hours (- end-ts (* hours 60 60)))
+                        (minutes (- end-ts (* minutes 60)))
+                        (seconds (- end-ts seconds))
+                        (t end-ts)))
+                    (end-unix-ts (%universal-to-unix-ts end-ts))
+                    (start-unix-ts (%universal-to-unix-ts start-ts)))
+               (format nil "start: ~a, stop: ~a" start-unix-ts end-unix-ts)))
+           (relative ()
+             (format nil "start: ~a"
+                     (cond
+                       (days (format nil "-~ad" days))
+                       (hours (format nil "-~ah" hours))
+                       (minutes (format nil "-~am" minutes))
+                       (seconds (format nil "-~as" seconds))
+                       (t "0")))))
+      (if end-ts
+          (absolute)
+          (relative)))))
+
 (defun %range-to-string (range)
   (if (not range) "0"
       (typecase range
-        (relative-range
-         (cond
-           ((not (null (persp:days range))) (format nil "-~ad" (persp:days range)))
-           ((not (null (persp:hours range))) (format nil "-~ah" (persp:hours range)))
-           ((not (null (persp:minutes range))) (format nil "-~am" (persp:minutes range)))
-           ((not (null (persp:seconds range))) (format nil "-~as" (persp:seconds range)))
-           )))))
+        (relative-range (%relative-range-to-string range)))))
 
 (defun %make-single-query-string (persistence item-name)
   (format nil "from(bucket:\"~a\")
@@ -137,7 +164,7 @@ Specify those types as 'type-hint' in the item definition."))
 
 (defun %make-range-query-string (persistence item-name range)
   (format nil "from(bucket:\"~a\")
-|> range(start: ~a)
+|> range(~a)
 |> filter(fn: (r) => r._measurement == \"~a\")"
           (bucket persistence)
           (%range-to-string range)

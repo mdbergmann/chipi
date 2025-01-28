@@ -43,14 +43,17 @@ This constructor is not public, subclasses should provide their own constructor 
                               (seconds nil)
                               (minutes nil)
                               (hours nil)
-                              (days nil))
+                              (days nil)
+                              (end-ts nil))
   "Creates a relative range with the given `seconds', `minutes', `hours' and `days'.
-Specify only one."
+Specify only one.
+`end-ts' is the end timestamp boundary. Specified values for relative time are substracted from `end-ts' for a start boundary. If `end-ts' is `nil' then end-time boundary is 'now'."
   (make-instance 'relative-range
                  :seconds seconds
                  :minutes minutes
                  :hours hours
-                 :days days))
+                 :days days
+                 :end-ts end-ts))
 
 (defun store (persistence item)
   "Triggers the 'store' procedure of the persistence actor.

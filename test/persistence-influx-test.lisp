@@ -112,29 +112,35 @@
 ;; history api tests
 ;; --------------------------------------
 
-(test influx-persistence--retrieve-history
+(test influx-persistence--relative-range
   "Retrieves item value history for time frame."
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
-          (item (item:make-item 'history :type-hint 'integer))
-          (fetched-items))
+          (item (item:make-item 'history :type-hint 'integer)))
       (item:add-persistence item cut :frequency :every-change)
       (dotimes (x 10)
         (item:set-value item x)
         (sleep 1))
       (sleep 1)
-      (let ((fetched-range (persp:fetch cut item (persp:make-relative-range :seconds 20))))
-        (is-true (miscutils:await-cond 2.0
-                   (let ((resolved (future:fresult fetched-range)))
-                     (when (not (equal resolved :not-ready))
-                       (setf fetched-items resolved)))))
-        (is (= (length fetched-items) 10))
-        (is (= (persisted-item-value (car fetched-items)) 0))
-        (is (= (persisted-item-value (car (last fetched-items))) 9))
-        (is (= (reduce #'+ (mapcar #'persisted-item-value fetched-items) :initial-value 0) 45))
+      (flet ((assert-fetched (fetched-range)
+               (is-true (miscutils:await-cond 2.0 (future:complete-p fetched-range)))
+               (let ((fetched-items (future:fresult fetched-range)))
+                 (is (= (length fetched-items) 10))
+                 (is (= (persisted-item-value (car fetched-items)) 0))
+                 (is (= (persisted-item-value (car (last fetched-items))) 9))
+                 (is (= (reduce #'+ (mapcar #'persisted-item-value fetched-items) :initial-value 0) 45)))))
+        ;; pure relative
+        (let ((fetched-range (persp:fetch cut item
+                                          (persp:make-relative-range :seconds 20))))
+          (assert-fetched fetched-range))
+        ;; implicit absolute
+        (let ((fetched-range (persp:fetch cut item
+                                          (persp:make-relative-range
+                                           :seconds 20 :end-ts (get-universal-time)))))
+          (assert-fetched fetched-range))
         ))))
 
-(test influx-persistence--history--fetch-with-error--api-response-4xy
+(test influx-persistence--range--fetch-with-error--api-response-4xy
   "Fetch raises error, i.e. api response 4xy."
   (with-fixture init-destroy-env ()
     (let ((cut (make-influx-persistence

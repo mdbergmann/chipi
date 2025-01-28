@@ -25,7 +25,8 @@
            #:seconds
            #:minutes
            #:hours
-           #:days))
+           #:days
+           #:end-ts))
 
 (in-package :chipi.persistence)
 
@@ -38,8 +39,11 @@ There may be different kinds of persistence with different storages."))
   ((seconds :initarg :seconds :initform nil :accessor seconds)
    (minutes :initarg :minutes :initform nil :accessor minutes)
    (hours :initarg :hours :initform nil :accessor hours)
-   (days :initarg :days :initform nil :accessor days))
-  (:documentation "A relative range is a range that is relative to the current time."))
+   (days :initarg :days :initform nil :accessor days)
+   (end-ts :initarg :end-ts :initform nil :accessor end-ts
+           :documentation "End universal timestamp. In case ommited `now' is used.
+Other values (seconds, minutes, etc.) are substracted."))
+  (:documentation "A relative range is a range that is relative to an end boundary timestamp."))
 
 (defstruct persisted-item
   (value nil)
