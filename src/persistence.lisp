@@ -69,14 +69,14 @@ The actual persistence method called as a result is `persp:persist'."
     (log:debug "Tell persist item: ~a, persp: ~a"
                (item:name item)
                (act-cell:name persistence))
-    (act:! persistence `(:store . (,item . ,result))))
+    (! persistence `(:store . (,item . ,result))))
   t)
 
 (defun fetch (persistence item &optional range)
   "Triggers the 'fetch' procedure of the persistence actor.
 The actual persistence method called as a result is `persp:retrieve'.
 Optionally specify a `range' to retrieve a list of values that satisfy the `range'
-See `item:range' for more details of range. Currently only `relative-range' is supported.
+See `item:range' for more details of range. Possible ranges are `relative-range' and `absolute-range'.
 Returns a `persisted-item' instance or a list of `persisten-item's if range is specified."
   (? persistence `(:fetch . (,item . ,range))))
 

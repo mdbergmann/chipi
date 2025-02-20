@@ -3,7 +3,7 @@
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
-               (:version "sento" "3.3.0")
+               (:version "sento" "3.4.1")
                "timer-wheel"
                "cl-cron"
                "com.inuoe.jzon"

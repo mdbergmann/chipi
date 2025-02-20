@@ -2,14 +2,14 @@
   (:use :cl :chipi.persistence)
   (:nicknames :influx-persistence)
   (:import-from #:persp
-                #:persistence)
+                #:base-historic-persistence)
   (:export #:influx-persistence
            #:make-influx-persistence)
   )
 
 (in-package :chipi.influx-persistence)
 
-(defclass influx-persistence (persistence)
+(defclass influx-persistence (base-historic-persistence)
   ((base-url :initarg :base-url
              :initform nil
              :reader base-url)

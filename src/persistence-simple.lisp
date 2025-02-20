@@ -4,13 +4,13 @@
   (:local-nicknames
    (#:jzon #:com.inuoe.jzon))
   (:import-from #:persp
-                #:persistence)
+                #:base-map-persistence)
   (:export #:simple-persistence
            #:make-simple-persistence))
 
 (in-package :chipi.simple-persistence)
 
-(defclass simple-persistence (persistence)
+(defclass simple-persistence (base-map-persistence)
   ((storage-root-path :initarg :storage-root-path
                       :initform #P""
                       :reader storage-root-path))
