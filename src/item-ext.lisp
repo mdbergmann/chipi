@@ -1,6 +1,8 @@
 (defpackage :chipi.item-ext
   (:use :cl :item)
   (:nicknames :item-ext)
+  (:import-from #:alexandria
+                #:plist-hash-table)
   (:export #:item-value-ext-to-internal
            #:item-value-internal-to-ext
            #:item-state-to-ht
@@ -30,24 +32,19 @@ Used e.g. for API or persistences."
 
 (defun item-state-to-ht (item-state)
   "Converts item-state to a hash-table with values converted ready for serialization."
-  (let ((ht (make-hash-table :test #'equal)))
-    (setf (gethash "timestamp" ht) (item-state-timestamp item-state))
-    (setf (gethash "value" ht)
-          (item-value-internal-to-ext (item-state-value item-state)))
-    ht))
+  (plist-hash-table
+   (list "timestamp" (item-state-timestamp item-state)
+         "value" (item-value-internal-to-ext (item-state-value item-state)))
+   :test #'equal))
 
 (defun ht-to-item-state (ht)
   "Generates `item-state' from values in hash-table. Values are converted back to internal use."
-  (let ((item-state (make-item-state)))
-    (setf (item-state-timestamp item-state) (gethash "timestamp" ht))
-    (setf (item-state-value item-state)
-          (item-value-ext-to-internal (gethash "value" ht)))
-    item-state))
+  (make-item-state :timestamp (gethash "timestamp" ht)
+                   :value (item-value-ext-to-internal (gethash "value" ht))))
 
 (defun item-to-ht (item)
-  (let ((ht (make-hash-table :test #'equal)))
-    (setf (gethash "name" ht) (name item))
-    (setf (gethash "label" ht) (label item))
-    (setf (gethash "item-state" ht) (item-state-to-ht (get-item-stateq item)))
-    ht
-  ))
+  (plist-hash-table
+   (list "name" (name item)
+         "label" (label item)
+         "item-state" (item-state-to-ht (get-item-stateq item)))
+   :test #'equal))
