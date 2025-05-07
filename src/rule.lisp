@@ -56,7 +56,7 @@ When triggered, the rule will log a message to the info log.
      :name name
      :type 'rule
      :receive (lambda (msg)
-		(%receive-fun msg name do-fun item-names))
+                (%receive-fun msg name do-fun item-names))
      :init (lambda (self)
              (when (car item-changes)
                (ev:subscribe self self 'item:item-changed-event))

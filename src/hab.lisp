@@ -20,8 +20,7 @@
            #:defrule
            #:defpersistence
            #:shutdown
-           #:add-to-shutdown)
-  )
+           #:add-to-shutdown))
 
 (in-package :chipi.hab)
 
