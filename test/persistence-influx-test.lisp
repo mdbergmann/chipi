@@ -95,6 +95,7 @@
       (let ((fetched (persp:fetch cut item)))
         (assert-fetch-error fetched)))))
 
+
 (test influx-persistence--fetch-with-error--api-response-4xy
   "Fetch raises error, i.e. api response 4xy."
   (with-fixture init-destroy-env ()
@@ -158,3 +159,46 @@
           (item (item:make-item 'someid :type-hint 'string)))
       (let ((fetched (persp:fetch cut item (persp:make-relative-range :seconds 20))))
         (assert-fetch-error fetched)))))
+
+;; --------------------------------------
+;; aggregate API tests
+;; --------------------------------------
+
+(test influx-persistence--aggregate--influx-fn
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-cut))
+          (item (item:make-item 'avgfield :type-hint 'integer)))
+      (item:add-persistence item cut :frequency :every-change)
+      ;; push values 1,2,3,4,5 one per second
+      (dotimes (i 5)
+        (item:set-value item (1+ i))
+        (sleep 1))
+      (sleep 1)
+      ;; fetch over last 20 seconds
+      (flet ((assert-fetched (aggregate-fun value)
+               (let ((fut (persp:fetch cut item
+                                       (persp:make-relative-range :seconds 20)
+                                       aggregate-fun)))
+                 (is-true (miscutils:await-cond 2.0 (future:complete-p fut)))
+                 (let ((result (future:fresult fut)))
+                   (is (= (length result) 1))
+                   (is (= (persisted-item-value (car result)) value))))))
+        (assert-fetched :avg 3)
+        (assert-fetched :min 1)
+        (assert-fetched :max 5)
+        (assert-fetched :sum 15)
+        (assert-fetched :count 5)
+        (assert-fetched :median 3)
+        ))))
+
+(test influx-persistence--aggregate--error--bad-aggregate-parameter
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-cut))
+          (item (item:make-item 'avgfield :type-hint 'integer)))
+      (item:add-persistence item cut :frequency :every-change)
+      (let ((fut (persp:fetch cut item
+                              (persp:make-relative-range :seconds 20)
+                              :not-supported)))
+        (is-true (miscutils:await-cond 2.0 (future:complete-p fut)))
+        (let ((result (future:fresult fut)))
+          (is (eq (car result) :error)))))))

@@ -170,17 +170,38 @@ Specify those types as 'type-hint' in the item definition."))
           (bucket persistence)
           item-name))
 
-(defun %make-range-query-string (persistence item-name range)
-  (format nil "from(bucket:\"~a\")
+(defun %make-range-query-string (persistence item-name range &optional aggregate)
+  "Build a Flux pipeline for a time RANGE.  
+ If AGGREGATE is one of
+`:avg', `:median', `:min', `:max', `:sum', `:count',
+we append the simple Flux aggregate fn."
+  (let* ((bucket (bucket persistence))
+         (rangestr (%range-to-string range))
+         (base-pipe (format nil "from(bucket:\"~a\")
 |> range(~a)
 |> filter(fn: (r) => r._measurement == \"~a\")"
-          (bucket persistence)
-          (%range-to-string range)
-          item-name))
+                            bucket rangestr item-name)))
+    (cond
+      ((null aggregate) base-pipe)
+      (aggregate
+       (format nil "~a~c~a"
+               base-pipe
+               #\linefeed
+               (case aggregate
+                 (:avg "|> mean()")
+                 (:min "|> min()")
+                 (:max "|> max()")
+                 (:sum "|> sum()")
+                 (:count "|> count()")
+                 (:median "|> median()")
+                 (otherwise
+                  (error "Invalid aggregate: ~a" aggregate))))))))
 
-(defun %make-query-request (persistence item-name &optional range)
+(defvar *supported-influx-aggregate-funs* '(:avg :min :max :sum :count :median))
+
+(defun %make-query-request (persistence item-name &optional range aggregate)
   (let ((data-string (if range
-                         (%make-range-query-string persistence item-name range)
+                         (%make-range-query-string persistence item-name range aggregate)
                          (%make-single-query-string persistence item-name))))
     (log:debug "Query request data string: ~a" data-string)
     (drakma:http-request (format nil "~a/api/v2/query" (base-url persistence))
@@ -193,7 +214,10 @@ Specify those types as 'type-hint' in the item definition."))
                          :content data-string)))
 
 (defun %parse-csv-to-time-value-pairs (body)
-  (let* ((csv-lines (str:split (format nil "~C~C" #\return #\linefeed) body :omit-nulls t))
+  "Parses influx output csv.
+Returns a list of `(timestamp . value) pairs.
+Applied aggregate functions omit the _time column, in this case the timestamo in return as `NIL`."
+  (let* ((csv-lines (str:split (format nil "~c~c" #\return #\linefeed) body :omit-nulls t))
          (csv-headers (str:split "," (first csv-lines) :omit-nulls t))
          (index-time (position "_time" csv-headers :test #'equal))
          (index-value (position "_value" csv-headers :test #'equal))
@@ -202,11 +226,15 @@ Specify those types as 'type-hint' in the item definition."))
                    (rest csv-lines)))
          (time-value-pairs
            (mapcar (lambda (row)
-                     (cons (nth index-time row) (nth index-value row)))
+                     (cons (and index-time
+                                (nth index-time row))
+                           (nth index-value row)))
                    csv-columns)))
     time-value-pairs))
 
 (defun %make-persisted-item (timestamp value type-hint)
+  "Returns a persisted-item instance.
+`timestamp' may be `NIL' which is transformed to `:undefined'."
   (make-persisted-item
    :value (cond
             ((eq type-hint 'integer)
@@ -220,8 +248,10 @@ Specify those types as 'type-hint' in the item definition."))
             ((eq type-hint 'string)
              value)
             (t (error "Unsupported type: ~a" type-hint)))
-   :timestamp (local-time:timestamp-to-universal
-               (local-time:parse-timestring timestamp))))
+   :timestamp (if timestamp
+                  (local-time:timestamp-to-universal
+                   (local-time:parse-timestring timestamp))
+                  :undefined)))
 
 ;; -------------------------------------
 ;; Retrieve last
@@ -280,13 +310,15 @@ Specify those types as 'type-hint' in the item definition."))
       (log:debug "Loaded persisted items: ~a" persisted-items)
       persisted-items)))
 
-(defmethod retrieve-range ((persistence influx-persistence) item range)
-  (log:debug "Reading item with range: ~a" item)
+(defmethod retrieve-range ((persistence influx-persistence) item range &optional aggregate)
+  (log:debug "Reading item with range: ~a, aggregate: ~a" item aggregate)
+  (assert (or (null aggregate)
+              (member aggregate *supported-influx-aggregate-funs*)))
   (let ((item-name (act-cell:name item))
         (type-hint (item:value-type-hint item)))
     (handler-case
         (multiple-value-bind (body status headers)
-            (%make-query-request persistence item-name range)
+            (%make-query-request persistence item-name range aggregate)
           (case status
             (200
              (progn

@@ -29,12 +29,14 @@ This constructor is not public, subclasses should provide their own constructor 
   (case (car msg)
     (:store (persist *self* (cadr msg)))
     (:fetch
-     (let ((item (cadr msg))
-           (range (cddr msg)))
+     (let ((item (second msg))
+           (range (third msg))
+           (aggregate (fourth msg)))
        (handler-case
-           (if range
-               (reply (retrieve-range *self* item range))
-               (reply (retrieve *self* item)))
+         (cond
+          ((not range) (reply (retrieve *self* item)))
+          (aggregate (reply (retrieve-range *self* item range aggregate)))
+          (t (reply (retrieve-range *self* item range))))
          (error (e)
            (log:warn "Error on retrieving persisted data: ~a" e)
            (reply `(:error . ,e))))))))
@@ -72,13 +74,14 @@ The actual persistence method called as a result is `persp:persist'."
     (! persistence `(:store . (,item . ,result))))
   t)
 
-(defun fetch (persistence item &optional range)
+(defun fetch (persistence item &optional range aggregate)
   "Triggers the 'fetch' procedure of the persistence actor.
-The actual persistence method called as a result is `persp:retrieve'.
-Optionally specify a `range' to retrieve a list of values that satisfy the `range'
-See `item:range' for more details of range. Possible ranges are `relative-range' and `absolute-range'.
-Returns a `persisted-item' instance or a list of `persisten-item's if range is specified."
-  (? persistence `(:fetch . (,item . ,range))))
+The actual persistence method called as a result is:
+ • `persp:retrieve'            when no RANGE is given
+ • `persp:retrieve-range'      when only RANGE is given
+RANGE must be a `relative-range' or `absolute-range'.
+AGGREGATE, if non-`nil', should be one of `:avg`, `:min` or `:max`."
+  (? persistence `(:fetch ,item ,range ,aggregate)))
 
 (defun destroy (persistence)
   "Destroys the persistence."
