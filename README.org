@@ -50,6 +50,8 @@ The top of the Chipi standalone script should include this (=eval-when=) in orde
   (ql:quickload :chipi))  ; at least this if you don't have more
 #+end_src
 
+NOTE: when using OCICL package manager then you need to load dependencies via =asdf:load-system=.
+
 Next thing is that you might want to define a separate package using =defpackage=, it allows to inherit symbols using =:use= or =:import-from= that you want to use in the script.
 
 ***** Defining the global environment
@@ -91,7 +93,7 @@ A persistence that allows retrieving item values of a time range, i.e. to build 
          :bucket "your-bucket")))
 #+end_src
 
-To retrieve a range of values you can call =PERSP:FETCH= with an optional range instance. Currently only =RELATIVE-RANGE= exists.
+To retrieve a range of values you can call =PERSP:FETCH= with an optional range instance. Ranges can be relative or absolute. When using a range fetch it's also possible to specify predefined aggregate function designators like =:avg=, =:min=, =:max=, =:median=, =:sum=.
 
 ***** Bindings
 Bindings are a means to interact with sources or targets, meaning they allow interactivity with the item value.
