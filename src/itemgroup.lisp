@@ -1,6 +1,8 @@
 (defpackage :chipi.itemgroup
   (:use :cl)
   (:nicknames :itemgroup)
+  (:import-from #:alexandria
+                #:hash-table-values)
   (:export #:make-itemgroup
            #:itemgroup
            #:label
@@ -46,16 +48,11 @@
   (remhash (symbol-name id) (items itemgroup)))
 
 (defun get-items (itemgroup)
-  (let ((items
-          (loop :for item :being :the :hash-values :of (items itemgroup)
-                :collect item)))
-    items))
+  (hash-table-values (items itemgroup)))
 
 (defun get-value (itemgroup)
   "Collects values (as futures) from all added items."
-  (let ((items
-          (loop :for item :being :the :hash-values :of (items itemgroup)
-                :collect item)))
+  (let ((items (hash-table-values (items itemgroup))))
     (mapcar #'item:get-value items)))
 
 (defun set-value (itemgroup value &key (push t) timestamp (persist t))

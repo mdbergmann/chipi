@@ -54,12 +54,12 @@ This is in particular important for persistences that are type specific, like in
                  :documentation "The items persistences")))
 
 (defstruct (item-state
-	    (:print-function
-	     (lambda (struct stream depth)
-	       (declare (ignore depth))
-	       (format stream "(item-state value:~a, timestamp:~a)"
-		       (item-state-value struct)
-		       (local-time:universal-to-timestamp (item-state-timestamp struct))))))
+            (:print-function
+             (lambda (struct stream depth)
+               (declare (ignore depth))
+               (format stream "(item-state value:~a, timestamp:~a)"
+                       (item-state-value struct)
+                       (local-time:universal-to-timestamp (item-state-timestamp struct))))))
   (value t)
   (timestamp (get-universal-time)))
 
@@ -97,12 +97,12 @@ This is in particular important for persistences that are type specific, like in
                          (item-state-timestamp *state*) timestamp)
                  (ev:publish self (make-item-changed-event
                                    :item self)))))
-           (push-to-bindings (new-value push) 
+           (push-to-bindings (new-value push)
              (with-slots (bindings) self
                (log:debug "Processing ~a binding(s)." (length bindings))
                (dolist (binding (reverse bindings))
                  (handler-case
-                     (let ((effective-push (if push 
+                     (let ((effective-push (if push
                                                (binding:call-push-p binding)
                                                nil)))
                        (when effective-push
@@ -217,8 +217,8 @@ If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on bi
       (let ((load-on-start (item-persistence-load-on-start item-persp))
             (frequency (item-persistence-frequency item-persp))
             (timer-sig (format nil "~a-~a"
-			       (item-persistence-timer-sig item-persp)
-			       (name item)))
+                               (item-persistence-timer-sig item-persp)
+                               (name item)))
             (persp (item-persistence-persp item-persp)))
         (when load-on-start
           (%fetch-persisted-value persistence item))

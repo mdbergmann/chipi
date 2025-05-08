@@ -56,7 +56,7 @@ When triggered, the rule will log a message to the info log.
      :name name
      :type 'rule
      :receive (lambda (msg)
-		(%receive-fun msg name do-fun item-names))
+                (%receive-fun msg name do-fun item-names))
      :init (lambda (self)
              (when (car item-changes)
                (ev:subscribe self self 'item:item-changed-event))
@@ -76,8 +76,8 @@ When triggered, the rule will log a message to the info log.
              (log:info "Rule '~a' initialized." name))
      :destroy (lambda (self)
                 (ev:unsubscribe self self)
-                (loop :for cron-hash :in (slot-value self 'cron-hashes)
-                      :do (cr:cancel-job cron-hash))
+                (dolist (cron-hash (slot-value self 'cron-hashes))
+                  (cr:cancel-job cron-hash))
                 (setf (slot-value self 'cron-hashes) nil)
                 (log:info "Rule '~a' destroyed." name)))))
 

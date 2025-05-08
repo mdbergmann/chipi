@@ -1,6 +1,10 @@
 (defpackage :chipi.hab
   (:use :cl)
   (:nicknames :hab)
+  (:import-from #:alexandria
+                #:with-gensyms
+                #:hash-table-values
+                #:when-let)
   (:export #:*items*
            #:*itemgroups*
            #:*rules*
@@ -20,8 +24,7 @@
            #:defrule
            #:defpersistence
            #:shutdown
-           #:add-to-shutdown)
-  )
+           #:add-to-shutdown))
 
 (in-package :chipi.hab)
 
@@ -49,8 +52,7 @@
 (defun get-items ()
   "Returns all items."
   (when *items*
-    (loop :for item :being :the :hash-value :of *items*
-          :collect item)))
+    (hash-table-values *items*)))
 
 (defun get-persistence (id)
   "Returns the persistence with the given id from the created persistences."
@@ -120,10 +122,7 @@ It also will setup items, rules and persistences storages."
 (defmacro defitemgroup (id label)
   "Defines an itemgroup.
 Itemgroups are containers for items."
-  (let ((group (gensym "group"))
-        (old-group (gensym "old-group"))
-        (groupitem (gensym "groupitem"))
-        (old-group-items (gensym "old-group-items")))
+  (with-gensyms (group old-group groupitem old-group-items)
     `(let* ((,old-group (get-itemgroup ,id))
             (,old-group-items (if ,old-group
                                   (itemgroup:get-items ,old-group)
@@ -153,22 +152,13 @@ Persistences are references via `:persistence' key.
   - a notation of the form: `:every-N<s|m|h>' where N is the number, s (seconds), m (minutes) and h (hours).
 
 See `hab-test.lisp' and `item' for more examples."
-  (let ((body-forms (gensym "body-forms"))
-        (item (gensym "item"))
-        (old-item (gensym "old-item"))
-        (bindings (gensym "bindn"))
-        (binding (gensym "bind"))
-        (p-rep (gensym "p-rep"))
-        (p-reps (gensym "p-reps"))
-        (persp (gensym "persp"))
-        (initial-value (gensym "initial-value"))
-        (itemgroup (gensym "itemgroup")))
+  (with-gensyms
+      (body-forms item old-item bindings binding p-rep p-reps persp initial-value itemgroup)
     `(progn
-       (when (get-item ,id)
+       (when-let ((,old-item (get-item ,id)))
          (log:info "Cleaning old item: " ,id)
-         (let ((,old-item (get-item ,id)))
-           (item:destroy ,old-item)
-           (remhash ,id *items*)))
+         (item:destroy ,old-item)
+         (remhash ,id *items*))
        (let* ((,body-forms (list ,@body))
               (,bindings (loop :for x :in ,body-forms
                                :if (typep x 'binding::binding)
@@ -193,9 +183,8 @@ See `hab-test.lisp' and `item' for more examples."
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
          (dolist (,p-rep ,p-reps)
-           (let ((,persp (get-persistence (getf ,p-rep :id))))
-             (when ,persp
-               (item:add-persistence ,item ,persp ,p-rep))))
+           (when-let ((,persp (get-persistence (getf ,p-rep :id))))
+             (item:add-persistence ,item ,persp ,p-rep)))
          (setf (gethash ,id *items*) ,item)))))
 
 (defmacro binding (&rest args)
@@ -208,14 +197,12 @@ See `binding:make-function-binding' for more information and arguments."
 It will create the rule if it does not exist.
 It will clean and re-create the rule if it already exists.
 See `rule:make-rule' for more information and arguments."
-  (let ((rule (gensym "rule"))
-        (old-rule (gensym "old-rule")))
+  (with-gensyms (rule old-rule)
     `(progn
-       (when (get-rule ,name)
+       (when-let ((,old-rule (get-rule ,name)))
          (log:info "Cleaning old rule: " ,name)
-         (let ((,old-rule (get-rule ,name)))
-           (rule:destroy ,old-rule)
-           (remhash ,name *rules*)))
+         (rule:destroy ,old-rule)
+         (remhash ,name *rules*))
        (let ((,rule (rule:make-rule ,name ,@args)))
          (setf (gethash ,name *rules*) ,rule)))))
 
@@ -226,13 +213,11 @@ It will create the persistence if it does not exist.
 It will clean and re-create the persistence if it already exists.
 The factory function is called with the persistence id as argument and allows to create required persistence type.
 See `hab-test.lisp' and `persistence' for more examples."
-  (let ((persistence (gensym "persistence"))
-        (old-persistence (gensym "old-persistence")))
+  (with-gensyms (persistence old-persistence)
     `(progn
-       (when (get-persistence ,id)
+       (when-let ((,old-persistence (get-persistence ,id)))
          (log:info "Cleaning old persistence: " ,id)
-         (let ((,old-persistence (get-persistence ,id)))
-           (persp:destroy ,old-persistence)
-           (remhash ,id *persistences*)))
+         (persp:destroy ,old-persistence)
+         (remhash ,id *persistences*))
        (let ((,persistence (funcall ,factory ,id)))
          (setf (gethash ,id *persistences*) ,persistence)))))

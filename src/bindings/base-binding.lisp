@@ -91,12 +91,12 @@ In order to not unwind/collapse a timer stack execution of `pull-fun' is error c
                   (progn
                     (log:debug "Setting on items (~a)" (length bound-items))
                     (dolist (item bound-items)
-		              (item:set-value item result
-				                      :push
-				                      (getf (if (listp opts)
-					                            opts
-					                            nil)
-				                            :push t)))))
+                      (item:set-value item result
+                                      :push
+                                      (getf (if (listp opts)
+                                                opts
+                                                nil)
+                                            :push t)))))
               (frecover
                (error (c)
                       (log:error "Error on handling pull future: ~a" c)))))
@@ -132,12 +132,12 @@ This is to have the higher-level module decide how to handle the error."
       ;; only on binding the first item we schedule
       (when (and delay (not (second bound-items)))
         (log:info "Scheduling recurring delay: " delay " on: " binding)
-	(let ((timer-sig (format nil "~a-~a"
-                             (gensym "binding-timer-")
-                             (item:name item))))
-	  (%add-timer binding
-                  (timer:schedule-recurring delay timer-fun timer-sig)
-                  :delay))))))
+        (let ((timer-sig (format nil "~a-~a"
+                                 (gensym "binding-timer-")
+                                 (item:name item))))
+          (%add-timer binding
+                      (timer:schedule-recurring delay timer-fun timer-sig)
+                      :delay))))))
 
 (defun destroy (binding)
   (log:info "Destroying binding: " binding)
