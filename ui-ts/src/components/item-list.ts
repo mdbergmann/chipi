@@ -49,7 +49,7 @@ export class ItemList extends LitElement {
       this.items = apiItems.map((i: any) => ({
         ...i,
         typeHint: i['type-hint'] ?? i.typeHint,
-        value: i.value ?? i['value']
+        value: i['item-state']?.value
       }));
     } catch (e: any) {
       if (e?.response?.status === 401) {
