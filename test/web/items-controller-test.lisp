@@ -19,6 +19,15 @@
                         :state (item::make-item-state
                                 :value value))))
     (setf (slot-value item 'item::label) label)
+    ;; passender Type-Hint für den Test setzen
+    (let ((hint (cond
+                  ((integerp value) 'integer)
+                  ((floatp   value) 'float)
+                  ((stringp  value) 'string)
+                  ((member value '(item:true item:false)) 'boolean)
+                  (t nil))))
+      (when hint
+        (setf (slot-value item 'item::value-type-hint) hint)))
     item))
 
 (def-fixture with-isys-mock (item-datas)
@@ -38,11 +47,12 @@
   (with-fixture with-isys-mock (nil)
     (is (= (length (retrieve-items)) 0))))
 
-(defun equal-item-props-p (item-ht name label value)
+(defun equal-item-props-p (item-ht name label value &optional type-hint)
   (and (equal (gethash "name" item-ht) name)
        (equal (gethash "label" item-ht) label)
        (equal (gethash "value" (gethash "item-state" item-ht)) value)
-       (> (gethash "timestamp" (gethash "item-state" item-ht)) 0)))
+       (> (gethash "timestamp" (gethash "item-state" item-ht)) 0)
+       (equal (gethash "type-hint" item-ht) type-hint)))
 
 (test retrieve-items--non-empty
   (with-fixture with-isys-mock ('((foo1 "foo1-label" 1)
@@ -62,12 +72,12 @@
     (let ((items (retrieve-items)))
       (is (= (length items) 6))
       (print items)
-      (is-true (some (lambda (x) (equal-item-props-p x "FOO1" "foo1-label-int" 1)) items))
-      (is-true (some (lambda (x) (equal-item-props-p x "FOO2" "foo2-label-float" 2.1)) items))
-      (is-true (some (lambda (x) (equal-item-props-p x "FOO3" "foo3-label-string" "bar")) items))
-      (is-true (some (lambda (x) (equal-item-props-p x "FOO4" "foo4-label-true" t)) items))
-      (is-true (some (lambda (x) (equal-item-props-p x "FOO5" "foo5-label-false" nil)) items))
-      (is-true (some (lambda (x) (equal-item-props-p x "FOO6" "foo6-label-null" 'cl:null)) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO1" "foo1-label-int"    1        "INTEGER")) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO2" "foo2-label-float"  2.1      "FLOAT"))   items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO3" "foo3-label-string" "bar"    "STRING"))  items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO4" "foo4-label-true"   t        "BOOLEAN")) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO5" "foo5-label-false"  nil      "BOOLEAN")) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO6" "foo6-label-null"   'cl:null nil))       items))
       )))
 
 (test retrieve-item--existing
