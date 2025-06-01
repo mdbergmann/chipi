@@ -13,7 +13,7 @@ export class ItemRow extends LitElement {
     :host{display:block}
     .row{display:flex;gap:1rem;padding:.4rem 1rem;border-bottom:1px solid #ddd;align-items:center}
     .row:nth-child(odd){background:#fafafa}
-    .row span:first-child{flex:0 0 160px;font-weight:600}
+    .row span:first-child{flex:0 0 260px;font-weight:600}
     .row span:nth-child(2){flex:1 1 auto}
     .row span:nth-child(3){flex:0 0 80px;text-align:right;color:#888;}
     button{padding:.2rem .6rem;font-size:.9rem;cursor:pointer}
