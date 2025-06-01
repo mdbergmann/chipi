@@ -61,7 +61,7 @@ export class ItemList extends LitElement {
         this.dispatchEvent(
           new CustomEvent('need-auth',
                           { bubbles: true, composed: true,
-                            detail: { message: 'API-Key besitzt nicht ausreichende Rechte.' } })
+                            detail: { message: 'API key does not have sufficient rights.' } })
         );
       } else {
         // no response ⇒ server not reachable
