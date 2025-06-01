@@ -24,7 +24,7 @@
   ;; 2. setup the api-key store
   ;;    we just use a simple file store as there may not be many api-keys (for now)
   ;;    you may change api-key life-time (optional)
-  (api-env:init :apikey-store (apikey-store:make-simple-file-backend)
+  (api-env:init :apikey-store apikey-store:*memory-backend*  ;; (apikey-store:make-simple-file-backend)
                 :apikey-lifetime (ltd:duration :day 100))
 
   ;; maybe create additional api-keys with different access-rights

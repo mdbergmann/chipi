@@ -20,7 +20,9 @@
 (test item-state-to-ht
   (let* ((item-state (item:make-item-state))
          (item-state-ht (item-state-to-ht item-state))
-         (item-state-timestamp (item-state-timestamp item-state)))
+         (item-state-timestamp (local-time:timestamp-to-unix
+                                (local-time:universal-to-timestamp
+                                 (item-state-timestamp item-state)))))
     (is (hash-table-p item-state-ht))
     (is (= item-state-timestamp
            (gethash "timestamp" item-state-ht)))
@@ -35,12 +37,12 @@
                   (list t 'cl:null t nil))))))
 
 (test ht-to-item-state
-  (let ((ht (make-hash-table :test #'equal)))
-    (setf (gethash "timestamp" ht) (get-universal-time))
-    (let* ((item-state (ht-to-item-state ht))
-           (ht-timestamp (gethash "timestamp" ht)))
-      (is (= ht-timestamp
-             (item-state-timestamp item-state)))
+  (let ((ht (make-hash-table :test #'equal))
+        (ts (get-universal-time)))
+    (setf (gethash "timestamp" ht) (local-time:timestamp-to-unix
+                                    (local-time:universal-to-timestamp ts)))
+    (let* ((item-state (ht-to-item-state ht)))
+      (is (= ts (item-state-timestamp item-state)))
 
       (let* ((values (list t nil 'cl:null))
              (values-item-state
@@ -72,4 +74,5 @@
          ;; Hint nachträglich setzen
          (_ (setf (slot-value item 'item::value-type-hint) 'integer))
          (ht (item-to-ht item)))
+    (declare (ignore _))
     (is (string= "INTEGER" (gethash "type-hint" ht)))))

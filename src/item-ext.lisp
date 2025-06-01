@@ -33,13 +33,15 @@ Used e.g. for API or persistences."
 (defun item-state-to-ht (item-state)
   "Converts item-state to a hash-table with values converted ready for serialization."
   (plist-hash-table
-   (list "timestamp" (item-state-timestamp item-state)
+   (list "timestamp" (local-time:timestamp-to-unix
+                      (local-time:universal-to-timestamp (item-state-timestamp item-state)))
          "value" (item-value-internal-to-ext (item-state-value item-state)))
    :test #'equal))
 
 (defun ht-to-item-state (ht)
   "Generates `item-state' from values in hash-table. Values are converted back to internal use."
-  (make-item-state :timestamp (gethash "timestamp" ht)
+  (make-item-state :timestamp (local-time:timestamp-to-universal
+                               (local-time:unix-to-timestamp (gethash "timestamp" ht)))
                    :value (item-value-ext-to-internal (gethash "value" ht))))
 
 (defun item-to-ht (item)
