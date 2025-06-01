@@ -2,7 +2,7 @@
   ;; this pulls all the dependencies.
   ;; you may use them in here
   ;; `chipi-web' depends on `chipi'
-  (ql:quickload :chipi-web))
+  (asdf:load-system :chipi-web))
 
 ;; we want our own package to be used
 ;; this allows us to `:use' namespaces we need
@@ -25,7 +25,7 @@
   ;;    we just use a simple file store as there may not be many api-keys (for now)
   ;;    you may change api-key life-time (optional)
   (api-env:init :apikey-store (apikey-store:make-simple-file-backend)
-                :apikey-lifetime (ltd:duration :days 100))
+                :apikey-lifetime (ltd:duration :day 100))
 
   ;; maybe create additional api-keys with different access-rights
   ;; see (apikey-store:create-apikey)
@@ -34,3 +34,11 @@
   (api:start)
   
   )
+
+;; items here
+
+(defitem 'foo "Foo item" 'boolean :initial-value 'item:false)
+(defitem 'foo-1 "Foo item float" 'float :initial-value 10.4)
+(defitem 'foo-2 "Foo item string" 'string :initial-value "my string value")
+(defitem 'foo-3 "Foo item integer" 'integer :initial-value -123)
+(defitem 'foo-4 "Foo item unknown type" nil :initial-value 12)
