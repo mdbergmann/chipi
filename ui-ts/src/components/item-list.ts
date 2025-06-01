@@ -45,7 +45,11 @@ export class ItemList extends LitElement {
   private async load() {
     try {
       this.error = null;          // clear previous error
-      this.items = await fetchItems();
+      const apiItems = await fetchItems();
+      this.items = apiItems.map((i: any) => ({
+        ...i,
+        typeHint: i['type-hint'] ?? i.typeHint
+      }));
     } catch (e: any) {
       if (e?.response?.status === 401) {
         this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
