@@ -6,7 +6,8 @@
     "strict": true,
     "jsx": "preserve",
     "lib": ["dom", "es2020"],
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "experimentalDecorators": true
   },
   "include": ["src/**/*", "vite.config.ts"]
 }
