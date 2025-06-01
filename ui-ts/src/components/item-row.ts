@@ -7,7 +7,7 @@ export class ItemRow extends LitElement {
   @property({ type: String }) id = '';
   @property({ type: String }) label = '';
   @property({ type: String }) typeHint = '';
-  @state() value: any = null;
+  @property({ type: Object }) value: any = null;
 
   static styles = css`
     :host{display:block}
@@ -50,7 +50,8 @@ export class ItemRow extends LitElement {
 
     try {
       await updateItem(this.id, newVal);
-      this.value = newVal;
+      // this.value = newVal; // nicht lokal setzen, da value von außen kommt
+      this.dispatchEvent(new CustomEvent('item-updated', { bubbles: true, composed: true }));
     } catch (e: any) {
       if (e?.response?.status === 401) {
         this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
