@@ -9,7 +9,6 @@ interface Item { name: string; label?: string; value: any; }
 export class ItemList extends LitElement {
   @state() private items: Item[] = [];
   @state() private error: string | null = null;
-  private refreshId?: number;
 
   static styles = css`
     .error {
@@ -18,14 +17,24 @@ export class ItemList extends LitElement {
       color: #fff;
       text-align: center;
     }
+    .toolbar{
+      padding:.5rem 1rem;
+      background:#f0f0f0;
+      border-bottom:1px solid #ddd;
+      display:flex;
+      justify-content:flex-end;
+    }
+    .toolbar button{
+      padding:.3rem .8rem;
+      font:inherit;
+      cursor:pointer;
+    }
   `;
 
   connectedCallback() {
     super.connectedCallback();
     this.load().catch(console.error);
     this.addEventListener('need-auth', () => this.requestUpdate());
-    // refresh every 10 s
-    this.refreshId = window.setInterval(() => this.load(), 10_000);
   }
 
   private async load() {
@@ -50,19 +59,17 @@ export class ItemList extends LitElement {
     }
   }
 
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    if (this.refreshId !== undefined) {
-      clearInterval(this.refreshId);
-    }
-  }
-
   render() {
-    if (this.error) {
-      return html`<div class="error">${this.error}</div>`;
-    }
-    return html`${this.items.map(
-      i => html`<item-row .id=${i.name} .value=${i.value}></item-row>`
-    )}`;
+    return html`
+      <div class="toolbar">
+        <button @click=${() => this.load()}>Refresh</button>
+      </div>
+      ${this.error
+        ? html`<div class="error">${this.error}</div>`
+        : html`${this.items.map(
+            i => html`<item-row .id=${i.name} .value=${i.value}></item-row>`
+          )}`
+      }
+    `;
   }
 }
