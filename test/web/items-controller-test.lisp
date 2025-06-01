@@ -85,7 +85,7 @@
     (let ((item (retrieve-item 'foo1)))
       (is-true item)
       (is (hash-table-p item))
-      (is-true (equal-item-props-p item "FOO1" "foo1-label" 1)))))
+      (is-true (equal-item-props-p item "FOO1" "foo1-label" 1 "INTEGER")))))
 
 (test retrieve-item--non-existing
   (with-fixture with-isys-mock (nil)
