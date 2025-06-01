@@ -1,23 +1,23 @@
 # Chipi Web UI
 
-Dies ist eine Web-Oberfläche für das Chipi-System zur Anzeige und Steuerung von Items über eine REST-API.
+This is a web interface for the Chipi system to display and control items via a REST API.
 
 ## Features
 
-- Anzeige aller Items mit Name, Label, Wert, Typ-Hinweis und Zeitstempel
-- Werteänderung (inkl. Toggle für boolesche Werte)
-- API-Key-Authentifizierung
-- Fehlerbehandlung für fehlende oder unzureichende Rechte
-- Responsive UI mit Lit und TypeScript
+- Display all items with name, label, value, type hint, and timestamp
+- Value modification (including toggle for boolean values)
+- API key authentication
+- Error handling for missing or insufficient rights
+- Responsive UI with Lit and TypeScript
 
-## Entwicklung
+## Development
 
-### Voraussetzungen
+### Requirements
 
-- Node.js (empfohlen: >=18)
+- Node.js (recommended: >=18)
 - npm
 
-### Starten der Entwicklungsumgebung
+### Starting the development environment
 
 ```sh
 cd ui-ts
@@ -25,30 +25,30 @@ npm install
 npm run dev
 ```
 
-Die UI ist dann unter [http://localhost:5173](http://localhost:5173) erreichbar.  
-Die API wird per Proxy an [http://localhost:8765](http://localhost:8765) weitergeleitet.
+The UI will then be available at [http://localhost:5173](http://localhost:5173).  
+The API is proxied to [http://localhost:8765](http://localhost:8765).
 
-### Build für Produktion
+### Build for production
 
 ```sh
 npm run build
 ```
 
-Das gebaute Frontend liegt dann im `ui-ts/dist`-Verzeichnis.
+The built frontend will be located in the `ui-ts/dist` directory.
 
 ## API
 
-Die REST-API ist in [`chipi-web-api.yaml`](chipi-web-api.yaml) dokumentiert (OpenAPI 3.0).
+The REST API is documented in [`chipi-web-api.yaml`](chipi-web-api.yaml) (OpenAPI 3.0).
 
-- Alle Requests benötigen einen gültigen API-Key im Header `X-Api-Key`.
-- Rechte werden über Scopes (`read`, `update`) gesteuert.
+- All requests require a valid API key in the `X-Api-Key` header.
+- Rights are controlled via scopes (`read`, `update`).
 
-## Projektstruktur
+## Project structure
 
-- `ui-ts/` – Quellcode der Web-Oberfläche (TypeScript, Lit)
-- `src/` – Backend-Quellcode (Common Lisp)
-- `chipi-web-api.yaml` – OpenAPI-Spezifikation der REST-API
+- `ui-ts/` – source code of the web interface (TypeScript, Lit)
+- `src/` – backend source code (Common Lisp)
+- `chipi-web-api.yaml` – OpenAPI specification of the REST API
 
-## Lizenz
+## License
 
 MIT License
