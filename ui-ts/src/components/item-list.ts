@@ -3,7 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { fetchItems } from '../api';
 import './item-row';
 
-interface Item { name: string; label?: string; value: any; typeHint?: string; }
+interface Item { name: string; label?: string; value: any; typeHint?: string; timestamp?: number; }
 
 @customElement('item-list')
 export class ItemList extends LitElement {
@@ -50,7 +50,8 @@ export class ItemList extends LitElement {
       this.items = apiItems.map((i: any) => ({
         ...i,
         typeHint: i['type-hint'] ?? i.typeHint,
-        value: i['item-state']?.value
+        value: i['item-state']?.value,
+        timestamp: i['item-state']?.timestamp
       }));
     } catch (e: any) {
       if (e?.response?.status === 401) {
@@ -81,7 +82,14 @@ export class ItemList extends LitElement {
         : this.items.length === 0
           ? html`<div class="empty">No items available.</div>`
           : html`${[...this.items].reverse().map(
-              i => html`<item-row .id=${i.name} .label=${i.label ?? ''} .value=${i.value} .typeHint=${i.typeHint} @item-updated=${() => this.load()}></item-row>`
+              i => html`<item-row
+                .id=${i.name}
+                .label=${i.label ?? ''}
+                .value=${i.value}
+                .typeHint=${i.typeHint}
+                .timestamp=${i.timestamp}
+                @item-updated=${() => this.load()}>
+              </item-row>`
             )}`
       }
     `;

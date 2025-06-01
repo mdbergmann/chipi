@@ -8,6 +8,7 @@ export class ItemRow extends LitElement {
   @property({ type: String }) label = '';
   @property({ type: String }) typeHint = '';
   @property({ type: Object }) value: any = null;
+  @property({ type: Number }) timestamp?: number;
 
   static styles = css`
     :host{display:block}
@@ -16,6 +17,7 @@ export class ItemRow extends LitElement {
     .row span:first-child{flex:0 0 260px;font-weight:600}
     .row span:nth-child(2){flex:1 1 auto}
     .row span:nth-child(3){flex:0 0 80px;text-align:right;color:#888;}
+    .row span:nth-child(4){flex:0 0 160px;text-align:right;color:#888;}
     button{padding:.2rem .6rem;font-size:.9rem;cursor:pointer}
   `;
 
@@ -28,6 +30,7 @@ export class ItemRow extends LitElement {
         </span>
         <span>${this.format(this.value)}</span>
         <span style="color:#888;font-size:.95em">${this.typeHint}</span>
+        <span style="color:#888;font-size:.95em">${this.formatTimestamp(this.timestamp)}</span>
         <button @click=${this.changeValue}>
           ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
         </button>
@@ -39,6 +42,13 @@ export class ItemRow extends LitElement {
     if (v === null) return 'null';
     if (typeof v === 'object') return JSON.stringify(v);
     return String(v);
+  }
+
+  private formatTimestamp(ts?: number): string {
+    if (!ts) return '';
+    // Annahme: ts ist ein Unix-Timestamp (Sekunden seit 1970)
+    const d = new Date(ts * 1000);
+    return d.toLocaleString();
   }
 
   private async changeValue() {
