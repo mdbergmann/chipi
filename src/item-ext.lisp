@@ -43,8 +43,10 @@ Used e.g. for API or persistences."
                    :value (item-value-ext-to-internal (gethash "value" ht))))
 
 (defun item-to-ht (item)
-  (plist-hash-table
-   (list "name" (name item)
-         "label" (label item)
-         "item-state" (item-state-to-ht (get-item-stateq item)))
-   :test #'equal))
+  (let ((type-hint (value-type-hint item)))
+    (plist-hash-table
+     (list "name"       (name item)
+           "label"      (label item)
+           "type-hint"  (and type-hint (symbol-name type-hint))
+           "item-state" (item-state-to-ht (get-item-stateq item)))
+     :test #'equal)))

@@ -61,4 +61,5 @@
     (is (not (null ht)))
     (is (string= "item1" (gethash "name" ht)))
     (is (string= "label1" (gethash "label" ht)))
-    (is (hash-table-p (gethash "item-state" ht)))))
+    (is (hash-table-p (gethash "item-state" ht)))
+    (is (null (gethash "type-hint" ht)))))
