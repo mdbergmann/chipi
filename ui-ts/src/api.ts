@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getApiKey } from './storage';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8765',
+  baseURL: '',                    // relative → gleicher Origin / Dev-Proxy
   headers: { Accept: 'application/json' }
 });
 
