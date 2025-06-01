@@ -6,6 +6,7 @@ import { updateItem } from '../api';
 export class ItemRow extends LitElement {
   @property({ type: String }) id = '';
   @property({ type: String }) label = '';
+  @property({ type: String }) typeHint = '';
   @state() value: any = null;
 
   static styles = css`
@@ -14,6 +15,7 @@ export class ItemRow extends LitElement {
     .row:nth-child(odd){background:#fafafa}
     .row span:first-child{flex:0 0 160px;font-weight:600}
     .row span:nth-child(2){flex:1 1 auto}
+    .row span:nth-child(3){flex:0 0 80px;text-align:right;color:#888;}
     button{padding:.2rem .6rem;font-size:.9rem;cursor:pointer}
   `;
 
@@ -22,6 +24,7 @@ export class ItemRow extends LitElement {
       <div class="row">
         <span>${this.id}</span>
         <span>${this.format(this.value)}</span>
+        <span style="color:#888;font-size:.95em">${this.typeHint}</span>
         <button @click=${this.changeValue}>Change</button>
       </div>
     `;

@@ -3,7 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { fetchItems } from '../api';
 import './item-row';
 
-interface Item { name: string; label?: string; value: any; }
+interface Item { name: string; label?: string; value: any; typeHint?: string; }
 
 @customElement('item-list')
 export class ItemList extends LitElement {
@@ -74,7 +74,7 @@ export class ItemList extends LitElement {
         : this.items.length === 0
           ? html`<div class="empty">No items available.</div>`
           : html`${this.items.map(
-              i => html`<item-row .id=${i.name} .value=${i.value}></item-row>`
+              i => html`<item-row .id=${i.name} .value=${i.value} .typeHint=${i.typeHint}></item-row>`
             )}`
       }
     `;
