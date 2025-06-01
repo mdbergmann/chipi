@@ -80,7 +80,7 @@ export class ItemList extends LitElement {
         ? html`<div class="error">${this.error}</div>`
         : this.items.length === 0
           ? html`<div class="empty">No items available.</div>`
-          : html`${this.items.map(
+          : html`${[...this.items].reverse().map(
               i => html`<item-row .id=${i.name} .label=${i.label ?? ''} .value=${i.value} .typeHint=${i.typeHint} @item-updated=${() => this.load()}></item-row>`
             )}`
       }
