@@ -63,3 +63,13 @@
     (is (string= "label1" (gethash "label" ht)))
     (is (hash-table-p (gethash "item-state" ht)))
     (is (null (gethash "type-hint" ht)))))
+
+(test item-to-ht--with-type-hint
+  (let* ((item (make-instance 'item :receive t
+                                    :state (make-item-state :value 1)
+                                    :name "item2"
+                                    :label "label2"))
+         ;; Hint nachträglich setzen
+         (_ (setf (slot-value item 'item::value-type-hint) 'integer))
+         (ht (item-to-ht item)))
+    (is (string= "INTEGER" (gethash "type-hint" ht)))))
