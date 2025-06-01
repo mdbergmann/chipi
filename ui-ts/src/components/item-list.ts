@@ -29,6 +29,11 @@ export class ItemList extends LitElement {
       font:inherit;
       cursor:pointer;
     }
+    .empty{
+      padding:1rem;
+      text-align:center;
+      color:#555;
+    }
   `;
 
   connectedCallback() {
@@ -66,9 +71,11 @@ export class ItemList extends LitElement {
       </div>
       ${this.error
         ? html`<div class="error">${this.error}</div>`
-        : html`${this.items.map(
-            i => html`<item-row .id=${i.name} .value=${i.value}></item-row>`
-          )}`
+        : this.items.length === 0
+          ? html`<div class="empty">No items available.</div>`
+          : html`${this.items.map(
+              i => html`<item-row .id=${i.name} .value=${i.value}></item-row>`
+            )}`
       }
     `;
   }
