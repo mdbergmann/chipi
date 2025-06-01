@@ -47,6 +47,6 @@ Used e.g. for API or persistences."
     (plist-hash-table
      (list "name"       (name item)
            "label"      (label item)
-           "type-hint"  (and type-hint (symbol-name type-hint))
+           "type-hint"  (if type-hint (symbol-name type-hint) 'cl:null)
            "item-state" (item-state-to-ht (get-item-stateq item)))
      :test #'equal)))
