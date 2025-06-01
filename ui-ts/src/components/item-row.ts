@@ -51,8 +51,9 @@ export class ItemRow extends LitElement {
 
   private formatTimestamp(ts?: number): string {
     if (!ts) return '';
-    // Annahme: ts ist ein Unix-Timestamp (Sekunden seit 1970)
-    const d = new Date(ts * 1000);
+    // Automatische Erkennung: Sekunden oder Millisekunden
+    const ms = ts > 1e12 ? ts : ts * 1000;
+    const d = new Date(ms);
     return d.toLocaleString();
   }
 
