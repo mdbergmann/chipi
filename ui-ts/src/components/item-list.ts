@@ -29,6 +29,7 @@ export class ItemList extends LitElement {
       font:inherit;
       cursor:pointer;
     }
+    .toolbar button:first-child { margin-right: .7rem; }
     .empty{
       padding:1rem;
       text-align:center;
@@ -72,6 +73,7 @@ export class ItemList extends LitElement {
   render() {
     return html`
       <div class="toolbar">
+        <button @click=${this.setApiKey}>API-Key</button>
         <button @click=${() => this.load()}>Refresh</button>
       </div>
       ${this.error
@@ -83,5 +85,9 @@ export class ItemList extends LitElement {
             )}`
       }
     `;
+  }
+
+  private setApiKey() {
+    this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
   }
 }
