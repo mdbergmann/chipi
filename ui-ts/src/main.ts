@@ -2,7 +2,10 @@ import { getApiKey, clearApiKey } from './storage';
 import './components/api-key-dialog';
 import './components/item-list';
 
-const mount = document.getElementById('app')!;
+const mount = document.getElementById('app');
+if (!mount) {
+  throw new Error('Element with ID "app" not found in the DOM.');
+}
 
 function render() {
   mount.innerHTML = '';

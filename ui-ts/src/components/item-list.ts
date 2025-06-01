@@ -21,7 +21,7 @@ export class ItemList extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.load();
+    this.load().catch(console.error);
     this.addEventListener('need-auth', () => this.requestUpdate());
     // refresh every 10 s
     setInterval(() => this.load(), 10_000);
