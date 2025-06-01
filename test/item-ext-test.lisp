@@ -62,7 +62,7 @@
     (is (string= "item1" (gethash "name" ht)))
     (is (string= "label1" (gethash "label" ht)))
     (is (hash-table-p (gethash "item-state" ht)))
-    (is (null (gethash "type-hint" ht)))))
+    (is (eq 'cl:null (gethash "type-hint" ht)))))
 
 (test item-to-ht--with-type-hint
   (let* ((item (make-instance 'item :receive t
