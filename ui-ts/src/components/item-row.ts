@@ -18,7 +18,12 @@ export class ItemRow extends LitElement {
     .row span:nth-child(2){flex:1 1 auto}
     .row span:nth-child(3){flex:0 0 80px;text-align:right;color:#888;}
     .row span:nth-child(4){flex:0 0 160px;text-align:right;color:#888;}
-    button{padding:.2rem .6rem;font-size:.9rem;cursor:pointer}
+    button {
+      padding: .2rem .6rem;
+      font-size: .9rem;
+      cursor: pointer;
+      min-width: 80px;   /* <--- NEU: gleiche Breite für beide Buttons */
+    }
   `;
 
   render() {
