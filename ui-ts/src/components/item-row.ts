@@ -22,7 +22,10 @@ export class ItemRow extends LitElement {
   render() {
     return html`
       <div class="row">
-        <span>${this.id}</span>
+        <span>
+          ${this.id}
+          ${this.label ? html`<span style="color:#888;font-weight:400;margin-left:.5em">(${this.label})</span>` : ''}
+        </span>
         <span>${this.format(this.value)}</span>
         <span style="color:#888;font-size:.95em">${this.typeHint}</span>
         <button @click=${this.changeValue}>Change</button>
