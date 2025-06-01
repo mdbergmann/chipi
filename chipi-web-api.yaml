@@ -27,7 +27,7 @@ components:
   schemas:
     Item:
       type: object
-      required: [name, value]
+      required: [name, item-state]
       properties:
         name:
           type: string
@@ -36,23 +36,33 @@ components:
           type: string
           nullable: true
           description: Localised or human readable name.
-        value:
-          oneOf:
-            - type: integer
-            - type: number
-            - type: string
-            - type: boolean
-            - type: "null"
-          description: Current item value.
-        timestamp:
+        type-hint:
           type: string
-          format: date-time
-          description: Time when the value was last changed (optional; present if persistence enabled).
+          nullable: true
+          description: Optional type hint for the value.
+        item-state:
+          type: object
+          required: [value]
+          properties:
+            value:
+              oneOf:
+                - type: integer
+                - type: number
+                - type: string
+                - type: boolean
+                - type: "null"
+              description: Current item value.
+            timestamp:
+              type: integer
+              description: Unix timestamp (seconds since 1970) when the value was last changed (optional).
+          description: Current state of the item including value and timestamp.
       example:
         name: "temperature-living"
         label: "Living-room temperature"
-        value: 21.3
-        timestamp: "2025-06-01T15:04:05Z"
+        type-hint: "number"
+        item-state:
+          value: 21.3
+          timestamp: 1712121600
 
     ItemUpdate:
       type: object
