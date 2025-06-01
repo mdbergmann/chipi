@@ -28,7 +28,9 @@ export class ItemRow extends LitElement {
         </span>
         <span>${this.format(this.value)}</span>
         <span style="color:#888;font-size:.95em">${this.typeHint}</span>
-        <button @click=${this.changeValue}>Change</button>
+        <button @click=${this.changeValue}>
+          ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
+        </button>
       </div>
     `;
   }
