@@ -53,7 +53,11 @@ export class ItemRow extends LitElement {
         this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
       } else if (e?.response?.status === 403) {
         alert('Insufficient access rights.');
-        this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
+        this.dispatchEvent(
+          new CustomEvent('need-auth',
+                          { bubbles: true, composed: true,
+                            detail: { message: 'API-Key besitzt nicht ausreichende Rechte.' } }))
+        );
       } else {
         alert('Update failed – check API-Key and server logs.');
       }

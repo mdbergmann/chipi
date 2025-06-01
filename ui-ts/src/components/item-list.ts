@@ -37,7 +37,11 @@ export class ItemList extends LitElement {
         this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
       } else if (e?.response?.status === 403) {
         this.error = 'Insufficient access rights.';
-        this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
+        this.dispatchEvent(
+          new CustomEvent('need-auth',
+                          { bubbles: true, composed: true,
+                            detail: { message: 'API-Key besitzt nicht ausreichende Rechte.' } }))
+        );
       } else {
         // no response ⇒ server not reachable
         this.error = 'API server is not reachable.';
