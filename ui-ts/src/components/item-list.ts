@@ -9,6 +9,7 @@ interface Item { name: string; label?: string; value: any; }
 export class ItemList extends LitElement {
   @state() private items: Item[] = [];
   @state() private error: string | null = null;
+  private refreshId?: number;
 
   static styles = css`
     .error {
@@ -24,7 +25,7 @@ export class ItemList extends LitElement {
     this.load().catch(console.error);
     this.addEventListener('need-auth', () => this.requestUpdate());
     // refresh every 10 s
-    setInterval(() => this.load(), 10_000);
+    this.refreshId = window.setInterval(() => this.load(), 10_000);
   }
 
   private async load() {
@@ -39,6 +40,13 @@ export class ItemList extends LitElement {
         this.error = 'API server is not reachable.';
         this.items = [];
       }
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this.refreshId !== undefined) {
+      clearInterval(this.refreshId);
     }
   }
 

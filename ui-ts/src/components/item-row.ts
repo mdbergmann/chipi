@@ -48,8 +48,12 @@ export class ItemRow extends LitElement {
     try {
       await updateItem(this.id, newVal);
       this.value = newVal;
-    } catch (_) {
-      alert('Update failed – check API-Key and server logs.');
+    } catch (e: any) {
+      if (e?.response?.status === 401) {
+        this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
+      } else {
+        alert('Update failed – check API-Key and server logs.');
+      }
     }
   }
 }
