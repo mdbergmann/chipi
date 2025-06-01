@@ -48,7 +48,8 @@ export class ItemList extends LitElement {
       const apiItems = await fetchItems();
       this.items = apiItems.map((i: any) => ({
         ...i,
-        typeHint: i['type-hint'] ?? i.typeHint
+        typeHint: i['type-hint'] ?? i.typeHint,
+        value: i.value ?? i['value']
       }));
     } catch (e: any) {
       if (e?.response?.status === 401) {
