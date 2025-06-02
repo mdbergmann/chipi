@@ -28,7 +28,7 @@
 (test define-itemgroups
   "Tests creating itemgroups."
   (with-fixture clean-after ()
-    (defconfig)
+    (defconfig "chipi")
     (defitemgroup 'group1 "Group1")
     (itemgroup:add-item (get-itemgroup 'group1) (defitem 'item1 "Item1" nil))
     (is (= 1 (hash-table-count *itemgroups*)))
@@ -44,7 +44,7 @@
            (is (= 1 (length (itemgroup:get-items (get-itemgroup group-id)))))
            (is (eq (get-item item-id) (car (get-items-on-group group-id))))))
     (with-fixture clean-after ()
-      (defconfig ())
+      (defconfig "chipi")
       (defitemgroup 'group2 "Group2")
       (defitem 'temp-a "Temperatur A" nil
         :group 'group2)
@@ -70,7 +70,7 @@
 (test define-rules
   "Tests defining rules."
   (with-fixture clean-after ()
-    (defconfig ())
+    (defconfig "chipi")
     (defrule "example foo"
       :when-cron '(:minute 10 :hour 0)
       :when-item-change 'temp-a
@@ -86,7 +86,7 @@
 (test define-persistence
   "Tests defining persistence."
   (with-fixture clean-after ()
-    (defconfig ())
+    (defconfig "chipi")
     (defpersistence :default
                  (lambda (id)
                    (simple-persistence:make-simple-persistence

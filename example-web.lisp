@@ -14,7 +14,7 @@
 ;; `DEFCONFIG' sets up the 'runtime' folder within 'chipi' system root folder,
 ;; it starts actor systems, timers and cron services
 
-(defconfig
+(defconfig "chipi"
   ;; at this point we can rely on item system `isys', `timers' and `cr' (cron) to be available
   ;; and that a 'runtime' folder was created
 
