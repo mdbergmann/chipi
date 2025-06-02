@@ -34,7 +34,7 @@ export class ItemRow extends LitElement {
           ${this.label ? html`<span style="color:#888;font-weight:400;margin-left:.5em">(${this.label})</span>` : ''}
         </span>
         <span>${this.format(this.value)}</span>
-        <span style="color:#888;font-size:.95em">${this.typeHint}</span>
+        <span style="color:#888;font-size:.95em">${this.formatTypeHint(this.typeHint)}</span>
         <span style="color:#888;font-size:.95em">${this.formatTimestamp(this.timestamp)}</span>
         <button @click=${this.changeValue}>
           ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
@@ -56,6 +56,13 @@ export class ItemRow extends LitElement {
     const ms = ts > 1e12 ? ts : ts * 1000;
     const d = new Date(ms);
     return d.toLocaleString();
+  }
+
+  private formatTypeHint(t?: string): string {
+    if (!t) return '';
+    if (t === 'integer') return 'Whole Number';
+    if (t === 'float')   return 'Decimal Number';
+    return t;
   }
 
   private async changeValue() {
