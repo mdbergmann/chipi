@@ -16,8 +16,8 @@ export class ItemRow extends LitElement {
     .row:nth-child(odd){background:#fafafa}
     .row span:first-child{flex:0 0 260px;font-weight:600}
     .row span:nth-child(2){flex:1 1 auto}
-    .row span:nth-child(3){flex:0 0 120px;text-align:right;color:#888;}
     .row span:nth-child(4){flex:0 0 160px;text-align:right;color:#888;}
+    .row span:nth-child(3){flex:0 0 160px;text-align:right;color:#888;}
     button {
       padding: .2rem .6rem;
       font-size: .9rem;
@@ -33,6 +33,13 @@ export class ItemRow extends LitElement {
       color:#666;
       margin-top:.15em;
     }
+    .value-info .type-hint{
+      display:block;
+      font-size:.85em;
+      color:#888;
+      margin-top:.15em;
+      text-align:right;
+    }
   `;
 
   render() {
@@ -42,8 +49,12 @@ export class ItemRow extends LitElement {
           <span class="item-name">${this.id}</span>
           ${this.label ? html`<span class="item-label">${this.label}</span>` : ''}
         </span>
-        <span class=${this.booleanClass(this.value)}>${this.format(this.value)}</span>
-        <span style="color:#888;font-size:.95em">${this.formatTypeHint(this.typeHint)}</span>
+        <span class="value-info">
+          <span class=${`value-text ${this.booleanClass(this.value)}`}>${this.format(this.value)}</span>
+          ${this.typeHint
+            ? html`<span class="type-hint">${this.formatTypeHint(this.typeHint)}</span>`
+            : ''}
+        </span>
         <span style="color:#888;font-size:.95em">${this.formatTimestamp(this.timestamp)}</span>
         <button @click=${this.changeValue}>
           ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
