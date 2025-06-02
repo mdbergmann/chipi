@@ -45,7 +45,17 @@ export class ItemRow extends LitElement {
 
   private format(v: unknown) {
     if (v === null) return 'null';
+
+    /* echte Booleans */
     if (typeof v === 'boolean') return v ? 'On' : 'Off';
+
+    /* String-Booleans („true“, „false“, „on“, „off“, gemischte Groß-/Kleinschreibung) */
+    if (typeof v === 'string') {
+      const l = v.toLowerCase();
+      if (l === 'true'  || l === 'on')  return 'On';
+      if (l === 'false' || l === 'off') return 'Off';
+    }
+
     if (typeof v === 'object') return JSON.stringify(v);
     return String(v);
   }
@@ -60,9 +70,11 @@ export class ItemRow extends LitElement {
 
   private formatTypeHint(t?: string): string {
     if (!t) return '';
-    if (t === 'integer') return 'Whole Number';
-    if (t === 'float')   return 'Decimal Number';
-    return t;
+    switch (t.toLowerCase()) {
+      case 'integer': return 'Whole Number';
+      case 'float':   return 'Decimal Number';
+      default:        return t;
+    }
   }
 
   private async changeValue() {
