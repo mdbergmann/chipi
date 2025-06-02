@@ -11,7 +11,7 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 
 - support for KNX bus (finished)
 - a REST interface (finished) ([[./README-web.md][details]])
-- a UI to interact with the system (eine rudimentäre UI ist implementiert, benutzbar aber WIP) ([[./ui-ts/README.md][details]])
+- a UI to interact with the system (a rudimentary UI was implemented, usable but WIP) ([[./ui-ts/README.md][details]])
 
 See plugin section below.
 
