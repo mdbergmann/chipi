@@ -16,8 +16,14 @@ export class ItemRow extends LitElement {
     .row:nth-child(odd){background:#fafafa}
     .row span:first-child{flex:0 0 260px;font-weight:600}
     .row span:nth-child(2){flex:1 1 auto}
-    .row span:nth-child(4){flex:0 0 160px;text-align:right;color:#888;}
-    .row span:nth-child(3){flex:0 0 160px;text-align:right;color:#888;}
+    .timestamp-info            { flex:0 0 160px; }
+    .timestamp-text            { color:#888; }
+    .timestamp-info .timestamp-label{
+      display:block;
+      font-size:.85em;
+      color:#888;
+      margin-top:.15em;
+    }
     button {
       padding: .2rem .6rem;
       font-size: .9rem;
@@ -54,7 +60,10 @@ export class ItemRow extends LitElement {
             ? html`<span class="type-hint">${this.formatTypeHint(this.typeHint)}</span>`
             : ''}
         </span>
-        <span style="color:#888;font-size:.95em">${this.formatTimestamp(this.timestamp)}</span>
+        <span class="timestamp-info">
+          <span class="timestamp-text">${this.formatTimestamp(this.timestamp)}</span>
+          <span class="timestamp-label">Last change</span>
+        </span>
         <button @click=${this.changeValue}>
           ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
         </button>
