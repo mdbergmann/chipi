@@ -74,6 +74,7 @@ export class ItemRow extends LitElement {
       case 'integer': return 'Whole Number';
       case 'float':   return 'Decimal Number';
       case 'boolean': return 'Switch';          // NEU
+      case 'string':  return 'String';       // NEU
       default:        return t;
     }
   }
