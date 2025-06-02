@@ -73,6 +73,7 @@ export class ItemRow extends LitElement {
     switch (t.toLowerCase()) {
       case 'integer': return 'Whole Number';
       case 'float':   return 'Decimal Number';
+      case 'boolean': return 'Switch';          // NEU
       default:        return t;
     }
   }
