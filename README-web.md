@@ -17,6 +17,8 @@ authorised with scope-based API keys.
 ```lisp
 ;; Quicklisp
 (ql:quickload :chipi-web)
+;; OCICL
+(asdf:load-system :chipi-web)
 ```
 
 ---
@@ -28,7 +30,7 @@ authorised with scope-based API keys.
   ;; 1 – initialises runtime, actor system, timers …
   ;; 2 – Chipi-Web specific environment
   (api-env:init
-    :apikey-store   apikey-store:*memory-backend*        ; or (apikey-store:make-simple-file-backend)
+    :apikey-store (apikey-store:make-simple-file-backend) ; or *memory-backend* for testing
     :apikey-lifetime (ltd:duration :day 100))
 
   ;; 3 – HTTP server on port 8765

@@ -46,8 +46,10 @@ This particular example uses Common Lisp libraries like [[https://github.com/ben
 The top of the Chipi standalone script should include this (=eval-when=) in order to make sure that dependencies are loaded properly. But this is not mandatory if you find another way of loading dependencies.
 
 #+begin_src lisp
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (ql:quickload :chipi))  ; at least this if you don't have more
+  (eval-when (:compile-toplevel :load-toplevel :execute)
+    (ql:quickload :chipi)
+    ;; with OCICL:
+    (asdf:load-system :chipi))
 #+end_src
 
 NOTE: when using OCICL package manager then you need to load dependencies via =asdf:load-system=.
@@ -55,7 +57,7 @@ NOTE: when using OCICL package manager then you need to load dependencies via =a
 Next thing is that you might want to define a separate package using =defpackage=, it allows to inherit symbols using =:use= or =:import-from= that you want to use in the script.
 
 ***** Defining the global environment
-The first thing Chipi specific that should be defined is the 'config'. This is done by =(defconfig)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
+The first thing Chipi specific that should be defined is the 'config'. This is done by =(defconfig <system-name>)=. This expression should be before items, persistences and rules because it defines and starts the underlying actor system and sets up some other necessary structures.
 
 ***** Defining persistences
 Persistences are used to persist the value of an item and to retrieve it back. The influx persistence also allows to retrieve values in a certain time range.
