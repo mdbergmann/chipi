@@ -12,7 +12,7 @@ export class ItemRow extends LitElement {
 
   static styles = css`
     :host{display:block}
-    .row{display:flex;gap:1rem;padding:.4rem 1rem;border-bottom:1px solid #ddd;align-items:center}
+    .row{display:flex;gap:1rem;padding:.4rem 1rem;border-bottom:1px solid #ddd;align-items:flex-start}
     .row:nth-child(odd){background:#fafafa}
     .row span:first-child{flex:0 0 260px;font-weight:600}
     .row span:nth-child(2){flex:1 1 auto}
@@ -26,14 +26,21 @@ export class ItemRow extends LitElement {
     }
     .bool-on  { color:#2e7d32; font-weight:600; }   /* grün */
     .bool-off { color:#b8860b; font-weight:600; }   /* dunkel-gelb */
+    .item-info .item-label{
+      display:block;
+      font-size:.85em;
+      font-weight:400;
+      color:#666;
+      margin-top:.15em;
+    }
   `;
 
   render() {
     return html`
       <div class="row">
-        <span>
-          ${this.id}
-          ${this.label ? html`<span style="color:#888;font-weight:400;margin-left:.5em">(${this.label})</span>` : ''}
+        <span class="item-info">
+          <span class="item-name">${this.id}</span>
+          ${this.label ? html`<span class="item-label">${this.label}</span>` : ''}
         </span>
         <span class=${this.booleanClass(this.value)}>${this.format(this.value)}</span>
         <span style="color:#888;font-size:.95em">${this.formatTypeHint(this.typeHint)}</span>
