@@ -16,7 +16,7 @@ export class ItemRow extends LitElement {
     .row:nth-child(odd){background:#fafafa}
     .row span:first-child{flex:0 0 260px;font-weight:600}
     .row span:nth-child(2){flex:1 1 auto}
-    .timestamp-info            { flex:0 0 160px; }
+    .timestamp-info            { flex:0 0 200px; }
     .timestamp-text            { color:#888; }
     .timestamp-info .timestamp-label{
       display:block;
