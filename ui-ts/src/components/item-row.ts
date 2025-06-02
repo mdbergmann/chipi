@@ -45,6 +45,7 @@ export class ItemRow extends LitElement {
 
   private format(v: unknown) {
     if (v === null) return 'null';
+    if (typeof v === 'boolean') return v ? 'On' : 'Off';
     if (typeof v === 'object') return JSON.stringify(v);
     return String(v);
   }
