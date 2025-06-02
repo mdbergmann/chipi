@@ -74,7 +74,7 @@ export class ItemList extends LitElement {
   render() {
     return html`
       <div class="toolbar">
-        <button @click=${this.setApiKey}>API-Key</button>
+        <button @click=${this.setApiKey}>Set API-Key</button>
         <button @click=${() => this.load()}>Refresh</button>
       </div>
       ${this.error
