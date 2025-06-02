@@ -38,7 +38,6 @@ export class ItemRow extends LitElement {
       font-size:.85em;
       color:#888;
       margin-top:.15em;
-      text-align:right;
     }
   `;
 
