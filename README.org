@@ -10,8 +10,8 @@ I use home automation in my home. Currently utilizing [[https://www.openhab.org/
 So my aim was to eventually replace openHAB. There are a few things still missing to do this. The current state of the Chipi project lacks the following for me to be able to replace openHAB:
 
 - support for KNX bus (finished)
-- a REST interface (in progress, implemented, documentation missing)
-- a UI to interact with the system
+- a REST interface (finished) ([[./README-web.md][details]])
+- a UI to interact with the system (eine rudimentäre UI ist implementiert, benutzbar aber WIP) ([[./ui-ts/README.md][details]])
 
 See plugin section below.
 
