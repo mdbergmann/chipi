@@ -77,7 +77,7 @@
       (is-true (some (lambda (x) (equal-item-props-p x "FOO3" "foo3-label-string" "bar" "STRING")) items))
       (is-true (some (lambda (x) (equal-item-props-p x "FOO4" "foo4-label-true" t "BOOLEAN")) items))
       (is-true (some (lambda (x) (equal-item-props-p x "FOO5" "foo5-label-false" nil "BOOLEAN")) items))
-      (is-true (some (lambda (x) (equal-item-props-p x "FOO6" "foo6-label-null" 'cl:null nil)) items))
+      (is-true (some (lambda (x) (equal-item-props-p x "FOO6" "foo6-label-null" 'cl:null 'cl:null)) items))
       )))
 
 (test retrieve-item--existing
