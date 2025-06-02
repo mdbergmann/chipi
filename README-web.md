@@ -11,7 +11,7 @@ authorised with scope-based API keys.
 ## Prerequisites
 
 * SBCL ≥ 2.x (or any other supported Common Lisp implementation)  
-* Quicklisp  
+* Quicklisp (or OCICL)  
 * ASDF systems `chipi` **and** `chipi-web`
 
 ```lisp
@@ -34,6 +34,9 @@ authorised with scope-based API keys.
   ;; 3 – HTTP server on port 8765
   (api:start))
 ```
+
+For a complete, runnable example have a look at
+[example-web.lisp](./example-web.lisp) in the project root.
 
 ### Example items
 
