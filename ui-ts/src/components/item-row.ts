@@ -16,7 +16,7 @@ export class ItemRow extends LitElement {
     .row:nth-child(odd){background:#fafafa}
     .row span:first-child{flex:0 0 260px;font-weight:600}
     .row span:nth-child(2){flex:1 1 auto}
-    .row span:nth-child(3){flex:0 0 80px;text-align:right;color:#888;}
+    .row span:nth-child(3){flex:0 0 120px;text-align:right;color:#888;}
     .row span:nth-child(4){flex:0 0 160px;text-align:right;color:#888;}
     button {
       padding: .2rem .6rem;
