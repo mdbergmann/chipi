@@ -11,20 +11,31 @@
 
 (defvar *api* nil "The API server instance")
 
-(defun start ()
+(defun start (&key address)
   "Start the API server."
-  (push (make-hunchentoot-app) hunchentoot:*dispatch-table*)
-  (setf *api* (hunchentoot:start
-               (make-instance 'hunchentoot:easy-acceptor
-                              ;;:ssl-privatekey-file "../../cert/localhost.key"
-                              ;;:ssl-certificate-file "../../cert/localhost.crt"
-                              :port 8765
-                              :address "127.0.0.1"))))
+  (when *api*
+    (log:warn "API server already started."))
+  (unless *api*
+    (push (make-hunchentoot-app) hunchentoot:*dispatch-table*)
+    (setf *api* (hunchentoot:start
+                 (make-instance 'hunchentoot:easy-acceptor
+                                ;;:ssl-privatekey-file "../../cert/localhost.key"
+                                ;;:ssl-certificate-file "../../cert/localhost.crt"
+                                :port 8765
+                                :address address))))
+  ;; register shutdown hook
+  (hab:add-to-shutdown
+   (lambda ()
+     (stop))))
 
 (defun stop ()
+  (log:info "Stopping API server...")
+  (unless *api*
+    (log:info "Not running."))
   (when *api*
     (hunchentoot:stop *api*)
-    (setf hunchentoot:*dispatch-table* nil)))
+    (setf hunchentoot:*dispatch-table* nil)
+    (setf *api* nil)))
 
 ;; -----------------------------------
 ;; helpers

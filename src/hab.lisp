@@ -79,14 +79,16 @@
      (item:item-state-value item-state)
      (item:item-state-timestamp item-state))))
 
-(defmacro defconfig (&body body)
+(defmacro defconfig (system &body body)
   "Defines a configuration for the environment.
 It will start the environment if it is not already started.
 It is re-entrant, so it can be called multiple times.
 But if environment is already configured/started it does nothing.
-It also will setup items, rules and persistences storages."
+It also will setup items, rules and persistences storages.
+The parameter `system' defines the CL system root folder for runtime files."
   `(progn
-     (envi:ensure-env)
+     (log:info "Using system: ~a as root" ,system)
+     (envi:ensure-env ,system)
      (unless *itemgroups*
        (setf *itemgroups* (make-hash-table)))
      (unless *items*
