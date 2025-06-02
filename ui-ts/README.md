@@ -28,6 +28,17 @@ npm run dev
 The UI will then be available at [http://localhost:5173](http://localhost:5173).  
 The API is proxied to [http://localhost:8765](http://localhost:8765).
 
+> **Tipp – eigener Hostname:**  
+> Soll der Dev-Server nicht nur auf `localhost`, sondern auf einem
+> beliebigen Interface bzw. Hostnamen lauschen, kann man Vite ad-hoc so
+> starten:
+>
+> ```sh
+> npm run dev -- --host 0.0.0.0      # an alle Interfaces binden
+> # oder
+> npm run dev -- --host mypc.local   # bestimmten Hostnamen verwenden
+> ```
+
 ### Build for production
 
 ```sh
