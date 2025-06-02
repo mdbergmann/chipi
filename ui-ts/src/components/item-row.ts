@@ -24,6 +24,8 @@ export class ItemRow extends LitElement {
       cursor: pointer;
       min-width: 80px;   /* <--- NEU: gleiche Breite für beide Buttons */
     }
+    .bool-on  { color:#2e7d32; font-weight:600; }   /* grün */
+    .bool-off { color:#b8860b; font-weight:600; }   /* dunkel-gelb */
   `;
 
   render() {
@@ -33,7 +35,7 @@ export class ItemRow extends LitElement {
           ${this.id}
           ${this.label ? html`<span style="color:#888;font-weight:400;margin-left:.5em">(${this.label})</span>` : ''}
         </span>
-        <span>${this.format(this.value)}</span>
+        <span class=${this.booleanClass(this.value)}>${this.format(this.value)}</span>
         <span style="color:#888;font-size:.95em">${this.formatTypeHint(this.typeHint)}</span>
         <span style="color:#888;font-size:.95em">${this.formatTimestamp(this.timestamp)}</span>
         <button @click=${this.changeValue}>
@@ -58,6 +60,16 @@ export class ItemRow extends LitElement {
 
     if (typeof v === 'object') return JSON.stringify(v);
     return String(v);
+  }
+
+  private booleanClass(v: unknown): string {
+    if (typeof v === 'boolean') return v ? 'bool-on' : 'bool-off';
+    if (typeof v === 'string') {
+      const l = v.toLowerCase();
+      if (l === 'true' || l === 'on')  return 'bool-on';
+      if (l === 'false' || l === 'off') return 'bool-off';
+    }
+    return '';
   }
 
   private formatTimestamp(ts?: number): string {
