@@ -8,7 +8,11 @@ This is a web interface for the Chipi system to display and control items via a 
 - Value modification (including toggle for boolean values)
 - API key authentication
 - Error handling for missing or insufficient rights
-- Responsive UI with Lit and TypeScript
+- Responsive UI mit Lit und TypeScript
+
+## Screenshot
+
+![Chipi Web UI Screenshot](docs/Chipi-UI.png)
 
 ## Development
 
