@@ -120,6 +120,12 @@
     ((car items) (jzon:stringify items))
     (t "[]")))
 
+(defun %make-itemgroups-response (groups)
+  "Convert list of itemgroup hash-tables to a JSON string (empty array if none)."
+  (cond
+    ((car groups) (jzon:stringify groups))
+    (t "[]")))
+
 (defroute items (:get "application/json" &optional item-name)
   (@protection-headers-out)
   (@check-api-key)
@@ -174,3 +180,34 @@
      (progn
        ;;(trivial-backtrace:print-backtrace condition)
        (%make-json-error-body (simple-condition-format-control condition))))))
+       
+;; -----------------------------------
+;; itemgroups
+;; -----------------------------------
+
+(defroute itemgroups (:get "application/json" &optional group-name)
+  (@protection-headers-out)
+  (@check-api-key)
+  (@check-access-rights '(:read))
+  (@json-out)
+  (cond
+    ((null group-name)
+     (%make-itemgroups-response (itemgroupsc:retrieve-itemgroups)))
+    (t
+     (let ((grp (itemgroupsc:retrieve-itemgroup group-name)))
+       (unless grp
+         (http-condition hunchentoot:+http-not-found+
+                         (format nil "Itemgroup '~a' not found" group-name)))
+       (%make-itemgroups-response (list grp))))))
+
+(defmethod snooze:explain-condition ((condition http-condition)
+                                     (resource (eql #'itemgroups))
+                                     (ct snooze-types:application/json))
+  (log:warn "HTTP condition: ~a" condition)
+  (%make-json-error-body (simple-condition-format-control condition)))
+
+(defmethod snooze:explain-condition ((condition error)
+                                     (resource (eql #'itemgroups))
+                                     (ct snooze-types:application/json))
+  (log:warn "HTTP condition: ~a" condition)
+  (%make-json-error-body (simple-condition-format-control condition)))

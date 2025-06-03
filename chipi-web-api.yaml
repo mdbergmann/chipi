@@ -78,6 +78,23 @@ components:
             - type: "null"
       example: { "value": 42 }
 
+    ItemGroup:
+      type: object
+      required: [name, items]
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Item" }
+      example:
+        name: "group1"
+        label: "Example group"
+        items: []
+
     Error:
       type: object
       required: [error]
@@ -175,3 +192,54 @@ paths:
           description: Internal JSON parse error
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
           
+  /itemgroups:
+    get:
+      summary: List all itemgroups
+      operationId: listItemgroups
+      tags: [Itemgroups]
+      responses:
+        "200":
+          description: Array with all itemgroups (possibly empty).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ItemGroup" }
+        "401":
+          description: Missing or invalid API key
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: Key has no `read` right
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /itemgroups/{groupName}:
+    parameters:
+      - in: path
+        name: groupName
+        required: true
+        schema: { type: string }
+        description: Itemgroup identifier (case-insensitive)
+
+    get:
+      summary: Get a single itemgroup
+      operationId: getItemgroup
+      tags: [Itemgroups]
+      responses:
+        "200":
+          description: Itemgroup successfully returned
+          content:
+            application/json:
+              schema:
+                type: array           # server always wraps result in array
+                minItems: 1
+                maxItems: 1
+                items: { $ref: "#/components/schemas/ItemGroup" }
+        "401":
+          description: Missing or invalid API key
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: Key has no `read` right
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Itemgroup not found
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
