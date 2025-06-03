@@ -4,11 +4,11 @@ This is a web interface for the Chipi system to display and control items via a 
 
 ## Features
 
-- Display all items with name, label, value, type hint, and timestamp
+- Display all item groups with its items and their name, label, value, type hint, and timestamp
 - Value modification (including toggle for boolean values)
 - API key authentication
 - Error handling for missing or insufficient rights
-- Responsive UI mit Lit und TypeScript
+- Responsive UI using Lit und TypeScript
 
 ## Screenshot
 
