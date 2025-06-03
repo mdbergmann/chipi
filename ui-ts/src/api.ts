@@ -28,10 +28,11 @@ api.interceptors.response.use(
 export const fetchItemgroups = () =>
   api.get('/itemgroups').then(r => {
     const d = r.data;
-    return Array.isArray(d)        ? d
-         : Array.isArray(d?.itemgroups) ? d.itemgroups
-         : Array.isArray(d?.itemGroups) ? d.itemGroups   // Fallback Groß/Klein
-         : [];                     // ungeeignetes Format
+    return Array.isArray(d)              ? d
+         : d?.itemgroups === false       ? []            // leeres Ergebnis als `false`
+         : Array.isArray(d?.itemgroups)  ? d.itemgroups
+         : Array.isArray(d?.itemGroups)  ? d.itemGroups  // Fallback Groß/Klein
+         : [];                                           // ungeeignetes Format
   });
 
 export const updateItem  = (id: string, value: unknown) =>

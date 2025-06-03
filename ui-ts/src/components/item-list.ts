@@ -62,7 +62,7 @@ export class ItemList extends LitElement {
       this.groups = apiGroups.map((g: any) => ({
         name:  g.name,
         label: g.label,
-        items: (g.items ?? []).map((i: any) => ({
+        items: (Array.isArray(g.items) ? g.items : []).map((i: any) => ({
           ...i,
           typeHint: i['type-hint'] ?? i.typeHint,
           value: i['item-state']?.value,
