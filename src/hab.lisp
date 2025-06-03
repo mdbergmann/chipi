@@ -13,6 +13,7 @@
            #:get-items-on-group
            #:get-item
            #:get-items
+           #:get-itemgroups
            #:get-persistence
            #:get-rule
            #:set-item-value
@@ -53,6 +54,11 @@
   "Returns all items."
   (when *items*
     (hash-table-values *items*)))
+
+(defun get-itemgroups ()
+  "Returns all itemgroups."
+  (when *itemgroups*
+    (hash-table-values *itemgroups*)))
 
 (defun get-persistence (id)
   "Returns the persistence with the given id from the created persistences."
