@@ -79,8 +79,12 @@ export class ItemList extends LitElement {
                             detail: { message: 'API key does not have sufficient rights.' } })
         );
       } else {
-        // no response ⇒ server not reachable
-        this.error = 'API server is not reachable.';
+        if (!e?.response) {                   // no HTTP response → network/proxy error
+          this.error = 'API server is not reachable.';
+        } else {                              // any other (unexpected) HTTP status
+          const { status, statusText } = e.response;
+          this.error = `Server error: ${status}${statusText ? ' – ' + statusText : ''}`;
+        }
         this.groups = [];
       }
     }
