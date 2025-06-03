@@ -59,16 +59,18 @@ export class ItemList extends LitElement {
       this.error = null;          // clear previous error
       /* fetchItemgroups now always returns an array */
       const apiGroups = await fetchItemgroups();
-      this.groups = apiGroups.map((g: any) => ({
-        name:  g.name,
-        label: g.label,
-        items: (Array.isArray(g.items) ? g.items : []).map((i: any) => ({
-          ...i,
-          typeHint: i['type-hint'] ?? i.typeHint,
-          value: i['item-state']?.value,
-          timestamp: i['item-state']?.timestamp
+      this.groups = apiGroups
+        .map((g: any) => ({
+          name:  g.name,
+          label: g.label,
+          items: (Array.isArray(g.items) ? g.items : []).map((i: any) => ({
+            ...i,
+            typeHint: i['type-hint'] ?? i.typeHint,
+            value: i['item-state']?.value,
+            timestamp: i['item-state']?.timestamp
+          }))
         }))
-      }));
+        .filter(g => g.items.length > 0);
     } catch (e: any) {
       if (e?.response?.status === 401) {
         this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
