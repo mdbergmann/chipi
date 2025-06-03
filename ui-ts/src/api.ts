@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getApiKey } from './storage';
 
 const api = axios.create({
-  baseURL: '',                    // relative → gleicher Origin / Dev-Proxy
+  baseURL: '',                    // relative → same origin / dev proxy
   headers: { Accept: 'application/json' }
 });
 
@@ -18,7 +18,7 @@ api.interceptors.response.use(
     if (err?.response?.status === 401) {
       window.dispatchEvent(new CustomEvent('need-auth'));
     }
-    // Kein need-auth Event mehr bei 403!
+    // No need-auth event anymore for 403!
     return Promise.reject(err);
   }
 );

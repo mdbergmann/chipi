@@ -28,10 +28,10 @@ export class ItemRow extends LitElement {
       padding: .2rem .6rem;
       font-size: .9rem;
       cursor: pointer;
-      min-width: 80px;   /* <--- NEU: gleiche Breite für beide Buttons */
+      min-width: 80px;   /* same width for both buttons */
     }
-    .bool-on  { color:#2e7d32; font-weight:600; }   /* grün */
-    .bool-off { color:#b8860b; font-weight:600; }   /* dunkel-gelb */
+    .bool-on  { color:#2e7d32; font-weight:600; }   /* green */
+    .bool-off { color:#b8860b; font-weight:600; }   /* dark yellow */
     .item-info .item-label{
       display:block;
       font-size:.85em;
@@ -74,10 +74,10 @@ export class ItemRow extends LitElement {
   private format(v: unknown) {
     if (v === null) return 'null';
 
-    /* echte Booleans */
+    /* real booleans */
     if (typeof v === 'boolean') return v ? 'On' : 'Off';
 
-    /* String-Booleans („true“, „false“, „on“, „off“, gemischte Groß-/Kleinschreibung) */
+    /* string booleans ("true", "false", "on", "off", case-insensitive) */
     if (typeof v === 'string') {
       const l = v.toLowerCase();
       if (l === 'true'  || l === 'on')  return 'On';
@@ -111,8 +111,8 @@ export class ItemRow extends LitElement {
     switch (t.toLowerCase()) {
       case 'integer': return 'Whole Number';
       case 'float':   return 'Decimal Number';
-      case 'boolean': return 'Switch';          // NEU
-      case 'string':  return 'String';       // NEU
+      case 'boolean': return 'Switch';          // new
+      case 'string':  return 'String';       // new
       default:        return t;
     }
   }
@@ -131,14 +131,14 @@ export class ItemRow extends LitElement {
 
     try {
       await updateItem(this.id, newVal);
-      // this.value = newVal; // nicht lokal setzen, da value von außen kommt
+      // this.value = newVal; // don't set locally, value is supplied from outside
       this.dispatchEvent(new CustomEvent('item-updated', { bubbles: true, composed: true }));
     } catch (e: any) {
       if (e?.response?.status === 401) {
         this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
       } else if (e?.response?.status === 403) {
         alert('Insufficient access rights.');
-        // Kein need-auth Event mehr!
+        // No need-auth event here!
       } else {
         alert('Update failed – check API-Key and server logs.');
       }

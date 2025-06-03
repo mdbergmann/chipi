@@ -11,13 +11,13 @@ function render(component: 'item-list' | 'api-key-dialog' = 'item-list', message
   mount.innerHTML = '';
   const el = document.createElement(component);
   if (component === 'api-key-dialog' && message) {
-    // Property statt Attribut setzen → kein Attribut-Parsing nötig
+    // Set property instead of attribute → no attribute parsing needed
     (el as any).error = message;
   }
   mount.appendChild(el);
 }
 
-render();                                           // initialer Start mit Item-Liste
+render();                                           // initial start with item list
 window.addEventListener('api-key-set', () => render());
 window.addEventListener('need-auth', (e) => {
   clearApiKey();
