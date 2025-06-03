@@ -5,7 +5,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '^/items.*': {               // GET /items, POST /items/…
+      '^/(items|itemgroups).*': {  // proxy both /items… and /itemgroups…
         target: 'http://localhost:8765',
         changeOrigin: true
       }
