@@ -22,11 +22,11 @@
                                 ;;:ssl-privatekey-file "../../cert/localhost.key"
                                 ;;:ssl-certificate-file "../../cert/localhost.crt"
                                 :port 8765
-                                :address address))))
-  ;; register shutdown hook
-  (hab:add-to-shutdown
-   (lambda ()
-     (stop))))
+                                :address address)))
+    ;; register shutdown hook
+    (hab:add-to-shutdown
+     (lambda ()
+       (stop)))))
 
 (defun stop ()
   (log:info "Stopping API server...")

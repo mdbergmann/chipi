@@ -2,7 +2,8 @@
   ;; this pulls all the dependencies.
   ;; you may use them in here
   ;; `chipi-web' depends on `chipi'
-  (asdf:load-system :chipi-web))
+  (asdf:load-system :chipi-web)
+  )
 
 ;; we want our own package to be used
 ;; this allows us to `:use' namespaces we need
@@ -37,8 +38,16 @@
 
 ;; items here
 
-(defitem 'foo "Foo item" 'boolean :initial-value 'item:false)
-(defitem 'foo-1 "Foo item float" 'float :initial-value 10.4)
-(defitem 'foo-2 "Foo item string" 'string :initial-value "my string value")
-(defitem 'foo-3 "Foo item integer" 'integer :initial-value -123)
+(defitemgroup 'grp1 "My Group 1")
+(defitemgroup 'grp2 "My Group 2")
+
+(defitem 'foo "Foo item" 'boolean :initial-value 'item:false
+  :group 'grp1
+  :group 'grp2)
+(defitem 'foo-1 "Foo item float" 'float :initial-value 10.4
+  :group 'grp1)
+(defitem 'foo-2 "Foo item string" 'string :initial-value "my string value"
+  :group 'grp2)
+(defitem 'foo-3 "Foo item integer" 'integer :initial-value -123
+  :group 'grp1)
 (defitem 'foo-4 "Foo item unknown type" nil :initial-value 12)

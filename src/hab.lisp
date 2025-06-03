@@ -104,6 +104,7 @@ The parameter `system' defines the CL system root folder for runtime files."
      (unless *persistences*
        (setf *persistences* (make-hash-table :test #'eq)))
      (setf *shutdown-hooks* nil)
+     (defitemgroup 'ch-default "Default")
      ,@body))
 
 (defun shutdown ()
@@ -184,10 +185,11 @@ See `hab-test.lisp' and `item' for more examples."
                                      :label ,label
                                      :type-hint ,type-hint
                                      :initial-value ,initial-value)))
-         (when ,itemgroup
-           ;; adding the new item will replace the previous item
-           ;; because use of hash-table where key is the item-id
-           (itemgroup:add-item (get-itemgroup ,itemgroup) ,item))
+         (if ,itemgroup
+             ;; adding the new item will replace the previous item
+             ;; because use of hash-table where key is the item-id
+             (itemgroup:add-item (get-itemgroup ,itemgroup) ,item)
+             (itemgroup:add-item (get-itemgroup 'ch-default) ,item))
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))
          (dolist (,p-rep ,p-reps)
