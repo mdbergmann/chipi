@@ -1,5 +1,5 @@
 (defpackage :chipi-web.itemgroups-controller-test
-  (:use :cl :fiveam :cl-mock :chipi-web.itemgroups-controller)
+  (:use :cl :fiveam :cl-mock :itemgroupsc)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -22,18 +22,18 @@
     item))
 
 (defun %make-mock-itemgroup (gid glabel items)
-  (let ((ig (itemgroup:make-itemgroup gid :label glabel)))
+  (let ((id (itemgroup:make-itemgroup gid :label glabel)))
     (dolist (it items)
-      (itemgroup:add-item ig it))
-    ig))
+      (itemgroup:add-item id it))
+    id))
 
 (def-fixture with-isys-mock (itemgroups)
   (unwind-protect
        (progn
          (let ((hab:*items* (make-hash-table))
                (hab:*itemgroups* (make-hash-table)))
-           (dolist (ig itemgroups)
-             (setf (gethash (itemgroup:name ig) hab:*itemgroups*) ig))
+           (dolist (id itemgroups)
+             (setf (gethash (itemgroup:name id) hab:*itemgroups*) id))
            (&body)))))
 
 (test retrieve-itemgroups--empty
