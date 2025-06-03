@@ -62,11 +62,16 @@ For a complete, runnable example have a look at
 
 A full OpenAPI 3.0 specification lives in `chipi-web-api.yaml`.
 
+Besides individual items the API also exposes *itemgroups*, logical
+containers that hold multiple items.
+
 | Endpoint            | Method | Required scope |
 |---------------------|--------|----------------|
 | `/items`            | GET    | `read`         |
 | `/items/{itemName}` | GET    | `read`         |
 | `/items/{itemName}` | POST   | `update`       |
+| `/itemgroups`            | GET    | `read`         |
+| `/itemgroups/{groupName}` | GET    | `read`         |
 
 Add header `X-Api-Key: <your-key>` to every call.
 
@@ -76,8 +81,14 @@ Add header `X-Api-Key: <your-key>` to every call.
 # List all items
 curl -H "X-Api-Key: $MY_KEY" http://localhost:8765/items
 
+# List all itemgroups
+curl -H "X-Api-Key: $MY_KEY" http://localhost:8765/itemgroups
+
 # Get single item
 curl -H "X-Api-Key: $MY_KEY" http://localhost:8765/items/lamp
+
+# Get single itemgroup
+curl -H "X-Api-Key: $MY_KEY" http://localhost:8765/itemgroups/living
 
 # Update item
 curl -X POST -H "X-Api-Key: $MY_KEY" -H "Content-Type: application/json" \
