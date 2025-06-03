@@ -57,6 +57,7 @@ export class ItemList extends LitElement {
   private async load() {
     try {
       this.error = null;          // clear previous error
+      /* fetchItemgroups gibt jetzt immer ein Array zurück   */
       const apiGroups = await fetchItemgroups();
       this.groups = apiGroups.map((g: any) => ({
         name:  g.name,
@@ -79,8 +80,13 @@ export class ItemList extends LitElement {
                             detail: { message: 'API key does not have sufficient rights.' } })
         );
       } else {
-        if (!e?.response) {                   // no HTTP response → network/proxy error
-          this.error = 'API server is not reachable.';
+        /* Axios-Fehler ohne response ⇒ Netzwerkproblem,
+           alle anderen (TypeError etc.) ⇒ ungültiges Server-JSON */
+        if (!e?.response) {
+          this.error =
+            e instanceof TypeError
+              ? 'Invalid server response.'
+              : 'API server is not reachable.';
         } else {                              // any other (unexpected) HTTP status
           const { status, statusText } = e.response;
           this.error = `Server error: ${status}${statusText ? ' – ' + statusText : ''}`;

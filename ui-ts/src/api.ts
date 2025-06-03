@@ -23,8 +23,16 @@ api.interceptors.response.use(
   }
 );
 
+/* Das Backend liefert z.T. entweder direkt ein Array oder ein
+   Objekt wie { itemgroups : [...] }.  Beide Varianten akzeptieren. */
 export const fetchItemgroups = () =>
-  api.get('/itemgroups').then(r => r.data);   // GET /itemgroups
+  api.get('/itemgroups').then(r => {
+    const d = r.data;
+    return Array.isArray(d)        ? d
+         : Array.isArray(d?.itemgroups) ? d.itemgroups
+         : Array.isArray(d?.itemGroups) ? d.itemGroups   // Fallback Groß/Klein
+         : [];                     // ungeeignetes Format
+  });
 
 export const updateItem  = (id: string, value: unknown) =>
   api.post(`/items/${id}`, { value }).then(r => r.data);
