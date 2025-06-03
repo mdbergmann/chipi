@@ -322,3 +322,49 @@
         (is (= status 413))
         (is (equal (octets-to-string body)
                    "{\"error\":\"Oversized payload\"}"))))))
+
+;; -------------------------------------------------
+;; itemgroups helpers + tests
+;; -------------------------------------------------
+
+(defun make-get-itemgroups-request (headers &optional (group-name nil))
+  (drakma:http-request (format nil "http://localhost:8765/itemgroups~a"
+                               (if group-name
+                                   (format nil "/~a" group-name)
+                                   ""))
+                       :method :get
+                       :accept "application/json"
+                       :additional-headers headers
+                       :verify nil))
+
+;; ------------- itemgroups: GET all ----------------
+
+(test itemgroups--get-all--401--require-api-key
+  (with-fixture api-start-stop (nil)
+    (multiple-value-bind (body status headers)
+        (make-get-itemgroups-request nil)
+      (declare (ignore headers))
+      (is (= status 401))
+      (is (equal (octets-to-string body)
+                 "{\"error\":\"No API key provided\"}")))))
+
+(test itemgroups--get-all--empty--200--ok
+  (with-fixture api-start-stop (t)
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:read))))
+      (multiple-value-bind (body status headers)
+          (make-get-itemgroups-request `(("X-Api-Key" . ,apikey-id)))
+        (declare (ignore headers))
+        (is (= status 200))
+        (is (string= (octets-to-string body) "[]"))))))
+
+;; ------------- itemgroups: GET specific ------------
+
+(test itemgroups--get-specific-itemgroup--404--not-found
+  (with-fixture api-start-stop (t)
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:read))))
+      (multiple-value-bind (body status headers)
+          (make-get-itemgroups-request `(("X-Api-Key" . ,apikey-id)) "foo")
+        (declare (ignore headers))
+        (is (= status 404))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"Itemgroup 'FOO' not found\"}"))))))
