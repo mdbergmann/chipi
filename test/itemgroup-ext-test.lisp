@@ -32,3 +32,13 @@
       (let ((its (gethash "items" ht)))
         (is (= (length its) 1))
         (is (string= "FOO" (gethash "name" (first its))))))))
+
+;;; ------------------------------------------------------------
+;;; NEUER Test: leeres Item-Array statt NIL/FALSE
+
+(test itemgroup-to-ht--empty-items
+  "Ensure conversion of an empty itemgroup returns an empty vector (JSON [])."
+  (let* ((grp (make-itemgroup 'empty :label "Empty Group"))
+         (ht  (itemgroup-to-ht grp)))
+    (let ((items (gethash "items" ht)))
+      (is-true (and (vectorp items) (= 0 (length items)))))))
