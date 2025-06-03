@@ -10,11 +10,11 @@
 (in-package :chipi.itemgroup-ext)
 
 (defun itemgroup-to-ht (grp)
-  "Convert an itemgroup with all its items to a hash-table ready for JSON serialization.
-Leere Item-Listen werden als leeres Array ([]) und nicht als JSON-Boolean „false“
-kodiert."
+  "Convert an itemgroup (including its items) to a hash-table ready for JSON
+serialization.  Empty item lists are encoded as an empty array ([]) instead of the
+JSON boolean «false»."
   (let* ((item-list (mapcar #'item-to-ht (itemgroup:get-items grp)))
-         ;; `jzon` kodiert NIL → false; darum bei leerer Liste auf leeren Vektor #() mappen
+         ;; `jzon` encodes NIL as JSON boolean false – map empty list to empty vector #()
          (items-json (if item-list item-list #())))
     (plist-hash-table
      (list "name"  (itemgroup:name grp)

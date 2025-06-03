@@ -23,16 +23,16 @@ api.interceptors.response.use(
   }
 );
 
-/* Das Backend liefert z.T. entweder direkt ein Array oder ein
-   Objekt wie { itemgroups : [...] }.  Beide Varianten akzeptieren. */
+/* Backend may return either an array or an object like
+   { itemgroups : [...] }.  Accept both variants. */
 export const fetchItemgroups = () =>
   api.get('/itemgroups').then(r => {
     const d = r.data;
     return Array.isArray(d)              ? d
-         : d?.itemgroups === false       ? []            // leeres Ergebnis als `false`
+         : d?.itemgroups === false       ? []            // treat explicit `false` as empty list
          : Array.isArray(d?.itemgroups)  ? d.itemgroups
          : Array.isArray(d?.itemGroups)  ? d.itemGroups  // Fallback Groß/Klein
-         : [];                                           // ungeeignetes Format
+         : [];                                           // unsupported format
   });
 
 export const updateItem  = (id: string, value: unknown) =>

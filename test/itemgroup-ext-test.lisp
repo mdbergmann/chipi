@@ -34,7 +34,7 @@
         (is (string= "FOO" (gethash "name" (first its))))))))
 
 ;;; ------------------------------------------------------------
-;;; NEUER Test: leeres Item-Array statt NIL/FALSE
+;;; NEW test: empty item array instead of NIL/FALSE
 
 (test itemgroup-to-ht--empty-items
   "Ensure conversion of an empty itemgroup returns an empty vector (JSON [])."

@@ -57,7 +57,7 @@ export class ItemList extends LitElement {
   private async load() {
     try {
       this.error = null;          // clear previous error
-      /* fetchItemgroups gibt jetzt immer ein Array zurück   */
+      /* fetchItemgroups now always returns an array */
       const apiGroups = await fetchItemgroups();
       this.groups = apiGroups.map((g: any) => ({
         name:  g.name,
@@ -80,8 +80,8 @@ export class ItemList extends LitElement {
                             detail: { message: 'API key does not have sufficient rights.' } })
         );
       } else {
-        /* Axios-Fehler ohne response ⇒ Netzwerkproblem,
-           alle anderen (TypeError etc.) ⇒ ungültiges Server-JSON */
+        /* Axios error without response  ⇒ network/proxy issue.
+           All other TypeError etc.      ⇒ invalid server JSON. */
         if (!e?.response) {
           this.error =
             e instanceof TypeError
