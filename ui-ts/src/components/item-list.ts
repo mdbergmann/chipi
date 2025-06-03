@@ -1,13 +1,17 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { fetchItems } from '../api';
+import { fetchItemgroups } from '../api';
 import './item-row';
 
 interface Item { name: string; label?: string; value: any; typeHint?: string; timestamp?: number; }
+interface Itemgroup {
+  name: string; label?: string;
+  items: Item[];
+}
 
 @customElement('item-list')
 export class ItemList extends LitElement {
-  @state() private items: Item[] = [];
+  @state() private groups: Itemgroup[] = [];
   @state() private error: string | null = null;
 
   static styles = css`
@@ -35,6 +39,13 @@ export class ItemList extends LitElement {
       text-align:center;
       color:#555;
     }
+    .group-header{
+      margin:0;
+      padding:.6rem 1rem;
+      background:#e0e0e0;
+      border-top:1px solid #ccc;
+      font-weight:600;
+    }
   `;
 
   connectedCallback() {
@@ -46,12 +57,16 @@ export class ItemList extends LitElement {
   private async load() {
     try {
       this.error = null;          // clear previous error
-      const apiItems = await fetchItems();
-      this.items = apiItems.map((i: any) => ({
-        ...i,
-        typeHint: i['type-hint'] ?? i.typeHint,
-        value: i['item-state']?.value,
-        timestamp: i['item-state']?.timestamp
+      const apiGroups = await fetchItemgroups();
+      this.groups = apiGroups.map((g: any) => ({
+        name:  g.name,
+        label: g.label,
+        items: (g.items ?? []).map((i: any) => ({
+          ...i,
+          typeHint: i['type-hint'] ?? i.typeHint,
+          value: i['item-state']?.value,
+          timestamp: i['item-state']?.timestamp
+        }))
       }));
     } catch (e: any) {
       if (e?.response?.status === 401) {
@@ -66,7 +81,7 @@ export class ItemList extends LitElement {
       } else {
         // no response ⇒ server not reachable
         this.error = 'API server is not reachable.';
-        this.items = [];
+        this.groups = [];
       }
     }
   }
@@ -79,18 +94,21 @@ export class ItemList extends LitElement {
       </div>
       ${this.error
         ? html`<div class="error">${this.error}</div>`
-        : this.items.length === 0
-          ? html`<div class="empty">No items available.</div>`
-          : html`${[...this.items].reverse().map(
-              i => html`<item-row
-                .id=${i.name}
-                .label=${i.label ?? ''}
-                .value=${i.value}
-                .typeHint=${i.typeHint}
-                .timestamp=${i.timestamp}
-                @item-updated=${() => this.load()}>
-              </item-row>`
-            )}`
+        : this.groups.length === 0
+          ? html`<div class="empty">No itemgroups available.</div>`
+          : html`${[...this.groups].reverse().map(
+              g => html`
+                <h3 class="group-header">${g.label ?? g.name}</h3>
+                ${g.items.map(i => html`
+                  <item-row
+                    .id=${i.name}
+                    .label=${i.label ?? ''}
+                    .value=${i.value}
+                    .typeHint=${i.typeHint}
+                    .timestamp=${i.timestamp}
+                    @item-updated=${() => this.load()}>
+                  </item-row>`)}
+              `)}`
       }
     `;
   }

@@ -23,7 +23,9 @@ api.interceptors.response.use(
   }
 );
 
-export const fetchItems  = () => api.get('/items').then(r => r.data);
+export const fetchItemgroups = () =>
+  api.get('/itemgroups').then(r => r.data);   // GET /itemgroups
+
 export const updateItem  = (id: string, value: unknown) =>
   api.post(`/items/${id}`, { value }).then(r => r.data);
 
