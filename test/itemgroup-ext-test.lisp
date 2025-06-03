@@ -1,5 +1,5 @@
 (defpackage :chipi.itemgroup-ext-test
-  (:use :cl :fiveam :itemgroup-ext :itemgroup :chipi.item :chipi.item-ext)
+  (:use :cl :fiveam :itemgroup-ext :itemgroup)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -24,9 +24,9 @@
 (test itemgroup-to-ht--basic
   "Ensure conversion of a simple itemgroup with one item."
   (let* ((item (%make-mock-item 'foo "Foo" 1))
-         (ig   (itemgroup:make-itemgroup 'grp :label "Group")))
-    (itemgroup:add-item ig item)
-    (let ((ht (itemgroup-ext:itemgroup-to-ht ig)))
+         (id (make-itemgroup 'grp :label "Group")))
+    (add-item id item)
+    (let ((ht (itemgroup-to-ht id)))
       (is (string= "GRP" (gethash "name" ht)))
       (is (string= "Group" (gethash "label" ht)))
       (let ((its (gethash "items" ht)))

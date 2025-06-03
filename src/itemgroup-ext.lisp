@@ -9,10 +9,10 @@
 
 (in-package :chipi.itemgroup-ext)
 
-(defun itemgroup-to-ht (ig)
+(defun itemgroup-to-ht (id)
   "Convert an itemgroup with all its items to a hash-table ready for JSON serialization."
   (plist-hash-table
-   (list "name"  (itemgroup:name ig)
-         "label" (itemgroup:label ig)
-         "items" (mapcar #'item-to-ht (itemgroup:get-items ig)))
+   (list "name" (itemgroup:name id)
+         "label" (itemgroup:label id)
+         "items" (mapcar #'item-to-ht (itemgroup:get-items id)))
    :test #'equal))
