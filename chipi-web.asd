@@ -20,6 +20,7 @@
                  (:file "cryp")
                  (:file "apikey-store")
                  (:file "items-controller")
+                 (:file "itemgroups-controller")
                  (:file "auth-controller")
                  (:file "api-env")
                  (:file "api")
@@ -38,6 +39,7 @@
                  (:file "apikey-store-test")
                  (:file "auth-controller-test")
                  (:file "items-controller-test")
+                 (:file "itemgroups-controller-test")
                  (:file "api-integ-test")
                  )))
   :description "Test system for chipi-web, the web API for chipi."

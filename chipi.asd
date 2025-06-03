@@ -24,6 +24,7 @@
                  (:file "item")
                  (:file "item-ext")
                  (:file "itemgroup")
+                 (:file "itemgroup-ext")
                  (:file "persistence-simple")
                  (:file "persistence-influx")
                  (:file "rule")
