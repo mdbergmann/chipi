@@ -51,6 +51,16 @@ export class ItemRow extends LitElement {
   render() {
     const isReadonly = this.tags['ext-readonly'] === true || this.tags['ext-readonly'] === 't' || this.tags['ext-readonly'] === 'true';
     
+    // Debug logging
+    if (this.id === 'event-1') {
+      console.log('EVENT-1 debug:', {
+        id: this.id,
+        tags: this.tags,
+        extReadonly: this.tags['ext-readonly'],
+        isReadonly: isReadonly
+      });
+    }
+    
     return html`
       <div class="row">
         <span class="item-info">
