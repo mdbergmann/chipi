@@ -20,8 +20,7 @@
        (progn
          (when with-isys
            ;; setup a partial environment
-           (setf hab:*items* (make-hash-table :test 'equal))
-           (isys:ensure-isys))
+           (hab:defconfig "chipi"))
          (api-env:init :apikey-store apikey-store:*memory-backend*
                        :apikey-lifetime (ltd:duration :day 1))
          (api:start)
@@ -31,8 +30,7 @@
       (setf apikey-store:*apikey-store-backend* nil)
       (uiop:delete-directory-tree (envi:ensure-runtime-dir) :validate t)
       (when with-isys
-        (isys:shutdown-isys)
-        (setf hab:*items* nil))
+        (hab:shutdown))
       )))
 
 (defun get-header (name headers)
@@ -185,24 +183,24 @@
 
 (test items--get-all--with-tags--200--ok
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read)))
-           (items (list
-                   (hab:defitem 'sensor1 "Temperature Sensor" 'float 
-                     :initial-value 22.5
-                     :tags '((:ui-readonly . t)
-                             (:unit . "celsius")
-                             (:category . "sensor")))
-                   (hab:defitem 'switch1 "Light Switch" 'boolean
-                     :initial-value 'item:false
-                     :tags '((:ui-readonly . nil)))
-                   (hab:defitem 'text1 "Status Text" 'string
-                     :initial-value "OK"))))
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read))))
+      (hab:defitem 'sensor1 "Temperature Sensor" 'float 
+        :initial-value 22.5
+        :tags '((:ui-readonly . t)
+                (:unit . "celsius")
+                (:category . "sensor")))
+      (hab:defitem 'switch1 "Light Switch" 'boolean
+        :initial-value 'item:false
+        :tags '((:ui-readonly . nil)))
+      (hab:defitem 'text1 "Status Text" 'string
+        :initial-value "OK")
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
         (declare (ignore headers))
         (is (= status 200))
         ;; Parse response and verify tags
         (let ((response-items (jzon:parse (octets-to-string body))))
+          (print response-items)
           (is (= 3 (length response-items)))
           ;; Check sensor1 has tags
           (let ((sensor1 (find-if (lambda (item) 
