@@ -50,6 +50,8 @@ export class ItemRow extends LitElement {
 
   render() {
     console.log('Tags for item', this.id, ':', this.tags);
+    console.log('Tags keys:', Object.keys(this.tags));
+    console.log('Tags entries:', Object.entries(this.tags));
     console.log('ext-readonly value:', this.tags['ext-readonly']);
     console.log('Type of ext-readonly:', typeof this.tags['ext-readonly']);
     
