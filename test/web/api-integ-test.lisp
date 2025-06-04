@@ -189,12 +189,12 @@
            (items (list
                    (hab:defitem 'sensor1 "Temperature Sensor" 'float 
                      :initial-value 22.5
-                     :tags '((ui-readonly . t)
-                             (unit . "celsius")
-                             (category . "sensor")))
+                     :tags '((:ui-readonly . t)
+                             (:unit . "celsius")
+                             (:category . "sensor")))
                    (hab:defitem 'switch1 "Light Switch" 'boolean
                      :initial-value 'item:false
-                     :tags '((ui-readonly . nil)))
+                     :tags '((:ui-readonly . nil)))
                    (hab:defitem 'text1 "Status Text" 'string
                      :initial-value "OK"))))
       (multiple-value-bind (body status headers)
@@ -213,9 +213,9 @@
               (is (listp tags))
               (is (= 3 (length tags)))
               ;; Tags should be an alist
-              (is (equal '((ui-readonly . t)
-                           (unit . "celsius")
-                           (category . "sensor"))
+              (is (equal '((:ui-readonly . t)
+                           (:unit . "celsius")
+                           (:category . "sensor"))
                          tags))))
           ;; Check switch1 has one tag
           (let ((switch1 (find-if (lambda (item)
@@ -225,7 +225,7 @@
             (let ((tags (gethash "tags" switch1)))
               (is (listp tags))
               (is (= 1 (length tags)))
-              (is (equal '((ui-readonly . nil)) tags))))
+              (is (equal '((:ui-readonly . nil)) tags))))
           ;; Check text1 has empty tags array
           (let ((text1 (find-if (lambda (item)
                                   (string= "text1" (gethash "name" item)))

@@ -94,9 +94,9 @@
     (defitem 'temp-sensor "Temperature Sensor" 'float
       :initial-value 20.0
       :group 'sensors
-      :tags '((ui-readonly . t)
-              (unit . "celsius")
-              (category . "sensor")))
+      :tags '((:ui-readonly . t)
+              (:unit . "celsius")
+              (:category . "sensor")))
     
     ;; Define item without tags
     (defitem 'humidity-sensor "Humidity Sensor" 'float
@@ -106,9 +106,9 @@
     ;; Verify tags are set correctly
     (let ((temp-item (get-item 'temp-sensor))
           (humidity-item (get-item 'humidity-sensor)))
-      (is (equal '((ui-readonly . t)
-                   (unit . "celsius")
-                   (category . "sensor"))
+      (is (equal '((:ui-readonly . t)
+                   (:unit . "celsius")
+                   (:category . "sensor"))
                  (item:tags temp-item)))
       (is (null (item:tags humidity-item))))
     
@@ -116,13 +116,13 @@
     (defitem 'temp-sensor "Temperature Sensor" 'float
       :initial-value 20.0
       :group 'sensors
-      :tags '((ui-readonly . nil)
-              (unit . "fahrenheit")))
+      :tags '((:ui-readonly . nil)
+              (:unit . "fahrenheit")))
     
     ;; Verify tags were updated
     (let ((temp-item (get-item 'temp-sensor)))
-      (is (equal '((ui-readonly . nil)
-                   (unit . "fahrenheit"))
+      (is (equal '((:ui-readonly . nil)
+                   (:unit . "fahrenheit"))
                  (item:tags temp-item))))))
 
 (test define-persistence

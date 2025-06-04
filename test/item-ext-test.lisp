@@ -82,11 +82,11 @@
                                     :state (make-item-state :value 1)
                                     :name "item3"
                                     :label "label3"
-                                    :tags '((ui-readonly . t)
-                                            (category . "sensor"))))
+                                    :tags '((:ui-readonly . t)
+                                            (:category . "sensor"))))
          (ht (item-to-ht item)))
-    (is (equal '((ui-readonly . t)
-                 (category . "sensor"))
+    (is (equal '((:ui-readonly . t)
+                 (:category . "sensor"))
                (gethash "tags" ht)))))
 
 (test item-to-ht--without-tags

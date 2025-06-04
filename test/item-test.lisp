@@ -245,13 +245,13 @@ that when loading the value the second (or any more) persistence does not persit
     ;; Test with various tag formats
     (let ((item (make-item 'my-item 
                           :label "label" 
-                          :tags '((ui-readonly . nil)
-                                  (foo . "whatever")
-                                  (priority . 5)))))
+                          :tags '((:ui-readonly . nil)
+                                  (:foo . "whatever")
+                                  (:priority . 5)))))
       (is-true item)
-      (is (equal '((ui-readonly . nil) 
-                   (foo . "whatever")
-                   (priority . 5)) 
+      (is (equal '((:ui-readonly . nil) 
+                   (:foo . "whatever")
+                   (:priority . 5)) 
                  (tags item))))))
 
 (test make-item--without-tags
@@ -264,7 +264,7 @@ that when loading the value the second (or any more) persistence does not persit
 (test item--tags-remain-unchanged
   "Test that tags remain unchanged through item lifecycle."
   (with-fixture init-destroy-env ()
-    (let* ((initial-tags '((ui-readonly . t) (group . "living-room")))
+    (let* ((initial-tags '((:ui-readonly . t) (:group . "living-room")))
            (item (make-item 'my-item 
                            :initial-value 42
                            :tags initial-tags)))
