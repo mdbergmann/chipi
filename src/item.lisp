@@ -17,6 +17,7 @@
            #:get-item-stateq
            #:name
            #:label
+           #:tags
            #:add-binding
            #:add-persistence
            #:destroy
@@ -46,6 +47,12 @@
                     :reader value-type-hint
                     :documentation "A type hint for the item value.
 This is in particular important for persistences that are type specific, like influxdb (within a measurement).")
+   (tags :initarg :tags
+         :initform '()
+         :reader tags
+         :documentation "Tags as an association list (alist) of (key . value) pairs.
+A tag can exist without a value, e.g., (ui-readonly . nil), or with a value, e.g., (category . \"sensor\").
+Higher-level code is responsible for interpreting the tags.")
    (bindings :initform '()
              :reader bindings
              :documentation "The items bindings")
@@ -134,9 +141,9 @@ This is in particular important for persistences that are type specific, like in
                (apply-persistences))
              (push-to-bindings val push))))))))
 
-(defun make-item (id &key (label nil) (type-hint nil) (initial-value t))
-  (log:info "Creating item: ~a, label: ~a, type-hint: ~a, value: ~a"
-            id label type-hint initial-value)
+(defun make-item (id &key (label nil) (type-hint nil) (initial-value t) (tags '()))
+  (log:info "Creating item: ~a, label: ~a, type-hint: ~a, value: ~a, tags: ~a"
+            id label type-hint initial-value tags)
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys
@@ -155,7 +162,8 @@ This is in particular important for persistences that are type specific, like in
                                  (item-persistence-timer-sig persp)))))
                            (log:info "Item '~a' destroyed!" id)))))
     (setf (slot-value item 'label) label
-          (slot-value item 'value-type-hint) type-hint)
+          (slot-value item 'value-type-hint) type-hint
+          (slot-value item 'tags) tags)
     item))
 
 (defmethod print-object ((obj item) stream)

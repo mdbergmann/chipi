@@ -239,6 +239,45 @@ that when loading the value the second (or any more) persistence does not persit
     )
   )
 
+(test make-item--with-tags
+  "Test creating item with tags."
+  (with-fixture init-destroy-env ()
+    ;; Test with various tag formats
+    (let ((item (make-item 'my-item 
+                          :label "label" 
+                          :tags '((ui-readonly . nil)
+                                  (foo . "whatever")
+                                  (priority . 5)))))
+      (is-true item)
+      (is (equal '((ui-readonly . nil) 
+                   (foo . "whatever")
+                   (priority . 5)) 
+                 (tags item))))))
+
+(test make-item--without-tags
+  "Test creating item without tags defaults to empty list."
+  (with-fixture init-destroy-env ()
+    (let ((item (make-item 'my-item)))
+      (is-true item)
+      (is (null (tags item))))))
+
+(test item--tags-remain-unchanged
+  "Test that tags remain unchanged through item lifecycle."
+  (with-fixture init-destroy-env ()
+    (let* ((initial-tags '((ui-readonly . t) (group . "living-room")))
+           (item (make-item 'my-item 
+                           :initial-value 42
+                           :tags initial-tags)))
+      ;; Change item value
+      (set-value item 100)
+      (is-true (await-cond 0.5
+                 (let ((item-value (get-value item)))
+                   (await-cond 0.3
+                     (= (future:fresult item-value) 100)))))
+      
+      ;; Tags should remain exactly the same
+      (is (equal initial-tags (tags item))))))
+
 (defclass fail-fetch-persistence (simple-persistence:simple-persistence) ())
 (defmethod persp:retrieve ((persistence fail-fetch-persistence) item)
   '(:error . "Failed to fetch."))
