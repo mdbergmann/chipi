@@ -31,6 +31,11 @@ export class ItemRow extends LitElement {
       cursor: pointer;
       min-width: 80px;   /* same width for both buttons */
     }
+    .button-column {
+      flex: 0 0 80px;
+      display: flex;
+      justify-content: center;
+    }
     .bool-on  { color:#2e7d32; font-weight:600; }   /* green */
     .bool-off { color:#b8860b; font-weight:600; }   /* dark yellow */
     .item-info .item-label{
@@ -77,11 +82,13 @@ export class ItemRow extends LitElement {
           <span class="timestamp-text">${this.formatTimestamp(this.timestamp)}</span>
           <span class="timestamp-label">Last change</span>
         </span>
-        ${!isReadonly ? html`
-          <button @click=${this.changeValue}>
-            ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
-          </button>
-        ` : ''}
+        <span class="button-column">
+          ${!isReadonly ? html`
+            <button @click=${this.changeValue}>
+              ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
+            </button>
+          ` : ''}
+        </span>
       </div>
     `;
   }
