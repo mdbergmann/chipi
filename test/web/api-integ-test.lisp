@@ -210,30 +210,29 @@
                                   response-items)))
             (is (not (null sensor1)))
             (let ((tags (gethash "tags" sensor1)))
-              (is (listp tags))
-              (is (= 3 (length tags)))
-              ;; Tags should be an alist
-              (is (equal '((:ui-readonly . t)
-                           (:unit . "celsius")
-                           (:category . "sensor"))
-                         tags))))
+              (is (hash-table-p tags))
+              (is (= 3 (hash-table-count tags)))
+              ;; Tags should be a hash table
+              (is (equal t (gethash "ui-readonly" tags)))
+              (is (equal "celsius" (gethash "unit" tags)))
+              (is (equal "sensor" (gethash "category" tags)))))
           ;; Check switch1 has one tag
           (let ((switch1 (find-if (lambda (item)
                                     (string= "switch1" (gethash "name" item)))
                                   response-items)))
             (is (not (null switch1)))
             (let ((tags (gethash "tags" switch1)))
-              (is (listp tags))
-              (is (= 1 (length tags)))
-              (is (equal '((:ui-readonly . nil)) tags))))
-          ;; Check text1 has empty tags array
+              (is (hash-table-p tags))
+              (is (= 1 (hash-table-count tags)))
+              (is (equal nil (gethash "ui-readonly" tags)))))
+          ;; Check text1 has empty tags hash table
           (let ((text1 (find-if (lambda (item)
                                   (string= "text1" (gethash "name" item)))
                                 response-items)))
             (is (not (null text1)))
             (let ((tags (gethash "tags" text1)))
-              (is (listp tags))
-              (is (= 0 (length tags))))))))))
+              (is (hash-table-p tags))
+              (is (= 0 (hash-table-count tags))))))))))
 
 ;; --------------------
 ;; get specific item

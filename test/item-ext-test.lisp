@@ -85,9 +85,10 @@
                                     :tags '((:ui-readonly . t)
                                             (:category . "sensor"))))
          (ht (item-to-ht item)))
-    (is (equal '((:ui-readonly . t)
-                 (:category . "sensor"))
-               (gethash "tags" ht)))))
+    (let ((tags-ht (gethash "tags" ht)))
+      (is (hash-table-p tags-ht))
+      (is (equal t (gethash :ui-readonly tags-ht)))
+      (is (equal "sensor" (gethash :category tags-ht))))))
 
 (test item-to-ht--without-tags
   (let* ((item (make-instance 'item :receive t
@@ -95,4 +96,6 @@
                                     :name "item4"
                                     :label "label4"))
          (ht (item-to-ht item)))
-    (is (null (gethash "tags" ht)))))  ; empty list is still null/nil in Lisp
+    (let ((tags-ht (gethash "tags" ht)))
+      (is (hash-table-p tags-ht))
+      (is (= 0 (hash-table-count tags-ht))))))  ; empty hash table

@@ -51,6 +51,8 @@ Used e.g. for API or persistences."
      (list "name"       (name item)
            "label"      (label item)
            "type-hint"  (if type-hint (symbol-name type-hint) 'cl:null)
-           "tags"       tags  ; Always use the list directly, empty list becomes []
+           "tags"       (if tags 
+                           (alexandria:alist-hash-table tags :test #'equal)
+                           (make-hash-table :test #'equal))  ; Empty hash table for empty tags
            "item-state" (item-state-to-ht (get-item-stateq item)))
      :test #'equal)))
