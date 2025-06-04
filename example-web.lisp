@@ -2,7 +2,7 @@
   ;; this pulls all the dependencies.
   ;; you may use them in here
   ;; `chipi-web' depends on `chipi'
-  (asdf:load-system :chipi-web)
+  ;;(asdf:load-system :chipi-web)
   )
 
 ;; we want our own package to be used
@@ -38,16 +38,20 @@
 
 ;; items here
 
-(defitemgroup 'grp1 "My Group 1")
-(defitemgroup 'grp2 "My Group 2")
+(defitemgroup 'plugs "Plugs")
+(defitemgroup 'lights "Lights")
+(defitemgroup 'switches "Switches")
+(defitemgroup 'temps "Temperatures")
 
-(defitem 'foo "Foo item" 'boolean :initial-value 'item:false
-  :group 'grp1
-  :group 'grp2)
-(defitem 'foo-1 "Foo item float" 'float :initial-value 10.4
-  :group 'grp1)
-(defitem 'foo-2 "Foo item string" 'string :initial-value "my string value"
-  :group 'grp2)
-(defitem 'foo-3 "Foo item integer" 'integer :initial-value -123
-  :group 'grp1)
-(defitem 'foo-4 "Foo item unknown type" nil :initial-value 12)
+(defitem 'switch1 "Switch1" 'boolean :initial-value 'item:false
+  :group 'plugs
+  :group 'lights
+  :group 'switches)
+(defitem 'light1 "Light1" 'float :initial-value 'item:true
+  :group 'lights)
+(defitem 'plug1 "Plug1" 'string :initial-value 'item:false
+  :group 'plugs)
+(defitem 'outside-temp "Outside temperature" 'integer :initial-value -123
+  :group 'temps)
+(defitem 'event-1 "Event 1" nil :initial-value "Event occured"
+  :tags '((:ext-readonly . t)))

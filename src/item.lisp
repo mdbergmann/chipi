@@ -169,11 +169,12 @@ Higher-level code is responsible for interpreting the tags.")
 (defmethod print-object ((obj item) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (format stream "name: ~a, label: ~a, value: ~a, type-hint: ~a"
+      (format stream "name: ~a, label: ~a, value: ~a, type-hint: ~a, tags: ~a"
               (act-cell:name obj)
               (label obj)
               (act-cell:state obj)
-              (value-type-hint obj))
+              (value-type-hint obj)
+              (tags obj))
       (get-output-stream-string string-stream))))
 
 (defun name (item)

@@ -406,7 +406,8 @@
           (make-get-itemgroups-request `(("X-Api-Key" . ,apikey-id)))
         (declare (ignore headers))
         (is (= status 200))
-        (is (string= (octets-to-string body) "[]"))))))
+        ;; there is at least the default itemgroup
+        (is (string= (octets-to-string body) "[{\"name\":\"CH-DEFAULT\",\"label\":\"Default\",\"items\":[]}]"))))))
 
 ;; ------------- itemgroups: GET specific ------------
 
