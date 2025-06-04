@@ -195,6 +195,7 @@
                      :tags '((:ui-readonly . nil)))
                    (hab:defitem 'text1 "Status Text" 'string
                      :initial-value "OK"))))
+      (print items)
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
         (declare (ignore headers))
