@@ -51,6 +51,6 @@ Used e.g. for API or persistences."
      (list "name"       (name item)
            "label"      (label item)
            "type-hint"  (if type-hint (symbol-name type-hint) 'cl:null)
-           "tags"       (if tags tags 'cl:null)
+           "tags"       tags  ; Always use the list directly, empty list becomes []
            "item-state" (item-state-to-ht (get-item-stateq item)))
      :test #'equal)))

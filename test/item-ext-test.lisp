@@ -95,4 +95,4 @@
                                     :name "item4"
                                     :label "label4"))
          (ht (item-to-ht item)))
-    (is (eq 'cl:null (gethash "tags" ht)))))
+    (is (null (gethash "tags" ht)))))  ; empty list is still null/nil in Lisp
