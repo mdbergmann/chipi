@@ -9,6 +9,7 @@ export class ItemRow extends LitElement {
   @property({ type: String }) typeHint = '';
   @property({ type: Object }) value: any = null;
   @property({ type: Number }) timestamp?: number;
+  @property({ type: Object }) tags: Record<string, string> = {};
 
   static styles = css`
     :host{display:block}
@@ -48,6 +49,8 @@ export class ItemRow extends LitElement {
   `;
 
   render() {
+    const isReadonly = this.tags['ext-readonly'] === 't' || this.tags['ext-readonly'] === 'true';
+    
     return html`
       <div class="row">
         <span class="item-info">
@@ -64,9 +67,11 @@ export class ItemRow extends LitElement {
           <span class="timestamp-text">${this.formatTimestamp(this.timestamp)}</span>
           <span class="timestamp-label">Last change</span>
         </span>
-        <button @click=${this.changeValue}>
-          ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
-        </button>
+        ${!isReadonly ? html`
+          <button @click=${this.changeValue}>
+            ${typeof this.value === 'boolean' ? 'Toggle' : 'Change'}
+          </button>
+        ` : ''}
       </div>
     `;
   }

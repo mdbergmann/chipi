@@ -3,7 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { fetchItemgroups } from '../api';
 import './item-row';
 
-interface Item { name: string; label?: string; value: any; typeHint?: string; timestamp?: number; }
+interface Item { name: string; label?: string; value: any; typeHint?: string; timestamp?: number; tags?: Record<string, string>; }
 interface Itemgroup {
   name: string; label?: string;
   items: Item[];
@@ -67,7 +67,8 @@ export class ItemList extends LitElement {
             ...i,
             typeHint: i['type-hint'] ?? i.typeHint,
             value: i['item-state']?.value,
-            timestamp: i['item-state']?.timestamp
+            timestamp: i['item-state']?.timestamp,
+            tags: i.tags || {}
           }))
         }))
         .filter(g => g.items.length > 0);
