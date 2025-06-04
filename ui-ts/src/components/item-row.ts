@@ -49,7 +49,12 @@ export class ItemRow extends LitElement {
   `;
 
   render() {
+    console.log('Tags for item', this.id, ':', this.tags);
+    console.log('ext-readonly value:', this.tags['ext-readonly']);
+    console.log('Type of ext-readonly:', typeof this.tags['ext-readonly']);
+    
     const isReadonly = this.tags['ext-readonly'] === 't' || this.tags['ext-readonly'] === 'true';
+    console.log('isReadonly result:', isReadonly);
     
     return html`
       <div class="row">
