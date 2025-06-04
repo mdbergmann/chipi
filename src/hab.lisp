@@ -149,6 +149,7 @@ Cleaning means all attached bindings are re-created and persistence are re-attac
 An `:initial-value' can be used to specify the initial value of the item.
 A `:group' key can used to specify to which `itemgroup' the `item' should belong.
 It will then be added to the group.
+A `:tags' key can be used to specify tags as an alist of (key . value) pairs.
 
 Bindings can be defined as a list of `binding's.
 The `binding' arguments are passed to `binding:make-function-binding'.
@@ -162,7 +163,7 @@ Persistences are references via `:persistence' key.
 
 See `hab-test.lisp' and `item' for more examples."
   (with-gensyms
-      (body-forms item old-item bindings binding p-rep p-reps persp initial-value itemgroup)
+      (body-forms item old-item bindings binding p-rep p-reps persp initial-value itemgroup tags)
     `(progn
        (when-let ((,old-item (get-item ,id)))
          (log:info "Cleaning old item: " ,id)
@@ -181,10 +182,14 @@ See `hab-test.lisp' and `item' for more examples."
               (,itemgroup (loop :for (k v) :on ,body-forms
                                 :if (eq k :group)
                                   :return v))
+              (,tags (loop :for (k v) :on ,body-forms
+                           :if (eq k :tags)
+                             :return v))
               (,item (item:make-item ,id
                                      :label ,label
                                      :type-hint ,type-hint
-                                     :initial-value ,initial-value)))
+                                     :initial-value ,initial-value
+                                     :tags ,tags)))
          (if ,itemgroup
              ;; adding the new item will replace the previous item
              ;; because use of hash-table where key is the item-id

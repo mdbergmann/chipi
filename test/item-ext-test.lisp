@@ -76,3 +76,23 @@
          (ht (item-to-ht item)))
     (declare (ignore _))
     (is (string= "INTEGER" (gethash "type-hint" ht)))))
+
+(test item-to-ht--with-tags
+  (let* ((item (make-instance 'item :receive t
+                                    :state (make-item-state :value 1)
+                                    :name "item3"
+                                    :label "label3"
+                                    :tags '((ui-readonly . t)
+                                            (category . "sensor"))))
+         (ht (item-to-ht item)))
+    (is (equal '((ui-readonly . t)
+                 (category . "sensor"))
+               (gethash "tags" ht)))))
+
+(test item-to-ht--without-tags
+  (let* ((item (make-instance 'item :receive t
+                                    :state (make-item-state :value 1)
+                                    :name "item4"
+                                    :label "label4"))
+         (ht (item-to-ht item)))
+    (is (eq 'cl:null (gethash "tags" ht)))))

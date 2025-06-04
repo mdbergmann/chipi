@@ -45,10 +45,12 @@ Used e.g. for API or persistences."
                    :value (item-value-ext-to-internal (gethash "value" ht))))
 
 (defun item-to-ht (item)
-  (let ((type-hint (value-type-hint item)))
+  (let ((type-hint (value-type-hint item))
+        (tags (tags item)))
     (plist-hash-table
      (list "name"       (name item)
            "label"      (label item)
            "type-hint"  (if type-hint (symbol-name type-hint) 'cl:null)
+           "tags"       (if tags tags 'cl:null)
            "item-state" (item-state-to-ht (get-item-stateq item)))
      :test #'equal)))
