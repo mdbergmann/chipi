@@ -59,6 +59,8 @@ Items can be marked as read-only for external systems by setting the `:ext-reado
 
 Read-only items can still be read via the REST API but cannot be updated through external calls. The tag value should be the Lisp boolean `t`.
 
+**Note:** This is a convention that should be respected by the UI and external systems. The server does not enforce read-only restrictions - it's up to client implementations to check for the `:ext-readonly` tag and prevent updates accordingly.
+
 ---
 
 ## Creating an API key
