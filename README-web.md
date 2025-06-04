@@ -47,6 +47,18 @@ For a complete, runnable example have a look at
 (defitem 'temp  "Temperature"      'float   :initial-value 21.5)
 ```
 
+### Read-only items
+
+Items can be marked as read-only for external systems by setting the `ext-readonly` tag:
+
+```lisp
+(defitem 'sensor "Temperature sensor" 'float 
+  :initial-value 20.0
+  :tags '(("ext-readonly" . "true")))
+```
+
+Read-only items will not show Toggle/Change buttons in the web UI, preventing accidental modifications of sensor values or other items that should only be updated by the system itself.
+
 ---
 
 ## Creating an API key
