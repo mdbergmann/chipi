@@ -49,20 +49,7 @@ export class ItemRow extends LitElement {
   `;
 
   render() {
-    console.log('=== ITEM ROW DEBUG for', this.id, '===');
-    console.log('Full tags object:', this.tags);
-    console.log('Tags keys:', Object.keys(this.tags));
-    console.log('Tags entries:', Object.entries(this.tags));
-    console.log('ext-readonly raw value:', this.tags['ext-readonly']);
-    console.log('ext-readonly type:', typeof this.tags['ext-readonly']);
-    console.log('ext-readonly JSON.stringify:', JSON.stringify(this.tags['ext-readonly']));
-    console.log('ext-readonly === "t":', this.tags['ext-readonly'] === 't');
-    console.log('ext-readonly === "true":', this.tags['ext-readonly'] === 'true');
-    console.log('ext-readonly === true:', this.tags['ext-readonly'] === true);
-    
-    const isReadonly = this.tags['ext-readonly'] === 't' || this.tags['ext-readonly'] === 'true';
-    console.log('Final isReadonly result:', isReadonly);
-    console.log('=== END DEBUG ===');
+    const isReadonly = this.tags['ext-readonly'] === true || this.tags['ext-readonly'] === 't' || this.tags['ext-readonly'] === 'true';
     
     return html`
       <div class="row">
