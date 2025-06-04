@@ -183,17 +183,18 @@
 
 (test items--get-all--with-tags--200--ok
   (with-fixture api-start-stop (t)
-    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read))))
-      (hab:defitem 'sensor1 "Temperature Sensor" 'float 
-        :initial-value 22.5
-        :tags '((:ui-readonly . t)
-                (:unit . "celsius")
-                (:category . "sensor")))
-      (hab:defitem 'switch1 "Light Switch" 'boolean
-        :initial-value 'item:false
-        :tags '((:ui-readonly . nil)))
-      (hab:defitem 'text1 "Status Text" 'string
-        :initial-value "OK")
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read)))
+           (items (list
+                   (hab:defitem 'sensor1 "Temperature Sensor" 'float 
+                     :initial-value 22.5
+                     :tags '((:ui-readonly . t)
+                             (:unit . "celsius")
+                             (:category . "sensor")))
+                   (hab:defitem 'switch1 "Light Switch" 'boolean
+                     :initial-value 'item:false
+                     :tags '((:ui-readonly . nil)))
+                   (hab:defitem 'text1 "Status Text" 'string
+                     :initial-value "OK"))))
       (multiple-value-bind (body status headers)
           (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
         (declare (ignore headers))
