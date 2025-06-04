@@ -119,6 +119,7 @@ export class ItemList extends LitElement {
                     .value=${i.value}
                     .typeHint=${i.typeHint}
                     .timestamp=${i.timestamp}
+                    .tags=${i.tags || {}}
                     @item-updated=${() => this.load()}>
                   </item-row>`)}
               `)}`
