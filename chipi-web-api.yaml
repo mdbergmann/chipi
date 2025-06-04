@@ -40,6 +40,11 @@ components:
           type: string
           nullable: true
           description: Optional type hint for the value.
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+          description: Key-value pairs of item tags/metadata.
         item-state:
           type: object
           required: [value]
@@ -60,6 +65,9 @@ components:
         name: "temperature-living"
         label: "Living-room temperature"
         type-hint: "number"
+        tags:
+          ext-readonly: "t"
+          location: "living-room"
         item-state:
           value: 21.3
           timestamp: 1712121600
