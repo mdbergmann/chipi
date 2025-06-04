@@ -31,10 +31,11 @@
     (defconfig "chipi")
     (defitemgroup 'group1 "Group1")
     (itemgroup:add-item (get-itemgroup 'group1) (defitem 'item1 "Item1" nil))
-    (is (= 1 (hash-table-count *itemgroups*)))
+    ;; plus 1 for default group
+    (is (= 2 (hash-table-count *itemgroups*)))
     ;; recreate group should preserve the added item
     (defitemgroup 'group1 "Group1")
-    (is (= 1 (hash-table-count *itemgroups*)))
+    (is (= 2 (Hash-table-count *itemgroups*)))
     (is (string= "ITEM1" (item:name (car (get-items-on-group 'group1))))))
   (is (= 0 (hash-table-count *itemgroups*))))
 
