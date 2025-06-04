@@ -212,10 +212,10 @@
             (let ((tags (gethash "tags" sensor1)))
               (is (hash-table-p tags))
               (is (= 3 (hash-table-count tags)))
-              ;; Tags should be a hash table with keyword keys
-              (is (equal t (gethash :ui-readonly tags)))
-              (is (equal "celsius" (gethash :unit tags)))
-              (is (equal "sensor" (gethash :category tags)))))
+              ;; Tags should be a hash table with string keys (after JSON parsing)
+              (is (equal t (gethash "ui-readonly" tags)))
+              (is (equal "celsius" (gethash "unit" tags)))
+              (is (equal "sensor" (gethash "category" tags)))))
           ;; Check switch1 has one tag
           (let ((switch1 (find-if (lambda (item)
                                     (string= "SWITCH1" (gethash "name" item)))
@@ -224,7 +224,7 @@
             (let ((tags (gethash "tags" switch1)))
               (is (hash-table-p tags))
               (is (= 1 (hash-table-count tags)))
-              (is (equal nil (gethash :ui-readonly tags)))))
+              (is (equal nil (gethash "ui-readonly" tags)))))
           ;; Check text1 has empty tags hash table
           (let ((text1 (find-if (lambda (item)
                                   (string= "TEXT1" (gethash "name" item)))
