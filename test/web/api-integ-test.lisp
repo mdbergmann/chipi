@@ -183,6 +183,58 @@
         (is (equal-item-lists-p (octets-to-string body)
                                 item-hts))))))
 
+(test items--get-all--with-tags--200--ok
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read)))
+           (items (list
+                   (hab:defitem 'sensor1 "Temperature Sensor" 'float 
+                     :initial-value 22.5
+                     :tags '((ui-readonly . t)
+                             (unit . "celsius")
+                             (category . "sensor")))
+                   (hab:defitem 'switch1 "Light Switch" 'boolean
+                     :initial-value 'item:false
+                     :tags '((ui-readonly . nil)))
+                   (hab:defitem 'text1 "Status Text" 'string
+                     :initial-value "OK"))))
+      (multiple-value-bind (body status headers)
+          (make-get-items-request `(("X-Api-Key" . ,apikey-id)))
+        (declare (ignore headers))
+        (is (= status 200))
+        ;; Parse response and verify tags
+        (let ((response-items (jzon:parse (octets-to-string body))))
+          (is (= 3 (length response-items)))
+          ;; Check sensor1 has tags
+          (let ((sensor1 (find-if (lambda (item) 
+                                    (string= "sensor1" (gethash "name" item)))
+                                  response-items)))
+            (is (not (null sensor1)))
+            (let ((tags (gethash "tags" sensor1)))
+              (is (listp tags))
+              (is (= 3 (length tags)))
+              ;; Tags should be an alist
+              (is (equal '((ui-readonly . t)
+                           (unit . "celsius")
+                           (category . "sensor"))
+                         tags))))
+          ;; Check switch1 has one tag
+          (let ((switch1 (find-if (lambda (item)
+                                    (string= "switch1" (gethash "name" item)))
+                                  response-items)))
+            (is (not (null switch1)))
+            (let ((tags (gethash "tags" switch1)))
+              (is (listp tags))
+              (is (= 1 (length tags)))
+              (is (equal '((ui-readonly . nil)) tags))))
+          ;; Check text1 has empty tags array
+          (let ((text1 (find-if (lambda (item)
+                                  (string= "text1" (gethash "name" item)))
+                                response-items)))
+            (is (not (null text1)))
+            (let ((tags (gethash "tags" text1)))
+              (is (listp tags))
+              (is (= 0 (length tags))))))))))
+
 ;; --------------------
 ;; get specific item
 ;; --------------------
