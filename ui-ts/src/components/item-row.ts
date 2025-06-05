@@ -51,6 +51,25 @@ export class ItemRow extends LitElement {
       color:#888;
       margin-top:.15em;
     }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+      .row {
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.8rem 1rem;
+      }
+      
+      .row span {
+        flex: none !important;
+        width: 100%;
+      }
+      
+      .button-column {
+        align-self: flex-end;
+        margin-top: 0.5rem;
+      }
+    }
   `;
 
   render() {

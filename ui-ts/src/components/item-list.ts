@@ -34,6 +34,24 @@ export class ItemList extends LitElement {
       cursor:pointer;
     }
     .toolbar button:first-child { margin-right: .7rem; }
+
+    /* Mobile responsive toolbar */
+    @media (max-width: 768px) {
+      .toolbar {
+        padding: 0.5rem;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+      
+      .toolbar button {
+        flex: 1;
+        max-width: 120px;
+      }
+      
+      .toolbar button:first-child { 
+        margin-right: 0; 
+      }
+    }
     .empty{
       padding:1rem;
       text-align:center;
