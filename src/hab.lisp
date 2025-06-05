@@ -85,6 +85,15 @@
      (item:item-state-value item-state)
      (item:item-state-timestamp item-state))))
 
+(defun delete-item (item-id group-id)
+  (let ((item (get-item item-id))
+        (group (or (get-itemgroup group-id) (get-itemgroup 'ch-default))))
+    (when item
+      (item:destroy item)
+      (remhash item-id *items*))
+    (when group
+      (itemgroup:remove-item group item-id))))
+
 (defmacro defconfig (system &body body)
   "Defines a configuration for the environment.
 It will start the environment if it is not already started.
