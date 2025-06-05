@@ -2,7 +2,8 @@
   (:use :cl :item)
   (:nicknames :item-ext)
   (:import-from #:alexandria
-                #:plist-hash-table)
+                #:plist-hash-table
+                #:alist-hash-table)
   (:export #:item-value-ext-to-internal
            #:item-value-internal-to-ext
            #:item-state-to-ht
@@ -52,7 +53,7 @@ Used e.g. for API or persistences."
            "label"      (label item)
            "type-hint"  (if type-hint (symbol-name type-hint) 'cl:null)
            "tags"       (if tags 
-                           (alexandria:alist-hash-table tags :test #'equal)
+                           (alist-hash-table tags :test #'equal)
                            (make-hash-table :test #'equal))  ; Empty hash table for empty tags
            "item-state" (item-state-to-ht (get-item-stateq item)))
      :test #'equal)))
