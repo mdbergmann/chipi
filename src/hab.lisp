@@ -189,7 +189,8 @@ See `hab-test.lisp' and `item' for more examples."
                                      :label ,label
                                      :type-hint ,type-hint
                                      :initial-value ,initial-value
-                                     :tags ,tags)))
+                                     :tags ,tags
+                                     :group ,itemgroup)))
          (if ,itemgroup
              ;; adding the new item will replace the previous item
              ;; because use of hash-table where key is the item-id
