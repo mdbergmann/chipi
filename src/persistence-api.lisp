@@ -86,11 +86,7 @@ Depends on the `delay' setting of the persistence when applied on the item."))
 The caller of this method is handling error conditions, so you don't have to necessarily.
 But you can return more specific '(:error . error-message or condition)."))
 
-<<<<<<< HEAD
 (defgeneric retrieve-range (base-historic-persistence item range &optional aggregate)
-=======
-(defgeneric retrieve-range (base-historic-persistence item range)
->>>>>>> bba0113 (introduced different persistence types.)
   (:documentation "Fetches a range of values of an item from the persistence as a list of `persisted-item's.
 If AGGREGATE is one of :avg, :min or :max, returns a single aggregated `persisted-item'.
 The caller of this method is handling error conditions, so you don't have to necessarily.
