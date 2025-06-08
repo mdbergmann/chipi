@@ -259,7 +259,7 @@ If the apikey is expired, it is implicitly revoked."
                               dir))))
 
 (defmethod marshal:class-persistent-slots ((self apikey))
-  '(identifier expiry))
+  '(identifier expiry access-rights))
 
 (defun %persist-store (backend)
   (with-open-file (out (filepath backend) :direction :output

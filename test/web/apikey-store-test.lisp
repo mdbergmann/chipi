@@ -25,6 +25,7 @@
          sign
          (> (length plain-id) 0)
          (> (length sign) 0))))
+
 (test create-apikey--ok
   (with-fixture simple-file-backend ()
     (let ((signed-apikey-id (create-apikey)))
@@ -41,6 +42,19 @@
       (let ((*apikey-store-backend*
               (make-simple-file-backend #p"/tmp/chipi-web-test/")))
         (is-true (exists-apikey-p signed-apikey-id))))))
+
+(test access-rights--persist-and-reload
+  (with-fixture simple-file-backend ()
+    (let ((apikey-id (create-apikey :access-rights '(:read :update))))
+      (is (has-access-rights-p apikey-id '(:read)))
+      (is (has-access-rights-p apikey-id '(:update)))
+      
+      (let ((*apikey-store-backend*
+              (make-simple-file-backend #p"/tmp/chipi-web-test/")))
+        (is (exists-apikey-p apikey-id))
+        
+        (is (has-access-rights-p apikey-id '(:read)))
+        (is (has-access-rights-p apikey-id '(:update)))))))
 
 (test exists-apikey
   (with-fixture simple-file-backend ()
