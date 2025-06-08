@@ -5,6 +5,7 @@
                 #:hash-table-values)
   (:export #:make-itemgroup
            #:itemgroup
+           #:id
            #:label
            #:name
            #:add-item

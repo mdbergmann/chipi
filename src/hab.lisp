@@ -163,9 +163,16 @@ Persistences are references via `:persistence' key.
 
 See `hab-test.lisp' and `item' for more examples."
   (with-gensyms
-      (body-forms item old-item bindings binding p-rep p-reps persp initial-value itemgroup tags)
+      (body-forms
+       item old-item bindings binding
+       p-rep p-reps persp initial-value
+       itemgroups ig tags)
     `(progn
        (when-let ((,old-item (get-item ,id)))
+         (log:info "Cleaning from itemgroups...")
+         (dolist (,ig (item:group ,old-item))
+           (itemgroup:remove-item (get-itemgroup ,ig) ,id))
+         ;;(setf ,ig nil)
          (log:info "Cleaning old item: " ,id)
          (item:destroy ,old-item)
          (remhash ,id *items*))
@@ -179,7 +186,7 @@ See `hab-test.lisp' and `item' for more examples."
               (,initial-value (loop :for (k v) :on ,body-forms
                                     :if (eq k :initial-value)
                                       :return v))
-              (,itemgroup (loop :for (k v) :on ,body-forms
+              (,itemgroups (loop :for (k v) :on ,body-forms
                                 :if (eq k :group)
                                   :return v))
               (,tags (loop :for (k v) :on ,body-forms
@@ -190,11 +197,12 @@ See `hab-test.lisp' and `item' for more examples."
                                      :type-hint ,type-hint
                                      :initial-value ,initial-value
                                      :tags ,tags
-                                     :group ,itemgroup)))
-         (if ,itemgroup
+                                     :group ,itemgroups)))
+         (if ,itemgroups
              ;; adding the new item will replace the previous item
              ;; because use of hash-table where key is the item-id
-             (itemgroup:add-item (get-itemgroup ,itemgroup) ,item)
+             (dolist (,ig ,itemgroups)
+               (itemgroup:add-item (get-itemgroup ,ig) ,item))
              (itemgroup:add-item (get-itemgroup 'ch-default) ,item))
          (dolist (,binding ,bindings)
            (item:add-binding ,item ,binding))

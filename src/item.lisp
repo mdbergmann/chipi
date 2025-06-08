@@ -47,13 +47,13 @@
    (group :initarg :group
           :initform nil
           :reader group
-          :documentation "The itemgroup this item belongs to.")
+          :documentation "The itemgroups this item belongs to as a list og groups ids.")
    (value-type-hint :initform nil
                     :reader value-type-hint
                     :documentation "A type hint for the item value.
 This is in particular important for persistences that are type specific, like influxdb (within a measurement).")
    (tags :initarg :tags
-         :initform '()
+         :initform nil
          :reader tags
          :documentation "Tags as an association list (alist) of (key . value) pairs.
 A tag can exist without a value, e.g., (ui-readonly . nil), or with a value, e.g., (category . \"sensor\").

@@ -44,14 +44,12 @@
 (defitemgroup 'temps "Temperatures")
 
 (defitem 'switch1 "Switch1" 'boolean :initial-value 'item:false
-  :group 'plugs
-  :group 'lights
-  :group 'switches)
+  :group '(plugs lights switches))
 (defitem 'light1 "Light1" 'float :initial-value 'item:true
-  :group 'lights)
+  :group '(lights))
 (defitem 'plug1 "Plug1" 'string :initial-value 'item:false
-  :group 'plugs)
+  :group '(plugs))
 (defitem 'outside-temp "Outside temperature" 'integer :initial-value -123
-  :group 'temps)
+  :group '(temps))
 (defitem 'event-1 "Event 1" nil :initial-value "Event occured"
   :tags '((:ext-readonly . t)))

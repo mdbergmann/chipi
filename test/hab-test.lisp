@@ -41,19 +41,36 @@
 
 (test define-items
   "Tests defining items."
-  (flet ((assert-groupitems (item-id group-id)
-           (is (= 1 (length (itemgroup:get-items (get-itemgroup group-id)))))
-           (is (eq (get-item item-id) (car (get-items-on-group group-id))))))
+  (labels ((get-items-of-groups (group-ids)
+             (alexandria:flatten
+              (mapcar #'get-items-on-group group-ids)))
+           (assert-item-in-groups (item-id group-ids)
+             (is (= (length group-ids)
+                    (length (filter (lambda (x) (equal (act-cell:name x)
+                                                  (symbol-name item-id)))
+                                    (get-items-of-groups
+                                     (mapcar #'itemgroup:id (get-itemgroups))))))))
+           (assert-groupitems (item-id group-ids)
+             (is (= (length group-ids)
+                    (length (get-items-of-groups group-ids))))
+             (is (member (get-item item-id)
+                         (get-items-of-groups group-ids)))))
     (with-fixture clean-after ()
       (defconfig "chipi")
       (defitemgroup 'group2 "Group2")
+      (defitemgroup 'group3 "Group3")
       (defitem 'temp-a "Temperatur A" nil
-        :group 'group2)
-      (assert-groupitems 'temp-a 'group2)
+        ;; two groups
+        :group '(group2 group3))
+      (assert-groupitems 'temp-a '(group2 group3))
+      (assert-item-in-groups 'temp-a '(group2 group3))
       ;; define item second time, first will be removed
       (defitem 'temp-a "Temperatur A" nil
-        :group 'group2)
-      (assert-groupitems 'temp-a 'group2)
+        ;; one group, item should be removed from group3
+        :group '(group2))
+      (assert-groupitems 'temp-a '(group2))
+      (assert-item-in-groups 'temp-a '(group2))
+
       (defitem 'temp-b "Temperatur B" nil
         (binding
          :initial-delay 0.1
@@ -93,7 +110,7 @@
     ;; Define item with tags
     (defitem 'temp-sensor "Temperature Sensor" 'float
       :initial-value 20.0
-      :group 'sensors
+      :group '(sensors)
       :tags '((:ui-readonly . t)
               (:unit . "celsius")
               (:category . "sensor")))
@@ -101,7 +118,7 @@
     ;; Define item without tags
     (defitem 'humidity-sensor "Humidity Sensor" 'float
       :initial-value 50.0
-      :group 'sensors)
+      :group '(sensors))
     
     ;; Verify tags are set correctly
     (let ((temp-item (get-item 'temp-sensor))
@@ -115,7 +132,7 @@
     ;; Redefine item with different tags
     (defitem 'temp-sensor "Temperature Sensor" 'float
       :initial-value 20.0
-      :group 'sensors
+      :group '(sensors)
       :tags '((:ui-readonly . nil)
               (:unit . "fahrenheit")))
     

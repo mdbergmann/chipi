@@ -30,6 +30,8 @@
        (let ((item (make-item 'my-item :label "label")))
          (is-true item)
          (is-true (typep item 'item))
+         (is-false (tags item))
+         (is-false (group item))
          (is (eq (item:item-state-value (item:get-item-stateq item)) t)))
     (envi:shutdown-env)))
 
@@ -39,6 +41,32 @@
       (is-true item)
       (is-true (typep item 'item))
       (is (eq (item:item-state-value (item:get-item-stateq item)) 12345)))))
+
+(test make-item--with-tags
+  "Test creating item with tags."
+  (with-fixture init-destroy-env ()
+    ;; Test with various tag formats
+    (let ((item (make-item 'my-item 
+                          :label "label" 
+                          :tags '((:ui-readonly . nil)
+                                  (:foo . "whatever")
+                                  (:priority . 5)))))
+      (is-true item)
+      (is (equal '((:ui-readonly . nil) 
+                   (:foo . "whatever")
+                   (:priority . 5)) 
+                 (tags item))))))
+
+(test make-item--with-groups
+  "Test creating item with tags."
+  (with-fixture init-destroy-env ()
+    ;; Test with various tag formats
+    (let ((item (make-item 'my-item 
+                          :label "label" 
+                          :group '(group1 group2))))
+      (is-true item)
+      (is (equal '(group1 group2)
+                 (group item))))))
 
 (test make-item--with-state--get--set
   (with-fixture init-destroy-env ()
@@ -239,32 +267,11 @@ that when loading the value the second (or any more) persistence does not persit
     )
   )
 
-(test make-item--with-tags
-  "Test creating item with tags."
-  (with-fixture init-destroy-env ()
-    ;; Test with various tag formats
-    (let ((item (make-item 'my-item 
-                          :label "label" 
-                          :tags '((:ui-readonly . nil)
-                                  (:foo . "whatever")
-                                  (:priority . 5)))))
-      (is-true item)
-      (is (equal '((:ui-readonly . nil) 
-                   (:foo . "whatever")
-                   (:priority . 5)) 
-                 (tags item))))))
-
-(test make-item--without-tags
-  "Test creating item without tags defaults to empty list."
-  (with-fixture init-destroy-env ()
-    (let ((item (make-item 'my-item)))
-      (is-true item)
-      (is (null (tags item))))))
 
 (test item--tags-remain-unchanged
   "Test that tags remain unchanged through item lifecycle."
   (with-fixture init-destroy-env ()
-    (let* ((initial-tags '((:ui-readonly . t) (:group . "living-room")))
+    (let* ((initial-tags '((:ui-readonly . t) (:room . "living-room")))
            (item (make-item 'my-item 
                            :initial-value 42
                            :tags initial-tags)))
