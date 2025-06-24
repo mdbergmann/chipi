@@ -1,4 +1,4 @@
-(defpackage :chipi-web.token-store
+(defpackage :chipi-api.token-store
   (:use :cl)
   (:nicknames :token-store)
   (:import-from #:local-time-duration
@@ -18,7 +18,7 @@
            #:*token-store-backend*)
   )
 
-(in-package :chipi-web.token-store)
+(in-package :chipi-api.token-store)
 
 (defvar *token-store-backend* nil)
 

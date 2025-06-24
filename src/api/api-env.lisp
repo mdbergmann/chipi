@@ -1,4 +1,4 @@
-(defpackage :chipi-web.api-env
+(defpackage :chipi-api.api-env
   (:use :cl)
   (:nicknames :api-env)
   (:import-from #:apikey-store
@@ -8,7 +8,7 @@
                 #:duration)
   (:export #:init))
 
-(in-package :chipi-web.api-env)
+(in-package :chipi-api.api-env)
 
 (defun %init-apikey-sign-key ()
   (let ((apikey-sign-key (envi:ensure-runtime-dir "apikey-sign-key")))

@@ -1,4 +1,4 @@
-(defpackage :chipi-web.cryp
+(defpackage :chipi-api.cryp
   (:use :cl :endecode)
   (:nicknames :cryp)
   (:export #:make-hash
@@ -10,7 +10,7 @@
            #:hmac-sign)
   )
 
-(in-package :chipi-web.cryp)
+(in-package :chipi-api.cryp)
 
 (defun make-salt ()
   "Generate a random 16 byte salt."

@@ -1,6 +1,6 @@
-# Chipi-Web
+# Chipi-API
 
-Chipi-Web adds an optional REST/JSON layer on top of the **Chipi** home-automation
+Chipi-API adds an optional REST/JSON layer on top of the **Chipi** home-automation
 framework. It lets you read and update item values via HTTP; every request is
 authorised with scope-based API keys.
 
@@ -12,13 +12,13 @@ authorised with scope-based API keys.
 
 * SBCL ≥ 2.x (or any other supported Common Lisp implementation)  
 * Quicklisp (or OCICL)  
-* ASDF systems `chipi` **and** `chipi-web`
+* ASDF systems `chipi` **and** `chipi-api`
 
 ```lisp
 ;; Quicklisp
-(ql:quickload :chipi-web)
+(ql:quickload :chipi-api)
 ;; OCICL
-(asdf:load-system :chipi-web)
+(asdf:load-system :chipi-api)
 ```
 
 ---
@@ -28,7 +28,7 @@ authorised with scope-based API keys.
 ```lisp
 (hab:defconfig "chipi"
   ;; 1 – initialises runtime, actor system, timers …
-  ;; 2 – Chipi-Web specific environment
+  ;; 2 – Chipi-API specific environment
   (api-env:init
     :apikey-store (apikey-store:make-simple-file-backend) ; or *memory-backend* for testing
     :apikey-lifetime (ltd:duration :day 100))
@@ -74,7 +74,7 @@ Read-only items can still be read via the REST API but cannot be updated through
 
 ## REST interface
 
-A full OpenAPI 3.0 specification lives in `chipi-web-api.yaml`.
+A full OpenAPI 3.0 specification lives in `chipi-api.yaml`.
 
 Besides individual items the API also exposes *itemgroups*, logical
 containers that hold multiple items.

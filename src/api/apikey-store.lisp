@@ -1,4 +1,4 @@
-(defpackage :chipi-web.apikey-store
+(defpackage :chipi-api.apikey-store
   (:use :cl)
   (:nicknames :apikey-store)
   (:import-from #:local-time-duration
@@ -24,7 +24,7 @@
            #:access-rights-error)
   )
 
-(in-package :chipi-web.apikey-store)
+(in-package :chipi-api.apikey-store)
 
 (defvar *apikey-store-backend* nil)
 

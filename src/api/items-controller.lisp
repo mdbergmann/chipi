@@ -1,4 +1,4 @@
-(defpackage :chipi-web.items-controller
+(defpackage :chipi-api.items-controller
   (:use :cl)
   (:nicknames :itemsc)
   (:import-from #:alexandria
@@ -7,7 +7,7 @@
            #:retrieve-item
            #:update-item-value))
 
-(in-package :chipi-web.items-controller)
+(in-package :chipi-api.items-controller)
 
 (defun retrieve-items ()
   "Retrieves all items as list of plists."

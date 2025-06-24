@@ -1,13 +1,13 @@
-(defpackage :chipi-web.itemgroups-controller-test
+(defpackage :chipi-api.itemgroups-controller-test
   (:use :cl :fiveam :cl-mock :itemgroupsc)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :chipi-web.itemgroups-controller-test)
+(in-package :chipi-api.itemgroups-controller-test)
 
 (def-suite itemgroups-controller-tests
   :description "Tests for itemgroups controller."
-  :in chipi-web.tests:test-suite)
+  :in chipi-api.tests:test-suite)
 
 (in-suite itemgroups-controller-tests)
 

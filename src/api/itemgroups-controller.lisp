@@ -1,4 +1,4 @@
-(defpackage :chipi-web.itemgroups-controller
+(defpackage :chipi-api.itemgroups-controller
   (:use :cl)
   (:nicknames :itemgroupsc)
   (:import-from #:alexandria
@@ -6,7 +6,7 @@
   (:export #:retrieve-itemgroups
            #:retrieve-itemgroup))
 
-(in-package :chipi-web.itemgroups-controller)
+(in-package :chipi-api.itemgroups-controller)
 
 (defun retrieve-itemgroups ()
   "Return all itemgroups as list of hash-tables."

@@ -1,4 +1,4 @@
-(defpackage :chipi-web.auth-controller
+(defpackage :chipi-api.auth-controller
   (:use :cl)
   (:nicknames :authc)
   (:export #:verify-apikey
@@ -10,7 +10,7 @@
            #:auth-access-rights-error)
   )
 
-(in-package :chipi-web.auth-controller)
+(in-package :chipi-api.auth-controller)
 
 (define-condition auth-error (simple-condition) ()
   (:report (lambda (condition stream)

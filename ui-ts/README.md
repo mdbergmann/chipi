@@ -53,7 +53,7 @@ The built frontend will be located in the `ui-ts/dist` directory.
 
 ## API
 
-The REST API is documented in [`chipi-web-api.yaml`](chipi-web-api.yaml) (OpenAPI 3.0).
+The REST API is documented in [`chipi-api.yaml`](chipi-api.yaml) (OpenAPI 3.0).
 
 - All requests require a valid API key in the `X-Api-Key` header.
 - Rights are controlled via scopes (`read`, `update`).
@@ -62,7 +62,7 @@ The REST API is documented in [`chipi-web-api.yaml`](chipi-web-api.yaml) (OpenAP
 
 - `ui-ts/` – source code of the web interface (TypeScript, Lit)
 - `src/` – backend source code (Common Lisp)
-- `chipi-web-api.yaml` – OpenAPI specification of the REST API
+- `chipi-api.yaml` – OpenAPI specification of the REST API
 
 ## License
 

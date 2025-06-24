@@ -1,8 +1,8 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   ;; this pulls all the dependencies.
   ;; you may use them in here
-  ;; `chipi-web' depends on `chipi'
-  ;;(asdf:load-system :chipi-web)
+  ;; `chipi-api' depends on `chipi'
+  ;;(asdf:load-system :chipi-api)
   )
 
 ;; we want our own package to be used
@@ -19,7 +19,7 @@
   ;; at this point we can rely on item system `isys', `timers' and `cr' (cron) to be available
   ;; and that a 'runtime' folder was created
 
-  ;; for chipi-web we need to setup additional things
+  ;; for chipi-api we need to setup additional things
   
   ;; 1. setup the `api-env' environment, this creates some crucial runtime data
   ;; 2. setup the api-key store

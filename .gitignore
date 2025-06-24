@@ -8,3 +8,17 @@
 /src/logs/
 .qlot/
 *.lx64fsl
+
+# Aider files
+.aider.*
+
+# Systems directory and CSV
+systems/
+systems.csv
+
+# UI build artifacts and dependencies
+ui-ts/node_modules/
+ui-ts/.env
+
+# Scripts
+create-cert

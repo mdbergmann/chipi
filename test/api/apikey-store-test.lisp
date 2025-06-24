@@ -1,22 +1,22 @@
-(defpackage :chipi-web.apikey-store-test
-  (:use :cl :endecode :fiveam :cl-mock :chipi-web.apikey-store)
+(defpackage :chipi-api.apikey-store-test
+  (:use :cl :endecode :fiveam :cl-mock :chipi-api.apikey-store)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :chipi-web.apikey-store-test)
+(in-package :chipi-api.apikey-store-test)
 
 (def-suite apikey-store-tests
   :description "Tests for apikey store - simple-file backend"
-  :in chipi-web.tests:test-suite)
+  :in chipi-api.tests:test-suite)
 
 (in-suite apikey-store-tests)
 
 (def-fixture simple-file-backend ()
   (unwind-protect
        (let ((*apikey-store-backend*
-               (make-simple-file-backend #p"/tmp/chipi-web-test/")))
+               (make-simple-file-backend #p"/tmp/chipi-api-test/")))
          (&body))
-    (uiop:delete-directory-tree #p"/tmp/chipi-web-test/" :validate t)))
+    (uiop:delete-directory-tree #p"/tmp/chipi-api-test/" :validate t)))
 
 (defun assert-signed-apikey (signed-apikey-id)
   (destructuring-bind (plain-id sign)
@@ -40,7 +40,7 @@
     (let ((signed-apikey-id (create-apikey)))
       ;; set new to trigger reload
       (let ((*apikey-store-backend*
-              (make-simple-file-backend #p"/tmp/chipi-web-test/")))
+              (make-simple-file-backend #p"/tmp/chipi-api-test/")))
         (is-true (exists-apikey-p signed-apikey-id))))))
 
 (test access-rights--persist-and-reload
@@ -50,7 +50,7 @@
       (is (has-access-rights-p apikey-id '(:update)))
       
       (let ((*apikey-store-backend*
-              (make-simple-file-backend #p"/tmp/chipi-web-test/")))
+              (make-simple-file-backend #p"/tmp/chipi-api-test/")))
         (is (exists-apikey-p apikey-id))
         
         (is (has-access-rights-p apikey-id '(:read)))
@@ -98,7 +98,7 @@
 
       ;; reload to check
       (let ((*apikey-store-backend*
-              (make-simple-file-backend #p"/tmp/chipi-web-test/")))
+              (make-simple-file-backend #p"/tmp/chipi-api-test/")))
         (is-false (exists-apikey-p signed-apikey-id))))))
 
 (test revoke-apikey--wrong-sig

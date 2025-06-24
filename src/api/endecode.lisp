@@ -1,4 +1,4 @@
-(defpackage :chipi-web.endecode
+(defpackage :chipi-api.endecode
   (:use :cl :cl-base64)
   (:nicknames :endecode)
   (:export #:octets-to-base64-string
@@ -7,7 +7,7 @@
            #:string-to-octets)
   )
 
-(in-package :chipi-web.endecode)
+(in-package :chipi-api.endecode)
 
 ;; we want '=' as padding character for URI compatibility
 (setf base64::*uri-pad-char* #\=)

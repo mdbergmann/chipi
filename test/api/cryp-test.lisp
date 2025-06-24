@@ -1,13 +1,13 @@
-(defpackage :chipi-web.cryp-test
-  (:use :cl :endecode :fiveam :chipi-web.cryp)
+(defpackage :chipi-api.cryp-test
+  (:use :cl :endecode :fiveam :chipi-api.cryp)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :chipi-web.cryp-test)
+(in-package :chipi-api.cryp-test)
 
 (def-suite cryp-tests
   :description "Tests for crypto helpers"
-  :in chipi-web.tests:test-suite)
+  :in chipi-api.tests:test-suite)
 
 (in-suite cryp-tests)
 

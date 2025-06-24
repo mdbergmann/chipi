@@ -1,4 +1,4 @@
-(defsystem "chipi-web"
+(defsystem "chipi-api"
   :version "0.0.1"
   :author "Manfred Bergmann"
   :license "Apache-2"
@@ -13,7 +13,7 @@
                "cl-base64"
                "marshal"
                "snooze")
-  :components ((:module "src/web"
+  :components ((:module "src/api"
                 :serial t
                 :components
                 ((:file "endecode")
@@ -25,15 +25,15 @@
                  (:file "api-env")
                  (:file "api")
                   )))
-  :in-order-to ((test-op (test-op "chipi-web/tests"))))
+  :in-order-to ((test-op (test-op "chipi-api/tests"))))
 
-(defsystem "chipi-web/tests"
+(defsystem "chipi-api/tests"
   :author "Manfred Bergmann"
-  :depends-on ("chipi-web"
+  :depends-on ("chipi-api"
                "fiveam"
                "cl-mock"
                )
-  :components ((:module "test/web"
+  :components ((:module "test/api"
                 :components
                 ((:file "all-tests")
                  (:file "apikey-store-test")
@@ -42,10 +42,10 @@
                  (:file "itemgroups-controller-test")
                  (:file "api-integ-test")
                  )))
-  :description "Test system for chipi-web, the web API for chipi."
+  :description "Test system for chipi-api, the web API for chipi."
   :perform (test-op (op c) (symbol-call :fiveam :run!
                                         (uiop:find-symbol* '#:test-suite
-                                                           '#:chipi-web.tests))))
+                                                           '#:chipi-api.tests))))
 
 (defun add-dev-dirs ()
   (push #P"~/Development/MySources/cl-hab/" asdf:*central-registry*)
@@ -58,7 +58,7 @@ TODOS:
 
 OK - implement additional 'controller' layer for auth, items, etc.
 OK - setup runtime folder in 'system' folder => chipi.envi
-  -> (print (asdf:system-relative-pathname "chipi-web" ""))
+  -> (print (asdf:system-relative-pathname "chipi-api" ""))
 OK - generate (and read) salt in runtime folder
 OK - store users in runtime folder
 OK - make sure user storage is thread-safe

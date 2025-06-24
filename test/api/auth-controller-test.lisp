@@ -1,13 +1,13 @@
-(defpackage :chipi-web.auth-controller-test
-  (:use :cl :fiveam :cl-mock :chipi-web.auth-controller)
+(defpackage :chipi-api.auth-controller-test
+  (:use :cl :fiveam :cl-mock :chipi-api.auth-controller)
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :chipi-web.auth-controller-test)
+(in-package :chipi-api.auth-controller-test)
 
 (def-suite auth-controller-tests
   :description "Tests for auth controller"
-  :in chipi-web.tests:test-suite)
+  :in chipi-api.tests:test-suite)
 
 (in-suite auth-controller-tests)
 

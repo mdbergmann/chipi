@@ -1,4 +1,4 @@
-(defpackage :chipi-web.api
+(defpackage :chipi-api.api
   (:use :cl :snooze)
   (:nicknames :api)
   (:local-nicknames
@@ -7,7 +7,7 @@
            #:stop)
   )
 
-(in-package :chipi-web.api)
+(in-package :chipi-api.api)
 
 (defvar *api* nil "The API server instance")
 

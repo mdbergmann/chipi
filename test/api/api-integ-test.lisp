@@ -1,15 +1,15 @@
-(defpackage :chipi-web.api-integtest
-  (:use :cl :cl-mock :fiveam :endecode :chipi-web.api)
+(defpackage :chipi-api.api-integtest
+  (:use :cl :cl-mock :fiveam :endecode :chipi-api.api)
   (:local-nicknames
    (#:jzon #:com.inuoe.jzon))
   (:export #:run!
            #:all-tests
            #:nil))
-(in-package :chipi-web.api-integtest)
+(in-package :chipi-api.api-integtest)
 
 (def-suite api-integtests
   :description "Integration/Acceptance tests for the API"
-  :in chipi-web.tests:test-suite)
+  :in chipi-api.tests:test-suite)
 
 (in-suite api-integtests)
 
