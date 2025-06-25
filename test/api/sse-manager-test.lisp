@@ -125,6 +125,89 @@
                        (not (and (eq :not-ready client-id1)
                                  (equal client-id1 client-id2)))))))))))
 
+(test remove-client--removes-existing-client
+  "Test that remove-client removes an existing client"
+  (with-fixture with-sse-manager ()
+    (with-fixture with-isys ()
+      (let ((stream (make-test-stream))
+            (api-key "test-key")
+            (access-rights '(:read)))
+        
+        ;; Step 1: Add a client first
+        (let ((add-future (add-client stream api-key access-rights)))
+          (let (client-id)
+            (is-true (miscutils:await-cond 1
+                       (setf client-id (future:fresult add-future))
+                       (and (stringp client-id)
+                            (search "client-" client-id)))
+                     "Client should be successfully added")
+            
+            ;; Step 2: Remove the client
+            (remove-client client-id)
+            
+            ;; Step 3: Wait for removal to process and verify
+            (is-true (miscutils:await-cond 1
+                       (let ((manager-state (act-cell:state (ensure-sse-manager))))
+                         (= 0 (hash-table-count
+                               (sse-manager::sse-manager-state-clients manager-state)))))
+                     "Client should be removed from the SSE manager's clients hashtable")))))))
+
+(test remove-client--handles-nonexistent-client
+  "Test that remove-client handles non-existent client gracefully"
+  (with-fixture with-sse-manager ()
+    (with-fixture with-isys ()
+      (ensure-sse-manager)
+      (finishes (remove-client "non-existent-client-123")))))
+
+(test remove-client--multiple-clients
+  "Test removing one client while others remain active"
+  (with-fixture with-sse-manager ()
+    (with-fixture with-isys ()
+      (let ((stream1 (make-test-stream))
+            (stream2 (make-test-stream))
+            (api-key "test-key")
+            (access-rights '(:read)))
+        
+        ;; Step 1: Add two clients
+        (let ((future1 (add-client stream1 api-key access-rights))
+              (future2 (add-client stream2 api-key access-rights)))
+          (let (client-id1 client-id2)
+            (is-true (miscutils:await-cond 1
+                       (setf client-id1 (future:fresult future1)
+                             client-id2 (future:fresult future2))
+                       (and (stringp client-id1) (stringp client-id2)
+                            (not (equal client-id1 client-id2))))
+                     "Both clients should be added with different IDs")
+            
+            ;; Step 2: Remove first client
+            (remove-client client-id1)
+            
+            ;; Step 3: Wait for client removal to complete
+            (is-true (miscutils:await-cond 1
+                       (let ((manager-state (act-cell:state (ensure-sse-manager))))
+                         (= 1 (hash-table-count
+                               (sse-manager::sse-manager-state-clients manager-state)))))
+                     "One client should remain after removal")
+            
+            ;; Step 4: Trigger an item change
+            (let ((item (%make-mock-item 'multi-client-test :label "Multi Test" :value 500)))
+              (item:set-value item 600)
+              
+              ;; Step 5: Wait for broadcast and verify only active client receives data
+              (let (output2)
+                (is-true (miscutils:await-cond 2
+                           (progn
+                             (setf output2 (get-test-stream-output stream2))
+                             (and (> (length output2) 0)
+                                  (search "item-change" output2))))
+                         "Active client should receive item change data")
+                
+                ;; Step 6: Verify content and that removed client gets no data
+                (let ((output1 (get-test-stream-output stream1)))
+                  (is (= 0 (length output1)) "Removed client should not receive data")
+                  (is (search "item-change" output2) "Active client should receive item change")
+                  (is (search "600" output2) "Active client should receive new value"))))))))))
+
 (test end-to-end-item-change-broadcast
   "Test complete end-to-end flow: add client → change item → verify SSE broadcast"
   (with-fixture with-sse-manager ()
@@ -152,14 +235,12 @@
             (let (output)
               (is-true (miscutils:await-cond 2
                          (setf output (get-test-stream-output stream))
-                         (format t "The output: ~a~%" output)
                          (and (> (length output) 0)
                               (search "data:" output)
                               (search "item-change" output)))
                        "SSE data should be broadcast to the client stream")
               
               ;; Step 6: Verify the content structure using the captured output
-              (format t "The output: ~a~%" output)
               (is (search "data:" output) "Should contain SSE data prefix")
               (is (search "item-change" output) "Should contain item-change event type")
               (is (search "200" output) "Should contain the new item value")
