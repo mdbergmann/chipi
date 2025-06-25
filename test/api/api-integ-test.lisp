@@ -420,3 +420,33 @@
         (is (= status 404))
         (is (equal (octets-to-string body)
                    "{\"error\":\"Itemgroup 'FOO' not found\"}"))))))
+
+;; -------------------------------------------------
+;; SSE events tests
+;; -------------------------------------------------
+
+(defun make-sse-request (headers)
+  (drakma:http-request "http://localhost:8765/events/items"
+                       :method :get
+                       :accept "application/json"
+                       :additional-headers headers
+                       :verify nil))
+
+(test events--sse-connection--401--require-api-key
+  (with-fixture api-start-stop (nil)
+    (multiple-value-bind (body status headers)
+        (make-sse-request nil)
+      (declare (ignore headers))
+      (is (= status 401))
+      (is (equal (octets-to-string body)
+                 "{\"error\":\"No API key provided\"}")))))
+
+(test events--sse-connection--403--no-read-permission
+  (with-fixture api-start-stop (nil)
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '())))
+      (multiple-value-bind (body status headers)
+          (make-sse-request `(("X-Api-Key" . ,apikey-id)))
+        (declare (ignore headers))
+        (is (= status 403))
+        (is (equal (octets-to-string body)
+                   "{\"error\":\"Insufficient access rights\"}"))))))

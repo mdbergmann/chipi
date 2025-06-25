@@ -240,6 +240,8 @@
           (handle-sse-connection stream)
           ;; Return empty string to prevent further processing
           ""))
-    (condition (c)
-      (log:warn "SSE request failed: ~a" c)
-      (hunchentoot:abort-request-handler 403))))
+    (http-condition (condition)
+      ;; Handle authentication/authorization errors properly
+      (setf (hunchentoot:return-code*) (status-code condition))
+      (@json-out)
+      (%make-json-error-body (simple-condition-format-control condition)))))
