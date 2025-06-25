@@ -450,3 +450,27 @@
         (is (= status 403))
         (is (equal (octets-to-string body)
                    "{\"error\":\"Insufficient access rights\"}"))))))
+
+(test events--sse-connection--200--ok-with-headers
+  (with-fixture api-start-stop (nil)
+    (let ((apikey-id (apikey-store:create-apikey :access-rights '(:read))))
+      (multiple-value-bind (body status headers)
+          (make-sse-request `(("X-Api-Key" . ,apikey-id)))
+        (declare (ignore body))
+        (is (= status 200))
+        ;; Check SSE-specific headers
+        (is (equal (get-header :content-type headers)
+                   "text/event-stream"))
+        (is (equal (get-header :cache-control headers)
+                   "no-cache"))
+        (is (equal (get-header :connection headers)
+                   "keep-alive"))
+        ;; Check security headers
+        (is (equal (get-header :x-xss-protection headers)
+                   "0"))
+        (is (equal (get-header :x-content-type-options headers)
+                   "nosniff"))
+        (is (equal (get-header :x-frame-options headers)
+                   "DENY"))
+        (is (equal (get-header :content-security-policy headers)
+                   "default-src 'none'; frame-ancestors 'none'; sandbox"))))))

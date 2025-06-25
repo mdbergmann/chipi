@@ -233,6 +233,7 @@
   "SSE endpoint for item value changes"
   (handler-case
       (progn
+        (@protection-headers-out)
         (@check-api-key)
         (@check-access-rights '(:read))
         (@sse-headers-out)
