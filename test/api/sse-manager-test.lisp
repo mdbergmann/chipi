@@ -72,6 +72,7 @@
        (&body)
     (isys:shutdown-isys)))
 
+
 (defun %make-mock-item (id &key (label "") (value 42))
   "Create a mock item using the proper item:make-item API"
   (let ((item (item:make-item id :label label)))
@@ -100,10 +101,8 @@
   "Test that add-client returns a client ID"
   (with-fixture with-sse-manager ()
     (with-fixture with-isys ()
-      (let ((stream (make-test-stream))
-            (api-key "test-key")
-            (access-rights '(:read)))
-        (let ((future (add-client stream api-key access-rights)))
+      (let ((stream (make-test-stream)))
+        (let ((future (add-client stream)))
           (is-true (miscutils:await-cond 1
                      (let ((client-id (future:fresult future)))
                        (and (stringp client-id)
@@ -114,11 +113,9 @@
   (with-fixture with-sse-manager ()
     (with-fixture with-isys ()
       (let ((stream1 (make-test-stream))
-            (stream2 (make-test-stream))
-            (api-key "test-key")
-            (access-rights '(:read)))
-        (let ((future1 (add-client stream1 api-key access-rights))
-              (future2 (add-client stream2 api-key access-rights)))
+            (stream2 (make-test-stream)))
+        (let ((future1 (add-client stream1))
+              (future2 (add-client stream2)))
           (is-true (miscutils:await-cond 1                     
                      (let ((client-id1 (future:fresult future1))
                            (client-id2 (future:fresult future2)))
@@ -129,12 +126,10 @@
   "Test that remove-client removes an existing client"
   (with-fixture with-sse-manager ()
     (with-fixture with-isys ()
-      (let ((stream (make-test-stream))
-            (api-key "test-key")
-            (access-rights '(:read)))
+      (let ((stream (make-test-stream)))
         
         ;; Step 1: Add a client first
-        (let ((add-future (add-client stream api-key access-rights)))
+        (let ((add-future (add-client stream)))
           (let (client-id)
             (is-true (miscutils:await-cond 1
                        (setf client-id (future:fresult add-future))
@@ -164,13 +159,11 @@
   (with-fixture with-sse-manager ()
     (with-fixture with-isys ()
       (let ((stream1 (make-test-stream))
-            (stream2 (make-test-stream))
-            (api-key "test-key")
-            (access-rights '(:read)))
+            (stream2 (make-test-stream)))
         
         ;; Step 1: Add two clients
-        (let ((future1 (add-client stream1 api-key access-rights))
-              (future2 (add-client stream2 api-key access-rights)))
+        (let ((future1 (add-client stream1))
+              (future2 (add-client stream2)))
           (let (client-id1 client-id2)
             (is-true (miscutils:await-cond 1
                        (setf client-id1 (future:fresult future1)
@@ -213,12 +206,10 @@
   (with-fixture with-sse-manager ()
     (with-fixture with-isys ()
       ;; Step 1: Add a client to the SSE manager
-      (let ((stream (make-test-stream))
-            (api-key "test-key")
-            (access-rights '(:read)))
+      (let ((stream (make-test-stream)))
         
         ;; Step 2: Register client and wait for confirmation
-        (let ((add-future (add-client stream api-key access-rights)))
+        (let ((add-future (add-client stream)))
           (is-true (miscutils:await-cond 1
                      (let ((client-id (future:fresult add-future)))
                        (and (stringp client-id)

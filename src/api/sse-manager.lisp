@@ -16,10 +16,11 @@
 
 (in-package :chipi-api.sse-manager)
 
+;; Global SSE manager instance
+(defparameter *sse-manager* nil)
+
 (defstruct sse-client
-  stream
-  api-key
-  access-rights)
+  stream)
 
 (defstruct sse-manager-state
   (clients (make-hash-table :test 'equal))
@@ -43,9 +44,7 @@
     ((listp msg)
      (case (car msg)
        (:add-client
-        (%handle-add-client (getf (cdr msg) :stream)
-                            (getf (cdr msg) :api-key)
-                            (getf (cdr msg) :access-rights)))
+        (%handle-add-client (getf (cdr msg) :stream)))
        (:remove-client
         (%handle-remove-client (getf (cdr msg) :client-id)))))))
 
@@ -56,15 +55,13 @@
       (let ((item-data (%serialize-item-for-sse item)))
         (%broadcast-to-clients item-data)))))
 
-(defun %handle-add-client (stream api-key access-rights)
+(defun %handle-add-client (stream)
   "Add a new SSE client connection"
   (let* ((client-id (format nil "client-~a" 
                             (incf (sse-manager-state-client-counter *state*))))
-         (client (make-sse-client :stream stream
-                                  :api-key api-key
-                                  :access-rights access-rights)))
+         (client (make-sse-client :stream stream)))
     (setf (gethash client-id (sse-manager-state-clients *state*)) client)
-    (log:info "Added SSE client: ~a with access rights: ~a" client-id access-rights)
+    (log:info "Added SSE client: ~a" client-id)
     (reply client-id)))
 
 (defun %handle-remove-client (client-id)
@@ -81,16 +78,16 @@
             "data" item-ht)
       :test #'equal))))
 
+
 (defun %broadcast-to-clients (data)
-  "Broadcast data to all connected SSE clients with appropriate access rights"
+  "Broadcast data to all connected SSE clients"
   (let ((clients-to-remove '()))
     (maphash (lambda (client-id client)
-               (when (member :read (sse-client-access-rights client))
-                 (if (%send-sse-data (sse-client-stream client) data)
-                     (log:debug "Sent SSE data to client: ~a" client-id)
-                     (progn
-                       (log:info "Failed to send to client ~a, marking for removal" client-id)
-                       (push client-id clients-to-remove)))))
+               (if (%send-sse-data (sse-client-stream client) data)
+                   (log:debug "Sent SSE data to client: ~a" client-id)
+                   (progn
+                     (log:info "Failed to send to client ~a, marking for removal" client-id)
+                     (push client-id clients-to-remove))))
              (sse-manager-state-clients *state*))
     ;; Remove dead clients
     (dolist (client-id clients-to-remove)
@@ -107,9 +104,9 @@
       (log:warn "Error sending SSE data: ~a" e)
       nil)))
 
-
-;; Global SSE manager instance
-(defparameter *sse-manager* nil)
+;; --------------------------------
+;; public interface
+;; --------------------------------
 
 (defun ensure-sse-manager ()
   "Ensure SSE manager is running"
@@ -117,11 +114,9 @@
     (setf *sse-manager* (make-sse-manager)))
   *sse-manager*)
 
-(defun add-client (stream api-key access-rights)
+(defun add-client (stream)
   "Add a client to the SSE manager"
-  (? (ensure-sse-manager) `(:add-client :stream ,stream 
-                                        :api-key ,api-key 
-                                        :access-rights ,access-rights)))
+  (? (ensure-sse-manager) `(:add-client :stream ,stream)))
 
 (defun remove-client (client-id)
   "Remove a client from the SSE manager"
