@@ -47,9 +47,7 @@
                             (getf (cdr msg) :api-key)
                             (getf (cdr msg) :access-rights)))
        (:remove-client
-        (%handle-remove-client (getf (cdr msg) :client-id)))
-       (:cleanup-dead-clients
-        (%handle-cleanup-dead-clients))))))
+        (%handle-remove-client (getf (cdr msg) :client-id)))))))
 
 (defun %handle-item-changed (event)
   "Handle item change events and broadcast to connected clients"
@@ -109,24 +107,6 @@
       (log:warn "Error sending SSE data: ~a" e)
       nil)))
 
-(defun %handle-cleanup-dead-clients ()
-  "Remove clients with closed connections"
-  (let ((clients-to-remove '()))
-    (maphash (lambda (client-id client)
-               (unless (%stream-open-p (sse-client-stream client))
-                 (push client-id clients-to-remove)))
-             (sse-manager-state-clients *state*))
-    (dolist (client-id clients-to-remove)
-      (%handle-remove-client client-id))
-    (when clients-to-remove
-      (log:info "Cleaned up ~a dead SSE clients" (length clients-to-remove)))))
-
-(defun %stream-open-p (stream)
-  "Check if stream is still open"
-  (handler-case
-      (and (open-stream-p stream)
-           (output-stream-p stream))
-    (error () nil)))
 
 ;; Global SSE manager instance
 (defparameter *sse-manager* nil)
