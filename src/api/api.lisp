@@ -3,6 +3,8 @@
   (:nicknames :api)
   (:local-nicknames
    (#:jzon #:com.inuoe.jzon))
+  (:import-from #:chipi-api.events-controller
+                #:handle-sse-connection)
   (:export #:start
            #:stop)
   )
@@ -17,6 +19,9 @@
     (log:warn "API server already started."))
   (unless *api*
     (push (make-hunchentoot-app) hunchentoot:*dispatch-table*)
+    ;; Add custom SSE handler for events endpoint
+    (push (hunchentoot:create-regex-dispatcher "^/events/items$" 'events-stream)
+          hunchentoot:*dispatch-table*)
     (setf *api* (hunchentoot:start
                  (make-instance 'hunchentoot:easy-acceptor
                                 ;;:ssl-privatekey-file "../../cert/localhost.key"
@@ -211,3 +216,30 @@
                                      (ct snooze-types:application/json))
   (log:warn "HTTP condition: ~a" condition)
   (%make-json-error-body (simple-condition-format-control condition)))
+
+;; -----------------------------------
+;; events (SSE)
+;; -----------------------------------
+
+(defun @sse-headers-out ()
+  "Set SSE-specific headers"
+  (setf (hunchentoot:content-type*) "text/event-stream")
+  (setf (hunchentoot:header-out "Cache-Control") "no-cache")
+  (setf (hunchentoot:header-out "Connection") "keep-alive")
+  (setf (hunchentoot:header-out "Access-Control-Allow-Origin") "*")
+  (setf (hunchentoot:header-out "Access-Control-Allow-Headers") "X-Api-Key"))
+
+(defun events-stream ()
+  "SSE endpoint for item value changes"
+  (handler-case
+      (progn
+        (@check-api-key)
+        (@check-access-rights '(:read))
+        (@sse-headers-out)
+        (let ((stream (hunchentoot:send-headers)))
+          (handle-sse-connection stream)
+          ;; Return empty string to prevent further processing
+          ""))
+    (condition (c)
+      (log:warn "SSE request failed: ~a" c)
+      (hunchentoot:abort-request-handler 403))))

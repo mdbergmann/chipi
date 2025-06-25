@@ -22,6 +22,8 @@
                  (:file "items-controller")
                  (:file "itemgroups-controller")
                  (:file "auth-controller")
+                 (:file "sse-manager")
+                 (:file "events-controller")
                  (:file "api-env")
                  (:file "api")
                   )))
@@ -40,6 +42,8 @@
                  (:file "auth-controller-test")
                  (:file "items-controller-test")
                  (:file "itemgroups-controller-test")
+                 (:file "sse-manager-test")
+                 (:file "events-controller-test")
                  (:file "api-integ-test")
                  )))
   :description "Test system for chipi-api, the web API for chipi."
