@@ -125,8 +125,8 @@ The API provides real-time item updates via Server-Sent Events:
 
 ```bash
 # Connect to item events stream
-curl -H "X-Api-Key: $MY_KEY" -H "Accept: text/event-stream" \
-     http://localhost:8765/events/items
+curl -H "Accept: text/event-stream" \
+     "http://localhost:8765/events/items?apikey=$MY_KEY"
 ```
 
 The SSE endpoint sends:
