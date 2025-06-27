@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        '^/(items|itemgroups).*': {
+        '^/(items|itemgroups|events).*': {
           target: `http://${host}:${port}`,
           changeOrigin: true
         }
