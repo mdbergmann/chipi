@@ -99,6 +99,11 @@
   "Send SSE formatted data to stream, return T on success, NIL on failure"
   (write-sse-data stream data))
 
+(defun cleanup-sse-manager ()
+  (when *sse-manager*
+    (ac:stop (act:context *sse-manager*) *sse-manager*)
+    (setf *sse-manager* nil)))
+
 ;; --------------------------------
 ;; public interface
 ;; --------------------------------

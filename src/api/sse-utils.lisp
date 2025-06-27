@@ -20,19 +20,16 @@
 (defun write-sse-message (stream message-type data &key id event retry)
   "Write a generic SSE message to stream with optional fields.
    Returns T on success, NIL on failure."
+  (declare (ignore message-type))
   (when (not (open-stream-p stream))
     (error 'stream-closed-error))
-  (handler-case
-      (let* ((message (format nil "~@[id: ~a~%~]~@[event: ~a~%~]~@[retry: ~a~%~]data: ~a~%~%"
-                              id event retry data))
-             (message-bytes (flexi-streams:string-to-octets
-                             message :external-format :utf-8)))
-        (write-sequence message-bytes stream)
-        (force-output stream)
-        t)
-    (error (e)
-      (log:warn "Error writing SSE message (~a): ~a" message-type e)
-      nil)))
+  (let* ((message (format nil "~@[id: ~a~%~]~@[event: ~a~%~]~@[retry: ~a~%~]data: ~a~%~%"
+                          id event retry data))
+         (message-bytes (flexi-streams:string-to-octets
+                         message :external-format :utf-8)))
+    (write-sequence message-bytes stream)
+    (force-output stream)
+    t))
 
 (defun write-sse-data (stream data-string)
   "Write SSE data message to stream. Returns T on success, NIL on failure."
