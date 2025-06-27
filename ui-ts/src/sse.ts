@@ -49,8 +49,12 @@ export class ItemEventSource {
         try {
             this.eventSource = new EventSource('/events/items');
 
+            // Add this debugging
+            console.log('Creating EventSource for /events/items');
+            console.log('EventSource created, readyState:', this.eventSource.readyState);
+
             this.eventSource.onopen = () => {
-                console.log('SSE connection opened');
+                console.log('SSE connection opened, readyState:', this.eventSource?.readyState);
                 this.isConnecting = false;
                 this.reconnectDelay = 1000; // Reset reconnect delay on successful connection
             };
