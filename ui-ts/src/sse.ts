@@ -91,13 +91,36 @@ export class ItemEventSource {
                 this.isConnecting = false;
                 this.setOffline();
                 
-                if (this.onError) {
-                    this.onError(error);
-                }
+                // Check if this is a 401 error by trying to detect it
+                // EventSource doesn't give us HTTP status, so we need to check differently
+                if (this.eventSource?.readyState === EventSource.CLOSED) {
+                    // Try a test request to see if it's an auth issue
+                    this.checkAuthStatus().then(isAuthError => {
+                        if (isAuthError) {
+                            console.log('SSE connection failed due to authentication error');
+                            // Trigger need-auth event
+                            window.dispatchEvent(new CustomEvent('need-auth'));
+                            this.shouldReconnect = false; // Don't reconnect on auth errors
+                            return;
+                        }
+                        
+                        // Not an auth error, continue with normal error handling
+                        if (this.onError) {
+                            this.onError(error);
+                        }
 
-                // Handle reconnection
-                if (this.shouldReconnect) {
-                    this.scheduleReconnect();
+                        if (this.shouldReconnect) {
+                            this.scheduleReconnect();
+                        }
+                    });
+                } else {
+                    if (this.onError) {
+                        this.onError(error);
+                    }
+
+                    if (this.shouldReconnect) {
+                        this.scheduleReconnect();
+                    }
                 }
             };
 
@@ -209,6 +232,26 @@ export class ItemEventSource {
 
     getReadyState(): number {
         return this.eventSource?.readyState ?? EventSource.CLOSED;
+    }
+
+    private async checkAuthStatus(): Promise<boolean> {
+        try {
+            const apiKey = getApiKey();
+            if (!apiKey) return true; // No API key = auth error
+            
+            // Make a simple test request to check auth
+            const response = await fetch('/itemgroups', {
+                headers: {
+                    'X-Api-Key': apiKey,
+                    'Accept': 'application/json'
+                }
+            });
+            
+            return response.status === 401 || response.status === 403;
+        } catch (error) {
+            // Network error, not auth error
+            return false;
+        }
     }
 }
 
