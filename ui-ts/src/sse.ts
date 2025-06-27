@@ -29,10 +29,13 @@ export type SSEEvent = SSEItemChangeEvent | SSEConnectionEvent | SSEHeartbeatEve
 export class ItemEventSource {
     private eventSource: EventSource | null = null;
     private reconnectTimeout: number | null = null;
+    private heartbeatTimeout: number | null = null;
     private reconnectDelay = 1000; // Start with 1 second
     private maxReconnectDelay = 30000; // Max 30 seconds
     private isConnecting = false;
     private shouldReconnect = true;
+    private heartbeatInterval = 35000; // 35 seconds (server sends every 30s)
+    private isOnline = false;
 
     constructor(
         private onItemChange: (event: SSEItemChangeEvent) => void,
@@ -69,7 +72,9 @@ export class ItemEventSource {
             this.eventSource.onopen = () => {
                 console.log('SSE connection opened, readyState:', this.eventSource?.readyState);
                 this.isConnecting = false;
+                this.isOnline = true;
                 this.reconnectDelay = 1000; // Reset reconnect delay on successful connection
+                this.startHeartbeatMonitoring();
             };
 
             this.eventSource.onmessage = (event) => {
@@ -84,6 +89,7 @@ export class ItemEventSource {
             this.eventSource.onerror = (error) => {
                 console.error('SSE connection error:', error);
                 this.isConnecting = false;
+                this.setOffline();
                 
                 if (this.onError) {
                     this.onError(error);
@@ -98,29 +104,66 @@ export class ItemEventSource {
         } catch (error) {
             console.error('Failed to create EventSource:', error);
             this.isConnecting = false;
+            this.setOffline();
             if (this.shouldReconnect) {
                 this.scheduleReconnect();
             }
         }
     }
 
+    private startHeartbeatMonitoring(): void {
+        this.clearHeartbeatTimeout();
+        this.heartbeatTimeout = window.setTimeout(() => {
+            console.warn('Heartbeat timeout - connection appears to be dead');
+            this.setOffline();
+            if (this.shouldReconnect) {
+                this.scheduleReconnect();
+            }
+        }, this.heartbeatInterval);
+    }
+
+    private clearHeartbeatTimeout(): void {
+        if (this.heartbeatTimeout) {
+            clearTimeout(this.heartbeatTimeout);
+            this.heartbeatTimeout = null;
+        }
+    }
+
+    private setOffline(): void {
+        if (this.isOnline) {
+            this.isOnline = false;
+            if (this.onError) {
+                this.onError(new Event('offline'));
+            }
+        }
+        this.clearHeartbeatTimeout();
+    }
+
     private handleSSEEvent(event: SSEEvent): void {
         switch (event.type) {
             case 'item-change':
                 this.onItemChange(event);
+                this.resetHeartbeatTimeout();
                 break;
             case 'connection':
                 console.log('SSE connection established:', event.message);
                 if (this.onConnection) {
                     this.onConnection(event);
                 }
+                this.resetHeartbeatTimeout();
                 break;
             case 'heartbeat':
                 console.debug('SSE heartbeat received');
+                this.resetHeartbeatTimeout();
                 break;
             default:
                 console.warn('Unknown SSE event type:', event);
         }
+    }
+
+    private resetHeartbeatTimeout(): void {
+        this.clearHeartbeatTimeout();
+        this.startHeartbeatMonitoring();
     }
 
     private scheduleReconnect(): void {
@@ -144,6 +187,7 @@ export class ItemEventSource {
 
     disconnect(): void {
         this.shouldReconnect = false;
+        this.clearHeartbeatTimeout();
         
         if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);
@@ -156,10 +200,11 @@ export class ItemEventSource {
         }
 
         this.isConnecting = false;
+        this.isOnline = false;
     }
 
     isConnected(): boolean {
-        return this.eventSource?.readyState === EventSource.OPEN;
+        return this.isOnline && this.eventSource?.readyState === EventSource.OPEN;
     }
 
     getReadyState(): number {
