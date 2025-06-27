@@ -35,7 +35,6 @@ export class ItemList extends LitElement {
       font:inherit;
       cursor:pointer;
     }
-    .toolbar button:first-child { margin-right: .7rem; }
     .sse-status {
       display: flex;
       align-items: center;
@@ -57,13 +56,13 @@ export class ItemList extends LitElement {
     @media (max-width: 768px) {
       .toolbar {
         padding: 0.5rem;
-        justify-content: center;
+        justify-content: space-between;
         gap: 0.5rem;
       }
       
       .toolbar button {
-        flex: 1;
-        max-width: 120px;
+        flex: none;
+        max-width: none;
       }
       
       .toolbar button:first-child { 
@@ -184,7 +183,6 @@ export class ItemList extends LitElement {
           ${this.sseConnected ? 'Live' : 'Offline'}
         </div>
         <button @click=${this.setApiKey}>Set API-Key</button>
-        <button @click=${() => this.load()}>Refresh</button>
       </div>
       ${this.error
         ? html`<div class="error">${this.error}</div>`
