@@ -70,7 +70,7 @@ Read-only items can still be read via the REST API but cannot be updated through
   (apikey-store:create-apikey :access-rights '(:read :update)))
 ```
 
-### API-key persistence
+### API key persistence
 
 ```lisp
 (api-env:init
