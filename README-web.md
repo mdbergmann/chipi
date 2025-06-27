@@ -70,6 +70,15 @@ Read-only items can still be read via the REST API but cannot be updated through
   (apikey-store:create-apikey :access-rights '(:read :update)))
 ```
 
+### API-key persistence
+
+```lisp
+(api-env:init
+  :apikey-store (apikey-store:make-simple-file-backend))
+```
+
+The file backend stores keys in `runtime/apikeys`.
+
 ---
 
 ## REST interface
@@ -184,17 +193,6 @@ echo $((3913123456 - 2208988800))  # Result: 1704134656 (Unix timestamp)
 
 The highest requested scope must not exceed the highest scope granted to the
 API key.
-
----
-
-## API-key persistence
-
-```lisp
-(api-env:init
-  :apikey-store (apikey-store:make-simple-file-backend))
-```
-
-The file backend stores keys in `runtime/apikeys`.
 
 ---
 
