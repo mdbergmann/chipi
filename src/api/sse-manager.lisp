@@ -96,8 +96,9 @@
       (%handle-remove-client client-id))))
 
 (defun %send-sse-data (stream data)
-  "Send SSE formatted data to stream, return T on success, NIL on failure"
-  (write-sse-data stream data))
+  "Send SSE formatted data to stream, return NIL on failure"
+  (ignore-errors
+   (write-sse-data stream data)))
 
 (defun cleanup-sse-manager ()
   (when *sse-manager*
