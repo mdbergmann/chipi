@@ -11,7 +11,6 @@ export class ItemRow extends LitElement {
   @property({ type: Number }) timestamp?: number;
   @property({ type: Object }) tags: Record<string, string> = {};
   
-  @state() private previousValue: any = null;
   @state() private isHighlighted = false;
 
   static styles = css`
