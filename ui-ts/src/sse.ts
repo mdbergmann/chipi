@@ -47,7 +47,11 @@ export class ItemEventSource {
         this.shouldReconnect = true;
 
         try {
-            this.eventSource = new EventSource('/events/items');
+            const url = '/events/items';
+            const fullUrl = new URL(url, window.location.origin).toString();
+            console.log('Attempting to connect to SSE endpoint:', fullUrl);
+            
+            this.eventSource = new EventSource(url);
 
             // Add this debugging
             console.log('Creating EventSource for /events/items');
