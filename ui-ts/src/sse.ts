@@ -1,3 +1,5 @@
+import { getApiKey } from './storage';
+
 export interface SSEItemChangeEvent {
     type: 'item-change';
     data: {
@@ -47,7 +49,14 @@ export class ItemEventSource {
         this.shouldReconnect = true;
 
         try {
-            const url = '/events/items';
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                console.error('No API key available for SSE connection');
+                this.isConnecting = false;
+                return;
+            }
+
+            const url = `/events/items?apikey=${encodeURIComponent(apiKey)}`;
             const fullUrl = new URL(url, window.location.origin).toString();
             console.log('Attempting to connect to SSE endpoint:', fullUrl);
             

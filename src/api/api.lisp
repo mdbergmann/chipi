@@ -85,8 +85,9 @@
 (defun @check-api-key ()
   (flet ((error-response (err-message)
            (http-condition hunchentoot:+http-authorization-required+ err-message)))
-    ;; api-key header
-    (let ((apikey (hunchentoot:header-in* "X-Api-Key")))
+    ;; Check header first, then query parameter
+    (let ((apikey (or (hunchentoot:header-in* "X-Api-Key")
+                      (hunchentoot:get-parameter "apikey"))))
       (unless apikey
         (error-response "No API key provided"))
 
