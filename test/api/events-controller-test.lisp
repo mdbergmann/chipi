@@ -78,7 +78,6 @@
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 0)) ; Exit immediately after initial message
       (answer chipi-api.sse-manager:add-client client-id)
-      (answer chipi-api.sse-manager:remove-client nil)
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
@@ -102,7 +101,6 @@
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 0)) ; Exit immediately after initial message
       (answer chipi-api.sse-manager:add-client client-id)
-      (answer chipi-api.sse-manager:remove-client nil)
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
@@ -119,7 +117,6 @@
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 2)) ; Send initial message + 2 heartbeats
       (answer chipi-api.sse-manager:add-client client-id)
-      (answer chipi-api.sse-manager:remove-client nil)
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
@@ -155,6 +152,54 @@
       (is (= 0 (length (invocations 'chipi-api.sse-manager:remove-client)))
           "Should not call remove-client on normal completion"))))
 
+(test handle-sse-connection--removes-client-on-error
+  "Test that handle-sse-connection removes client when an error occurs"
+  (with-mocks ()
+    (let ((stream (make-test-stream))
+          (client-id "test-client-error")
+          (*heartbeat-sleep-time-s* 10.0)
+          (*max-heartbeats* nil)) ; Unlimited heartbeats
+      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:remove-client nil)
+      
+      (close-test-stream stream)
+      
+      (signals sse-utils:stream-closed-error (handle-sse-connection stream))
+      
+      (is (= 0 (length (invocations 'chipi-api.sse-manager:add-client)))
+          "Should call add-client exactly once")
+      (is (= 0 (length (invocations 'chipi-api.sse-manager:remove-client)))
+          "Should call remove-client exactly once on error"))))
+
+(test handle-sse-connection--removes-client-on-error-after-add
+  (with-mocks ()
+    (let ((stream (make-test-stream))
+          (client-id "test-client-error")
+          (*heartbeat-sleep-time-s* .01)
+          (*max-heartbeats* nil)) ; Unlimited heartbeats
+      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:remove-client nil)
+
+      (let ((thread (bt2:make-thread
+                     (lambda ()
+                       (handle-sse-connection stream))
+                     :name "SSE runner"
+                     :initial-bindings
+                     `((*heartbeat-sleep-time-s* . 0.01)
+                       (*max-heartbeats* . nil)))))
+        (declare (ignore thread))
+
+        (is-true (miscutils:await-cond 1.0
+                   (= 1 (length (invocations 'chipi-api.sse-manager:add-client)))))
+        (is (= 0 (length (invocations 'chipi-api.sse-manager:remove-client))))
+
+        ;; sleep at least *heartbeat-sleep-time-s* before closing the stream
+        (sleep 0.1)
+        (close-test-stream stream)
+
+        (is-true (miscutils:await-cond 1.0
+                   (= 1 (length (invocations 'chipi-api.sse-manager:remove-client)))))))))
+
 (test handle-sse-connection--message-format-validation
   "Test that SSE messages follow correct format"
   (with-mocks ()
@@ -163,7 +208,6 @@
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 1)) ; Send initial message + 1 heartbeat
       (answer chipi-api.sse-manager:add-client client-id)
-      (answer chipi-api.sse-manager:remove-client nil)
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
@@ -187,7 +231,6 @@
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 1)) ; Send initial message + 1 heartbeat
       (answer chipi-api.sse-manager:add-client client-id)
-      (answer chipi-api.sse-manager:remove-client nil)
       
       ;; Test the function
       (finishes (handle-sse-connection stream))

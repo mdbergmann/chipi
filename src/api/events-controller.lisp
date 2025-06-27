@@ -7,7 +7,8 @@
                 #:remove-client)
   (:import-from #:chipi-api.sse-utils
                 #:write-sse-connection
-                #:write-sse-heartbeat)
+                #:write-sse-heartbeat
+                #:stream-closed-error)
   (:import-from #:alexandria
                 #:plist-hash-table)
   (:export #:handle-sse-connection
@@ -26,7 +27,6 @@
   "Handle SSE connection for a given stream (server-agnostic)"
   (log:info "Handle sse-connection...")
 
-  ;; Send initial connection message
   (write-sse-connection stream "Connected to item events")
   
   ;; Add client to SSE manager

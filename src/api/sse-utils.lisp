@@ -7,13 +7,21 @@
   (:export #:write-sse-message
            #:write-sse-data
            #:write-sse-heartbeat
-           #:write-sse-connection))
+           #:write-sse-connection
+           #:stream-closed-error))
 
 (in-package :chipi-api.sse-utils)
+
+(define-condition stream-closed-error (simple-condition) ()
+  (:report (lambda (condition stream)
+             (declare (ignore condition))
+             (format stream "Stream is closed!"))))
 
 (defun write-sse-message (stream message-type data &key id event retry)
   "Write a generic SSE message to stream with optional fields.
    Returns T on success, NIL on failure."
+  (when (not (open-stream-p stream))
+    (error 'stream-closed-error))
   (handler-case
       (let* ((message (format nil "~@[id: ~a~%~]~@[event: ~a~%~]~@[retry: ~a~%~]data: ~a~%~%"
                               id event retry data))
