@@ -154,7 +154,22 @@ data: {"type":"heartbeat","timestamp":1703123456}
 | `data.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`) |
 | `data.tags` | object | Item metadata (including `:ext-readonly` flag) |
 | `data.item-state.value` | any | Current item value |
-| `data.item-state.timestamp` | number | Unix timestamp when value changed |
+| `data.item-state.timestamp` | number | Common Lisp universal-time timestamp (seconds since 1900-01-01) |
+
+#### Timestamp Format
+
+Timestamps are provided as Common Lisp universal-time values (seconds since January 1st, 1900, 00:00:00 GMT). To convert to Unix timestamp (seconds since 1970-01-01), subtract 2208988800:
+
+```javascript
+// Convert CL universal-time to Unix timestamp
+const unixTimestamp = universalTime - 2208988800;
+const date = new Date(unixTimestamp * 1000);
+```
+
+```bash
+# Convert in shell (example with timestamp 3913123456)
+echo $((3913123456 - 2208988800))  # Result: 1704134656 (Unix timestamp)
+```
 
 ---
 
