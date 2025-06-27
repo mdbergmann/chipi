@@ -86,25 +86,31 @@ export class ItemRow extends LitElement {
     }
   `;
 
-  updated(changedProperties: Map<string, any>) {
+  willUpdate(changedProperties: Map<string, any>) {
     if (changedProperties.has('value')) {
       const newValue = this.value;
       const oldValue = changedProperties.get('value');
       
       // Only highlight if the value actually changed and this isn't the initial render
       if (oldValue !== undefined && oldValue !== newValue) {
-        this.highlightChange();
+        // Schedule highlight change for after this update completes
+        Promise.resolve().then(() => {
+          this.highlightChange();
+        });
       }
     }
   }
 
   private highlightChange() {
-    this.isHighlighted = true;
-    
-    // Remove highlight after a short delay
-    setTimeout(() => {
-      this.isHighlighted = false;
-    }, 2000);
+    // Only highlight if not already highlighted to prevent cascading updates
+    if (!this.isHighlighted) {
+      this.isHighlighted = true;
+      
+      // Remove highlight after a short delay
+      setTimeout(() => {
+        this.isHighlighted = false;
+      }, 2000);
+    }
   }
 
   render() {
