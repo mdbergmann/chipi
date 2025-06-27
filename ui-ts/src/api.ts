@@ -43,13 +43,9 @@ export const fetchItemgroups = () =>
       const networkError = new Error('API server is not reachable.');
       (networkError as any).isNetworkError = true;
       throw networkError;
-    } else if (error.response.status >= 500) {
-      // Echter Server-Fehler
-      const serverError = new Error(`Server error: ${error.response.status}${error.response.statusText ? ' – ' + error.response.statusText : ''}`);
-      (serverError as any).response = error.response;
-      throw serverError;
     } else {
-      // Andere HTTP-Fehler (401, 403, etc.)
+      // Für alle anderen Fehler (401, 403, 500, etc.) - lass den interceptor die Events handhaben
+      // und wirf den ursprünglichen Fehler weiter
       throw error;
     }
   });

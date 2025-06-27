@@ -153,8 +153,8 @@ export class ItemList extends LitElement {
         // Spezielle Behandlung für Netzwerkfehler
         this.error = 'API server is not reachable.';
       } else {
-        // Fallback für alle anderen Fehler (einschließlich echter Server-Fehler)
-        this.error = e.message || 'Unknown error occurred.';
+        // Für alle anderen Fehler - zeige keine Fehlermeldung, da der interceptor bereits Events ausgelöst hat
+        this.error = null;
       }
       this.groups = [];
     }
