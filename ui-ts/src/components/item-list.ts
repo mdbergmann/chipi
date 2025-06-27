@@ -158,20 +158,18 @@ export class ItemList extends LitElement {
                           { bubbles: true, composed: true,
                             detail: { message: 'API key does not have sufficient rights.' } })
         );
+      } else if (e.isNetworkError) {
+        // Spezielle Behandlung für Netzwerkfehler
+        this.error = 'API server is not reachable.';
+      } else if (e?.response?.status >= 500) {
+        // Echter Server-Fehler
+        const { status, statusText } = e.response;
+        this.error = `Server error: ${status}${statusText ? ' – ' + statusText : ''}`;
       } else {
-        /* Axios error without response  ⇒ network/proxy issue.
-           All other TypeError etc.      ⇒ invalid server JSON. */
-        if (!e?.response) {
-          this.error =
-            e instanceof TypeError
-              ? 'Invalid server response.'
-              : 'API server is not reachable.';
-        } else {                              // any other (unexpected) HTTP status
-          const { status, statusText } = e.response;
-          this.error = `Server error: ${status}${statusText ? ' – ' + statusText : ''}`;
-        }
-        this.groups = [];
+        // Fallback für andere Fehler
+        this.error = e.message || 'Unknown error occurred.';
       }
+      this.groups = [];
     }
   }
 
