@@ -127,6 +127,35 @@ The SSE endpoint sends:
 
 Event format follows the SSE standard with `data:` fields containing JSON payloads.
 
+#### Event Types
+
+**Connection Event:**
+```
+data: {"type":"connection","message":"Connected to item events"}
+```
+
+**Item Change Event:**
+```
+data: {"type":"item-change","data":{"name":"lamp","label":"Living-room lamp","type-hint":"boolean","tags":{},"item-state":{"value":true,"timestamp":1703123456}}}
+```
+
+**Heartbeat Event:**
+```
+data: {"type":"heartbeat","timestamp":1703123456}
+```
+
+#### Item Change Payload Structure
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Always `"item-change"` |
+| `data.name` | string | Item identifier |
+| `data.label` | string | Human-readable item name |
+| `data.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`) |
+| `data.tags` | object | Item metadata (including `:ext-readonly` flag) |
+| `data.item-state.value` | any | Current item value |
+| `data.item-state.timestamp` | number | Unix timestamp when value changed |
+
 ---
 
 ## Scope model
