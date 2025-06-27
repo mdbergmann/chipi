@@ -7,6 +7,7 @@ This is a web interface for the Chipi system to display and control items via a 
 - Display all item groups with its items and their name, label, value, type hint, and timestamp
 - Value modification (including toggle for boolean values)
 - API key authentication
+- Real-time updates via Server-Sent Events (SSE)
 - Error handling for missing or insufficient rights
 - Responsive UI using Lit und TypeScript
 
@@ -57,6 +58,16 @@ The REST API is documented in [`chipi-api.yaml`](chipi-api.yaml) (OpenAPI 3.0).
 
 - All requests require a valid API key in the `X-Api-Key` header.
 - Rights are controlled via scopes (`read`, `update`).
+
+## Real-time Updates
+
+The UI automatically connects to the SSE endpoint to receive real-time item updates. When an item value changes on the server, the UI will:
+
+- Update the displayed value immediately
+- Highlight the changed item for 2 seconds
+- Maintain the connection with automatic reconnection on failure
+
+No additional configuration is required - the SSE connection is established automatically when the UI loads.
 
 ## Project structure
 

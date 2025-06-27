@@ -86,6 +86,7 @@ containers that hold multiple items.
 | `/items/{itemName}` | POST   | `update`       |
 | `/itemgroups`            | GET    | `read`         |
 | `/itemgroups/{groupName}` | GET    | `read`         |
+| `/events`           | GET    | `read`         |
 
 Add header `X-Api-Key: <your-key>` to every call.
 
@@ -108,6 +109,23 @@ curl -H "X-Api-Key: $MY_KEY" http://localhost:8765/itemgroups/living
 curl -X POST -H "X-Api-Key: $MY_KEY" -H "Content-Type: application/json" \
      -d '{"value": true}' http://localhost:8765/items/lamp
 ```
+
+### Server-Sent Events (SSE)
+
+The API provides real-time item updates via Server-Sent Events:
+
+```bash
+# Connect to item events stream
+curl -H "X-Api-Key: $MY_KEY" -H "Accept: text/event-stream" \
+     http://localhost:8765/events
+```
+
+The SSE endpoint sends:
+- Connection confirmation messages
+- Real-time item change notifications with full item data
+- Periodic heartbeat messages to keep the connection alive
+
+Event format follows the SSE standard with `data:` fields containing JSON payloads.
 
 ---
 
