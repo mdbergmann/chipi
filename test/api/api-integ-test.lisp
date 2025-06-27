@@ -474,3 +474,84 @@
                    "DENY"))
         (is (equal (get-header :content-security-policy headers)
                    "default-src 'none'; frame-ancestors 'none'; sandbox"))))))
+
+(test events--sse-streaming--200--client-registration-and-events-plus-heartbeats
+  (with-fixture api-start-stop (t)
+    (flet ((find-in-sse-data (pred sse-data)
+             (find-if pred sse-data))
+           (filter-heartbeat-msgs (sse-data)
+             (loop :for line :across sse-data
+                   :if (and (stringp line)
+                            (search "\"type\":\"heartbeat\"" line))
+                     :collect line)))
+      (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read :update)))
+             (item (hab:defitem 'test-sensor "Test Sensor" 'float :initial-value 20.0))
+             (sse-data (make-array 0 :adjustable t :fill-pointer 0))
+             (connection-established nil)
+             (test-completed nil)
+             (heartbeat-sleep-s eventsc:*heartbeat-sleep-time-s*)
+             (max-heartbeats eventsc:*max-heartbeats*))
+        (setf eventsc:*heartbeat-sleep-time-s* 0.1
+              eventsc:*max-heartbeats* 2)
+      
+        ;; Create persistent SSE connection using Drakma with streaming
+        (let ((sse-thread 
+                (bt2:make-thread 
+                 (lambda ()
+                   (handler-case
+                       (multiple-value-bind (stream status headers)
+                           (drakma:http-request "http://localhost:8765/events/items"
+                                                :method :get
+                                                :accept "text/event-stream"
+                                                :additional-headers `(("X-Api-Key" . ,apikey-id))
+                                                :close nil
+                                                :want-stream t
+                                                :keep-alive t)
+                         (declare (ignore headers))
+                         (when (= status 200)
+                           (setf connection-established t))
+                       
+                         ;; Read SSE events for a limited time
+                         (loop :with start-time := (get-universal-time)
+                               :for line := (read-line stream nil nil)
+                               :while (and line 
+                                           (< (- (get-universal-time) start-time) 5)
+                                           (not test-completed))
+                               :do (when (> (length line) 0)
+                                     (vector-push-extend line sse-data)))
+                         (when stream (close stream)))
+                     (error (e) 
+                       (format t "SSE connection error: ~a~%" e))))
+                 :name "sse-test-client")))
+        
+          (is-true (miscutils:await-cond 2.0 connection-established))
+          ;; wait for 1 connected client (internal API)
+          (is-true (miscutils:await-cond 2.0
+                     (= 1 (hash-table-count
+                           (sse-manager::sse-manager-state-clients
+                            (act-cell:state sse-manager::*sse-manager*))))))
+
+          (is (find-in-sse-data (lambda (line)
+                                  (search
+                                   "{\"type\":\"connection\",\"message\":\"Connected to item events\"}"
+                                   line))
+                                sse-data))
+
+          ;; now update the value
+          (item:set-value item 25.5)
+
+          (is-true (miscutils:await-cond 2.0
+                     (= 4 (length sse-data))))
+          
+          (is (find-in-sse-data (lambda (line) 
+                                  (and (stringp line)
+                                       (search "data:" line)
+                                       (search "TEST-SENSOR" line)
+                                       (search "25.5" line)))
+                                sse-data))
+          ;; wait for 2 heartbeats as well
+          (is (= 2 (length (filter-heartbeat-msgs sse-data))))
+          (ignore-errors
+           (bt2:destroy-thread sse-thread))
+          (setf eventsc:*heartbeat-sleep-time-s* heartbeat-sleep-s
+                eventsc:*max-heartbeats* max-heartbeats))))))

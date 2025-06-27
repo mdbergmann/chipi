@@ -22,6 +22,7 @@
                  (:file "items-controller")
                  (:file "itemgroups-controller")
                  (:file "auth-controller")
+                 (:file "sse-utils")
                  (:file "sse-manager")
                  (:file "events-controller")
                  (:file "api-env")

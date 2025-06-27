@@ -9,6 +9,8 @@
                 #:reply
                 #:*state*
                 #:*self*)
+  (:import-from #:chipi-api.sse-utils
+                #:write-sse-data)
   (:export #:make-sse-manager
            #:ensure-sse-manager
            #:add-client
@@ -95,14 +97,7 @@
 
 (defun %send-sse-data (stream data)
   "Send SSE formatted data to stream, return T on success, NIL on failure"
-  (handler-case
-      (progn
-        (format stream "data: ~a~%~%" data)
-        (force-output stream)
-        t)
-    (error (e)
-      (log:warn "Error sending SSE data: ~a" e)
-      nil)))
+  (write-sse-data stream data))
 
 ;; --------------------------------
 ;; public interface
