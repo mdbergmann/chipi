@@ -86,7 +86,7 @@ containers that hold multiple items.
 | `/items/{itemName}` | POST   | `update`       |
 | `/itemgroups`            | GET    | `read`         |
 | `/itemgroups/{groupName}` | GET    | `read`         |
-| `/events`           | GET    | `read`         |
+| `/events/items`     | GET    | `read`         |
 
 Add header `X-Api-Key: <your-key>` to every call.
 
@@ -117,7 +117,7 @@ The API provides real-time item updates via Server-Sent Events:
 ```bash
 # Connect to item events stream
 curl -H "X-Api-Key: $MY_KEY" -H "Accept: text/event-stream" \
-     http://localhost:8765/events
+     http://localhost:8765/events/items
 ```
 
 The SSE endpoint sends:
