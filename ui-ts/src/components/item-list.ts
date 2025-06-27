@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { fetchItemgroups } from '../api';
+import { getGlobalEventSource, SSEItemChangeEvent, disconnectGlobalEventSource } from '../sse';
 import './item-row';
 
 interface Item { name: string; label?: string; value: any; typeHint?: string; timestamp?: number; tags?: Record<string, string>; }
@@ -13,6 +14,7 @@ interface Itemgroup {
 export class ItemList extends LitElement {
   @state() private groups: Itemgroup[] = [];
   @state() private error: string | null = null;
+  @state() private sseConnected: boolean = false;
 
   static styles = css`
     .error {
@@ -34,6 +36,22 @@ export class ItemList extends LitElement {
       cursor:pointer;
     }
     .toolbar button:first-child { margin-right: .7rem; }
+    .sse-status {
+      display: flex;
+      align-items: center;
+      margin-right: auto;
+      font-size: 0.9em;
+    }
+    .sse-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+      background: #ccc;
+    }
+    .sse-indicator.connected {
+      background: #4caf50;
+    }
 
     /* Mobile responsive toolbar */
     @media (max-width: 768px) {
@@ -70,6 +88,47 @@ export class ItemList extends LitElement {
     super.connectedCallback();
     this.load().catch(console.error);
     this.addEventListener('need-auth', () => this.requestUpdate());
+    this.setupSSE();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    disconnectGlobalEventSource();
+  }
+
+  private setupSSE() {
+    const eventSource = getGlobalEventSource(
+      (event: SSEItemChangeEvent) => this.handleItemChange(event),
+      (event) => {
+        console.log('SSE connected:', event.message);
+        this.sseConnected = true;
+      },
+      (error) => {
+        console.error('SSE error:', error);
+        this.sseConnected = false;
+      }
+    );
+    
+    eventSource.connect();
+  }
+
+  private handleItemChange(event: SSEItemChangeEvent) {
+    const { data } = event;
+    const itemName = data.name;
+    const newValue = data['item-state'].value;
+    const newTimestamp = data['item-state'].timestamp;
+
+    // Update the item in the current groups
+    this.groups = this.groups.map(group => ({
+      ...group,
+      items: group.items.map(item => 
+        item.name === itemName 
+          ? { ...item, value: newValue, timestamp: newTimestamp }
+          : item
+      )
+    }));
+
+    console.log(`Item ${itemName} updated via SSE to value:`, newValue);
   }
 
   private async load() {
@@ -120,6 +179,10 @@ export class ItemList extends LitElement {
   render() {
     return html`
       <div class="toolbar">
+        <div class="sse-status">
+          <div class="sse-indicator ${this.sseConnected ? 'connected' : ''}"></div>
+          ${this.sseConnected ? 'Live' : 'Offline'}
+        </div>
         <button @click=${this.setApiKey}>Set API-Key</button>
         <button @click=${() => this.load()}>Refresh</button>
       </div>
@@ -138,7 +201,7 @@ export class ItemList extends LitElement {
                     .typeHint=${i.typeHint}
                     .timestamp=${i.timestamp}
                     .tags=${i.tags || {}}
-                    @item-updated=${() => this.load()}>
+                    @item-updated=${() => {}}>
                   </item-row>`)}
               `)}`
       }

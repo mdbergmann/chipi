@@ -10,6 +10,9 @@ export class ItemRow extends LitElement {
   @property({ type: Object }) value: any = null;
   @property({ type: Number }) timestamp?: number;
   @property({ type: Object }) tags: Record<string, string> = {};
+  
+  @state() private previousValue: any = null;
+  @state() private isHighlighted = false;
 
   static styles = css`
     :host{display:block}
@@ -38,6 +41,17 @@ export class ItemRow extends LitElement {
     }
     .bool-on  { color:#2e7d32; font-weight:600; }   /* green */
     .bool-off { color:#b8860b; font-weight:600; }   /* dark yellow */
+    .row.highlighted {
+      background: #e8f5e8 !important;
+      transition: background-color 0.5s ease-in-out;
+    }
+    .value-changed {
+      animation: flash 0.5s ease-in-out;
+    }
+    @keyframes flash {
+      0% { background-color: #4caf50; }
+      100% { background-color: transparent; }
+    }
     .item-info .item-label{
       display:block;
       font-size:.85em;
@@ -72,6 +86,27 @@ export class ItemRow extends LitElement {
     }
   `;
 
+  updated(changedProperties: Map<string, any>) {
+    if (changedProperties.has('value')) {
+      const newValue = this.value;
+      const oldValue = changedProperties.get('value');
+      
+      // Only highlight if the value actually changed and this isn't the initial render
+      if (oldValue !== undefined && oldValue !== newValue) {
+        this.highlightChange();
+      }
+    }
+  }
+
+  private highlightChange() {
+    this.isHighlighted = true;
+    
+    // Remove highlight after a short delay
+    setTimeout(() => {
+      this.isHighlighted = false;
+    }, 2000);
+  }
+
   render() {
     const isReadonly = this.tags['ext-readonly'] === true || this.tags['ext-readonly'] === 't' || this.tags['ext-readonly'] === 'true';
     
@@ -86,7 +121,7 @@ export class ItemRow extends LitElement {
     }
     
     return html`
-      <div class="row">
+      <div class="row ${this.isHighlighted ? 'highlighted' : ''}">
         <span class="item-info">
           <span class="item-name">${this.id}</span>
           ${this.label ? html`<span class="item-label">${this.label}</span>` : ''}
