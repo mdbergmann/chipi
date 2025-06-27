@@ -106,7 +106,8 @@
   "Assumes that API key exists and is valid"
   (flet ((error-response (err-message)
            (http-condition hunchentoot:+http-forbidden+ err-message)))
-    (let ((apikey (hunchentoot:header-in* "X-Api-Key")))
+    (let ((apikey (or (hunchentoot:header-in* "X-Api-Key")
+                      (hunchentoot:get-parameter "apikey"))))
       (handler-case
           (authc:verify-access-rights apikey required-rights)
         (authc:auth-access-rights-error (condition)

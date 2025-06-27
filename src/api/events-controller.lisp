@@ -44,7 +44,7 @@
             (when (and *max-heartbeats* (>= heartbeat-count *max-heartbeats*))
               (return))
             (sleep *heartbeat-sleep-time-s*) ; Send heartbeat based on dynamic variable
-            (log:info "Sending heartbeat...")
+            (log:debug "Sending heartbeat (~a)" client-id)
             (write-sse-heartbeat stream (get-universal-time))
             (when *max-heartbeats*
               (incf heartbeat-count))))
