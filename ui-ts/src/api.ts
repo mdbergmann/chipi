@@ -17,8 +17,11 @@ api.interceptors.response.use(
   err => {
     if (err?.response?.status === 401) {
       window.dispatchEvent(new CustomEvent('need-auth'));
+    } else if (err?.response?.status === 403) {
+      window.dispatchEvent(new CustomEvent('need-auth', { 
+        detail: { message: 'API key does not have sufficient rights.' } 
+      }));
     }
-    // No need-auth event anymore for 403!
     return Promise.reject(err);
   }
 );

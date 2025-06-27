@@ -149,16 +149,7 @@ export class ItemList extends LitElement {
         }))
         .filter(g => g.items.length > 0);
     } catch (e: any) {
-      if (e?.response?.status === 401) {
-        this.dispatchEvent(new CustomEvent('need-auth', { bubbles: true, composed: true }));
-      } else if (e?.response?.status === 403) {
-        this.error = 'Insufficient access rights.';
-        this.dispatchEvent(
-          new CustomEvent('need-auth',
-                          { bubbles: true, composed: true,
-                            detail: { message: 'API key does not have sufficient rights.' } })
-        );
-      } else if (e.isNetworkError) {
+      if (e.isNetworkError) {
         // Spezielle Behandlung für Netzwerkfehler
         this.error = 'API server is not reachable.';
       } else {
