@@ -50,7 +50,7 @@ export class ItemComponent {
     }
 
     private getMetaText(): string {
-        const timestamp = new Date((this.item['item-state'].timestamp - 2208988800) * 1000);
+        const timestamp = new Date(this.item['item-state'].timestamp * 1000);
         const typeText = this.getTypeText();
         return `${typeText} • ${timestamp.toLocaleString('de-DE')}`;
     }
