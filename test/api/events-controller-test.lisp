@@ -11,6 +11,11 @@
 
 (in-suite events-controller-tests)
 
+(def-fixture with-fake-streams ()
+  "Fixture that provides clean fake streams for each test"
+  (chipi-api.sse-fake-stream:setup-fake-streams)
+  (&body))
+
 (defun parse-sse-data (output)
   "Parse SSE data from stream output and return list of parsed JSON objects"
   (let ((lines (split-sequence:split-sequence #\Newline output))
@@ -29,7 +34,8 @@
 
 (test handle-sse-connection--sends-initial-connection-message
   "Test that handle-sse-connection sends initial connection message"
-  (with-mocks ()
+  (with-fixture with-fake-streams ()
+    (with-mocks ()
     (let ((stream (make-test-stream))
           (client-id "test-client-123")
           (*heartbeat-sleep-time-s* 0.001)
@@ -48,11 +54,12 @@
             (is (equal "connection"
                        (gethash "type" msg)) "Should be connection type")
             (is (equal "Connected to item events"
-                       (gethash "message" msg)) "Should have correct message")))))))
+                       (gethash "message" msg)) "Should have correct message"))))))))
 
 (test handle-sse-connection--adds-client-to-sse-manager
   "Test that handle-sse-connection adds client to SSE manager"
-  (with-mocks ()
+  (with-fixture with-fake-streams ()
+    (with-mocks ()
     (let ((stream (make-test-stream))
           (client-id "test-client-456")
           (*heartbeat-sleep-time-s* 0.001)
@@ -64,11 +71,12 @@
       
       ;; Verify add-client was called with the stream
       (is (= 1 (length (invocations 'chipi-api.sse-manager:add-client)))
-          "Should call add-client once"))))
+          "Should call add-client once")))))
 
 (test handle-sse-connection--sends-heartbeat-messages
   "Test that handle-sse-connection sends periodic heartbeat messages"
-  (with-mocks ()
+  (with-fixture with-fake-streams ()
+    (with-mocks ()
     (let ((stream (make-test-stream))
           (client-id "test-client-789")
           (*heartbeat-sleep-time-s* 0.001)
@@ -89,11 +97,12 @@
           (is (>= (length heartbeat-msgs) 1) "Should send at least 1 heartbeat message")
           ;; Check heartbeat message structure
           (dolist (hb heartbeat-msgs)
-            (is (gethash "timestamp" hb) "Heartbeat should have timestamp")))))))
+            (is (gethash "timestamp" hb) "Heartbeat should have timestamp"))))))))
 
 (test handle-sse-connection--removes-client-on-normal-completion
   "Test that handle-sse-connection removes client when function completes"
-  (with-mocks ()
+  (with-fixture with-fake-streams ()
+    (with-mocks ()
     (let ((stream (make-test-stream))
           (client-id "test-client-normal")
           (*heartbeat-sleep-time-s* 0.001)
@@ -107,11 +116,12 @@
       ;; Since there's no error, remove-client should not be called
       ;; This test verifies that remove-client is only called on errors, not normal completion
       (is (= 0 (length (invocations 'chipi-api.sse-manager:remove-client)))
-          "Should not call remove-client on normal completion"))))
+          "Should not call remove-client on normal completion")))))
 
 (test handle-sse-connection--removes-client-on-error
   "Test that handle-sse-connection removes client when an error occurs"
-  (with-mocks ()
+  (with-fixture with-fake-streams ()
+    (with-mocks ()
     (let ((stream (make-test-stream))
           (client-id "test-client-error")
           (*heartbeat-sleep-time-s* 10.0)
@@ -126,10 +136,11 @@
       (is (= 0 (length (invocations 'chipi-api.sse-manager:add-client)))
           "Should call add-client exactly once")
       (is (= 0 (length (invocations 'chipi-api.sse-manager:remove-client)))
-          "Should call remove-client exactly once on error"))))
+          "Should call remove-client exactly once on error")))))
 
 (test handle-sse-connection--removes-client-on-error-after-add
-  (with-mocks ()
+  (with-fixture with-fake-streams ()
+    (with-mocks ()
     (let ((stream (make-test-stream))
           (client-id "test-client-error")
           (*heartbeat-sleep-time-s* .01)
@@ -155,11 +166,12 @@
         (close-test-stream stream)
 
         (is-true (miscutils:await-cond 1.0
-                   (= 1 (length (invocations 'chipi-api.sse-manager:remove-client)))))))))
+                   (= 1 (length (invocations 'chipi-api.sse-manager:remove-client))))))))))
 
 (test handle-sse-connection--message-format-validation
   "Test that SSE messages follow correct format"
-  (with-mocks ()
+  (with-fixture with-fake-streams ()
+    (with-mocks ()
     (let ((stream (make-test-stream))
           (client-id "test-client-format")
           (*heartbeat-sleep-time-s* 0.001)
@@ -178,11 +190,12 @@
               (is (and (>= (length line) 6)
                        (string= "data: " (subseq line 0 6)))
                   "All non-empty lines should start with 'data: '"))))        
-        (is (search "data: " output) "Should contain SSE data")))))
+        (is (search "data: " output) "Should contain SSE data"))))))
 
 (test handle-sse-connection--json-structure-validation
   "Test that JSON messages have correct structure"
-  (with-mocks ()
+  (with-fixture with-fake-streams ()
+    (with-mocks ()
     (let ((stream (make-test-stream))
           (client-id "test-client-json")
           (*heartbeat-sleep-time-s* 0.001)
@@ -201,4 +214,4 @@
           (is (gethash "type" msg) "Each message should have a 'type' field")
           (is (member (gethash "type" msg)
                       '("connection" "heartbeat") :test #'equal)
-              "Message type should be 'connection' or 'heartbeat'"))))))
+              "Message type should be 'connection' or 'heartbeat'")))))))

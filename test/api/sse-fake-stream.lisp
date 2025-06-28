@@ -1,16 +1,20 @@
 (defpackage :chipi-api.sse-fake-stream
   (:use :cl)
-  (:export #:*test-streams*
-           #:make-test-stream
+  (:export #:make-test-stream
            #:get-test-stream-output
            #:test-stream-closed-p
            #:close-test-stream
-           #:clear-test-stream-output))
+           #:clear-test-stream-output
+           #:setup-fake-streams))
 
 (in-package :chipi-api.sse-fake-stream)
 
 ;; Use regular string streams for testing but track them
 (defvar *test-streams* (make-hash-table :test 'eq))
+
+(defun setup-fake-streams ()
+  "Initialize/reset the fake streams hashtable for testing"
+  (setf *test-streams* (make-hash-table :test 'eq)))
 
 (defun make-test-stream ()
   "Create a test stream that works with write-sequence of octets (like Hunchentoot chunked streams)"

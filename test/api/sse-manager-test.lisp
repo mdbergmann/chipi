@@ -28,6 +28,11 @@
        (&body)
     (isys:shutdown-isys)))
 
+(def-fixture with-fake-streams ()
+  "Fixture that provides clean fake streams for each test"
+  (chipi-api.sse-fake-stream:setup-fake-streams)
+  (&body))
+
 
 (defun %make-mock-item (id &key (label "") (value 42))
   "Create a mock item using the proper item:make-item API"
@@ -55,19 +60,21 @@
 
 (test add-client--returns-client-id
   "Test that add-client returns a client ID"
-  (with-fixture with-sse-manager ()
-    (with-fixture with-isys ()
+  (with-fixture with-fake-streams ()
+    (with-fixture with-sse-manager ()
+      (with-fixture with-isys ()
       (let ((stream (make-test-stream)))
         (let ((future (add-client stream)))
           (is-true (miscutils:await-cond 1
                      (let ((client-id (future:fresult future)))
                        (and (stringp client-id)
-                            (search "client-" client-id))))))))))
+                            (search "client-" client-id)))))))))))
 
 (test add-client--increments-counter
   "Test that adding multiple clients generates different IDs"
-  (with-fixture with-sse-manager ()
-    (with-fixture with-isys ()
+  (with-fixture with-fake-streams ()
+    (with-fixture with-sse-manager ()
+      (with-fixture with-isys ()
       (let ((stream1 (make-test-stream))
             (stream2 (make-test-stream)))
         (let ((future1 (add-client stream1))
@@ -76,12 +83,13 @@
                      (let ((client-id1 (future:fresult future1))
                            (client-id2 (future:fresult future2)))
                        (not (and (eq :not-ready client-id1)
-                                 (equal client-id1 client-id2)))))))))))
+                                 (equal client-id1 client-id2))))))))))))
 
 (test remove-client--removes-existing-client
   "Test that remove-client removes an existing client"
-  (with-fixture with-sse-manager ()
-    (with-fixture with-isys ()
+  (with-fixture with-fake-streams ()
+    (with-fixture with-sse-manager ()
+      (with-fixture with-isys ()
       (let ((stream (make-test-stream)))
         
         ;; Step 1: Add a client first
@@ -101,7 +109,7 @@
                        (let ((manager-state (act-cell:state (ensure-sse-manager))))
                          (= 0 (hash-table-count
                                (sse-manager::sse-manager-state-clients manager-state)))))
-                     "Client should be removed from the SSE manager's clients hashtable")))))))
+                     "Client should be removed from the SSE manager's clients hashtable"))))))))
 
 (test remove-client--handles-nonexistent-client
   "Test that remove-client handles non-existent client gracefully"
@@ -112,8 +120,9 @@
 
 (test remove-client--multiple-clients
   "Test removing one client while others remain active"
-  (with-fixture with-sse-manager ()
-    (with-fixture with-isys ()
+  (with-fixture with-fake-streams ()
+    (with-fixture with-sse-manager ()
+      (with-fixture with-isys ()
       (let ((stream1 (make-test-stream))
             (stream2 (make-test-stream)))
         
@@ -155,12 +164,13 @@
                 (let ((output1 (get-test-stream-output stream1)))
                   (is (= 0 (length output1)) "Removed client should not receive data")
                   (is (search "item-change" output2) "Active client should receive item change")
-                  (is (search "600" output2) "Active client should receive new value"))))))))))
+                  (is (search "600" output2) "Active client should receive new value")))))))))))
 
 (test end-to-end-item-change-broadcast
   "Test complete end-to-end flow: add client → change item → verify SSE broadcast"
-  (with-fixture with-sse-manager ()
-    (with-fixture with-isys ()
+  (with-fixture with-fake-streams ()
+    (with-fixture with-sse-manager ()
+      (with-fixture with-isys ()
       ;; Step 1: Add a client to the SSE manager
       (let ((stream (make-test-stream)))
         
@@ -191,4 +201,4 @@
               (is (search "data:" output) "Should contain SSE data prefix")
               (is (search "item-change" output) "Should contain item-change event type")
               (is (search "200" output) "Should contain the new item value")
-              (is (search "BROADCAST-TEST-ITEM" output) "Should contain the item name"))))))))
+              (is (search "BROADCAST-TEST-ITEM" output) "Should contain the item name")))))))))
