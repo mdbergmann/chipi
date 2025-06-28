@@ -11,8 +11,6 @@
 
 (in-suite sse-manager-tests)
 
-;; -------------------------
-
 (def-fixture with-sse-manager ()
   "Fixture that provides a fresh SSE manager for testing"
   (let ((sse-manager::*sse-manager* nil))
