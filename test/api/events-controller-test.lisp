@@ -24,8 +24,8 @@
       (when (> (length line) 0)
         (handler-case
             (let ((parsed (com.inuoe.jzon:parse line)))
-              (when (gethash "data" parsed)
-                (push (gethash "data" parsed) messages)))
+              (when (gethash "event" parsed)
+                (push (gethash "event" parsed) messages)))
           (error ()
             ;; Skip lines that aren't valid JSON
             nil))))
@@ -186,16 +186,16 @@
       
       ;; Verify SSE message format
       (let ((output (get-test-stream-output stream)))
-        ;; Check that all non-empty lines are valid JSON with data wrapper
+        ;; Check that all non-empty lines are valid JSON with event wrapper
         (let ((lines (split-sequence:split-sequence #\Newline output)))
           (dolist (line lines)
             (when (> (length line) 0)
               (handler-case
                   (let ((parsed (com.inuoe.jzon:parse line)))
-                    (is (gethash "data" parsed) "All non-empty lines should be JSON with 'data' field"))
+                    (is (gethash "event" parsed) "All non-empty lines should be JSON with 'event' field"))
                 (error ()
                   (fail "All non-empty lines should be valid JSON"))))))        
-        (is (search "\"data\":" output) "Should contain JSON data"))))))
+        (is (search "\"event\":" output) "Should contain JSON event"))))))
 
 (test handle-sse-connection--json-structure-validation
   "Test that JSON messages have correct structure"

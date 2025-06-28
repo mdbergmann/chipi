@@ -194,12 +194,12 @@
               (is-true (miscutils:await-cond 2
                          (setf output (get-test-stream-output stream))
                          (and (> (length output) 0)
-                              (search "\"data\":" output)
+                              (search "\"event\":" output)
                               (search "item-change" output)))
                        "SSE data should be broadcast to the client stream")
               
               ;; Step 6: Verify the content structure using the captured output
-              (is (search "\"data\":" output) "Should contain JSON data field")
+              (is (search "\"event\":" output) "Should contain JSON event field")
               (is (search "item-change" output) "Should contain item-change event type")
               (is (search "200" output) "Should contain the new item value")
               (is (search "BROADCAST-TEST-ITEM" output) "Should contain the item name")))))))))
