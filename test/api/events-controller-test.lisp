@@ -17,15 +17,18 @@
   (&body))
 
 (defun parse-sse-data (output)
-  "Parse SSE data from stream output and return list of parsed JSON objects"
+  "Parse JSON data from stream output and return list of parsed JSON objects"
   (let ((lines (split-sequence:split-sequence #\Newline output))
         (messages '()))
     (dolist (line lines)
-      (when (and (> (length line) 6)
-                 (string= "data: " (subseq line 0 6)))
-        (let ((json-str (subseq line 6)))
-          (when (> (length json-str) 0)
-            (push (com.inuoe.jzon:parse json-str) messages)))))
+      (when (> (length line) 0)
+        (handler-case
+            (let ((parsed (com.inuoe.jzon:parse line)))
+              (when (gethash "data" parsed)
+                (push (gethash "data" parsed) messages)))
+          (error ()
+            ;; Skip lines that aren't valid JSON
+            nil))))
     (nreverse messages)))
 
 ;; -------------------------
@@ -183,14 +186,16 @@
       
       ;; Verify SSE message format
       (let ((output (get-test-stream-output stream)))
-        ;; Check that all non-empty lines that are not just separators start with "data: "
+        ;; Check that all non-empty lines are valid JSON with data wrapper
         (let ((lines (split-sequence:split-sequence #\Newline output)))
           (dolist (line lines)
             (when (> (length line) 0)
-              (is (and (>= (length line) 6)
-                       (string= "data: " (subseq line 0 6)))
-                  "All non-empty lines should start with 'data: '"))))        
-        (is (search "data: " output) "Should contain SSE data"))))))
+              (handler-case
+                  (let ((parsed (com.inuoe.jzon:parse line)))
+                    (is (gethash "data" parsed) "All non-empty lines should be JSON with 'data' field"))
+                (error ()
+                  (fail "All non-empty lines should be valid JSON"))))))        
+        (is (search "\"data\":" output) "Should contain JSON data"))))))
 
 (test handle-sse-connection--json-structure-validation
   "Test that JSON messages have correct structure"

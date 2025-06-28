@@ -18,14 +18,17 @@
              (format stream "Stream is closed!"))))
 
 (defun write-sse-message (stream data &key id event retry)
-  "Write a generic SSE message to stream with optional fields.
+  "Write a JSON message to stream without SSE formatting.
    Returns T on success, NIL on failure."
+  (declare (ignore id event retry))
   (when (not (open-stream-p stream))
     (error 'stream-closed-error))
-  (let* ((message (format nil "~@[id: ~a~%~]~@[event: ~a~%~]~@[retry: ~a~%~]data: ~a~%~%"
-                          id event retry data))
+  (let* ((json-wrapper (jz:stringify
+                        (plist-hash-table
+                         (list "data" (jz:parse data))
+                         :test #'equal)))
          (message-bytes (flexi-streams:string-to-octets
-                         message :external-format :utf-8)))
+                         json-wrapper :external-format :utf-8)))
     (write-sequence message-bytes stream)
     (force-output stream)
     t))

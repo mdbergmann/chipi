@@ -486,6 +486,7 @@
            (filter-heartbeat-msgs (sse-data)
              (loop :for line :in sse-data
                    :if (and (stringp line)
+                            (search "\"data\":" line)
                             (search "\"type\":\"heartbeat\"" line))
                      :collect line)))
       (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read :update)))
@@ -510,7 +511,8 @@
                   :for line := (read-line stream nil nil)
                   :do (when (> (length line) 0)
                         (push line sse-data))
-                      (when (search "\"type\":\"connection\"" line)
+                      (when (and (search "\"data\":" line)
+                                 (search "\"type\":\"connection\"" line))
                         ;; now update the value
                         (item:set-value item 25.5))
                       (when (= 4 (length sse-data))
@@ -519,7 +521,7 @@
         
             (is (find-in-sse-data (lambda (line) 
                                     (and (stringp line)
-                                         (search "data:" line)
+                                         (search "\"data\":" line)
                                          (search "TEST-SENSOR" line)
                                          (search "25.5" line)))
                                   sse-data))
