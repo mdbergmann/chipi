@@ -87,9 +87,8 @@ export class ChipiApiClient {
             return null;
         }
         
-        // Für Entwicklung: direkt zur API verbinden, nicht über Proxy
-        const apiUrl = this.baseUrl || 'http://localhost:8765';
-        const url = `${apiUrl}/events/items?apikey=${encodeURIComponent(this.apiKey)}`;
+        // Für Entwicklung: Proxy verwenden (leerer baseUrl bedeutet relative URL)
+        const url = `/events/items?apikey=${encodeURIComponent(this.apiKey)}`;
         console.log('Creating EventSource with URL:', url); // Debug-Log
         return new EventSource(url);
     }
