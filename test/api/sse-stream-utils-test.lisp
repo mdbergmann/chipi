@@ -66,10 +66,11 @@
 (test write-sse-data-with-string
   "Test write-sse-data with string input"
   (let ((stream (make-test-stream)))
-    (is (eq t (write-sse-data stream "simple string")))
+    (is (eq t (write-sse-data stream "{\"message\": \"simple string\"}")))
     (let* ((output (get-stream-output stream))
-           (parsed (first (parse-json-output output))))
-      (is (equal "simple string" (gethash "data" parsed))))))
+           (parsed (first (parse-json-output output)))
+           (data-part (gethash "data" parsed)))
+      (is (equal "simple string" (gethash "message" data-part))))))
 
 (test write-sse-data-with-hash-table
   "Test write-sse-data with hash table input"
@@ -95,18 +96,26 @@
 (test write-sse-data-with-complex-data
   "Test write-sse-data with nested data structures"
   (let ((stream (make-test-stream))
-        (data (plist-hash-table 
-               '("item" 
-                 ("name" "test-item" 
-                  "state" ("value" 100 "timestamp" 1234567890))
-                 "metadata" ("tags" ("readonly" "true")))
+        (data (alexandria:plist-hash-table 
+               (list "item" (alexandria:plist-hash-table
+                             (list "name" "test-item" 
+                                   "state" (alexandria:plist-hash-table
+                                            (list "value" 100 "timestamp" 1234567890)
+                                            :test #'equal))
+                             :test #'equal)
+                     "metadata" (alexandria:plist-hash-table
+                                 (list "tags" (alexandria:plist-hash-table
+                                               (list "readonly" "true")
+                                               :test #'equal))
+                                 :test #'equal))
                :test #'equal)))
     (is (eq t (write-sse-data stream data)))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
            (data-part (gethash "data" parsed)))
       (is (hash-table-p data-part))
-      (is (hash-table-p (gethash "item" data-part))))))
+      (is (hash-table-p (gethash "item" data-part)))
+      (is (equal "test-item" (gethash "name" (gethash "item" data-part)))))))
 
 ;; Tests for write-sse-heartbeat
 (test write-sse-heartbeat
