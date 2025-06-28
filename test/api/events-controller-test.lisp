@@ -13,7 +13,7 @@
 
 (def-fixture with-fake-streams ()
   "Fixture that provides clean fake streams for each test"
-  (chipi-api.sse-fake-stream:setup-fake-streams)
+  (sse-fake-stream:setup-fake-streams)
   (&body))
 
 (defun parse-sse-data (output)

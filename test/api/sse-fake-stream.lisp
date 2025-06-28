@@ -1,5 +1,6 @@
 (defpackage :chipi-api.sse-fake-stream
   (:use :cl)
+  (:nicknames :sse-fake-stream)
   (:export #:make-test-stream
            #:get-test-stream-output
            #:test-stream-closed-p
