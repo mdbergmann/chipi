@@ -9,7 +9,7 @@
                 #:reply
                 #:*state*
                 #:*self*)
-  (:import-from #:chipi-api.sse-utils
+  (:import-from #:chipi-api.sse-stream-utils
                 #:write-sse-data)
   (:export #:make-sse-manager
            #:ensure-sse-manager
