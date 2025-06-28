@@ -1,6 +1,6 @@
-(defpackage :chipi-api.sse-utils
+(defpackage :chipi-api.sse-stream-utils
   (:use :cl)
-  (:nicknames :sse-utils)
+  (:nicknames :sse-stream-utils)
   (:local-nicknames (#:jz #:com.inuoe.jzon))
   (:import-from #:alexandria
                 #:plist-hash-table)
@@ -10,7 +10,7 @@
            #:write-sse-connection
            #:stream-closed-error))
 
-(in-package :chipi-api.sse-utils)
+(in-package :chipi-api.sse-stream-utils)
 
 (define-condition stream-closed-error (simple-condition) ()
   (:report (lambda (condition stream)
