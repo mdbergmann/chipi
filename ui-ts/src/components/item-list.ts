@@ -105,6 +105,10 @@ export class ItemList extends LitElement {
       (error) => {
         console.error('SSE error:', error);
         this.sseConnected = false;
+      },
+      (connected: boolean) => {
+        console.log('SSE connection state changed:', connected);
+        this.sseConnected = connected;
       }
     );
     

@@ -40,7 +40,8 @@ export class ItemEventSource {
     constructor(
         private onItemChange: (event: SSEItemChangeEvent) => void,
         private onConnection?: (event: SSEConnectionEvent) => void,
-        private onError?: (error: Event) => void
+        private onError?: (error: Event) => void,
+        private onConnectionStateChange?: (connected: boolean) => void
     ) {}
 
     connect(): void {
@@ -74,6 +75,11 @@ export class ItemEventSource {
                 this.isConnecting = false;
                 this.isOnline = true;
                 this.reconnectDelay = 1000; // Reset reconnect delay on successful connection
+                
+                // Notify about connection state change
+                if (this.onConnectionStateChange) {
+                    this.onConnectionStateChange(true);
+                }
                 // Don't start heartbeat monitoring immediately - wait for first heartbeat or connection event
             };
 
@@ -157,6 +163,9 @@ export class ItemEventSource {
     private setOffline(): void {
         if (this.isOnline) {
             this.isOnline = false;
+            if (this.onConnectionStateChange) {
+                this.onConnectionStateChange(false);
+            }
             if (this.onError) {
                 this.onError(new Event('offline'));
             }
@@ -229,7 +238,9 @@ export class ItemEventSource {
     }
 
     isConnected(): boolean {
-        return this.isOnline && this.eventSource?.readyState === EventSource.OPEN;
+        return this.isOnline && 
+               this.eventSource?.readyState === EventSource.OPEN && 
+               !this.isConnecting;
     }
 
     getReadyState(): number {
@@ -263,10 +274,11 @@ let globalEventSource: ItemEventSource | null = null;
 export function getGlobalEventSource(
     onItemChange: (event: SSEItemChangeEvent) => void,
     onConnection?: (event: SSEConnectionEvent) => void,
-    onError?: (error: Event) => void
+    onError?: (error: Event) => void,
+    onConnectionStateChange?: (connected: boolean) => void
 ): ItemEventSource {
     if (!globalEventSource) {
-        globalEventSource = new ItemEventSource(onItemChange, onConnection, onError);
+        globalEventSource = new ItemEventSource(onItemChange, onConnection, onError, onConnectionStateChange);
     }
     return globalEventSource;
 }
