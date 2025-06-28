@@ -112,145 +112,140 @@ class ChipiApp {
         console.log('EventSource URL:', this.eventSource.url);
         console.log('EventSource readyState:', this.eventSource.readyState);
 
-        // Alle möglichen Event-Listener
-        this.eventSource.addEventListener('open', (event) => {
-            console.log('=== SSE OPEN EVENT ===');
-            console.log('Event:', event);
-            console.log('EventSource readyState nach open:', this.eventSource?.readyState);
-            console.log('EventSource URL:', this.eventSource?.url);
-        });
-
-        this.eventSource.addEventListener('message', (event) => {
-            console.log('=== SSE MESSAGE EVENT ===');
-            console.log('Event type:', event.type);
-            console.log('Event data:', event.data);
-            console.log('Event lastEventId:', event.lastEventId);
-            console.log('Event origin:', event.origin);
-            this.handleSSEMessage(event.data);
-        });
-
-        this.eventSource.addEventListener('error', (event) => {
-            console.log('=== SSE ERROR EVENT ===');
-            console.error('SSE-Fehler Event:', event);
-            console.log('EventSource readyState bei Fehler:', this.eventSource?.readyState);
-            console.log('EventSource URL:', this.eventSource?.url);
-            
-            // ReadyState bedeutungen loggen
-            if (this.eventSource) {
-                switch (this.eventSource.readyState) {
-                    case EventSource.CONNECTING:
-                        console.log('Status: CONNECTING (0) - Verbindung wird aufgebaut');
-                        break;
-                    case EventSource.OPEN:
-                        console.log('Status: OPEN (1) - Verbindung ist offen');
-                        break;
-                    case EventSource.CLOSED:
-                        console.log('Status: CLOSED (2) - Verbindung ist geschlossen');
-                        break;
-                    default:
-                        console.log('Status: Unbekannt -', this.eventSource.readyState);
-                }
-            }
-            
-            // Automatischer Reconnect nach Fehler
-            if (this.eventSource?.readyState === EventSource.CLOSED) {
-                console.log('SSE-Verbindung geschlossen, versuche Reconnect in 5 Sekunden...');
-                setTimeout(() => {
-                    console.log('Starte SSE Reconnect...');
-                    this.setupSSE();
-                }, 5000);
-            }
-        });
-
-        // Fallback onmessage
-        this.eventSource.onmessage = (event) => {
-            console.log('=== SSE ONMESSAGE FALLBACK ===');
-            console.log('Event data:', event.data);
-            this.handleSSEMessage(event.data);
-        };
-
-        // Fallback onerror
-        this.eventSource.onerror = (event) => {
-            console.log('=== SSE ONERROR FALLBACK ===');
-            console.error('SSE onerror fallback:', event);
-        };
-
-        // Fallback onopen
+        // Nur die wichtigsten Event-Listener - keine Duplikate
         this.eventSource.onopen = (event) => {
-            console.log('=== SSE ONOPEN FALLBACK ===');
-            console.log('SSE onopen fallback:', event);
+            console.log('=== SSE VERBINDUNG GEÖFFNET ===');
+            console.log('ReadyState:', this.eventSource?.readyState);
         };
 
-        // Status nach kurzer Zeit prüfen
-        setTimeout(() => {
-            console.log('=== SSE Status Check nach 2 Sekunden ===');
-            if (this.eventSource) {
-                console.log('EventSource readyState:', this.eventSource.readyState);
-                console.log('EventSource URL:', this.eventSource.url);
-            } else {
-                console.log('EventSource ist null');
+        this.eventSource.onmessage = (event) => {
+            console.log('=== SSE MESSAGE EMPFANGEN ===');
+            console.log('Rohe Event-Daten:', event.data);
+            console.log('Event Type:', event.type);
+            console.log('Last Event ID:', event.lastEventId);
+            
+            // Versuche verschiedene Parsing-Strategien
+            this.handleSSEMessage(event.data);
+        };
+
+        this.eventSource.onerror = (event) => {
+            console.log('=== SSE FEHLER ===');
+            console.error('Error Event:', event);
+            console.log('ReadyState:', this.eventSource?.readyState);
+            
+            if (this.eventSource?.readyState === EventSource.CLOSED) {
+                console.log('Verbindung geschlossen - Reconnect in 5 Sekunden');
+                setTimeout(() => this.setupSSE(), 5000);
             }
-        }, 2000);
+        };
 
         console.log('=== SSE Setup abgeschlossen ===');
     }
 
     private handleSSEMessage(data: string): void {
-        console.log('SSE Rohdaten empfangen:', data);
+        console.log('=== VERARBEITE SSE MESSAGE ===');
+        console.log('Rohdaten:', data);
+        console.log('Daten-Typ:', typeof data);
+        console.log('Daten-Länge:', data.length);
+        
+        // Prüfe ob die Daten leer sind
+        if (!data || data.trim() === '') {
+            console.log('Leere SSE-Nachricht empfangen');
+            return;
+        }
+        
         try {
             const parsed = JSON.parse(data);
-            console.log('SSE Parsed Data:', parsed);
+            console.log('JSON erfolgreich geparst:', parsed);
             this.handleSSEEvent(parsed);
         } catch (error) {
-            console.error('Fehler beim Parsen der SSE-Nachricht:', error, 'Rohdaten:', data);
-            this.handleRawSSEEvent(data);
+            console.error('JSON Parse Fehler:', error);
+            console.log('Versuche alternative Behandlung...');
+            
+            // Manchmal kommen Events in mehreren Zeilen
+            const lines = data.split('\n');
+            for (const line of lines) {
+                if (line.trim().startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(line.trim());
+                        console.log('JSON aus Zeile geparst:', parsed);
+                        this.handleSSEEvent(parsed);
+                        return;
+                    } catch (e) {
+                        console.log('Zeile konnte nicht geparst werden:', line);
+                    }
+                }
+            }
+            
+            // Als letzter Ausweg: rohe Daten loggen
+            console.log('Konnte Event nicht parsen, rohe Daten:', JSON.stringify(data));
         }
     }
 
     private handleSSEEvent(data: any): void {
-        console.log('SSE Event empfangen:', data); // Debug-Log
+        console.log('=== ANALYSIERE SSE EVENT ===');
+        console.log('Event Objekt:', data);
+        console.log('Event Keys:', Object.keys(data));
+        
+        // Logge alle möglichen Strukturen
+        if (data.event) {
+            console.log('Struktur: data.event gefunden');
+            console.log('Event Type:', data.event.type);
+            console.log('Event Keys:', Object.keys(data.event));
+        }
+        
+        if (data.type) {
+            console.log('Struktur: data.type gefunden');
+            console.log('Direct Type:', data.type);
+        }
         
         // Versuche verschiedene Event-Strukturen
         let eventType: string;
         let eventData: any;
         
-        if (data.event) {
-            // Struktur: { event: { type: "...", ... } }
+        if (data.event && data.event.type) {
             eventType = data.event.type;
             eventData = data.event;
         } else if (data.type) {
-            // Struktur: { type: "...", ... }
             eventType = data.type;
             eventData = data;
         } else {
-            console.log('Unbekannte SSE Event-Struktur:', data);
+            console.log('UNBEKANNTE EVENT-STRUKTUR:', data);
+            // Logge alle Properties
+            for (const key in data) {
+                console.log(`Property ${key}:`, data[key]);
+            }
             return;
         }
         
+        console.log('=== EVENT VERARBEITUNG ===');
         console.log('Event Type:', eventType);
+        console.log('Event Data:', eventData);
         
         switch (eventType) {
             case 'connection':
-                console.log('Connection Event empfangen:', eventData.message || 'Verbindung hergestellt');
+                console.log('✅ CONNECTION EVENT:', eventData.message || 'Verbindung hergestellt');
                 break;
                 
             case 'heartbeat':
-                console.log('Heartbeat Event empfangen, Timestamp:', eventData.timestamp);
+                console.log('💓 HEARTBEAT EVENT, Timestamp:', eventData.timestamp);
                 break;
                 
             case 'item-change':
-                console.log('Item-Change Event empfangen für:', eventData.item?.name);
+                console.log('🔄 ITEM-CHANGE EVENT für:', eventData.item?.name);
                 if (eventData.item) {
+                    console.log('Item Details:', eventData.item);
                     this.itemGroupComponents.forEach(component => {
                         component.updateItem(eventData.item);
                     });
+                    console.log('✅ Item Update an UI-Komponenten gesendet');
                 } else {
-                    console.error('Item-Change Event ohne Item-Daten:', eventData);
+                    console.error('❌ Item-Change Event ohne Item-Daten:', eventData);
                 }
                 break;
                 
             default:
-                console.log('Unbekannter Event Type:', eventType, 'Data:', eventData);
+                console.log('❓ UNBEKANNTER EVENT TYPE:', eventType, 'Data:', eventData);
         }
     }
 
