@@ -22,3 +22,4 @@ ui-ts/.env
 
 # Scripts
 create-cert
+/.claude/
