@@ -84,17 +84,33 @@ export class ItemComponent {
         statusSpan.className = value ? 'status-on' : 'status-off';
         statusSpan.textContent = value ? 'Ein' : 'Aus';
         
+        const toggleSwitch = document.createElement('label');
+        toggleSwitch.className = 'toggle-switch';
+        
+        if (this.isReadOnly()) {
+            toggleSwitch.classList.add('disabled');
+        }
+        
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = value;
         checkbox.disabled = this.isReadOnly();
         
+        const slider = document.createElement('span');
+        slider.className = 'toggle-slider';
+        
         checkbox.addEventListener('change', () => {
             this.onUpdate(this.item.name, checkbox.checked);
+            // Update status text immediately for better UX
+            statusSpan.className = checkbox.checked ? 'status-on' : 'status-off';
+            statusSpan.textContent = checkbox.checked ? 'Ein' : 'Aus';
         });
         
+        toggleSwitch.appendChild(checkbox);
+        toggleSwitch.appendChild(slider);
+        
         container.appendChild(statusSpan);
-        container.appendChild(checkbox);
+        container.appendChild(toggleSwitch);
     }
 
     private createValueControl(container: HTMLElement, value: any): void {
