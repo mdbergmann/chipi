@@ -28,7 +28,7 @@
                           data))
          (json-wrapper (jz:stringify
                         (plist-hash-table
-                         (list "data" parsed-data)
+                         (list "event" parsed-data)
                          :test #'equal)))
          (message-bytes (flexi-streams:string-to-octets
                          (concatenate 'string json-wrapper (string #\Newline))
