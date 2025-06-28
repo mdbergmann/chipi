@@ -37,9 +37,13 @@ export class ItemGroupComponent {
     }
 
     updateItem(item: any): void {
+        console.log('ItemGroup updateItem aufgerufen für:', item?.name); // Debug-Log
         const itemComponent = this.itemComponents.get(item.name);
         if (itemComponent) {
+            console.log('ItemComponent gefunden, Update wird durchgeführt'); // Debug-Log
             itemComponent.updateItem(item);
+        } else {
+            console.log('ItemComponent nicht gefunden für:', item.name); // Debug-Log
         }
     }
 

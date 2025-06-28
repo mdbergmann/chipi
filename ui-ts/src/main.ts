@@ -95,20 +95,23 @@ class ChipiApp {
 
         this.eventSource = this.apiClient.createEventSource();
         if (!this.eventSource) {
+            console.error('EventSource konnte nicht erstellt werden');
             return;
         }
 
         this.eventSource.onmessage = (event) => {
+            console.log('SSE Rohdaten empfangen:', event.data); // Debug-Log
             try {
                 const data: SSEEvent = JSON.parse(event.data);
                 this.handleSSEEvent(data);
             } catch (error) {
-                console.error('Fehler beim Parsen der SSE-Nachricht:', error);
+                console.error('Fehler beim Parsen der SSE-Nachricht:', error, 'Rohdaten:', event.data);
             }
         };
 
         this.eventSource.onerror = (error) => {
             console.error('SSE-Verbindungsfehler:', error);
+            console.log('EventSource readyState:', this.eventSource?.readyState);
         };
 
         this.eventSource.onopen = () => {
@@ -117,7 +120,11 @@ class ChipiApp {
     }
 
     private handleSSEEvent(data: SSEEvent): void {
+        console.log('SSE Event empfangen:', data); // Debug-Log hinzufügen
+        
         if (data.event.type === 'item-change' && data.event.item) {
+            console.log('Item-Change Event für:', data.event.item.name); // Debug-Log
+            
             this.itemGroupComponents.forEach(component => {
                 component.updateItem(data.event.item);
             });

@@ -31,6 +31,14 @@ export interface SSEEvent {
     };
 }
 
+// Alternative Struktur, falls die Events direkt das Item enthalten:
+export interface AlternativeSSEEvent {
+    type: 'connection' | 'item-change' | 'heartbeat';
+    message?: string;
+    item?: Item;
+    timestamp?: number;
+}
+
 export interface UpdateItemRequest {
     value: any;
 }
