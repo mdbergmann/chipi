@@ -2,7 +2,7 @@ import { getApiKey } from './storage';
 
 export interface SSEItemChangeEvent {
     type: 'item-change';
-    data: {
+    item: {
         name: string;
         label: string;
         'type-hint': string;

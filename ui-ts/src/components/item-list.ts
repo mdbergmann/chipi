@@ -112,10 +112,10 @@ export class ItemList extends LitElement {
   }
 
   private handleItemChange(event: SSEItemChangeEvent) {
-    const { data } = event;
-    const itemName = data.name;
-    const newValue = data['item-state'].value;
-    const newTimestamp = data['item-state'].timestamp;
+    const { item } = event;
+    const itemName = item.name;
+    const newValue = item['item-state'].value;
+    const newTimestamp = item['item-state'].timestamp;
 
     // Update the item in the current groups
     this.groups = this.groups.map(group => ({
