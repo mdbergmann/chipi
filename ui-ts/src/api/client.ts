@@ -4,7 +4,7 @@ export class ChipiApiClient {
     private baseUrl: string;
     private apiKey: string | null = null;
 
-    constructor(baseUrl: string = 'http://localhost:8765') {
+    constructor(baseUrl: string = '') {
         this.baseUrl = baseUrl;
     }
 

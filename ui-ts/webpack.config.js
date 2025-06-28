@@ -33,5 +33,13 @@ module.exports = {
     static: './dist',
     port: 3000,
     hot: true,
+    proxy: [
+      {
+        context: ['/items', '/itemgroups', '/events'],
+        target: 'http://localhost:8765',
+        changeOrigin: true,
+        secure: false,
+      },
+    ],
   },
 };
