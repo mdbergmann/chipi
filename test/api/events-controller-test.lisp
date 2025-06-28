@@ -1,5 +1,5 @@
 (defpackage :chipi-api.events-controller-test
-  (:use :cl :fiveam :cl-mock :chipi-api.events-controller :chipi-api.sse-fake-stream)
+  (:use :cl :fiveam :cl-mock :sse-fake-stream :chipi-api.events-controller)
   (:export #:run!
            #:all-tests
            #:nil))
@@ -134,7 +134,7 @@
       
       (close-test-stream stream)
       
-      (signals sse-utils:stream-closed-error (handle-sse-connection stream))
+      (signals sse-stream-utils:stream-closed-error (handle-sse-connection stream))
       
       (is (= 0 (length (invocations 'chipi-api.sse-manager:add-client)))
           "Should call add-client exactly once")

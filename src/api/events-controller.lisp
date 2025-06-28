@@ -1,11 +1,10 @@
 (defpackage :chipi-api.events-controller
   (:use :cl)
   (:nicknames :eventsc)
-  (:local-nicknames (#:jz #:com.inuoe.jzon))
   (:import-from #:chipi-api.sse-manager
                 #:add-client
                 #:remove-client)
-  (:import-from #:chipi-api.sse-utils
+  (:import-from #:chipi-api.sse-stream-utils
                 #:write-sse-connection
                 #:write-sse-heartbeat
                 #:stream-closed-error)
