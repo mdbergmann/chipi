@@ -35,6 +35,7 @@
   :depends-on ("chipi-api"
                "fiveam"
                "cl-mock"
+               "split-sequence"
                )
   :components ((:module "test/api"
                 :components
@@ -45,6 +46,7 @@
                  (:file "items-controller-test")
                  (:file "itemgroups-controller-test")
                  (:file "sse-manager-test")
+                 (:file "sse-stream-utils-test")
                  (:file "events-controller-test")
                  (:file "api-integ-test")
                  )))
