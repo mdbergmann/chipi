@@ -79,9 +79,9 @@ export class ItemEventSource {
 
             this.eventSource.onmessage = (event) => {
                 try {
-                    // Parse the new JSON format: {"data": {"type": "...", ...}}
+                    // Parse the new JSON format: {"event": {"type": "...", ...}}
                     const wrapper = JSON.parse(event.data);
-                    const data: SSEEvent = wrapper.data; // Extract the inner data
+                    const data: SSEEvent = wrapper.event; // Extract the inner event data
                     this.handleSSEEvent(data);
                 } catch (error) {
                     console.error('Error parsing SSE event:', error);
