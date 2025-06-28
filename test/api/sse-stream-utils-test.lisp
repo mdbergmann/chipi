@@ -42,7 +42,7 @@
     (is (eq t (write-sse-message stream "{\"test\": \"value\"}")))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output))))
-      (is (equal "value" (gethash "test" (gethash "data" parsed)))))))
+      (is (equal "value" (gethash "test" (gethash "event" parsed)))))))
 
 (test write-sse-message-with-hash-table
   "Test write-sse-message with hash table data"
@@ -51,7 +51,7 @@
     (is (eq t (write-sse-message stream data)))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (equal "value" (gethash "key" data-part)))
       (is (= 42 (gethash "number" data-part))))))
 
@@ -69,7 +69,7 @@
     (is (eq t (write-sse-data stream "{\"message\": \"simple string\"}")))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (equal "simple string" (gethash "message" data-part))))))
 
 (test write-sse-data-with-hash-table
@@ -79,7 +79,7 @@
     (is (eq t (write-sse-data stream data)))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (equal "test" (gethash "type" data-part)))
       (is (= 123 (gethash "value" data-part))))))
 
@@ -89,7 +89,7 @@
     (is (eq t (write-sse-data stream '("name" "item1" "value" 42))))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (equal "item1" (gethash "name" data-part)))
       (is (= 42 (gethash "value" data-part))))))
 
@@ -112,7 +112,7 @@
     (is (eq t (write-sse-data stream data)))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (hash-table-p data-part))
       (is (hash-table-p (gethash "item" data-part)))
       (is (equal "test-item" (gethash "name" (gethash "item" data-part)))))))
@@ -125,7 +125,7 @@
     (is (eq t (write-sse-heartbeat stream timestamp)))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (equal "heartbeat" (gethash "type" data-part)))
       (is (= timestamp (gethash "timestamp" data-part))))))
 
@@ -137,7 +137,7 @@
     (is (eq t (write-sse-connection stream message)))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (equal "connection" (gethash "type" data-part)))
       (is (equal message (gethash "message" data-part))))))
 
@@ -149,7 +149,7 @@
     (is (eq t (write-sse-data stream data)))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (hash-table-p data-part))
       (is (= 0 (hash-table-count data-part))))))
 
@@ -159,7 +159,7 @@
     (is (eq t (write-sse-data stream '())))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (hash-table-p data-part))
       (is (= 0 (hash-table-count data-part))))))
 
@@ -169,7 +169,7 @@
     (is (eq t (write-sse-data stream '("enabled" t "disabled" nil))))
     (let* ((output (get-stream-output stream))
            (parsed (first (parse-json-output output)))
-           (data-part (gethash "data" parsed)))
+           (data-part (gethash "event" parsed)))
       (is (eq t (gethash "enabled" data-part)))
       (is (eq nil (gethash "disabled" data-part))))))
 
@@ -181,5 +181,5 @@
     (let* ((output (get-stream-output stream))
            (parsed (parse-json-output output)))
       (is (= 2 (length parsed)))
-      (is (equal "first" (gethash "message" (gethash "data" (first parsed)))))
-      (is (equal "second" (gethash "message" (gethash "data" (second parsed))))))))
+      (is (equal "first" (gethash "message" (gethash "event" (first parsed)))))
+      (is (equal "second" (gethash "message" (gethash "event" (second parsed))))))))
