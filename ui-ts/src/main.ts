@@ -8,8 +8,8 @@ import { ItemGroupComponent } from './components/ItemGroupComponent';
 
 class ChipiApp {
     private apiClient: ChipiApiClient;
-    private toolbar: Toolbar;
-    private apiKeyDialog: ApiKeyDialog;
+    private toolbar!: Toolbar;
+    private apiKeyDialog!: ApiKeyDialog;
     private itemGroupComponents: ItemGroupComponent[] = [];
     private eventSource: EventSource | null = null;
 
