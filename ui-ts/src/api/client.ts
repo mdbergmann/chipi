@@ -83,13 +83,27 @@ export class ChipiApiClient {
     }
 
     createEventSource(): EventSource | null {
+        console.log('=== createEventSource aufgerufen ===');
+        
         if (!this.apiKey) {
+            console.error('Kein API-Key verfügbar für EventSource');
             return null;
         }
         
+        console.log('API-Key verfügbar:', this.apiKey.substring(0, 10) + '...');
+        
         // Für SSE: direkte Verbindung zur API (umgeht Proxy-Probleme)
         const url = `http://localhost:8765/events/items?apikey=${encodeURIComponent(this.apiKey)}`;
-        console.log('Creating EventSource with URL:', url); // Debug-Log
-        return new EventSource(url);
+        console.log('EventSource URL wird erstellt:', url);
+        
+        try {
+            const eventSource = new EventSource(url);
+            console.log('EventSource erfolgreich erstellt');
+            console.log('EventSource readyState initial:', eventSource.readyState);
+            return eventSource;
+        } catch (error) {
+            console.error('Fehler beim Erstellen der EventSource:', error);
+            return null;
+        }
     }
 }

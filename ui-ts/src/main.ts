@@ -41,7 +41,9 @@ class ChipiApp {
     }
 
     private setApiKey(apiKey: string): void {
+        console.log('=== setApiKey aufgerufen ===');
         this.apiClient.setApiKey(apiKey);
+        this.logNetworkInfo();
         this.loadData();
         this.setupSSE();
     }
@@ -90,44 +92,107 @@ class ChipiApp {
     }
 
     private setupSSE(): void {
+        console.log('=== SSE Setup gestartet ===');
+        
         if (this.eventSource) {
+            console.log('Schließe bestehende EventSource...');
             this.eventSource.close();
+            this.eventSource = null;
         }
 
+        console.log('Erstelle neue EventSource...');
         this.eventSource = this.apiClient.createEventSource();
+        
         if (!this.eventSource) {
-            console.error('EventSource konnte nicht erstellt werden');
+            console.error('EventSource konnte nicht erstellt werden - kein API-Key?');
             return;
         }
 
-        // Spezifische Event-Listener für verschiedene Event-Typen
+        console.log('EventSource erstellt:', this.eventSource);
+        console.log('EventSource URL:', this.eventSource.url);
+        console.log('EventSource readyState:', this.eventSource.readyState);
+
+        // Alle möglichen Event-Listener
+        this.eventSource.addEventListener('open', (event) => {
+            console.log('=== SSE OPEN EVENT ===');
+            console.log('Event:', event);
+            console.log('EventSource readyState nach open:', this.eventSource?.readyState);
+            console.log('EventSource URL:', this.eventSource?.url);
+        });
+
         this.eventSource.addEventListener('message', (event) => {
-            console.log('SSE message event:', event.data);
+            console.log('=== SSE MESSAGE EVENT ===');
+            console.log('Event type:', event.type);
+            console.log('Event data:', event.data);
+            console.log('Event lastEventId:', event.lastEventId);
+            console.log('Event origin:', event.origin);
             this.handleSSEMessage(event.data);
         });
 
-        this.eventSource.addEventListener('open', (event) => {
-            console.log('SSE-Verbindung geöffnet:', event);
-        });
-
         this.eventSource.addEventListener('error', (event) => {
-            console.error('SSE-Fehler:', event);
-            console.log('EventSource readyState:', this.eventSource?.readyState);
+            console.log('=== SSE ERROR EVENT ===');
+            console.error('SSE-Fehler Event:', event);
+            console.log('EventSource readyState bei Fehler:', this.eventSource?.readyState);
+            console.log('EventSource URL:', this.eventSource?.url);
+            
+            // ReadyState bedeutungen loggen
+            if (this.eventSource) {
+                switch (this.eventSource.readyState) {
+                    case EventSource.CONNECTING:
+                        console.log('Status: CONNECTING (0) - Verbindung wird aufgebaut');
+                        break;
+                    case EventSource.OPEN:
+                        console.log('Status: OPEN (1) - Verbindung ist offen');
+                        break;
+                    case EventSource.CLOSED:
+                        console.log('Status: CLOSED (2) - Verbindung ist geschlossen');
+                        break;
+                    default:
+                        console.log('Status: Unbekannt -', this.eventSource.readyState);
+                }
+            }
             
             // Automatischer Reconnect nach Fehler
             if (this.eventSource?.readyState === EventSource.CLOSED) {
                 console.log('SSE-Verbindung geschlossen, versuche Reconnect in 5 Sekunden...');
                 setTimeout(() => {
+                    console.log('Starte SSE Reconnect...');
                     this.setupSSE();
                 }, 5000);
             }
         });
 
-        // Fallback für onmessage
+        // Fallback onmessage
         this.eventSource.onmessage = (event) => {
-            console.log('SSE onmessage fallback:', event.data);
+            console.log('=== SSE ONMESSAGE FALLBACK ===');
+            console.log('Event data:', event.data);
             this.handleSSEMessage(event.data);
         };
+
+        // Fallback onerror
+        this.eventSource.onerror = (event) => {
+            console.log('=== SSE ONERROR FALLBACK ===');
+            console.error('SSE onerror fallback:', event);
+        };
+
+        // Fallback onopen
+        this.eventSource.onopen = (event) => {
+            console.log('=== SSE ONOPEN FALLBACK ===');
+            console.log('SSE onopen fallback:', event);
+        };
+
+        // Status nach kurzer Zeit prüfen
+        setTimeout(() => {
+            console.log('=== SSE Status Check nach 2 Sekunden ===');
+            if (this.eventSource) {
+                console.log('EventSource readyState:', this.eventSource.readyState);
+                console.log('EventSource URL:', this.eventSource.url);
+            } else {
+                console.log('EventSource ist null');
+            }
+        }, 2000);
+
+        console.log('=== SSE Setup abgeschlossen ===');
     }
 
     private handleSSEMessage(data: string): void {
@@ -196,6 +261,25 @@ class ChipiApp {
         if (rawData.includes('connection') || rawData.includes('heartbeat') || rawData.includes('item-change')) {
             console.log('Raw Event erkannt:', rawData);
         }
+    }
+
+    private logNetworkInfo(): void {
+        console.log('=== Network Debug Info ===');
+        console.log('Aktuelle URL:', window.location.href);
+        console.log('Origin:', window.location.origin);
+        console.log('User Agent:', navigator.userAgent);
+        console.log('Online Status:', navigator.onLine);
+        
+        // Test ob der API-Server erreichbar ist
+        fetch('http://localhost:8765/items', {
+            method: 'HEAD',
+            headers: this.apiClient['getHeaders'](),
+        }).then(response => {
+            console.log('API-Server HEAD Request Status:', response.status);
+            console.log('API-Server erreichbar:', response.ok);
+        }).catch(error => {
+            console.error('API-Server nicht erreichbar:', error);
+        });
     }
 }
 
