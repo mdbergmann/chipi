@@ -14,7 +14,8 @@ class ChipiApp {
     private eventSource: EventSource | null = null;
 
     constructor() {
-        this.apiClient = new ChipiApiClient();
+        // Für SSE: direkte API-Verbindung verwenden
+        this.apiClient = new ChipiApiClient('http://localhost:8765');
         this.initializeUI();
         this.loadInitialApiKey();
     }

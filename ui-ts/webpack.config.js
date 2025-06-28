@@ -39,6 +39,8 @@ module.exports = {
         target: 'http://localhost:8765',
         changeOrigin: true,
         secure: false,
+        ws: true, // Wichtig für SSE/WebSocket-Unterstützung
+        logLevel: 'debug', // Für besseres Debugging
       },
     ],
   },

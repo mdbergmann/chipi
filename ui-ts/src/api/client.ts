@@ -87,7 +87,10 @@ export class ChipiApiClient {
             return null;
         }
         
-        const url = `${this.baseUrl}/events/items?apikey=${encodeURIComponent(this.apiKey)}`;
+        // Für Entwicklung: direkt zur API verbinden, nicht über Proxy
+        const apiUrl = this.baseUrl || 'http://localhost:8765';
+        const url = `${apiUrl}/events/items?apikey=${encodeURIComponent(this.apiKey)}`;
+        console.log('Creating EventSource with URL:', url); // Debug-Log
         return new EventSource(url);
     }
 }
