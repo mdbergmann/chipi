@@ -157,7 +157,7 @@
                            (progn
                              (setf output2 (get-test-stream-output stream2))
                              (and (> (length output2) 0)
-                                  (search "\"data\":" output2)
+                                  (search "\"event\":" output2)
                                   (search "item-change" output2))))
                          "Active client should receive item change data")
                 
