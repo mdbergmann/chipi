@@ -40,17 +40,42 @@ module.exports = {
     },
     proxy: [
       {
-        context: ['/items', '/itemgroups', '/events'],
+        context: ['/items', '/itemgroups'],
         target: 'http://localhost:8765',
         changeOrigin: true,
         secure: false,
-        ws: true, // Wichtig für SSE/WebSocket-Unterstützung
-        logLevel: 'debug', // Für besseres Debugging
+        logLevel: 'debug',
         onProxyReq: (proxyReq, req, res) => {
           console.log('Proxying request:', req.method, req.url);
         },
         onError: (err, req, res) => {
           console.error('Proxy error:', err);
+        },
+      },
+      {
+        context: ['/events'],
+        target: 'http://localhost:8765',
+        changeOrigin: true,
+        secure: false,
+        logLevel: 'debug',
+        // Spezielle Konfiguration für SSE
+        onProxyReq: (proxyReq, req, res) => {
+          console.log('Proxying SSE request:', req.method, req.url);
+          // SSE-spezifische Headers
+          proxyReq.setHeader('Accept', 'text/event-stream');
+          proxyReq.setHeader('Cache-Control', 'no-cache');
+        },
+        onProxyRes: (proxyRes, req, res) => {
+          console.log('SSE Response headers:', proxyRes.headers);
+          // SSE-Response-Headers weiterleiten
+          if (proxyRes.headers['content-type']?.includes('text/event-stream')) {
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+          }
+        },
+        onError: (err, req, res) => {
+          console.error('SSE Proxy error:', err);
         },
       },
     ],

@@ -100,30 +100,46 @@ class ChipiApp {
             return;
         }
 
-        this.eventSource.onmessage = (event) => {
-            console.log('SSE Rohdaten empfangen:', event.data); // Debug-Log
-            console.log('SSE Event Type:', event.type); // Debug-Log
-            try {
-                const data = JSON.parse(event.data);
-                console.log('SSE Parsed Data:', data); // Debug-Log
-                this.handleSSEEvent(data);
-            } catch (error) {
-                console.error('Fehler beim Parsen der SSE-Nachricht:', error, 'Rohdaten:', event.data);
-                // Versuche alternative Parsing-Strategien
-                this.handleRawSSEEvent(event.data);
-            }
-        };
+        // Spezifische Event-Listener für verschiedene Event-Typen
+        this.eventSource.addEventListener('message', (event) => {
+            console.log('SSE message event:', event.data);
+            this.handleSSEMessage(event.data);
+        });
 
-        this.eventSource.onerror = (error) => {
-            console.error('SSE-Verbindungsfehler:', error);
+        this.eventSource.addEventListener('open', (event) => {
+            console.log('SSE-Verbindung geöffnet:', event);
+        });
+
+        this.eventSource.addEventListener('error', (event) => {
+            console.error('SSE-Fehler:', event);
             console.log('EventSource readyState:', this.eventSource?.readyState);
-            console.log('EventSource URL:', this.eventSource?.url);
-        };
+            
+            // Automatischer Reconnect nach Fehler
+            if (this.eventSource?.readyState === EventSource.CLOSED) {
+                console.log('SSE-Verbindung geschlossen, versuche Reconnect in 5 Sekunden...');
+                setTimeout(() => {
+                    this.setupSSE();
+                }, 5000);
+            }
+        });
 
-        this.eventSource.onopen = () => {
-            console.log('SSE-Verbindung hergestellt');
-            console.log('EventSource URL:', this.eventSource?.url);
+        // Fallback für onmessage
+        this.eventSource.onmessage = (event) => {
+            console.log('SSE onmessage fallback:', event.data);
+            this.handleSSEMessage(event.data);
         };
+    }
+
+    private handleSSEMessage(data: string): void {
+        console.log('SSE Rohdaten empfangen:', data);
+        try {
+            const parsed = JSON.parse(data);
+            console.log('SSE Parsed Data:', parsed);
+            this.handleSSEEvent(parsed);
+        } catch (error) {
+            console.error('Fehler beim Parsen der SSE-Nachricht:', error, 'Rohdaten:', data);
+            this.handleRawSSEEvent(data);
+        }
     }
 
     private handleSSEEvent(data: any): void {
