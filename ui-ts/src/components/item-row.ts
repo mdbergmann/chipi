@@ -90,13 +90,22 @@ export class ItemRow extends LitElement {
       const newValue = this.value;
       const oldValue = changedProperties.get('value');
       
+      console.log(`Item ${this.id} value change detected:`, { oldValue, newValue });
+      
       // Only highlight if the value actually changed and this isn't the initial render
       if (oldValue !== undefined && oldValue !== newValue) {
+        console.log(`Highlighting change for item ${this.id}`);
         // Schedule highlight change for after this update completes
         Promise.resolve().then(() => {
           this.highlightChange();
         });
       }
+    }
+    
+    if (changedProperties.has('timestamp')) {
+      const newTimestamp = this.timestamp;
+      const oldTimestamp = changedProperties.get('timestamp');
+      console.log(`Item ${this.id} timestamp change:`, { oldTimestamp, newTimestamp });
     }
   }
 
@@ -181,9 +190,22 @@ export class ItemRow extends LitElement {
 
   private formatTimestamp(ts?: number): string {
     if (!ts) return '';
-    // Automatische Erkennung: Sekunden oder Millisekunden
-    const ms = ts > 1e12 ? ts : ts * 1000;
+    
+    // Convert Common Lisp universal-time to Unix timestamp
+    // CL universal-time is seconds since 1900-01-01, Unix is since 1970-01-01
+    const CL_TO_UNIX_OFFSET = 2208988800;
+    const unixTimestamp = ts - CL_TO_UNIX_OFFSET;
+    
+    // Convert to milliseconds for JavaScript Date
+    const ms = unixTimestamp * 1000;
     const d = new Date(ms);
+    
+    // Check if the date is valid
+    if (isNaN(d.getTime())) {
+      console.warn('Invalid timestamp:', ts);
+      return 'Invalid date';
+    }
+    
     return d.toLocaleString();
   }
 

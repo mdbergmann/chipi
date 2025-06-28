@@ -85,12 +85,22 @@ export class ItemEventSource {
 
             this.eventSource.onmessage = (event) => {
                 try {
+                    console.log('Raw SSE message received:', event.data);
+                    
                     // Parse the new JSON format: {"event": {"type": "...", ...}}
                     const wrapper = JSON.parse(event.data);
-                    const data: SSEEvent = wrapper.event; // Extract the inner event data
+                    
+                    if (!wrapper.event) {
+                        console.error('SSE message missing event property:', wrapper);
+                        return;
+                    }
+                    
+                    const data: SSEEvent = wrapper.event;
+                    console.log('Parsed SSE event:', data);
+                    
                     this.handleSSEEvent(data);
                 } catch (error) {
-                    console.error('Error parsing SSE event:', error);
+                    console.error('Error parsing SSE event:', error, 'Raw data:', event.data);
                 }
             };
 

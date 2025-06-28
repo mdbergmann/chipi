@@ -116,10 +116,19 @@ export class ItemList extends LitElement {
   }
 
   private handleItemChange(event: SSEItemChangeEvent) {
+    console.log('Raw SSE event received:', event);
+    
     const { item } = event;
     const itemName = item.name;
     const newValue = item['item-state'].value;
     const newTimestamp = item['item-state'].timestamp;
+
+    console.log('Processing item change:', {
+      itemName,
+      newValue,
+      newTimestamp,
+      itemState: item['item-state']
+    });
 
     // Update the item in the current groups
     this.groups = this.groups.map(group => ({
@@ -131,7 +140,10 @@ export class ItemList extends LitElement {
       )
     }));
 
-    console.log(`Item ${itemName} updated via SSE to value:`, newValue);
+    console.log(`Item ${itemName} updated via SSE to value:`, newValue, 'at timestamp:', newTimestamp);
+    
+    // Force a re-render to ensure the UI updates
+    this.requestUpdate();
   }
 
   private async load() {
