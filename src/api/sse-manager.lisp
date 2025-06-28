@@ -97,7 +97,7 @@
 (defun %send-sse-data (stream data)
   "Send SSE formatted data to stream, return NIL on failure"
   (ignore-errors
-   (write-sse-data stream (com.inuoe.jzon:stringify data))))
+   (write-sse-data stream data)))
 
 (defun cleanup-sse-manager ()
   (when *sse-manager*

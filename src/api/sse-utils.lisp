@@ -23,7 +23,9 @@
   (declare (ignore id event retry))
   (when (not (open-stream-p stream))
     (error 'stream-closed-error))
-  (let* ((parsed-data (jz:parse data))
+  (let* ((parsed-data (if (stringp data)
+                          (jz:parse data)
+                          data))
          (json-wrapper (jz:stringify
                         (plist-hash-table
                          (list "data" parsed-data)
@@ -35,9 +37,14 @@
     (force-output stream)
     t))
 
-(defun write-sse-data (stream data-string)
-  "Write SSE data message to stream. Returns T on success, NIL on failure."
-  (write-sse-message stream data-string))
+(defun write-sse-data (stream data)
+  "Write SSE data message to stream. Data can be a string, hash table, or plist.
+   Returns T on success, NIL on failure."
+  (let ((data-string (etypecase data
+                       (string data)
+                       (hash-table (jz:stringify data))
+                       (list (jz:stringify (plist-hash-table data :test #'equal))))))
+    (write-sse-message stream data-string)))
 
 (defun write-sse-heartbeat (stream timestamp)
   "Write SSE heartbeat message to stream. Returns T on success, NIL on failure."
