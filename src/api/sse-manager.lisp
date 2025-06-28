@@ -72,13 +72,12 @@
     (log:info "Removed SSE client: ~a" client-id)))
 
 (defun %serialize-item-for-sse (item)
-  "Convert item to JSON format for SSE transmission using item-ext"
+  "Convert item to hash table format for SSE transmission using item-ext"
   (let ((item-ht (item-ext:item-to-ht item)))
-    (com.inuoe.jzon:stringify
-     (alexandria:plist-hash-table
-      (list "type" "item-change"
-            "data" item-ht)
-      :test #'equal))))
+    (alexandria:plist-hash-table
+     (list "type" "item-change"
+           "data" item-ht)
+     :test #'equal)))
 
 
 (defun %broadcast-to-clients (data)
@@ -98,7 +97,7 @@
 (defun %send-sse-data (stream data)
   "Send SSE formatted data to stream, return NIL on failure"
   (ignore-errors
-   (write-sse-data stream data)))
+   (write-sse-data stream (com.inuoe.jzon:stringify data))))
 
 (defun cleanup-sse-manager ()
   (when *sse-manager*
