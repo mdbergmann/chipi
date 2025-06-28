@@ -18,7 +18,7 @@
              (format stream "Stream is closed!"))))
 
 (defun write-sse-message (stream data &key id event retry)
-  "Write a JSON message to stream with proper SSE formatting.
+  "Write a JSON message to stream without SSE formatting.
    Returns T on success, NIL on failure."
   (declare (ignore id event retry))
   (when (not (open-stream-p stream))
@@ -26,8 +26,9 @@
   (let* ((json-data (if (stringp data)
                         data  ; Already JSON string
                         (jz:stringify data)))  ; Convert to JSON
-         (sse-line (concatenate 'string "data: " json-data (string #\Newline) (string #\Newline)))
-         (message-bytes (flexi-streams:string-to-octets sse-line :external-format :utf-8)))
+         (message-bytes (flexi-streams:string-to-octets
+                         (concatenate 'string json-data (string #\Newline))
+                         :external-format :utf-8)))
     (write-sequence message-bytes stream)
     (force-output stream)
     t))
