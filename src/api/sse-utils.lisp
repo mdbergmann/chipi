@@ -17,10 +17,9 @@
              (declare (ignore condition))
              (format stream "Stream is closed!"))))
 
-(defun write-sse-message (stream message-type data &key id event retry)
+(defun write-sse-message (stream data &key id event retry)
   "Write a generic SSE message to stream with optional fields.
    Returns T on success, NIL on failure."
-  (declare (ignore message-type))
   (when (not (open-stream-p stream))
     (error 'stream-closed-error))
   (let* ((message (format nil "~@[id: ~a~%~]~@[event: ~a~%~]~@[retry: ~a~%~]data: ~a~%~%"
@@ -33,7 +32,7 @@
 
 (defun write-sse-data (stream data-string)
   "Write SSE data message to stream. Returns T on success, NIL on failure."
-  (write-sse-message stream "data" data-string))
+  (write-sse-message stream data-string))
 
 (defun write-sse-heartbeat (stream timestamp)
   "Write SSE heartbeat message to stream. Returns T on success, NIL on failure."
@@ -42,7 +41,7 @@
                           (list "type" "heartbeat"
                                 "timestamp" timestamp)
                           :test #'equal))))
-    (write-sse-message stream "heartbeat" heartbeat-data)))
+    (write-sse-message stream heartbeat-data)))
 
 (defun write-sse-connection (stream message)
   "Write SSE connection message to stream. Returns T on success, NIL on failure."
@@ -51,4 +50,4 @@
                            (list "type" "connection"
                                  "message" message)
                            :test #'equal))))
-    (write-sse-message stream "connection" connection-data)))
+    (write-sse-message stream connection-data)))
