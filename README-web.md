@@ -140,30 +140,30 @@ Event format follows the SSE standard with `data:` fields containing JSON payloa
 
 **Connection Event:**
 ```
-data: {"data":{"type":"connection","message":"Connected to item events"}}
+data: {"type":"connection","message":"Connected to item events"}
 ```
 
 **Item Change Event:**
 ```
-data: {"data":{"type":"item-change","data":{"name":"lamp","label":"Living-room lamp","type-hint":"boolean","tags":{},"item-state":{"value":true,"timestamp":1703123456}}}}
+data: {"type":"item-change","data":{"name":"lamp","label":"Living-room lamp","type-hint":"boolean","tags":{},"item-state":{"value":true,"timestamp":1703123456}}}
 ```
 
 **Heartbeat Event:**
 ```
-data: {"data":{"type":"heartbeat","timestamp":1703123456}}
+data: {"type":"heartbeat","timestamp":1703123456}
 ```
 
 #### Item Change Payload Structure
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `data.type` | string | Always `"item-change"` |
-| `data.data.name` | string | Item identifier |
-| `data.data.label` | string | Human-readable item name |
-| `data.data.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`) |
-| `data.data.tags` | object | Item metadata (including `:ext-readonly` flag) |
-| `data.data.item-state.value` | any | Current item value |
-| `data.data.item-state.timestamp` | number | Common Lisp universal-time timestamp (seconds since 1900-01-01) |
+| `type` | string | Always `"item-change"` |
+| `data.name` | string | Item identifier |
+| `data.label` | string | Human-readable item name |
+| `data.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`) |
+| `data.tags` | object | Item metadata (including `:ext-readonly` flag) |
+| `data.item-state.value` | any | Current item value |
+| `data.item-state.timestamp` | number | Common Lisp universal-time timestamp (seconds since 1900-01-01) |
 
 #### Timestamp Format
 
