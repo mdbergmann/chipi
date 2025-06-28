@@ -1,6 +1,6 @@
 import './styles.css';
 import { ChipiApiClient } from './api/client';
-import { SSEEvent } from './api/types';
+import { SSEEvent, FlexibleSSEEvent } from './api/types';
 import { loadApiKey } from './utils/storage';
 import { Toolbar } from './components/Toolbar';
 import { ApiKeyDialog } from './components/ApiKeyDialog';
@@ -101,33 +101,83 @@ class ChipiApp {
 
         this.eventSource.onmessage = (event) => {
             console.log('SSE Rohdaten empfangen:', event.data); // Debug-Log
+            console.log('SSE Event Type:', event.type); // Debug-Log
             try {
-                const data: SSEEvent = JSON.parse(event.data);
+                const data = JSON.parse(event.data);
+                console.log('SSE Parsed Data:', data); // Debug-Log
                 this.handleSSEEvent(data);
             } catch (error) {
                 console.error('Fehler beim Parsen der SSE-Nachricht:', error, 'Rohdaten:', event.data);
+                // Versuche alternative Parsing-Strategien
+                this.handleRawSSEEvent(event.data);
             }
         };
 
         this.eventSource.onerror = (error) => {
             console.error('SSE-Verbindungsfehler:', error);
             console.log('EventSource readyState:', this.eventSource?.readyState);
+            console.log('EventSource URL:', this.eventSource?.url);
         };
 
         this.eventSource.onopen = () => {
             console.log('SSE-Verbindung hergestellt');
+            console.log('EventSource URL:', this.eventSource?.url);
         };
     }
 
-    private handleSSEEvent(data: SSEEvent): void {
-        console.log('SSE Event empfangen:', data); // Debug-Log hinzufügen
+    private handleSSEEvent(data: any): void {
+        console.log('SSE Event empfangen:', data); // Debug-Log
         
-        if (data.event.type === 'item-change' && data.event.item) {
-            console.log('Item-Change Event für:', data.event.item.name); // Debug-Log
-            
-            this.itemGroupComponents.forEach(component => {
-                component.updateItem(data.event.item);
-            });
+        // Versuche verschiedene Event-Strukturen
+        let eventType: string;
+        let eventData: any;
+        
+        if (data.event) {
+            // Struktur: { event: { type: "...", ... } }
+            eventType = data.event.type;
+            eventData = data.event;
+        } else if (data.type) {
+            // Struktur: { type: "...", ... }
+            eventType = data.type;
+            eventData = data;
+        } else {
+            console.log('Unbekannte SSE Event-Struktur:', data);
+            return;
+        }
+        
+        console.log('Event Type:', eventType);
+        
+        switch (eventType) {
+            case 'connection':
+                console.log('Connection Event empfangen:', eventData.message || 'Verbindung hergestellt');
+                break;
+                
+            case 'heartbeat':
+                console.log('Heartbeat Event empfangen, Timestamp:', eventData.timestamp);
+                break;
+                
+            case 'item-change':
+                console.log('Item-Change Event empfangen für:', eventData.item?.name);
+                if (eventData.item) {
+                    this.itemGroupComponents.forEach(component => {
+                        component.updateItem(eventData.item);
+                    });
+                } else {
+                    console.error('Item-Change Event ohne Item-Daten:', eventData);
+                }
+                break;
+                
+            default:
+                console.log('Unbekannter Event Type:', eventType, 'Data:', eventData);
+        }
+    }
+
+    private handleRawSSEEvent(rawData: string): void {
+        console.log('Versuche Raw SSE Event zu verarbeiten:', rawData);
+        
+        // Manchmal kommen Events als einfache Strings
+        if (rawData.includes('connection') || rawData.includes('heartbeat') || rawData.includes('item-change')) {
+            console.log('Raw Event erkannt:', rawData);
         }
     }
 }

@@ -39,6 +39,20 @@ export interface AlternativeSSEEvent {
     timestamp?: number;
 }
 
+// Flexible SSE Event Struktur
+export interface FlexibleSSEEvent {
+    event?: {
+        type: string;
+        message?: string;
+        item?: Item;
+        timestamp?: number;
+    };
+    type?: string;
+    message?: string;
+    item?: Item;
+    timestamp?: number;
+}
+
 export interface UpdateItemRequest {
     value: any;
 }
