@@ -76,7 +76,7 @@
   (let ((item-ht (item-ext:item-to-ht item)))
     (alexandria:plist-hash-table
      (list "type" "item-change"
-           "data" item-ht)
+           "item" item-ht)
      :test #'equal)))
 
 

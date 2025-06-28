@@ -145,7 +145,7 @@ Event format follows the SSE standard with `data:` fields containing JSON payloa
 
 **Item Change Event:**
 ```
-{"data":{"type":"item-change","data":{"name":"lamp","label":"Living-room lamp","type-hint":"boolean","tags":{},"item-state":{"value":true,"timestamp":1703123456}}}}
+{"data":{"type":"item-change","item":{"name":"lamp","label":"Living-room lamp","type-hint":"boolean","tags":{},"item-state":{"value":true,"timestamp":1703123456}}}}
 ```
 
 **Heartbeat Event:**
@@ -158,12 +158,12 @@ Event format follows the SSE standard with `data:` fields containing JSON payloa
 | Field | Type | Description |
 |-------|------|-------------|
 | `data.type` | string | Always `"item-change"` |
-| `data.data.name` | string | Item identifier |
-| `data.data.label` | string | Human-readable item name |
-| `data.data.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`) |
-| `data.data.tags` | object | Item metadata (including `:ext-readonly` flag) |
-| `data.data.item-state.value` | any | Current item value |
-| `data.data.item-state.timestamp` | number | Common Lisp universal-time timestamp (seconds since 1900-01-01) |
+| `data.item.name` | string | Item identifier |
+| `data.item.label` | string | Human-readable item name |
+| `data.item.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`) |
+| `data.item.tags` | object | Item metadata (including `:ext-readonly` flag) |
+| `data.item.item-state.value` | any | Current item value |
+| `data.item.item-state.timestamp` | number | Common Lisp universal-time timestamp (seconds since 1900-01-01) |
 
 #### Timestamp Format
 
