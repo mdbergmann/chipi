@@ -34,7 +34,7 @@ export class ItemEventSource {
     private maxReconnectDelay = 30000; // Max 30 seconds
     private isConnecting = false;
     private shouldReconnect = true;
-    private heartbeatInterval = 35000; // 35 seconds (server sends every 30s)
+    private heartbeatInterval = 60000; // 60 seconds (server sends every 30s, so 2x + buffer)
     private isOnline = false;
 
     constructor(
@@ -74,7 +74,7 @@ export class ItemEventSource {
                 this.isConnecting = false;
                 this.isOnline = true;
                 this.reconnectDelay = 1000; // Reset reconnect delay on successful connection
-                this.startHeartbeatMonitoring();
+                // Don't start heartbeat monitoring immediately - wait for first heartbeat or connection event
             };
 
             this.eventSource.onmessage = (event) => {
@@ -168,25 +168,25 @@ export class ItemEventSource {
         switch (event.type) {
             case 'item-change':
                 this.onItemChange(event);
-                this.resetHeartbeatTimeout();
+                this.ensureHeartbeatMonitoring();
                 break;
             case 'connection':
                 console.log('SSE connection established:', event.message);
                 if (this.onConnection) {
                     this.onConnection(event);
                 }
-                this.resetHeartbeatTimeout();
+                this.ensureHeartbeatMonitoring(); // Start monitoring after connection event
                 break;
             case 'heartbeat':
                 console.debug('SSE heartbeat received');
-                this.resetHeartbeatTimeout();
+                this.ensureHeartbeatMonitoring();
                 break;
             default:
                 console.warn('Unknown SSE event type:', event);
         }
     }
 
-    private resetHeartbeatTimeout(): void {
+    private ensureHeartbeatMonitoring(): void {
         this.clearHeartbeatTimeout();
         this.startHeartbeatMonitoring();
     }
