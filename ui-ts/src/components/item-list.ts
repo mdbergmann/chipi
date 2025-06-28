@@ -130,17 +130,35 @@ export class ItemList extends LitElement {
       itemState: item['item-state']
     });
 
-    // Update the item in the current groups
-    this.groups = this.groups.map(group => ({
-      ...group,
-      items: group.items.map(item => 
-        item.name === itemName 
-          ? { ...item, value: newValue, timestamp: newTimestamp }
-          : item
-      )
-    }));
+    // Find and update the item more explicitly
+    let itemFound = false;
+    const updatedGroups = this.groups.map(group => {
+      const updatedItems = group.items.map(groupItem => {
+        if (groupItem.name === itemName) {
+          console.log(`Found item ${itemName} in group ${group.name}, updating from ${groupItem.value} to ${newValue}`);
+          itemFound = true;
+          return { 
+            ...groupItem, 
+            value: newValue, 
+            timestamp: newTimestamp 
+          };
+        }
+        return groupItem;
+      });
+      
+      return {
+        ...group,
+        items: updatedItems
+      };
+    });
 
-    console.log(`Item ${itemName} updated via SSE to value:`, newValue, 'at timestamp:', newTimestamp);
+    if (itemFound) {
+      this.groups = updatedGroups;
+      console.log(`Item ${itemName} updated via SSE to value:`, newValue, 'at timestamp:', newTimestamp);
+      console.log('Updated groups:', this.groups);
+    } else {
+      console.warn(`Item ${itemName} not found in any group for SSE update`);
+    }
     
     // Force a re-render to ensure the UI updates
     this.requestUpdate();
@@ -177,6 +195,12 @@ export class ItemList extends LitElement {
   }
 
   render() {
+    // Add debug logging
+    console.log('Rendering item-list with groups:', this.groups.length);
+    this.groups.forEach(group => {
+      console.log(`Group ${group.name}:`, group.items.map(i => `${i.name}=${i.value}`));
+    });
+
     return html`
       <div class="toolbar">
         <div class="sse-status">

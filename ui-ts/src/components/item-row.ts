@@ -86,6 +86,13 @@ export class ItemRow extends LitElement {
   `;
 
   willUpdate(changedProperties: Map<string, any>) {
+    // Add comprehensive logging
+    console.log(`ItemRow ${this.id} willUpdate:`, {
+      changedProperties: Array.from(changedProperties.keys()),
+      currentValue: this.value,
+      currentTimestamp: this.timestamp
+    });
+
     if (changedProperties.has('value')) {
       const newValue = this.value;
       const oldValue = changedProperties.get('value');
