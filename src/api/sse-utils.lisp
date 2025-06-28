@@ -23,12 +23,14 @@
   (declare (ignore id event retry))
   (when (not (open-stream-p stream))
     (error 'stream-closed-error))
-  (let* ((json-wrapper (jz:stringify
+  (let* ((parsed-data (jz:parse data))
+         (json-wrapper (jz:stringify
                         (plist-hash-table
-                         (list "data" (jz:parse data))
+                         (list "data" parsed-data)
                          :test #'equal)))
          (message-bytes (flexi-streams:string-to-octets
-                         json-wrapper :external-format :utf-8)))
+                         (concatenate 'string json-wrapper (string #\Newline))
+                         :external-format :utf-8)))
     (write-sequence message-bytes stream)
     (force-output stream)
     t))
