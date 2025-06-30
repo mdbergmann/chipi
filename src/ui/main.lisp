@@ -14,49 +14,37 @@
   (load-script (html-document body) "https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js")
   (load-script (html-document body) "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js")
 
-  ;; Add Bootstrap container and header
-  (let ((container (create-div body :class "container-fluid mt-4")))
-    (create-div container :class "row mb-4"
-                :content "<div class=\"col-12\"><h1 class=\"display-4 text-center\">Home Automation Dashboard</h1></div>")
-    (let ((itemgroups-row (create-div container :class "row")))
-      (map nil (lambda (ig) (render-itemgroup ig itemgroups-row)) (retrieve-itemgroups)))))
+  (let ((container (create-div body :class "container")))
+    (create-element container "h1" :content "Home Automation Dashboard")
+    (let ((itemgroups-container (create-div container :class "itemgroups")))
+      (map nil (lambda (ig) (render-itemgroup ig itemgroups-container)) (retrieve-itemgroups)))))
 
 (defun render-itemgroup (itemg parent)
-  (let* ((col (create-div parent :class "col-lg-6 col-xl-4 mb-4"))
-         (card (create-div col :class "card h-100 shadow-sm"))
-         (card-header (create-div card :class "card-header bg-primary text-white"))
-         (card-body (create-div card :class "card-body p-0")))
-    
-    (create-element card-header "h5" :class "card-title mb-0"
+  (let ((itemgroup-div (create-div parent :class "itemgroup")))
+    (create-element itemgroup-div "h2" :class "itemgroup-title"
                     :content (gethash "label" itemg))
     
-    (let ((items-list (create-div card-body :class "list-group list-group-flush")))
+    (let ((items-container (create-div itemgroup-div :class "items")))
       (map nil (lambda (item)
-                 (render-item item items-list))
+                 (render-item item items-container))
            (gethash "items" itemg)))))
 
 (defun render-item (item parent)
-  (let* ((list-item (create-div parent :class "list-group-item list-group-item-action"))
+  (let* ((item-div (create-div parent :class "item"))
          (item-state (gethash "item-state" item))
          (type-hint (gethash "type-hint" item)))
     
-    ;; Item header with name and type badge
-    (let ((item-header (create-div list-item :class "d-flex justify-content-between align-items-start mb-2")))
-      (create-element item-header "h6" :class "mb-1 font-weight-bold text-monospace"
-                      :content (gethash "name" item))
-      (create-element item-header "span" 
-                      :class (format nil "badge ~a" (get-type-badge-class type-hint))
-                      :content (format-type-hint type-hint)))
+    (create-element item-div "div" :class "item-name"
+                    :content (gethash "name" item))
     
-    ;; Item value - prominent display
-    (let ((value-container (create-div list-item :class "mb-2")))
-      (create-element value-container "div" :class "h4 mb-1 text-success font-weight-bold"
-                      :content (format-value (gethash "value" item-state) type-hint)))
+    (create-element item-div "span" :class (format nil "item-type ~a" (string-downcase type-hint))
+                    :content (format-type-hint type-hint))
     
-    ;; Timestamp - small and muted
-    (create-element list-item "small" :class "text-muted"
-                    :content (format nil "🕒 ~a" 
-                                   (format-timestamp (gethash "timestamp" item-state))))))
+    (create-element item-div "div" :class "item-value"
+                    :content (format-value (gethash "value" item-state) type-hint))
+    
+    (create-element item-div "p" :class "item-timestamp"
+                    :content (format-timestamp (gethash "timestamp" item-state)))))
 
 (defun format-timestamp (timestamp)
   (local-time:format-rfc1123-timestring nil (local-time:unix-to-timestamp timestamp)))
@@ -69,13 +57,6 @@
     ((string= "STRING" type-hint) (if value value ""))
     (t (if value (format nil "~a" value) ""))))
 
-(defun get-type-badge-class (type-hint)
-  (cond
-    ((string= "BOOLEAN" type-hint) "badge-success")
-    ((string= "FLOAT" type-hint) "badge-info")
-    ((string= "INTEGER" type-hint) "badge-warning")
-    ((string= "STRING" type-hint) "badge-secondary")
-    (t "badge-light")))
 
 (defun format-type-hint (type-hint)
   (cond
