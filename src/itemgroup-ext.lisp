@@ -15,7 +15,7 @@ serialization.  Empty item lists are encoded as an empty array ([]) instead of t
 JSON boolean «false»."
   (let* ((item-list (mapcar #'item-to-ht (itemgroup:get-items grp)))
          ;; `jzon` encodes NIL as JSON boolean false – map empty list to empty vector #()
-         (items-json (if item-list item-list #())))
+         (items-json (if item-list (coerce item-list 'vector) #())))
     (plist-hash-table
      (list "name"  (itemgroup:name grp)
            "label" (itemgroup:label grp)

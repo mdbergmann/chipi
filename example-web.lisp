@@ -45,7 +45,7 @@
 
 (defitem 'switch1 "Switch1" 'boolean :initial-value 'item:false
   :group '(plugs lights switches))
-(defitem 'light1 "Light1" 'float :initial-value 'item:true
+(defitem 'light1 "Light1" 'float :initial-value 123.456
   :group '(lights))
 (defitem 'plug1 "Plug1" 'string :initial-value 'item:false
   :group '(plugs))
