@@ -1,44 +1,56 @@
-/* Custom theme colors and overrides */
+/* Custom theme enhancements for Bootstrap */
 :root {
-    --itemgroup-header-bg: #2c3e50;
-    --item-hover-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    --item-hover-shadow: 0 8px 25px rgba(0,0,0,0.15);
 }
 
-/* Custom itemgroup header styling */
-.itemgroup-title {
-    background: var(--itemgroup-header-bg);
-    color: white;
-    font-weight: 600;
-}
-
-/* Enhanced item hover effect */
-.item:hover {
+/* Enhanced card hover effects */
+.card:hover {
     box-shadow: var(--item-hover-shadow);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+}
+
+/* List item hover effects */
+.list-group-item-action:hover {
+    background-color: #f8f9fa;
+    border-left: 4px solid #007bff;
     transition: all 0.2s ease;
 }
 
-/* Monospace styling for item names */
-.item-name {
-    font-family: 'Courier New', monospace;
-    font-size: 0.875rem;
-    word-break: break-all;
+/* Custom styling for boolean values */
+.item-value.boolean-true {
+    color: #28a745 !important;
 }
 
-/* Value styling with better visual hierarchy */
-.item-value {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #28a745; /* Bootstrap success color */
+.item-value.boolean-false {
+    color: #dc3545 !important;
 }
 
-/* Timestamp with icon */
-.item-timestamp::before {
-    content: "🕒 ";
-    margin-right: 0.25rem;
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .display-4 {
+        font-size: 2rem;
+    }
+    
+    .card-title {
+        font-size: 1.1rem;
+    }
 }
 
-/* Remove default margins on last items */
-.items-container .item:last-child {
-    margin-bottom: 0;
+/* Custom scrollbar for better aesthetics */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
 }
