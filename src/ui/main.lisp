@@ -15,14 +15,14 @@
   (load-script (html-document body) "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js")
 
   (let ((container (create-div body :class "container")))
-    (create-element container "h1" :content "Home Automation Dashboard")
+    (create-div container :class "main-title" :content "Home Automation Dashboard")
     (let ((itemgroups-container (create-div container :class "itemgroups")))
       (map nil (lambda (ig) (render-itemgroup ig itemgroups-container)) (retrieve-itemgroups)))))
 
 (defun render-itemgroup (itemg parent)
   (let ((itemgroup-div (create-div parent :class "itemgroup")))
-    (create-element itemgroup-div "h2" :class "itemgroup-title"
-                    :content (gethash "label" itemg))
+    (create-div itemgroup-div :class "itemgroup-title"
+                :content (gethash "label" itemg))
     
     (let ((items-container (create-div itemgroup-div :class "items")))
       (map nil (lambda (item)
@@ -34,17 +34,17 @@
          (item-state (gethash "item-state" item))
          (type-hint (gethash "type-hint" item)))
     
-    (create-element item-div "div" :class "item-name"
-                    :content (gethash "name" item))
+    (create-div item-div :class "item-name"
+                :content (gethash "name" item))
     
-    (create-element item-div "span" :class (format nil "item-type ~a" (string-downcase type-hint))
-                    :content (format-type-hint type-hint))
+    (create-div item-div :class (format nil "item-type ~a" (string-downcase type-hint))
+                :content (format-type-hint type-hint))
     
-    (create-element item-div "div" :class "item-value"
-                    :content (format-value (gethash "value" item-state) type-hint))
+    (create-div item-div :class "item-value"
+                :content (format-value (gethash "value" item-state) type-hint))
     
-    (create-element item-div "p" :class "item-timestamp"
-                    :content (format-timestamp (gethash "timestamp" item-state)))))
+    (create-div item-div :class "item-timestamp"
+                :content (format-timestamp (gethash "timestamp" item-state)))))
 
 (defun format-timestamp (timestamp)
   (local-time:format-rfc1123-timestring nil (local-time:unix-to-timestamp timestamp)))

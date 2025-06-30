@@ -5,8 +5,8 @@
     padding: 0 15px;
 }
 
-/* Header styling */
-.container > h1 {
+/* Header styling - now targeting div instead of h1 */
+.main-title {
     font-size: 3.5rem;
     font-weight: 300;
     text-align: center;
@@ -140,7 +140,7 @@
 }
 
 @media (max-width: 768px) {
-    .container > h1 {
+    .main-title {
         font-size: 2.5rem;
     }
     
@@ -163,7 +163,7 @@
         padding: 0 10px;
     }
     
-    .container > h1 {
+    .main-title {
         font-size: 2rem;
         margin-bottom: 1.5rem;
     }
