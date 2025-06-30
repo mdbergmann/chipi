@@ -1,0 +1,44 @@
+/* Custom theme colors and overrides */
+:root {
+    --itemgroup-header-bg: #2c3e50;
+    --item-hover-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Custom itemgroup header styling */
+.itemgroup-title {
+    background: var(--itemgroup-header-bg);
+    color: white;
+    font-weight: 600;
+}
+
+/* Enhanced item hover effect */
+.item:hover {
+    box-shadow: var(--item-hover-shadow);
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+}
+
+/* Monospace styling for item names */
+.item-name {
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    word-break: break-all;
+}
+
+/* Value styling with better visual hierarchy */
+.item-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #28a745; /* Bootstrap success color */
+}
+
+/* Timestamp with icon */
+.item-timestamp::before {
+    content: "🕒 ";
+    margin-right: 0.25rem;
+}
+
+/* Remove default margins on last items */
+.items-container .item:last-child {
+    margin-bottom: 0;
+}
