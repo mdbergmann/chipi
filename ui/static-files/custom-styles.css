@@ -30,6 +30,7 @@
     box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
     overflow: hidden;
     transition: all 0.3s ease;
+    height: fit-content;
 }
 
 .itemgroup:hover {
@@ -62,42 +63,31 @@
     padding: 0.75rem 1.25rem;
     margin: 0;
     background-color: #fff;
-    border: 1px solid rgba(0,0,0,.125);
-    border-top: none;
+    border-bottom: 1px solid rgba(0,0,0,.125);
     transition: all 0.2s ease;
     cursor: pointer;
 }
 
-.item:first-child {
-    border-top: 1px solid rgba(0,0,0,.125);
+.item:last-child {
+    border-bottom: none;
 }
 
 .item:hover {
     background-color: #f8f9fa;
-    z-index: 1;
-    border-color: #007bff;
+    border-left: 4px solid #007bff;
 }
 
-/* Item layout - flexbox for better control */
-.item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-/* Item header with name and type badge */
+/* Item name and type badge layout */
 .item-name {
     font-family: 'Courier New', monospace;
     font-weight: 600;
     font-size: 1rem;
     color: #495057;
-    margin: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    margin: 0 0 0.5rem 0;
+    position: relative;
 }
 
-/* Item type as Bootstrap badge */
+/* Item type as Bootstrap badge - positioned top right */
 .item-type {
     display: inline-block;
     padding: 0.25em 0.4em;
@@ -108,7 +98,9 @@
     white-space: nowrap;
     vertical-align: baseline;
     border-radius: 0.25rem;
-    margin-left: auto;
+    position: absolute;
+    top: 0;
+    right: 0;
 }
 
 .item-type.boolean { background-color: #28a745; color: white; }
@@ -121,7 +113,7 @@
     font-size: 1.5rem;
     font-weight: 600;
     color: #28a745;
-    margin: 0;
+    margin: 0 0 0.5rem 0;
     line-height: 1.2;
 }
 
@@ -141,6 +133,12 @@
 }
 
 /* Responsive design */
+@media (max-width: 992px) {
+    .itemgroups {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+}
+
 @media (max-width: 768px) {
     .container > h1 {
         font-size: 2.5rem;
@@ -172,5 +170,10 @@
     
     .item {
         padding: 0.5rem 1rem;
+    }
+    
+    .itemgroups {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
     }
 }
