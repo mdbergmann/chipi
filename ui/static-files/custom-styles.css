@@ -139,6 +139,7 @@
 
 /* Toggle switch styling */
 .boolean-toggle {
+    position: relative;
     display: inline-block;
     margin: 0.5rem 0;
     width: 60px;
