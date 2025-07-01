@@ -9,8 +9,8 @@
 (in-package :chipi-ui.main)
 
 (defun on-main (body)
-  (load-css (html-document body)
-            "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css")
+  ;; (load-css (html-document body)
+  ;;           "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css")
   (load-css (html-document body)
             "/custom-styles.css")
   (load-script (html-document body)
