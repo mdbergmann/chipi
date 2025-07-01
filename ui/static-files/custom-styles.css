@@ -57,7 +57,7 @@
     @apply text-muted small;
 }
 
-.item-switch {
+.item-value-boolean {
     @apply form-check form-switch mb-2;
 }
 

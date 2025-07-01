@@ -53,7 +53,7 @@
 (defun render-item-value (item-name item-value type-hint parent)
   (cond
     ((string= "BOOLEAN" type-hint)
-     (let* ((form-check (create-div parent :class "item-switch"))
+     (let* ((form-check (create-div parent :class "item-value-boolean"))
             (toggle-input (create-form-element form-check "checkbox"
                                                :role "switch"
                                                :class "item-switch-input")))
