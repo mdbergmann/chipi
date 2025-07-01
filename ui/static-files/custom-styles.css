@@ -22,7 +22,7 @@
     @apply card-header bg-primary text-white;
 }
 
-.items-list {
+.items-container {
     @apply list-group list-group-flush;
 }
 

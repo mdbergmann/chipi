@@ -28,7 +28,7 @@
     (create-div card-div :class "itemgroup-header"
                          :content (gethash "label" itemg))
     
-    (let ((items-container (create-div card-div :class "items-list")))
+    (let ((items-container (create-div card-div :class "items-container")))
       (map nil (lambda (item)
                  (render-item item items-container))
            (gethash "items" itemg)))))
