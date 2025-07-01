@@ -1,222 +1,133 @@
-/* Semantic class abstractions using standard CSS */
+/* Semantic class abstractions using Bootstrap 5 classes */
 
-/* Main header styling */
+/* Main header styling - using Bootstrap display utility */
 .header-line {
-    font-size: 3.5rem;
-    font-weight: 300;
-    text-align: center;
-    margin-bottom: 1.5rem;
-    color: #212529;
+    @extend .display-4;
+    @extend .fw-light;
+    @extend .text-center;
+    @extend .mb-4;
 }
 
-/* Layout containers */
+/* Layout containers - using Bootstrap grid system */
 .itemgroups-container {
-    display: flex;
-    flex-wrap: wrap;
-    margin-top: calc(-1 * 1rem);
-    margin-right: calc(-0.5 * 1rem);
-    margin-left: calc(-0.5 * 1rem);
-}
-
-.itemgroups-container > * {
-    flex-shrink: 0;
-    width: 100%;
-    max-width: 100%;
-    padding-right: calc(1rem * 0.5);
-    padding-left: calc(1rem * 0.5);
-    margin-top: 1rem;
+    @extend .row;
+    @extend .g-3;
 }
 
 .itemgroup-column {
-    flex: 0 0 auto;
+    @extend .col-12;
+    @extend .col-md-6;
+    @extend .col-lg-4;
 }
 
-@media (min-width: 576px) {
-    .itemgroup-column {
-        width: 100%;
-    }
-}
-
-@media (min-width: 768px) {
-    .itemgroup-column {
-        width: 50%;
-    }
-}
-
-@media (min-width: 992px) {
-    .itemgroup-column {
-        width: 33.33333333%;
-    }
-}
-
+/* Card components - using Bootstrap card classes */
 .itemgroup-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    word-wrap: break-word;
-    background-color: #fff;
-    background-clip: border-box;
-    border: 1px solid rgba(0, 0, 0, 0.125);
-    border-radius: 0.375rem;
-    height: 100%;
+    @extend .card;
+    @extend .h-100;
 }
 
 .itemgroup-header {
-    padding: 0.5rem 1rem;
-    margin-bottom: 0;
-    background-color: #0d6efd;
-    color: #fff;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-    border-top-left-radius: calc(0.375rem - 1px);
-    border-top-right-radius: calc(0.375rem - 1px);
+    @extend .card-header;
+    @extend .bg-primary;
+    @extend .text-white;
 }
 
+/* List group for items */
 .items-container {
-    display: flex;
-    flex-direction: column;
-    padding-left: 0;
-    margin-bottom: 0;
-    border-radius: 0.375rem;
+    @extend .list-group;
+    @extend .list-group-flush;
 }
 
-.items-container .item-container:first-child {
-    border-top-left-radius: inherit;
-    border-top-right-radius: inherit;
-}
-
-.items-container .item-container:last-child {
-    border-bottom-right-radius: inherit;
-    border-bottom-left-radius: inherit;
-}
-
-.items-container .item-container {
-    border-top-width: 0;
-}
-
-.items-container .item-container:first-child {
-    border-top-width: 1px;
-}
-
-/* Item styling */
 .item-container {
-    position: relative;
-    display: block;
-    padding: 0.5rem 1rem;
-    color: #212529;
-    text-decoration: none;
-    background-color: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    @extend .list-group-item;
+    @extend .position-relative;
 }
 
+/* Item content styling */
 .item-name {
-    margin-bottom: 0.5rem;
+    @extend .mb-2;
+    @extend .fw-semibold;
+    @extend .text-muted;
     font-family: 'Courier New', monospace;
-    font-weight: 600;
-    color: #6c757d;
 }
 
 .item-type-badge {
-    display: inline-block;
-    padding: 0.35em 0.65em;
-    font-size: 0.75em;
-    font-weight: 700;
-    line-height: 1;
-    color: #fff;
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: baseline;
-    border-radius: 0.375rem;
-    position: absolute;
+    @extend .badge;
+    @extend .position-absolute;
     top: 0.75rem;
     right: 1.25rem;
 }
 
 .item-value-display {
-    margin-bottom: 0.5rem;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #198754;
-    line-height: 1.2;
+    @extend .mb-2;
+    @extend .fs-4;
+    @extend .fw-semibold;
+    @extend .text-success;
+    @extend .lh-sm;
 }
 
 .item-timestamp-display {
-    color: #6c757d;
-    font-size: 0.875em;
+    @extend .text-muted;
+    @extend .small;
 }
 
+/* Form switch for boolean values */
 .item-value-boolean {
-    display: block;
-    min-height: 1.5rem;
-    padding-left: 2.5em;
-    margin-bottom: 0.5rem;
+    @extend .form-check;
+    @extend .form-switch;
+    @extend .mb-2;
 }
 
 .item-value-boolean-input {
-    width: 2em;
-    height: 1em;
-    margin-left: -2.5em;
-    background-color: #dee2e6;
-    border: 1px solid #ced4da;
-    border-radius: 2em;
-    transition: background-color 0.15s ease-in-out, background-position 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='rgba%28255, 255, 255, 1.0%29'/%3e%3c/svg%3e");
-    background-position: left center;
-    background-repeat: no-repeat;
-    background-size: contain;
+    @extend .form-check-input;
 }
 
-.item-value-boolean-input:focus {
-    border-color: #86b7fe;
-    outline: 0;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-}
+/* Custom enhancements and overrides */
 
-.item-value-boolean-input:checked {
-    background-color: #0d6efd;
-    border-color: #0d6efd;
-    background-position: right center;
-}
-
-.item-value-boolean-input:checked:focus {
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-}
-
-/* Custom overrides for Bootstrap components */
-
-/* Card hover effects */
-.card:hover {
-    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+/* Enhanced card hover effects */
+.itemgroup-card:hover {
+    @extend .shadow-lg;
     transform: translateY(-2px);
     transition: all 0.3s ease;
 }
 
-/* List group item hover effects */
-.list-group-item:hover {
+/* Enhanced list item hover effects */
+.item-container:hover {
     border-left: 4px solid var(--bs-primary);
     transition: all 0.2s ease;
 }
 
-/* Item type badge colors */
-.item-type-badge.boolean { background-color: var(--bs-success) !important; }
-.item-type-badge.float { background-color: var(--bs-info) !important; }
-.item-type-badge.integer { background-color: var(--bs-warning) !important; }
-.item-type-badge.string { background-color: var(--bs-secondary) !important; }
+/* Item type badge color variants */
+.item-type-badge.boolean { 
+    @extend .bg-success; 
+}
+.item-type-badge.float { 
+    @extend .bg-info; 
+}
+.item-type-badge.integer { 
+    @extend .bg-warning; 
+}
+.item-type-badge.string { 
+    @extend .bg-secondary; 
+}
 
 /* Item value state colors */
-.item-value-display.boolean-true { color: var(--bs-success); }
-.item-value-display.boolean-false { color: var(--bs-danger); }
+.item-value-display.boolean-true { 
+    @extend .text-success; 
+}
+.item-value-display.boolean-false { 
+    @extend .text-danger; 
+}
 
-/* Item timestamp styling */
+/* Item timestamp styling with icon */
 .item-timestamp-display::before {
     content: "🕒 ";
     margin-right: 0.25rem;
 }
 
-/* Responsive adjustments */
+/* Responsive font size adjustments */
 @media (max-width: 768px) {
     .item-value-display {
-        font-size: 1.25rem;
+        font-size: 1.25rem !important;
     }
 }
