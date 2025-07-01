@@ -1,3 +1,70 @@
+/* Semantic class abstractions */
+
+/* Main header styling */
+.header-line {
+    @apply display-4 fw-light text-center mb-4 text-dark;
+}
+
+/* Layout containers */
+.itemgroups-grid {
+    @apply row g-3;
+}
+
+.itemgroup-column {
+    @apply col-lg-4 col-md-6 col-sm-12;
+}
+
+.itemgroup-card {
+    @apply card h-100;
+}
+
+.itemgroup-header {
+    @apply card-header bg-primary text-white;
+}
+
+.items-list {
+    @apply list-group list-group-flush;
+}
+
+/* Item styling */
+.item-container {
+    @apply list-group-item position-relative;
+}
+
+.item-name {
+    @apply mb-2;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    color: var(--bs-gray-700);
+}
+
+.item-type-badge {
+    @apply badge;
+    position: absolute;
+    top: 0.75rem;
+    right: 1.25rem;
+}
+
+.item-value-display {
+    @apply mb-2;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--bs-success);
+    line-height: 1.2;
+}
+
+.item-timestamp-display {
+    @apply text-muted small;
+}
+
+.item-switch {
+    @apply form-check form-switch mb-2;
+}
+
+.item-switch-input {
+    @apply form-check-input;
+}
+
 /* Custom overrides for Bootstrap components */
 
 /* Card hover effects */
@@ -13,46 +80,25 @@
     transition: all 0.2s ease;
 }
 
-/* Item name styling */
-.item-name {
-    font-family: 'Courier New', monospace;
-    font-weight: 600;
-    color: var(--bs-gray-700);
-}
-
-/* Item type badge positioning */
-.item-type {
-    position: absolute;
-    top: 0.75rem;
-    right: 1.25rem;
-}
-
 /* Item type badge colors */
-.badge.boolean { background-color: var(--bs-success) !important; }
-.badge.float { background-color: var(--bs-info) !important; }
-.badge.integer { background-color: var(--bs-warning) !important; }
-.badge.string { background-color: var(--bs-secondary) !important; }
+.item-type-badge.boolean { background-color: var(--bs-success) !important; }
+.item-type-badge.float { background-color: var(--bs-info) !important; }
+.item-type-badge.integer { background-color: var(--bs-warning) !important; }
+.item-type-badge.string { background-color: var(--bs-secondary) !important; }
 
-/* Item value styling */
-.item-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--bs-success);
-    line-height: 1.2;
-}
-
-.item-value.boolean-true { color: var(--bs-success); }
-.item-value.boolean-false { color: var(--bs-danger); }
+/* Item value state colors */
+.item-value-display.boolean-true { color: var(--bs-success); }
+.item-value-display.boolean-false { color: var(--bs-danger); }
 
 /* Item timestamp styling */
-.item-timestamp::before {
+.item-timestamp-display::before {
     content: "🕒 ";
     margin-right: 0.25rem;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .item-value {
+    .item-value-display {
         font-size: 1.25rem;
     }
 }
