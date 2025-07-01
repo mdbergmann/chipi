@@ -1,133 +1,18 @@
-/* Semantic class abstractions using Bootstrap 5 classes */
+/* Error: The target selector was not found.
+ * Use "@extend .display-4 !optional" to avoid this error.
+ *   ,
+ * 7 |     @extend .display-4;
+ *   |     ^^^^^^^^^^^^^^^^^^
+ *   '
+ *   custom-styles.scss 7:5  root stylesheet */
 
-/* Main header styling - using Bootstrap display utility */
-.header-line {
-    @extend .display-4;
-    @extend .fw-light;
-    @extend .text-center;
-    @extend .mb-4;
-}
-
-/* Layout containers - using Bootstrap grid system */
-.itemgroups-container {
-    @extend .row;
-    @extend .g-3;
-}
-
-.itemgroup-column {
-    @extend .col-12;
-    @extend .col-md-6;
-    @extend .col-lg-4;
-}
-
-/* Card components - using Bootstrap card classes */
-.itemgroup-card {
-    @extend .card;
-    @extend .h-100;
-}
-
-.itemgroup-header {
-    @extend .card-header;
-    @extend .bg-primary;
-    @extend .text-white;
-}
-
-/* List group for items */
-.items-container {
-    @extend .list-group;
-    @extend .list-group-flush;
-}
-
-.item-container {
-    @extend .list-group-item;
-    @extend .position-relative;
-}
-
-/* Item content styling */
-.item-name {
-    @extend .mb-2;
-    @extend .fw-semibold;
-    @extend .text-muted;
-    font-family: 'Courier New', monospace;
-}
-
-.item-type-badge {
-    @extend .badge;
-    @extend .position-absolute;
-    top: 0.75rem;
-    right: 1.25rem;
-}
-
-.item-value-display {
-    @extend .mb-2;
-    @extend .fs-4;
-    @extend .fw-semibold;
-    @extend .text-success;
-    @extend .lh-sm;
-}
-
-.item-timestamp-display {
-    @extend .text-muted;
-    @extend .small;
-}
-
-/* Form switch for boolean values */
-.item-value-boolean {
-    @extend .form-check;
-    @extend .form-switch;
-    @extend .mb-2;
-}
-
-.item-value-boolean-input {
-    @extend .form-check-input;
-}
-
-/* Custom enhancements and overrides */
-
-/* Enhanced card hover effects */
-.itemgroup-card:hover {
-    @extend .shadow-lg;
-    transform: translateY(-2px);
-    transition: all 0.3s ease;
-}
-
-/* Enhanced list item hover effects */
-.item-container:hover {
-    border-left: 4px solid var(--bs-primary);
-    transition: all 0.2s ease;
-}
-
-/* Item type badge color variants */
-.item-type-badge.boolean { 
-    @extend .bg-success; 
-}
-.item-type-badge.float { 
-    @extend .bg-info; 
-}
-.item-type-badge.integer { 
-    @extend .bg-warning; 
-}
-.item-type-badge.string { 
-    @extend .bg-secondary; 
-}
-
-/* Item value state colors */
-.item-value-display.boolean-true { 
-    @extend .text-success; 
-}
-.item-value-display.boolean-false { 
-    @extend .text-danger; 
-}
-
-/* Item timestamp styling with icon */
-.item-timestamp-display::before {
-    content: "🕒 ";
-    margin-right: 0.25rem;
-}
-
-/* Responsive font size adjustments */
-@media (max-width: 768px) {
-    .item-value-display {
-        font-size: 1.25rem !important;
-    }
+body::before {
+  font-family: "Source Code Pro", "SF Mono", Monaco, Inconsolata, "Fira Mono",
+      "Droid Sans Mono", monospace, monospace;
+  white-space: pre;
+  display: block;
+  padding: 1em;
+  margin-bottom: 1em;
+  border-bottom: 2px solid black;
+  content: 'Error: The target selector was not found.\aUse "@extend .display-4 !optional" to avoid this error.\a   \2577 \a 7 \2502      @extend .display-4;\a   \2502      ^^^^^^^^^^^^^^^^^^\a   \2575 \a   custom-styles.scss 7:5  root stylesheet';
 }
