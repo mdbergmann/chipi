@@ -6,7 +6,7 @@
 }
 
 /* Layout containers */
-.itemgroups-grid {
+.itemgroups-container {
     @apply row g-3;
 }
 

@@ -19,7 +19,7 @@
   (let ((container (create-div body :class "container")))
     (create-div container :class "header-line" 
                           :content "Chipi Home Automation Dashboard")
-    (let ((itemgroups-container (create-div container :class "itemgroups-grid")))
+    (let ((itemgroups-container (create-div container :class "itemgroups-container")))
       (map nil (lambda (ig) (render-itemgroup ig itemgroups-container)) (retrieve-itemgroups)))))
 
 (defun render-itemgroup (itemg parent)
