@@ -56,7 +56,7 @@
      (let* ((form-check (create-div parent :class "item-value-boolean"))
             (toggle-input (create-form-element form-check "checkbox"
                                                :role "switch"
-                                               :class "item-switch-input")))
+                                               :class "item-value-boolean-input")))
        (setf (checkedp toggle-input) item-value)
        (set-on-change toggle-input
                       (lambda (obj)

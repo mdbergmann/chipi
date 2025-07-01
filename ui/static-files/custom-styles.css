@@ -61,7 +61,7 @@
     @apply form-check form-switch mb-2;
 }
 
-.item-switch-input {
+.item-value-boolean-input {
     @apply form-check-input;
 }
 
