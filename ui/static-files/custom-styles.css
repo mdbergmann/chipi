@@ -137,22 +137,10 @@
     position: relative;
 }
 
-.item.has-boolean-toggle::after {
-    content: "";
-    position: absolute;
-    right: 1.25rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 60px;
-    height: 34px;
-}
-
 /* Toggle switch styling */
 .boolean-toggle {
-    position: absolute;
-    right: 1.25rem;
-    top: 50%;
-    transform: translateY(-50%);
+    display: inline-block;
+    margin: 0.5rem 0;
     width: 60px;
     height: 34px;
 }
@@ -195,10 +183,6 @@ input:checked + .toggle-slider:before {
     transform: translateX(26px);
 }
 
-/* Adjust padding for boolean items to make room for toggle */
-.item.has-boolean-toggle {
-    padding-right: 90px;
-}
 
 /* Responsive design */
 @media (max-width: 992px) {
