@@ -1,179 +1,58 @@
-/* Container styling */
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 15px;
-}
+/* Custom overrides for Bootstrap components */
 
-/* Header styling - now targeting div instead of h1 */
-.main-title {
-    font-size: 3.5rem;
-    font-weight: 300;
-    text-align: center;
-    margin-bottom: 2rem;
-    color: #343a40;
-}
-
-/* Itemgroups container - Bootstrap grid */
-.itemgroups {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-/* Itemgroup as Bootstrap card */
-.itemgroup {
-    background: #fff;
-    border: 1px solid rgba(0,0,0,.125);
-    border-radius: 0.375rem;
-    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
-    overflow: hidden;
-    transition: all 0.3s ease;
-    height: fit-content;
-}
-
-.itemgroup:hover {
+/* Card hover effects */
+.card:hover {
     box-shadow: 0 8px 25px rgba(0,0,0,0.15);
     transform: translateY(-2px);
+    transition: all 0.3s ease;
 }
 
-/* Itemgroup header as Bootstrap card-header */
-.itemgroup-title {
-    background: #007bff;
-    color: white;
-    padding: 0.75rem 1.25rem;
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 500;
-    border-bottom: 1px solid rgba(0,0,0,.125);
-}
-
-/* Items container as Bootstrap list-group */
-.items {
-    padding: 0;
-    margin: 0;
-    list-style: none;
-}
-
-/* Individual item as Bootstrap list-group-item */
-.item {
-    position: relative;
-    display: block;
-    padding: 0.75rem 1.25rem;
-    margin: 0;
-    background-color: #fff;
-    border-bottom: 1px solid rgba(0,0,0,.125);
+/* List group item hover effects */
+.list-group-item:hover {
+    border-left: 4px solid var(--bs-primary);
     transition: all 0.2s ease;
-    cursor: pointer;
 }
 
-.item:last-child {
-    border-bottom: none;
-}
-
-.item:hover {
-    background-color: #f8f9fa;
-    border-left: 4px solid #007bff;
-}
-
-/* Item name and type badge layout */
+/* Item name styling */
 .item-name {
     font-family: 'Courier New', monospace;
     font-weight: 600;
-    font-size: 1rem;
-    color: #495057;
-    margin: 0 0 0.5rem 0;
-    position: relative;
+    color: var(--bs-gray-700);
 }
 
-/* Item type as Bootstrap badge - positioned top right */
+/* Item type badge positioning */
 .item-type {
-    display: inline-block;
-    padding: 0.25em 0.4em;
-    font-size: 75%;
-    font-weight: 700;
-    line-height: 1;
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: baseline;
-    border-radius: 0.25rem;
     position: absolute;
-    top: 0;
-    right: 0;
+    top: 0.75rem;
+    right: 1.25rem;
 }
 
-.item-type.boolean { background-color: #28a745; color: white; }
-.item-type.float { background-color: #17a2b8; color: white; }
-.item-type.integer { background-color: #ffc107; color: #212529; }
-.item-type.string { background-color: #6c757d; color: white; }
+/* Item type badge colors */
+.badge.boolean { background-color: var(--bs-success) !important; }
+.badge.float { background-color: var(--bs-info) !important; }
+.badge.integer { background-color: var(--bs-warning) !important; }
+.badge.string { background-color: var(--bs-secondary) !important; }
 
-/* Item value prominent display */
+/* Item value styling */
 .item-value {
     font-size: 1.5rem;
     font-weight: 600;
-    color: #28a745;
-    margin: 0 0 0.5rem 0;
+    color: var(--bs-success);
     line-height: 1.2;
 }
 
-.item-value.boolean-true { color: #28a745; }
-.item-value.boolean-false { color: #dc3545; }
+.item-value.boolean-true { color: var(--bs-success); }
+.item-value.boolean-false { color: var(--bs-danger); }
 
 /* Item timestamp styling */
-.item-timestamp {
-    font-size: 0.875rem;
-    color: #6c757d;
-    margin: 0;
-}
-
 .item-timestamp::before {
     content: "🕒 ";
     margin-right: 0.25rem;
 }
 
-/* Responsive design */
-@media (max-width: 992px) {
-    .itemgroups {
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    }
-}
-
+/* Responsive adjustments */
 @media (max-width: 768px) {
-    .main-title {
-        font-size: 2.5rem;
-    }
-    
-    .itemgroups {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-    
-    .itemgroup-title {
-        font-size: 1.1rem;
-    }
-    
     .item-value {
         font-size: 1.25rem;
-    }
-}
-
-@media (max-width: 576px) {
-    .container {
-        padding: 0 10px;
-    }
-    
-    .main-title {
-        font-size: 2rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .item {
-        padding: 0.5rem 1rem;
-    }
-    
-    .itemgroups {
-        grid-template-columns: 1fr;
-        gap: 0.75rem;
     }
 }

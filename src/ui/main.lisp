@@ -17,41 +17,43 @@
                "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js")
 
   (let ((container (create-div body :class "container")))
-    (create-div container :class "main-title" :content "Chipi Home Automation Dashboard")
-    (let ((itemgroups-container (create-div container :class "itemgroups")))
+    (create-div container :class "display-4 fw-light text-center mb-4 text-dark" 
+                :content "Chipi Home Automation Dashboard")
+    (let ((itemgroups-container (create-div container :class "row g-3")))
       (map nil (lambda (ig) (render-itemgroup ig itemgroups-container)) (retrieve-itemgroups)))))
 
 (defun render-itemgroup (itemg parent)
-  (let ((itemgroup-div (create-div parent :class "itemgroup")))
-    (create-div itemgroup-div :class "itemgroup-title"
+  (let* ((col-div (create-div parent :class "col-lg-4 col-md-6 col-sm-12"))
+         (card-div (create-div col-div :class "card h-100")))
+    (create-div card-div :class "card-header bg-primary text-white"
                 :content (gethash "label" itemg))
     
-    (let ((items-container (create-div itemgroup-div :class "items")))
+    (let ((items-container (create-div card-div :class "list-group list-group-flush")))
       (map nil (lambda (item)
                  (render-item item items-container))
            (gethash "items" itemg)))))
 
 (defun render-item (item parent)
-  (let* ((item-div (create-div parent :class "item"))
+  (let* ((item-div (create-div parent :class "list-group-item position-relative"))
          (item-state (gethash "item-state" item))
          (item-name (gethash "name" item))
          (type-hint (gethash "type-hint" item)))
     
-    (create-div item-div :class "item-name"
+    (create-div item-div :class "item-name mb-2"
                          :content item-name)
     
-    (create-div item-div :class (format nil "item-type ~a" (string-downcase type-hint))
+    (create-div item-div :class (format nil "badge item-type ~a" (string-downcase type-hint))
                          :content (format-type-hint type-hint))
     
     (render-item-value item-name (gethash "value" item-state) type-hint item-div)
 
-    (create-div item-div :class "item-timestamp"
+    (create-div item-div :class "item-timestamp text-muted small"
                          :content (format-timestamp (gethash "timestamp" item-state)))))
 
 (defun render-item-value (item-name item-value type-hint parent)
   (cond
     ((string= "BOOLEAN" type-hint)
-     (let* ((form-check (create-div parent :class "form-check form-switch"))
+     (let* ((form-check (create-div parent :class "form-check form-switch mb-2"))
             (toggle-input (create-form-element form-check "checkbox"
                                                :role "switch"
                                                :class "form-check-input")))
@@ -63,7 +65,7 @@
                           (itemsc:update-item-value item-name current-state)
                           )))))
     (t
-     (create-div parent :class "item-value"
+     (create-div parent :class "item-value mb-2"
                         :content (format-value item-value type-hint)))))
 
 (defun format-timestamp (timestamp)
