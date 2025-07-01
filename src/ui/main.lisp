@@ -18,7 +18,7 @@
 
   (let ((container (create-div body :class "container")))
     (create-div container :class "header-line" 
-                :content "Chipi Home Automation Dashboard")
+                          :content "Chipi Home Automation Dashboard")
     (let ((itemgroups-container (create-div container :class "itemgroups-grid")))
       (map nil (lambda (ig) (render-itemgroup ig itemgroups-container)) (retrieve-itemgroups)))))
 
@@ -26,7 +26,7 @@
   (let* ((col-div (create-div parent :class "itemgroup-column"))
          (card-div (create-div col-div :class "itemgroup-card")))
     (create-div card-div :class "itemgroup-header"
-                :content (gethash "label" itemg))
+                         :content (gethash "label" itemg))
     
     (let ((items-container (create-div card-div :class "items-list")))
       (map nil (lambda (item)
