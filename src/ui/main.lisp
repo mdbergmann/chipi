@@ -88,10 +88,25 @@
     ((string= "STRING" type-hint) "String")
     (t "Undefined type")))
 
+(defvar *item-change-listener* nil)
 (defun start-main ()
   (let ((system-root (merge-pathnames "ui/static-files/"
                                       (asdf:system-source-directory :chipi))))
     (format t "Root: ~a~%" system-root)
+
+    (unless *item-change-listener*
+      (setf *item-change-listener*
+            (ac:actor-of (isys:ensure-isys)
+                         :name "ui-item-change-listener"
+                         :init (lambda (self)
+                                 (ev:subscribe self self 'item:item-changed-event))
+                         :receive (lambda (msg)
+                                    (typecase msg
+                                      (item:item-changed-event
+                                       (let ((item (item:item-changed-event-item msg)))
+                                         (format t "Item changed: ~a~%" item)
+                                         )))))))
+    
     (initialize 'on-main
                 :static-root system-root
                 :extended-routing t)))
