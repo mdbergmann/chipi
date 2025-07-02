@@ -1,6 +1,8 @@
 (defpackage :chipi-ui.main
   (:use :cl :clog)
   (:nicknames :ui-main)
+  (:import-from #:itemsc
+                #:update-item-value)
   (:import-from #:itemgroupsc
                 #:retrieve-itemgroups)
   ;;(:export #:)
@@ -60,7 +62,7 @@
                       (lambda (obj)
                         (let ((current-state (checkedp obj)))
                           (format t "Toggled (change): ~a = ~a~%" obj current-state)
-                          (itemsc:update-item-value item-name current-state)
+                          (update-item-value item-name current-state)
                           )))))
     (t
      (create-div parent :class "item-value-display"
