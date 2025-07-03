@@ -5,7 +5,8 @@
                 #:update-item-value)
   (:import-from #:itemgroupsc
                 #:retrieve-itemgroups)
-  ;;(:export #:)
+  (:export #:start-main
+           #:shutdown-main)
   )
 
 (in-package :chipi-ui.main)
@@ -142,3 +143,9 @@
     (initialize 'on-main
                 :static-root system-root
                 :extended-routing t)))
+
+(defun shutdown-main ()
+  (shutdown)
+  (when *item-change-listener*
+    (ac:stop (isys:ensure-isys) *item-change-listener*)
+    (setf *item-change-listener* nil)))
