@@ -81,7 +81,7 @@
        (set-on-change toggle-input
                       (lambda (obj)
                         (let ((current-state (checkedp obj)))
-                          (format t "Toggled (change): ~a = ~a~%" obj current-state)
+                          (log:debug "Toggled (change): ~a = ~a" obj current-state)
                           (update-item-value item-name current-state)
                           )))))
     (t
@@ -120,7 +120,7 @@
   (typecase msg
     (item:item-changed-event
      (let ((item (item:item-changed-event-item msg)))
-       (format t "Item changed: ~a~%" item)
+       (log:debug "Item changed: ~a" item)
        (call-item-value-update-fun
         (item:name item)
         (gethash "value" (gethash "item-state" (item-ext:item-to-ht item)))))
@@ -130,7 +130,7 @@
   "Starts the CLOG UI and sets up handlers for the pages."
   (let ((system-root (merge-pathnames "ui/static-files/"
                                       (asdf:system-source-directory :chipi))))
-    (format t "Root: ~a~%" system-root)
+    (log:info "UI static root: ~a" system-root)
 
     (unless *item-change-listener*
       (setf *item-change-listener*
