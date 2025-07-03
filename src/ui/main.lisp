@@ -12,7 +12,7 @@
 
 (defvar *item-value-form-update-funs* (make-hash-table :test #'equal))
 
-(defun register-item-value-update-fun (item-name fun)
+(defun set-on-value-update (item-name fun)
   (setf (gethash item-name *item-value-form-update-funs*) fun))
 
 (defun call-item-value-update-fun (item-name updated-value)
@@ -66,11 +66,11 @@
             (toggle-input (create-form-element form-check "checkbox"
                                                :role "switch"
                                                :class "item-value-boolean-input")))
-       (register-item-value-update-fun
-        item-name
-        (lambda (updated-value)
-          (log:debug "Setting value: ~a on component: ~a" updated-value toggle-input)
-          (setf (checkedp toggle-input) updated-value) nil t))
+       (set-on-value-update item-name
+                            (lambda (updated-value)
+                              (log:debug "Setting value: ~a on component: ~a"
+                                         updated-value toggle-input)
+                              (setf (checkedp toggle-input) updated-value) nil t))
        (setf (checkedp toggle-input) item-value)
        (set-on-change toggle-input
                       (lambda (obj)
