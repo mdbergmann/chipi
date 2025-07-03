@@ -78,10 +78,13 @@
     @extend .form-check;
     @extend .form-switch;
     @extend .mb-2;
+    margin-left: 0.5rem;
 }
 
 .item-value-boolean-input {
     @extend .form-check-input;
+    transform: scale(1.5);
+    margin-right: 0.75rem;
 }
 
 /* Custom enhancements and overrides */

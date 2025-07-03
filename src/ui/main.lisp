@@ -69,10 +69,8 @@
        (register-item-value-update-fun
         item-name
         (lambda (updated-value)
-          ;; raw-values
           (log:debug "Setting value: ~a on component: ~a" updated-value toggle-input)
-          (setf (checkedp toggle-input)
-                (if (eq 'item:false updated-value) nil t))))
+          (setf (checkedp toggle-input) updated-value) nil t))
        (setf (checkedp toggle-input) item-value)
        (set-on-change toggle-input
                       (lambda (obj)
@@ -113,8 +111,8 @@
        (format t "Item changed: ~a~%" item)
        (call-item-value-update-fun
         (item:name item)
-        (item:item-state-value (item:get-item-stateq item)))
-       ))))
+        (gethash "value" (gethash "item-state" (item-ext:item-to-ht item)))))
+       )))
 
 (defun start-main ()
   (let ((system-root (merge-pathnames "ui/static-files/"

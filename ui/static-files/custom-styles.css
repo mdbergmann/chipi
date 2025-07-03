@@ -11881,6 +11881,15 @@ textarea.form-control-lg {
 }
 
 /* Form switch for boolean values */
+.item-value-boolean {
+  margin-left: 0.5rem;
+}
+
+.item-value-boolean-input {
+  transform: scale(1.5);
+  margin-right: 0.75rem;
+}
+
 /* Custom enhancements and overrides */
 /* Enhanced card hover effects */
 .itemgroup-card:hover {
