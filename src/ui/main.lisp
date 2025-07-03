@@ -10,7 +10,16 @@
 
 (in-package :chipi-ui.main)
 
+(defvar *item-value-form-update-funs* (make-hash-table :test #'equal))
+
+(defun register-item-value-update-fun (item-name fun)
+  (setf (gethash item-name *item-value-form-update-funs*) fun))
+
+(defun call-item-value-update-fun (item-name updated-value)
+  (funcall (gethash item-name *item-value-form-update-funs*) updated-value))
+
 (defun on-main (body)
+  (log:info "Rendering main...")
   (load-css (html-document body)
             "/custom-styles.css")
   (load-script (html-document body)
@@ -57,6 +66,13 @@
             (toggle-input (create-form-element form-check "checkbox"
                                                :role "switch"
                                                :class "item-value-boolean-input")))
+       (register-item-value-update-fun
+        item-name
+        (lambda (updated-value)
+          ;; raw-values
+          (log:debug "Setting value: ~a on component: ~a" updated-value toggle-input)
+          (setf (checkedp toggle-input)
+                (if (eq 'item:false updated-value) nil t))))
        (setf (checkedp toggle-input) item-value)
        (set-on-change toggle-input
                       (lambda (obj)
@@ -89,6 +105,17 @@
     (t "Undefined type")))
 
 (defvar *item-change-listener* nil)
+
+(defun item-listener-receive (msg)
+  (typecase msg
+    (item:item-changed-event
+     (let ((item (item:item-changed-event-item msg)))
+       (format t "Item changed: ~a~%" item)
+       (call-item-value-update-fun
+        (item:name item)
+        (item:item-state-value (item:get-item-stateq item)))
+       ))))
+
 (defun start-main ()
   (let ((system-root (merge-pathnames "ui/static-files/"
                                       (asdf:system-source-directory :chipi))))
@@ -100,12 +127,9 @@
                          :name "ui-item-change-listener"
                          :init (lambda (self)
                                  (ev:subscribe self self 'item:item-changed-event))
-                         :receive (lambda (msg)
-                                    (typecase msg
-                                      (item:item-changed-event
-                                       (let ((item (item:item-changed-event-item msg)))
-                                         (format t "Item changed: ~a~%" item)
-                                         )))))))
+                         :receive (lambda (msg) (item-listener-receive msg)))))
+
+    (setf *item-value-form-update-funs* (make-hash-table :test #'equal))
     
     (initialize 'on-main
                 :static-root system-root
