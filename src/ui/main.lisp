@@ -79,15 +79,21 @@
                           (update-item-value item-name current-state)
                           )))))
     (t
-     (create-div parent :class "item-value-display"
-                        :content (format-value item-value type-hint)))))
+     (let ((value-div (create-div parent :class "item-value-display"
+                                         :content (format-value item-value type-hint))))
+       (set-on-value-update item-name
+                            (lambda (updated-value)
+                              (log:debug "Setting value: ~a on component: ~a"
+                                         updated-value value-div)
+                              (log:debug "Current value: ~a" (text value-div))
+                              (setf (text value-div)
+                                    (format-value updated-value type-hint))))))))
 
 (defun format-timestamp (timestamp)
   (local-time:format-rfc1123-timestring nil (local-time:unix-to-timestamp timestamp)))
 
 (defun format-value (value type-hint)
   (cond
-    ((string= "BOOLEAN" type-hint) (if value "On" "Off"))
     ((string= "FLOAT" type-hint) (format nil "~f" value))
     ((string= "INTEGER" type-hint) (format nil "~a" value))
     ((string= "STRING" type-hint) (if value value ""))
