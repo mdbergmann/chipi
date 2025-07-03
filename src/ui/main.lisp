@@ -110,7 +110,7 @@
     ((string= "BOOLEAN" type-hint) "Switch")
     ((string= "FLOAT" type-hint) "Decimal Number")
     ((string= "INTEGER" type-hint) "Whole Number")
-    ((string= "STRING" type-hint) "String")
+    ((string= "STRING" type-hint) "Text")
     (t "Undefined type")))
 
 (defvar *item-change-listener* nil)
