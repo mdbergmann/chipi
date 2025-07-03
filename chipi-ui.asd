@@ -8,6 +8,7 @@
                 :serial t
                 :components
                 ((:file "main")
+                 (:file "ui-env")
                   )))
   :in-order-to ((test-op (test-op "chipi-ui/tests"))))
 

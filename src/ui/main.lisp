@@ -126,7 +126,7 @@
         (gethash "value" (gethash "item-state" (item-ext:item-to-ht item)))))
        )))
 
-(defun start-main ()
+(defun start-main (host port)
   "Starts the CLOG UI and sets up handlers for the pages."
   (let ((system-root (merge-pathnames "ui/static-files/"
                                       (asdf:system-source-directory :chipi))))
@@ -144,6 +144,8 @@
     
     (initialize 'on-main
                 :static-root system-root
+                :host host
+                :port port
                 :extended-routing t)))
 
 (defun shutdown-main ()

@@ -44,6 +44,7 @@
   "Initialize the API environment.
 This should be called very early in the application startup process.
 Preferably in or with `hab:defconfig'."
+  (log:info "Initializing API environment")
   (%init-apikey-sign-key)
   (%init-apikey-store apikey-store)
   (%init-apikey-lifetime apikey-lifetime)

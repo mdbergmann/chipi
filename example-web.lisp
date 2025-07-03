@@ -32,8 +32,13 @@
   ;; see (apikey-store:create-apikey)
   
   ;; 3. start the API server
+  ;; This is optional if you don't require an API server. Not required for UI.
   (api:start)
-  
+
+  ;; 4. Initialize and start UI. This starts the UI web server.
+  ;; UI is optional as well as API server is optional,
+  ;; but apt-env setup (2.) with API keys is mandatory for UI.
+  (ui:start :host "localhost" :port 8080)
   )
 
 ;; items here
