@@ -321,7 +321,7 @@ strong {
   font-weight: bolder;
 }
 
-small, .small, .item-timestamp-display {
+small, .small, .item-timestamp-display, .item-name {
   font-size: 0.875em;
 }
 
@@ -7951,7 +7951,7 @@ textarea.form-control-lg {
   margin-bottom: 0.25rem !important;
 }
 
-.mb-2, .item-value-boolean, .item-value-display, .item-name {
+.mb-2, .item-value-boolean, .item-value-display, .item-name, .item-label {
   margin-bottom: 0.5rem !important;
 }
 
@@ -8303,7 +8303,7 @@ textarea.form-control-lg {
   font-weight: 500 !important;
 }
 
-.fw-semibold, .item-value-display, .item-name {
+.fw-semibold, .item-value-display, .item-label {
   font-weight: 600 !important;
 }
 
@@ -8437,7 +8437,7 @@ textarea.form-control-lg {
   color: rgba(var(--bs-body-color-rgb), var(--bs-text-opacity)) !important;
 }
 
-.text-muted, .item-timestamp-display, .item-name {
+.text-muted, .item-timestamp-display, .item-name, .item-label {
   --bs-text-opacity: 1;
   color: var(--bs-secondary-color) !important;
 }
@@ -11871,13 +11871,18 @@ textarea.form-control-lg {
 /* Card components - using Bootstrap card classes */
 /* List group for items */
 /* Item content styling */
+.item-label {
+  font-family: "Courier New", monospace;
+  padding-right: 7rem; /* Add space for the badge */
+}
+
 .item-name {
   font-family: "Courier New", monospace;
 }
 
 .item-type-badge {
-  top: 0.75rem;
-  right: 1.25rem;
+  top: 0.6rem;
+  right: 1rem;
 }
 
 /* Form switch for boolean values */

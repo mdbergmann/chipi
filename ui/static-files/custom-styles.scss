@@ -46,9 +46,17 @@
 }
 
 /* Item content styling */
-.item-name {
+.item-label {
     @extend .mb-2;
     @extend .fw-semibold;
+    @extend .text-muted;
+    font-family: 'Courier New', monospace;
+    padding-right: 7rem; /* Add space for the badge */
+}
+
+.item-name {
+    @extend .mb-2;
+    @extend .small;
     @extend .text-muted;
     font-family: 'Courier New', monospace;
 }
@@ -56,8 +64,8 @@
 .item-type-badge {
     @extend .badge;
     @extend .position-absolute;
-    top: 0.75rem;
-    right: 1.25rem;
+    top: 0.6rem;
+    right: 1rem;
 }
 
 .item-value-display {

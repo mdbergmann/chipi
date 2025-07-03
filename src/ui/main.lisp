@@ -44,16 +44,20 @@
 
 (defun render-item (item parent)
   (let* ((item-div (create-div parent :class "item-container"))
-         (item-state (gethash "item-state" item))
+         (item-label (gethash "label" item))
          (item-name (gethash "name" item))
+         (item-state (gethash "item-state" item))
          (type-hint (gethash "type-hint" item)))
     
-    (create-div item-div :class "item-name"
-                         :content item-name)
-    
+    (create-div item-div :class "item-label"
+                         :content item-label)
+
     (create-div item-div :class (format nil "item-type-badge ~a" (string-downcase type-hint))
                          :content (format-type-hint type-hint))
-    
+
+    (create-div item-div :class "item-name"
+                         :content item-name)
+        
     (render-item-value item-name (gethash "value" item-state) type-hint item-div)
 
     (create-div item-div :class "item-timestamp-display"
