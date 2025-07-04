@@ -203,6 +203,28 @@ API key.
 (hab:shutdown) ; stop the entire Chipi instance
 ```
 
----
 
-© 2024 Chipi contributors – Licensed under the Apache License 2.0
+# Chipi UI
+
+Chipi UI is a responsive UI, based on CLOG and Bootstrap 5 with realtime updates of values.
+
+Example of setup:
+
+```lisp
+(hab:defconfig "chipi"
+  ;; 1 – initialises runtime, actor system, timers …
+  ;; 2 – Chipi-API specific environment
+  (api-env:init
+    :apikey-store (apikey-store:make-simple-file-backend) ; or *memory-backend* for testing
+    :apikey-lifetime (ltd:duration :day 100))
+
+  ;; 3 – HTTP server on port 8765
+  ;;(api:start)
+  
+  ;; 4 - UI
+  ;; API server is not needed for UI, but api-env is (eventually, because we want API key security)
+  ;; ATM it's WIP and doesn't need that either
+  (ui:start :host "your-host" :port <your-port>)
+  )
+```
+
