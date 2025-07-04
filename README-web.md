@@ -228,3 +228,8 @@ Example of setup:
   )
 ```
 
+## Screenshot
+
+![Screenshot](docs/ui/UI.png)
+
+This is mostly WIP. Still under investigation if this is a practical or not.
