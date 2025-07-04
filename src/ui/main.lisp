@@ -82,7 +82,8 @@
                       (lambda (obj)
                         (let ((current-state (checkedp obj)))
                           (log:debug "Toggled (change): ~a = ~a" obj current-state)
-                          (update-item-value item-name current-state)
+                          (update-item-value item-name
+                                             (item-ext:item-value-ext-to-internal current-state))
                           )))))
     (t
      (let ((value-div (create-div parent :class "item-value-display"
