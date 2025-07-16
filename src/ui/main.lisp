@@ -76,7 +76,7 @@
                             (lambda (updated-value)
                               (log:debug "Setting value: ~a on component: ~a"
                                          updated-value toggle-input)
-                              (setf (checkedp toggle-input) updated-value) nil t))
+                              (setf (checkedp toggle-input) updated-value)))
        (setf (checkedp toggle-input) item-value)
        (set-on-change toggle-input
                       (lambda (obj)
