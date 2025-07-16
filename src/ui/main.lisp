@@ -16,8 +16,8 @@
 (defun set-on-value-update (item-name fun)
   (setf (gethash item-name *item-value-form-update-funs*) fun))
 
-(defun call-item-value-update-fun (item-name updated-value)
-  (funcall (gethash item-name *item-value-form-update-funs*) updated-value))
+(defun call-item-value-update-fun (item-name updated-item-state)
+  (funcall (gethash item-name *item-value-form-update-funs*) updated-item-state))
 
 (defun on-main (body)
   "The main page."
@@ -62,8 +62,14 @@
         
     (%render-item-value item-name (gethash "value" item-state) type-hint item-div)
 
-    (create-div item-div :class "item-timestamp-display"
-                         :content (%format-timestamp (gethash "timestamp" item-state)))))
+    (let ((ts-div
+            (create-div item-div :class "item-timestamp-display"
+                                 :content (%format-timestamp (gethash "timestamp" item-state)))))
+      (set-on-value-update item-name
+                           (lambda (updated-item-state)
+                             (setf (text ts-div)
+                                   (%format-timestamp
+                                    (gethash "timestamp" updated-item-state))))))))
 
 (defun %render-item-value (item-name item-value type-hint parent)
   (cond
@@ -73,10 +79,11 @@
                                                :role "switch"
                                                :class "item-value-boolean-input")))
        (set-on-value-update item-name
-                            (lambda (updated-value)
-                              (log:debug "Setting value: ~a on component: ~a"
-                                         updated-value toggle-input)
-                              (setf (checkedp toggle-input) updated-value)))
+                            (lambda (updated-item-state)
+                              (let ((updated-value (gethash "value" updated-item-state)))
+                                (log:debug "Setting value: ~a on component: ~a"
+                                           updated-value toggle-input)
+                                (setf (checkedp toggle-input) updated-value))))
        (setf (checkedp toggle-input) item-value)
        (set-on-change toggle-input
                       (lambda (obj)
@@ -124,7 +131,7 @@
        (log:debug "Item changed: ~a" item)
        (call-item-value-update-fun
         (item:name item)
-        (gethash "value" (gethash "item-state" (item-ext:item-to-ht item)))))
+        (gethash "item-state" (item-ext:item-to-ht item))))
        )))
 
 (defun start-main (host port)
