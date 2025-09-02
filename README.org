@@ -11,7 +11,7 @@ So my aim was to eventually replace openHAB. There are a few things still missin
 
 - support for KNX bus (finished)
 - a REST interface (finished and useable, but more features need to be implemented) ([[./README-web.md][details]])
-- a UI to interact with the system (rudimentary and usable aaand WIP) ([[./ui-ts/README.md][details]])
+- a UI to interact with the system (rudimentary and usable aaand WIP) ([[https://github.com/mdbergmann/chipi/blob/main/README-web.md#chipi-ui][details]])
 
 See plugin section below.
 
