@@ -57,6 +57,7 @@
       new-stream)))
 
 ;; Override stream methods for testing
+(setf lw:*handle-warn-on-redefinition* :warn)
 (defmethod open-stream-p :around (stream)
   (if (gethash stream *test-streams*)
       (not (test-stream-closed-p stream))
