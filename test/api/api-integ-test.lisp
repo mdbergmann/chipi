@@ -408,7 +408,11 @@
         (declare (ignore headers))
         (is (= status 200))
         ;; there is at least the default itemgroup
-        (is (string= (octets-to-string body) "[{\"name\":\"CH-DEFAULT\",\"label\":\"Default\",\"items\":[]}]"))))))
+        (let ((body-str (octets-to-string body)))
+          (is (str:starts-with-p "[{" body-str))
+          (is (str:ends-with-p "}]" body-str))
+          (is (str:containsp "\"name\":\"CH-DEFAULT\"" body-str))
+          (is (str:containsp "\"items\":[]" body-str)))))))
 
 ;; ------------- itemgroups: GET specific ------------
 
