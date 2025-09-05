@@ -409,10 +409,10 @@
         (is (= status 200))
         ;; there is at least the default itemgroup
         (let ((body-str (octets-to-string body)))
-          (is (str:starts-with-p "[{" body-str))
-          (is (str:ends-with-p "}]" body-str))
-          (is (str:containsp "\"name\":\"CH-DEFAULT\"" body-str))
-          (is (str:containsp "\"items\":[]" body-str)))))))
+          (is (search "[{" body-str :end2 2))
+          (is (search "}]" body-str :from-end t :start2 (- (length body-str) 2)))
+          (is (search "\"name\":\"CH-DEFAULT\"" body-str))
+          (is (search "\"items\":[]" body-str)))))))
 
 ;; ------------- itemgroups: GET specific ------------
 
