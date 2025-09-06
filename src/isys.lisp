@@ -18,7 +18,7 @@
                                    *isys*
                                    :tasks
                                    :workers 4
-                                   :stragety :round-robin))
+                                   :strategy :round-robin))
         (setf tasks:*task-context* *isys*
               tasks:*task-dispatcher* :tasks))))
 
