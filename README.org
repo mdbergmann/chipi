@@ -37,7 +37,7 @@ Chipi is largely based on [[https://github.com/mdbergmann/cl-gserver][Sento]], a
 
 How it works is to define and combine all the mentioned primitives in a file. This file is a Common Lisp source file. The definition of the primitives (item, binding, ...) is done using a defined DSL (domain specific language) which largely consists of a few macros. But it is also possible to define your own macros, functions or variables.
 
-A full production example that defines items, bindings, persistences and rules can be seen [[https://github.com/mdbergmann/cl-etaconnector/blob/master/eta-hab.lisp][here]]. This script, very much based on Common Lisp, is a full example configuration of Chipi. At the end of the script evaluation of all items, persistences and rules will start their work.
+A full production example that defines items, bindings, persistences and rules can be seen [[https://codeberg.org/mdbergmann/cl-eta/src/branch/master/eta-hab.lisp][here]]. This script, very much based on Common Lisp, is a full example configuration of Chipi. At the end of the script evaluation of all items, persistences and rules will start their work.
 
 This particular example uses Common Lisp libraries like [[https://github.com/bendudson/py4cl][py4cl]] (to talk to ina219 analog 2 digital converter for a pressure sensor in a cistern plugged to the GPIOs of a Raspberry PI 4), [[https://github.com/edicl/drakma][Drakma]] to query data of a [[https://www.shelly-support.eu/][Shelly]] power switch or [[https://github.com/snmsts/cserial-port][cserial]] to communicate with some other device to retrieve temperatur sensor data.
 
