@@ -12,6 +12,7 @@
   (or *isys*
       (prog1
           (setf *isys* (asys:make-actor-system))
+        (log:info "Created isys: ~a" *isys*)
         ;; separate dispatcher for tasks
         (asys:register-dispatcher *isys*
                                   (disp:make-dispatcher

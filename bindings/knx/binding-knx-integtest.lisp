@@ -43,19 +43,25 @@
                          :port *conn-port*
                          :host *conn-host*)))
 
+(defun date-time ()
+  (let* ((now (get-universal-time))
+         (decoded (multiple-value-list (decode-universal-time now))))
+    (format nil "~a:~a:~a" (nth 2 decoded) (nth 1 decoded) (nth 0 decoded))))
+
 (defun start-knxnet-sim ()
   (flet ((handler-fun (buf)
-           (format t "KNXNet server: received message.~%")
+           (format t "[~a] KNXNet server: received message.~%" (date-time))
            (setf *conn-host* usocket:*remote-host*)
            (setf *conn-port* usocket:*remote-port*)
            (let ((received-knx-obj (knxobj:parse-root-knx-object buf)))
-             (format t "KNXNet server: knxobj received: ~a~%" received-knx-obj)
+             (format t "[~a] KNXNet server: knxobj received: ~a~%" (date-time) received-knx-obj)
              (let ((response-obj
                      (etypecase received-knx-obj
                        (connect:knx-connect-request
-                        (format t "KNXNet server: generating connect-response...~%")
+                        (format t "[~a] KNXNet server: generating connect-response...~%" (date-time))
                         (prog1
                             (connect:make-connect-response 1 "127.0.0.1" 3671)
+                          (format t "[~a] KNXNet server: response generated...~%" (date-time))
                           (setf *tunnel-established* t)))
                        (tunnelling:knx-tunnelling-request
                         (format t "KNXNet server: tunnel-req")
@@ -80,7 +86,7 @@
                                   #'handler-fun nil
                                   :in-new-thread t
                                   :protocol :datagram)))
-    (format t "KNXNet server started~%")))
+    (format t "~%[~a] KNXNet server started~%" (date-time))))
 
 (defun stop-knxnet-sim ()
   (when *sim-thread-and-socket*
@@ -101,9 +107,9 @@
          (setf *last-received-tun-req* nil)
          
          (start-knxnet-sim)
-         (sleep .5)
+         (sleep 1.0)
          
-         (defconfig
+         (defconfig "chipi"
            (knx-init :gw-host "127.0.0.1"))
          (is-true (await-cond 2.0
                     *tunnel-established*))
