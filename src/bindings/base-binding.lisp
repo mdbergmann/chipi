@@ -36,7 +36,8 @@ The output value will be set on the item, should an item be attached.")
    (call-push-p :initarg :call-push-p
                 :initform nil
                 :reader call-push-p
-                :documentation "defines whether setting a new value (`item:set-value') will be passed through to 'push', after the transformation chain has been executed.")
+                :documentation "defines whether setting a new value (`item:set-value') will be passed through to 'push' function, after the transformation chain has been executed. But also check on `item's `set-value' `:push' key.
+If `set-value's `:push' is it `T' but `call-push-p' is `NIL' effective push is also nil.")
    (initial-delay :initarg :initial-delay
                   :initform nil
                   :documentation "Initial delay in seconds where `PULL-FUN' is executed. `NIL' means disabled and `PULL-FUN' is not called.")
@@ -60,7 +61,7 @@ The output value will be set on the item, should an item be attached.")
                                 (transform nil)
                                 (initial-delay nil)
                                 (delay nil)
-                                (call-push-p nil))
+                                (call-push-p t))
   (make-instance 'binding
                  :pull-fun pull
                  :push-fun push

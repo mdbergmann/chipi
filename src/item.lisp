@@ -193,7 +193,7 @@ Higher-level code is responsible for interpreting the tags.")
 
 (defun set-value (item value &key (push t) (timestamp nil) (persist t))
   "Updates item value with push to bindings.
-If `PUSH' is non-nil, bindings will be pushed regardsless of `CALL-PUSH-P' on binding definition.
+Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on whether the value is pushed or not.
 `TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
 `PERSIST': if non-nil, persistences will be applied."
   (! item `(:set-state . (:value ,value

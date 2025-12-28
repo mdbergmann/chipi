@@ -106,7 +106,6 @@
            (pushed-value)
            (binding (binding:make-function-binding
                      :pull (lambda ())
-                     :call-push-p t
                      :push (lambda (value) (setf pushed-value value)))))
       (add-binding item binding)
       (set-value item "Foo")
@@ -133,7 +132,7 @@
            (pushed-value)
            (binding (binding:make-function-binding
                      :pull (lambda ())
-                     :call-push-p t
+                     :call-push-p t  ;; default t
                      :push (lambda (value) (setf pushed-value value)))))
       (add-binding item binding)
       (set-value item "Foo" :push nil)
