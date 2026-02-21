@@ -79,6 +79,15 @@
     (if persistp (setf args (append args (list :persist persist))))
     (apply #'item:set-value args)))
 
+(defun set-item-value-on-group (itemg-sym value &key (push t pushp)
+                                          (timestamp nil timestamp-p)
+                                          (persist t persistp))
+  (let ((args (list (get-itemgroup itemg-sym) value)))
+    (if pushp (setf args (append args (list :push push))))
+    (if timestamp-p (setf args (append args (list :timestamp timestamp))))
+    (if persistp (setf args (append args (list :persist persist))))
+    (apply #'itemgroup:set-value args)))
+
 (defun get-item-valueq (item-sym)
   (let ((item-state (item:get-item-stateq (get-item item-sym))))
     (values
@@ -137,15 +146,26 @@ The parameter `system' defines the CL system root folder for runtime files."
 (defun add-to-shutdown (fun)
   (push fun *shutdown-hooks*))
 
-(defmacro defitemgroup (id label)
+(defmacro defitemgroup (id label &rest body)
   "Defines an itemgroup.
-Itemgroups are containers for items."
-  (with-gensyms (group old-group groupitem old-group-items)
-    `(let* ((,old-group (get-itemgroup ,id))
+Itemgroups are containers for items.
+A `:tags' key can be used to specify tags as an alist of (key . value) pairs."
+  (with-gensyms (group old-group groupitem old-group-items
+                 body-forms tags old-tags)
+    `(let* ((,body-forms (list ,@body))
+            (,tags (loop :for (k v) :on ,body-forms
+                         :if (eq k :tags)
+                           :return v))
+            (,old-group (get-itemgroup ,id))
             (,old-group-items (if ,old-group
                                   (itemgroup:get-items ,old-group)
-                                  nil)))
-       (let ((,group (itemgroup:make-itemgroup ,id :label ,label)))
+                                  nil))
+            (,old-tags (if ,old-group
+                           (itemgroup:tags ,old-group)
+                           nil)))
+       (let ((,group (itemgroup:make-itemgroup ,id
+                       :label ,label
+                       :tags (or ,tags ,old-tags))))
          (dolist (,groupitem ,old-group-items)
            (itemgroup:add-item ,group ,groupitem))
          (setf (gethash ,id *itemgroups*) ,group)))))

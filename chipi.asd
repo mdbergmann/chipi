@@ -49,6 +49,7 @@
                  (:file "item-test")
                  (:file "item-ext-test")
                  (:file "itemgroup-test")
+                 (:file "itemgroup-ext-test")
                  (:file "rule-test")
                  (:file "persistence-test")
                  (:file "persistence-influx-test")

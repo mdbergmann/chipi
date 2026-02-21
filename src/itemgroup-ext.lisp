@@ -2,7 +2,8 @@
   (:use :cl :itemgroup)
   (:nicknames :itemgroup-ext)
   (:import-from #:alexandria
-                #:plist-hash-table)
+                #:plist-hash-table
+                #:alist-hash-table)
   (:import-from #:chipi.item-ext
                 #:item-to-ht)
   (:export #:itemgroup-to-ht))
@@ -16,8 +17,12 @@ JSON boolean «false»."
   (let* ((item-list (mapcar #'item-to-ht (itemgroup:get-items grp)))
          ;; `jzon` encodes NIL as JSON boolean false – map empty list to empty vector #()
          (items-json (if item-list (coerce item-list 'vector) #())))
-    (plist-hash-table
-     (list "name"  (itemgroup:name grp)
-           "label" (itemgroup:label grp)
-           "items" items-json)
-     :test #'equal)))
+    (let ((tags (itemgroup:tags grp)))
+      (plist-hash-table
+       (list "name"  (itemgroup:name grp)
+             "label" (itemgroup:label grp)
+             "tags"  (if tags
+                         (alist-hash-table tags :test #'equal)
+                         (make-hash-table :test #'equal))
+             "items" items-json)
+       :test #'equal))))

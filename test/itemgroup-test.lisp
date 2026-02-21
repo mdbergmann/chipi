@@ -18,6 +18,16 @@
     (is (eq (name cut) 'foo))
     (is (string= (name cut) "FOO"))))
 
+(test itemgroup-create-with-tags
+  (let ((cut (make-itemgroup 'foo :label "Foo" :tags '((:ui-link) (:category . "sensor")))))
+    (is (typep cut 'itemgroup))
+    (is (equal '((:ui-link) (:category . "sensor")) (tags cut)))))
+
+(test itemgroup-create-without-tags
+  (let ((cut (make-itemgroup 'foo :label "Foo")))
+    (is (typep cut 'itemgroup))
+    (is (null (tags cut)))))
+
 (test itemgroup-can-add-items
   (let ((cut (make-itemgroup 'foo)))
     ;; we consiously don't use the item factory function because it requires actor system

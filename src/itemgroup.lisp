@@ -8,6 +8,7 @@
            #:id
            #:label
            #:name
+           #:tags
            #:add-item
            #:get-item
            #:remove-item
@@ -26,15 +27,22 @@
           :initform nil
           :reader label
           :documentation "A displayable name of the itemgroup.")
+   (tags :initarg :tags
+         :initform nil
+         :reader tags
+         :documentation "Tags as an association list (alist) of (key . value) pairs.
+A tag can exist without a value, e.g., (:ui-link), or with a value, e.g., (:ui-card . t).
+Higher-level code is responsible for interpreting the tags.")
    (items :initform (make-hash-table :test #'equal)
           :reader items)))
 
-(defun make-itemgroup (id &key (label nil))
+(defun make-itemgroup (id &key (label nil) (tags nil))
   (check-type id symbol)
   (log:info "Creating itemgroup: ~a, label: ~a" id label)
   (make-instance 'itemgroup
                  :id id
-                 :label label))
+                 :label label
+                 :tags tags))
 
 (defun name (itemgroup)
   (id itemgroup))
