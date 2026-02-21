@@ -11944,6 +11944,10 @@ textarea.form-control-lg {
   cursor: pointer;
 }
 /* Back button for detail view */
+.back-button {
+  margin-top: 1rem;
+}
+
 /* Responsive font size adjustments */
 @media (max-width: 768px) {
   .item-value-display {
