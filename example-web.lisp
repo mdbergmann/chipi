@@ -46,7 +46,7 @@
 (defitemgroup 'plugs "Plugs")
 (defitemgroup 'lights "Lights")
 (defitemgroup 'switches "Switches")
-(defitemgroup 'temps "Temperatures")
+(defitemgroup 'temps "Temperatures" :tags '((:ui-link)))
 
 (defitem 'switch1 "Switch1" 'boolean :initial-value 'item:false
   :group '(plugs lights switches))

@@ -101,6 +101,27 @@
     (is (typep (gethash "example foo" *rules*) 'rule:rule)))
   (is (= 0 (hash-table-count *rules*))))
 
+(test define-itemgroups-with-tags
+  "Tests creating itemgroups with tags."
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    ;; Define with tags
+    (defitemgroup 'sensors "Sensors" :tags '((:ui-link)))
+    (let ((grp (get-itemgroup 'sensors)))
+      (is (equal '((:ui-link)) (itemgroup:tags grp))))
+    ;; Redefine without tags should preserve old tags
+    (defitemgroup 'sensors "Sensors")
+    (let ((grp (get-itemgroup 'sensors)))
+      (is (equal '((:ui-link)) (itemgroup:tags grp))))
+    ;; Redefine with new tags should use new tags
+    (defitemgroup 'sensors "Sensors" :tags '((:ui-card . t)))
+    (let ((grp (get-itemgroup 'sensors)))
+      (is (equal '((:ui-card . t)) (itemgroup:tags grp))))
+    ;; Group without tags
+    (defitemgroup 'plugs "Plugs")
+    (let ((grp (get-itemgroup 'plugs)))
+      (is (null (itemgroup:tags grp))))))
+
 (test define-items-with-tags
   "Tests defining items with tags."
   (with-fixture clean-after ()

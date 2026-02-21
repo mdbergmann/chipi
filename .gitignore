@@ -22,5 +22,6 @@ ui-ts/.env
 
 # Scripts
 create-cert
-/.claude/
+/.claude/*
+!/.claude/commands/
 /node_modules/

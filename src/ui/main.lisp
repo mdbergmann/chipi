@@ -31,10 +31,59 @@
                "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js")
 
   (let ((container (create-div body :class "container")))
-    (create-div container :class "header-line" 
-                          :content "Chipi Home Automation Dashboard")
-    (let ((itemgroups-container (create-div container :class "itemgroups-container")))
-      (map nil (lambda (ig) (%render-itemgroup ig itemgroups-container)) (retrieve-itemgroups)))))
+    (%show-overview container)))
+
+(defun %show-overview (container)
+  "Renders the overview page with all itemgroups."
+  (setf (inner-html container) "")
+  (clrhash *item-value-form-update-funs*)
+  (create-div container :class "header-line"
+                        :content "Chipi Home Automation Dashboard")
+  (let* ((groups (retrieve-itemgroups))
+         (link-groups (remove-if-not #'%itemgroup-link-p groups))
+         (card-groups (remove-if #'%itemgroup-link-p groups)))
+    ;; Render link groups as a list if any exist
+    (when link-groups
+      (let ((links-container (create-div container :class "itemgroup-links-container")))
+        (dolist (ig link-groups)
+          (%render-itemgroup-link ig links-container container))))
+    ;; Render card groups in the grid
+    (when card-groups
+      (let ((itemgroups-container (create-div container :class "itemgroups-container")))
+        (dolist (ig card-groups)
+          (%render-itemgroup ig itemgroups-container))))))
+
+(defun %itemgroup-link-p (itemg)
+  "Returns T if the itemgroup should render as a link (has :ui-link tag)."
+  (let ((tags (gethash "tags" itemg)))
+    (when (and tags (hash-table-p tags))
+      (multiple-value-bind (val present-p)
+          (gethash :ui-link tags)
+        (declare (ignore val))
+        present-p))))
+
+(defun %render-itemgroup-link (itemg parent container)
+  "Renders an itemgroup as a clickable link."
+  (let ((link-div (create-div parent :class "itemgroup-link"
+                                     :content (gethash "label" itemg))))
+    (set-on-click link-div
+                  (lambda (obj)
+                    (declare (ignore obj))
+                    (%show-itemgroup-detail itemg container)))))
+
+(defun %show-itemgroup-detail (itemg container)
+  "Shows a detail page for a single itemgroup with a back button."
+  (setf (inner-html container) "")
+  (clrhash *item-value-form-update-funs*)
+  (let ((back-btn (create-button container
+                                 :class "back-button"
+                                 :content "&larr; Back")))
+    (set-on-click back-btn
+                  (lambda (obj)
+                    (declare (ignore obj))
+                    (%show-overview container))))
+  (let ((itemgroups-container (create-div container :class "itemgroups-container")))
+    (%render-itemgroup itemg itemgroups-container)))
 
 (defun %render-itemgroup (itemg parent)
   (let* ((col-div (create-div parent :class "itemgroup-column"))

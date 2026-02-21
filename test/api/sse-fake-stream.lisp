@@ -24,7 +24,7 @@
                         binary-stream
                         :external-format :utf-8
                         :element-type '(unsigned-byte 8))))
-    (setf (gethash flexi-stream *test-streams*) 
+    (setf (gethash flexi-stream *test-streams*)
           (list :closed nil :output "" :binary-stream binary-stream))
     flexi-stream))
 
@@ -32,7 +32,7 @@
   "Get output from test stream as string"
   (let ((binary-stream (getf (gethash stream *test-streams*) :binary-stream)))
     (if binary-stream
-        (flexi-streams:octets-to-string 
+        (flexi-streams:octets-to-string
          (flexi-streams:get-output-stream-sequence binary-stream)
          :external-format :utf-8)
         "")))
@@ -51,13 +51,12 @@
   (when (gethash stream *test-streams*)
     (close stream)
     (let ((new-stream (make-string-output-stream)))
-      (setf (gethash new-stream *test-streams*) 
+      (setf (gethash new-stream *test-streams*)
             (gethash stream *test-streams*))
       (remhash stream *test-streams*)
       new-stream)))
 
 ;; Override stream methods for testing
-(setf lw:*handle-warn-on-redefinition* :warn)
 (defmethod open-stream-p :around (stream)
   (if (gethash stream *test-streams*)
       (not (test-stream-closed-p stream))

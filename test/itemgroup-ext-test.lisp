@@ -31,7 +31,7 @@
       (is (string= "Group" (gethash "label" ht)))
       (let ((its (gethash "items" ht)))
         (is (= (length its) 1))
-        (is (string= "FOO" (gethash "name" (first its))))))))
+        (is (string= "FOO" (gethash "name" (aref its 0))))))))
 
 ;;; ------------------------------------------------------------
 ;;; NEW test: empty item array instead of NIL/FALSE
@@ -42,3 +42,21 @@
          (ht  (itemgroup-to-ht grp)))
     (let ((items (gethash "items" ht)))
       (is-true (and (vectorp items) (= 0 (length items)))))))
+
+(test itemgroup-to-ht--with-tags
+  "Ensure tags appear as hash-table in output."
+  (let* ((grp (make-itemgroup 'tagged :label "Tagged"
+                :tags '((:ui-link) (:category . "sensor"))))
+         (ht  (itemgroup-to-ht grp)))
+    (let ((tags-ht (gethash "tags" ht)))
+      (is (hash-table-p tags-ht))
+      (is (null (gethash :ui-link tags-ht)))
+      (is (string= "sensor" (gethash :category tags-ht))))))
+
+(test itemgroup-to-ht--without-tags
+  "Ensure empty hash-table when no tags."
+  (let* ((grp (make-itemgroup 'notags :label "No Tags"))
+         (ht  (itemgroup-to-ht grp)))
+    (let ((tags-ht (gethash "tags" ht)))
+      (is (hash-table-p tags-ht))
+      (is (= 0 (hash-table-count tags-ht))))))

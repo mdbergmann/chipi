@@ -138,6 +138,31 @@
     margin-right: 0.25rem;
 }
 
+/* Itemgroup link list styles */
+.itemgroup-links-container {
+    @extend .list-group;
+    @extend .mb-4;
+}
+
+.itemgroup-link {
+    @extend .list-group-item;
+    @extend .list-group-item-action;
+    @extend .fs-5;
+    cursor: pointer;
+
+    &:hover {
+        @extend .bg-light;
+    }
+}
+
+/* Back button for detail view */
+.back-button {
+    @extend .btn;
+    @extend .btn-outline-secondary;
+    @extend .mb-3;
+    margin-top: 1rem;
+}
+
 /* Responsive font size adjustments */
 @media (max-width: 768px) {
     .item-value-display {
