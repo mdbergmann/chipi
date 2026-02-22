@@ -21,7 +21,7 @@
   (let ((update-fun (gethash item-name *item-value-form-update-funs*)))
     (if update-fun
         (funcall update-fun updated-item-state)
-        (log:warn "No update function registered for: ~a" item-name))))
+        (log:debug "No update function registered for: ~a" item-name))))
 
 (defun on-main (body)
   "The main page."
