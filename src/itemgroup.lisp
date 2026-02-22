@@ -49,6 +49,15 @@ Higher-level code is responsible for interpreting the tags.")
    (items :initform (make-hash-table :test #'equal)
           :reader items)))
 
+(defmethod print-object ((obj itemgroup) stream)
+  (print-unreadable-object (obj stream :type t)
+    (format stream "id: ~a, label: ~a, parent: ~a, children: ~a, items: ~a"
+            (id obj)
+            (label obj)
+            (parent-group obj)
+            (mapcar #'id (get-child-groups obj))
+            (hash-table-count (items obj)))))
+
 (defun make-itemgroup (id &key (label nil) (tags nil) (parent-group nil))
   (check-type id symbol)
   (log:info "Creating itemgroup: ~a, label: ~a" id label)

@@ -17,7 +17,6 @@
            #:get-item-stateq
            #:name
            #:label
-           #:group
            #:tags
            #:add-binding
            #:add-persistence
@@ -44,10 +43,6 @@
           :initform nil
           :reader label
           :documentation "An explanatory label.")
-   (group :initarg :group
-          :initform nil
-          :reader group
-          :documentation "The itemgroups this item belongs to as a list og groups ids.")
    (value-type-hint :initform nil
                     :reader value-type-hint
                     :documentation "A type hint for the item value.
@@ -146,9 +141,9 @@ Higher-level code is responsible for interpreting the tags.")
                (apply-persistences))
              (push-to-bindings val push))))))))
 
-(defun make-item (id &key (label nil) (type-hint nil) (initial-value t) (tags '()) (group nil))
-  (log:info "Creating item: ~a, label: ~a, type-hint: ~a, value: ~a, tags: ~a, group: ~a"
-            id label type-hint initial-value tags group)
+(defun make-item (id &key (label nil) (type-hint nil) (initial-value t) (tags '()))
+  (log:info "Creating item: ~a, label: ~a, type-hint: ~a, value: ~a, tags: ~a"
+            id label type-hint initial-value tags)
   (let* ((isys (ensure-isys))
          (item (ac:actor-of
                 isys
@@ -168,20 +163,18 @@ Higher-level code is responsible for interpreting the tags.")
                            (log:info "Item '~a' destroyed!" id)))))
     (setf (slot-value item 'label) label
           (slot-value item 'value-type-hint) type-hint
-          (slot-value item 'tags) tags
-          (slot-value item 'group) group)
+          (slot-value item 'tags) tags)
     item))
 
 (defmethod print-object ((obj item) stream)
   (print-unreadable-object (obj stream :type t)
     (let ((string-stream (make-string-output-stream)))
-      (format stream "name: ~a, label: ~a, value: ~a, type-hint: ~a, tags: ~a, group: ~a"
+      (format stream "name: ~a, label: ~a, value: ~a, type-hint: ~a, tags: ~a"
               (act-cell:name obj)
               (label obj)
               (act-cell:state obj)
               (value-type-hint obj)
-              (tags obj)
-              (group obj))
+              (tags obj))
       (get-output-stream-string string-stream))))
 
 (defun name (item)

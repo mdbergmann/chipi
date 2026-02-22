@@ -31,7 +31,6 @@
          (is-true item)
          (is-true (typep item 'item))
          (is-false (tags item))
-         (is-false (group item))
          (is (eq (item:item-state-value (item:get-item-stateq item)) t)))
     (envi:shutdown-env)))
 
@@ -56,17 +55,6 @@
                    (:foo . "whatever")
                    (:priority . 5)) 
                  (tags item))))))
-
-(test make-item--with-groups
-  "Test creating item with tags."
-  (with-fixture init-destroy-env ()
-    ;; Test with various tag formats
-    (let ((item (make-item 'my-item 
-                          :label "label" 
-                          :group '(group1 group2))))
-      (is-true item)
-      (is (equal '(group1 group2)
-                 (group item))))))
 
 (test make-item--with-state--get--set
   (with-fixture init-destroy-env ()

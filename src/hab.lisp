@@ -224,13 +224,14 @@ See `hab-test.lisp' and `item' for more examples."
       (body-forms
        item old-item bindings binding
        p-rep p-reps persp initial-value
-       itemgroups ig tags)
+       itemgroups ig ig-key ig-val tags)
     `(progn
        (when-let ((,old-item (get-item ,id)))
          (log:info "Cleaning from itemgroups...")
-         (dolist (,ig (item:group ,old-item))
-           (itemgroup:remove-item (get-itemgroup ,ig) ,id))
-         ;;(setf ,ig nil)
+         (maphash (lambda (,ig-key ,ig-val)
+                    (declare (ignore ,ig-key))
+                    (itemgroup:remove-item ,ig-val ,id))
+                  *itemgroups*)
          (log:info "Cleaning old item: " ,id)
          (item:destroy ,old-item)
          (remhash ,id *items*))
@@ -254,8 +255,7 @@ See `hab-test.lisp' and `item' for more examples."
                                      :label ,label
                                      :type-hint ,type-hint
                                      :initial-value ,initial-value
-                                     :tags ,tags
-                                     :group ,itemgroups)))
+                                     :tags ,tags)))
          (if ,itemgroups
              ;; adding the new item will replace the previous item
              ;; because use of hash-table where key is the item-id
