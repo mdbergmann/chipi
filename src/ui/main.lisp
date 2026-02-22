@@ -85,6 +85,8 @@ Shows child groups (as links or cards) above direct items."
                   (lambda (obj)
                     (declare (ignore obj))
                     (funcall back-fn))))
+  (create-div container :class "group-header-line"
+                        :content (gethash "label" itemg))
   ;; Show child groups if any
   (let* ((children (coerce (gethash "children" itemg) 'list))
          (link-children (remove-if-not #'%itemgroup-link-p children))
