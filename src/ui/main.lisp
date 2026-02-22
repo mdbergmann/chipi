@@ -137,7 +137,7 @@ Shows child groups (as links or cards) above direct items."
     (create-div item-div :class "item-name"
                          :content item-name)
         
-    (%render-item-value item-name (gethash "value" item-state) type-hint item-div)
+    (%render-item-value item-name (gethash "value" item-state) type-hint tags item-div)
 
     (let ((ts-div
             (create-div item-div :class "item-timestamp-display"
@@ -148,8 +148,24 @@ Shows child groups (as links or cards) above direct items."
                                    (%format-timestamp
                                     (gethash "timestamp" updated-item-state))))))))
 
-(defun %render-item-value (item-name item-value type-hint parent)
+(defun %ui-readonly-p (tags)
+  "Returns T if the item has the :ui-readonly tag."
+  (when (and tags (hash-table-p tags))
+    (multiple-value-bind (val present-p)
+        (gethash :ui-readonly tags)
+      (declare (ignore val))
+      present-p)))
+
+(defun %render-item-value (item-name item-value type-hint tags parent)
   (cond
+    ((and (string= "BOOLEAN" type-hint) (%ui-readonly-p tags))
+     (let ((value-div (create-div parent :class "item-value-display"
+                                         :content (if item-value "ON" "OFF"))))
+       (set-on-value-update item-name
+                            (lambda (updated-item-state)
+                              (let ((updated-value (gethash "value" updated-item-state)))
+                                (setf (text value-div)
+                                      (if updated-value "ON" "OFF")))))))
     ((string= "BOOLEAN" type-hint)
      (let* ((form-check (create-div parent :class "item-value-boolean"))
             (toggle-input (create-form-element form-check "checkbox"

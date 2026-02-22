@@ -63,3 +63,6 @@
 (defitem 'heizstab-wd1-energy "Heizstab Wendel 1 Energie [Wh]" 'float :initial-value 8.4)
 (defitem 'event-1 "Event 1" nil :initial-value "Event occured"
   :tags '((:ext-readonly . t)))
+(defitem 'motion-sensor "Motion Sensor" 'boolean :initial-value 'item:true
+  :group '(switches)
+  :tags '((:ui-readonly . t)))

@@ -228,6 +228,38 @@ Example of setup:
   )
 ```
 
+## UI Tags
+
+Items and itemgroups support special tags that control how they are rendered in the UI.
+
+### Item tags
+
+| Tag | Value | Description |
+|-----|-------|-------------|
+| `:ui-type` | string | Overrides the default type badge label (e.g. "Light" instead of "Switch") |
+| `:ui-readonly` | `t` | Boolean items render as plain "ON"/"OFF" text instead of an interactive toggle |
+
+```lisp
+;; Custom type label
+(defitem 'switch1 "Switch1" 'boolean :initial-value 'item:false
+  :tags '((:ui-type . "Light")))
+
+;; Read-only boolean displayed as ON/OFF text
+(defitem 'motion-sensor "Motion Sensor" 'boolean :initial-value 'item:true
+  :tags '((:ui-readonly . t)))
+```
+
+### Itemgroup tags
+
+| Tag | Value | Description |
+|-----|-------|-------------|
+| `:ui-link` | — | Renders the itemgroup as a clickable navigation link instead of an inline card |
+
+```lisp
+;; Renders as a navigation link that opens a detail page
+(defitemgroup 'lights "Lights" :tags '((:ui-link)))
+```
+
 ## Screenshot
 
 ![Screenshot](docs/ui/UI.png)
