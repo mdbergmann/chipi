@@ -4,7 +4,8 @@
   (:import-from #:itemsc
                 #:update-item-value)
   (:import-from #:itemgroupsc
-                #:retrieve-itemgroups)
+                #:retrieve-itemgroups
+                #:retrieve-top-level-itemgroups)
   (:export #:start-main
            #:shutdown-main)
   )
@@ -39,14 +40,15 @@
   (clrhash *item-value-form-update-funs*)
   (create-div container :class "header-line"
                         :content "Chipi Home Automation Dashboard")
-  (let* ((groups (retrieve-itemgroups))
+  (let* ((groups (retrieve-top-level-itemgroups))
          (link-groups (remove-if-not #'%itemgroup-link-p groups))
          (card-groups (remove-if #'%itemgroup-link-p groups)))
     ;; Render link groups as a list if any exist
     (when link-groups
       (let ((links-container (create-div container :class "itemgroup-links-container")))
         (dolist (ig link-groups)
-          (%render-itemgroup-link ig links-container container))))
+          (%render-itemgroup-link ig links-container container
+                                  (lambda () (%show-overview container))))))
     ;; Render card groups in the grid
     (when card-groups
       (let ((itemgroups-container (create-div container :class "itemgroups-container")))
@@ -62,17 +64,18 @@
         (declare (ignore val))
         present-p))))
 
-(defun %render-itemgroup-link (itemg parent container)
+(defun %render-itemgroup-link (itemg parent container back-fn)
   "Renders an itemgroup as a clickable link."
   (let ((link-div (create-div parent :class "itemgroup-link"
                                      :content (gethash "label" itemg))))
     (set-on-click link-div
                   (lambda (obj)
                     (declare (ignore obj))
-                    (%show-itemgroup-detail itemg container)))))
+                    (%show-itemgroup-detail itemg container back-fn)))))
 
-(defun %show-itemgroup-detail (itemg container)
-  "Shows a detail page for a single itemgroup with a back button."
+(defun %show-itemgroup-detail (itemg container back-fn)
+  "Shows a detail page for a single itemgroup with a back button.
+Shows child groups (as links or cards) above direct items."
   (setf (inner-html container) "")
   (clrhash *item-value-form-update-funs*)
   (let ((back-btn (create-button container
@@ -81,9 +84,26 @@
     (set-on-click back-btn
                   (lambda (obj)
                     (declare (ignore obj))
-                    (%show-overview container))))
-  (let ((itemgroups-container (create-div container :class "itemgroups-container")))
-    (%render-itemgroup itemg itemgroups-container)))
+                    (funcall back-fn))))
+  ;; Show child groups if any
+  (let* ((children (coerce (gethash "children" itemg) 'list))
+         (link-children (remove-if-not #'%itemgroup-link-p children))
+         (card-children (remove-if #'%itemgroup-link-p children)))
+    (when link-children
+      (let ((links-container (create-div container :class "itemgroup-links-container")))
+        (dolist (child link-children)
+          (%render-itemgroup-link child links-container container
+                                  (lambda ()
+                                    (%show-itemgroup-detail itemg container back-fn))))))
+    (when card-children
+      (let ((itemgroups-container (create-div container :class "itemgroups-container")))
+        (dolist (child card-children)
+          (%render-itemgroup child itemgroups-container)))))
+  ;; Show direct items as card (only if there are items)
+  (let ((items (gethash "items" itemg)))
+    (when (and items (> (length items) 0))
+      (let ((itemgroups-container (create-div container :class "itemgroups-container")))
+        (%render-itemgroup itemg itemgroups-container)))))
 
 (defun %render-itemgroup (itemg parent)
   (let* ((col-div (create-div parent :class "itemgroup-column"))

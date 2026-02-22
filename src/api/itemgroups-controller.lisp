@@ -4,7 +4,8 @@
   (:import-from #:alexandria
                 #:if-let)
   (:export #:retrieve-itemgroups
-           #:retrieve-itemgroup))
+           #:retrieve-itemgroup
+           #:retrieve-top-level-itemgroups))
 
 (in-package :chipi-api.itemgroups-controller)
 
@@ -13,6 +14,12 @@
   (if-let ((groups (hab:get-itemgroups)))
     (mapcar #'itemgroup-ext:itemgroup-to-ht groups)
     (log:info "No itemgroups.")))
+
+(defun retrieve-top-level-itemgroups ()
+  "Return top-level itemgroups (no parent) as list of hash-tables."
+  (if-let ((groups (hab:get-top-level-itemgroups)))
+    (mapcar #'itemgroup-ext:itemgroup-to-ht groups)
+    (log:info "No top-level itemgroups.")))
 
 (defun retrieve-itemgroup (group-name)
   "Return a single itemgroup hash-table or NIL."

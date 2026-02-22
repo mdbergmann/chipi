@@ -44,14 +44,17 @@
 ;; items here
 
 (defitemgroup 'plugs "Plugs")
-(defitemgroup 'lights "Lights")
+(defitemgroup 'lights "Lights" :tags '((:ui-link)))
 (defitemgroup 'switches "Switches")
 (defitemgroup 'temps "Temperatures" :tags '((:ui-link)))
 
+(defitemgroup 'eg-lights "EG Lights" :tags '((:ui-link)) :group 'lights)
+(defitemgroup 'og-lights "OG Lights" :tags '((:ui-link)) :group 'lights)
+
 (defitem 'switch1 "Switch1" 'boolean :initial-value 'item:false
-  :group '(plugs lights switches))
+  :group '(eg-lights plugs switches))
 (defitem 'light1 "Light1" 'float :initial-value 123.456
-  :group '(lights))
+  :group '(og-lights))
 (defitem 'plug1 "Plug1" 'string :initial-value 'item:false
   :group '(plugs))
 (defitem 'outside-temp "Outside temperature" 'integer :initial-value -123

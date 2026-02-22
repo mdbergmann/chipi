@@ -122,6 +122,47 @@
     (let ((grp (get-itemgroup 'plugs)))
       (is (null (itemgroup:tags grp))))))
 
+(test define-itemgroups-with-parent-group
+  "Tests creating itemgroups with parent-child relationship."
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    ;; Define parent and child groups
+    (defitemgroup 'lights "Lights" :tags '((:ui-link)))
+    (defitemgroup 'eg-lights "EG Lights" :tags '((:ui-link)) :group 'lights)
+    (defitemgroup 'og-lights "OG Lights" :tags '((:ui-link)) :group 'lights)
+    ;; Check parent-group slot
+    (is (null (itemgroup:parent-group (get-itemgroup 'lights))))
+    (is (eq 'lights (itemgroup:parent-group (get-itemgroup 'eg-lights))))
+    (is (eq 'lights (itemgroup:parent-group (get-itemgroup 'og-lights))))
+    ;; Check children registered on parent
+    (let ((parent (get-itemgroup 'lights)))
+      (is (= 2 (length (itemgroup:get-child-groups parent))))
+      (is (eq (get-itemgroup 'eg-lights) (itemgroup:get-child-group parent 'eg-lights))))
+    ;; Re-define child with different parent
+    (defitemgroup 'other "Other")
+    (defitemgroup 'eg-lights "EG Lights" :tags '((:ui-link)) :group 'other)
+    ;; Old parent should no longer have eg-lights
+    (is (= 1 (length (itemgroup:get-child-groups (get-itemgroup 'lights)))))
+    ;; New parent should have eg-lights
+    (is (= 1 (length (itemgroup:get-child-groups (get-itemgroup 'other)))))
+    (is (eq 'other (itemgroup:parent-group (get-itemgroup 'eg-lights))))))
+
+(test get-top-level-itemgroups
+  "Tests that get-top-level-itemgroups filters out child groups."
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    (defitemgroup 'lights "Lights" :tags '((:ui-link)))
+    (defitemgroup 'eg-lights "EG Lights" :group 'lights)
+    (defitemgroup 'og-lights "OG Lights" :group 'lights)
+    (defitemgroup 'plugs "Plugs")
+    ;; top-level should be: ch-default, lights, plugs (3 total)
+    (let ((top-level (get-top-level-itemgroups)))
+      (is (= 3 (length top-level)))
+      (is-false (find 'eg-lights top-level :key #'itemgroup:id))
+      (is-false (find 'og-lights top-level :key #'itemgroup:id))
+      (is-true (find 'lights top-level :key #'itemgroup:id))
+      (is-true (find 'plugs top-level :key #'itemgroup:id)))))
+
 (test define-items-with-tags
   "Tests defining items with tags."
   (with-fixture clean-after ()
