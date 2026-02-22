@@ -14,6 +14,7 @@
            #:get-item
            #:get-items
            #:get-itemgroups
+           #:get-top-level-itemgroups
            #:get-persistence
            #:get-rule
            #:set-item-value
@@ -59,6 +60,11 @@
   "Returns all itemgroups."
   (when *itemgroups*
     (hash-table-values *itemgroups*)))
+
+(defun get-top-level-itemgroups ()
+  "Returns itemgroups that have no parent-group."
+  (when *itemgroups*
+    (remove-if #'itemgroup:parent-group (hash-table-values *itemgroups*))))
 
 (defun get-persistence (id)
   "Returns the persistence with the given id from the created persistences."
@@ -149,26 +155,49 @@ The parameter `system' defines the CL system root folder for runtime files."
 (defmacro defitemgroup (id label &rest body)
   "Defines an itemgroup.
 Itemgroups are containers for items.
-A `:tags' key can be used to specify tags as an alist of (key . value) pairs."
+A `:tags' key can be used to specify tags as an alist of (key . value) pairs.
+A `:group' key can be used to specify a parent itemgroup symbol."
   (with-gensyms (group old-group groupitem old-group-items
-                 body-forms tags old-tags)
+                 body-forms tags old-tags parent-group-id
+                 old-parent-id old-child-groups child-group parent)
     `(let* ((,body-forms (list ,@body))
             (,tags (loop :for (k v) :on ,body-forms
                          :if (eq k :tags)
                            :return v))
+            (,parent-group-id (loop :for (k v) :on ,body-forms
+                                    :if (eq k :group)
+                                      :return v))
             (,old-group (get-itemgroup ,id))
             (,old-group-items (if ,old-group
                                   (itemgroup:get-items ,old-group)
                                   nil))
             (,old-tags (if ,old-group
                            (itemgroup:tags ,old-group)
-                           nil)))
+                           nil))
+            (,old-parent-id (when ,old-group
+                              (itemgroup:parent-group ,old-group)))
+            (,old-child-groups (when ,old-group
+                                 (itemgroup:get-child-groups ,old-group))))
+       ;; Remove from old parent's children on re-define
+       (when (and ,old-parent-id (get-itemgroup ,old-parent-id))
+         (itemgroup:remove-child-group (get-itemgroup ,old-parent-id) ,id))
        (let ((,group (itemgroup:make-itemgroup ,id
                        :label ,label
-                       :tags (or ,tags ,old-tags))))
+                       :tags (or ,tags ,old-tags)
+                       :parent-group ,parent-group-id)))
+         ;; Preserve items from old group
          (dolist (,groupitem ,old-group-items)
            (itemgroup:add-item ,group ,groupitem))
-         (setf (gethash ,id *itemgroups*) ,group)))))
+         ;; Preserve child groups from old group
+         (dolist (,child-group ,old-child-groups)
+           (itemgroup:add-child-group ,group ,child-group))
+         (setf (gethash ,id *itemgroups*) ,group)
+         ;; Register with new parent
+         (when ,parent-group-id
+           (let ((,parent (get-itemgroup ,parent-group-id)))
+             (when ,parent
+               (itemgroup:add-child-group ,parent ,group))))
+         ,group))))
 
 (defmacro defitem (id label type-hint &rest body)
   "Defines an item.

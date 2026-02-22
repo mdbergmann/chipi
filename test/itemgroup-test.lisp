@@ -62,3 +62,30 @@
       (is-true (set-value cut counter))
       (is (= 2 (length (invocations 'item:set-value))))
       )))
+
+(test itemgroup-parent-group--default-nil
+  (let ((cut (make-itemgroup 'foo :label "Foo")))
+    (is (null (parent-group cut)))))
+
+(test itemgroup-parent-group--set
+  (let ((cut (make-itemgroup 'foo :label "Foo" :parent-group 'bar)))
+    (is (eq 'bar (parent-group cut)))))
+
+(test itemgroup-add-and-get-child-groups
+  (let ((parent (make-itemgroup 'parent :label "Parent"))
+        (child1 (make-itemgroup 'child1 :label "Child1"))
+        (child2 (make-itemgroup 'child2 :label "Child2")))
+    (add-child-group parent child1)
+    (add-child-group parent child2)
+    (is (eq child1 (get-child-group parent 'child1)))
+    (is (eq child2 (get-child-group parent 'child2)))
+    (is (= 2 (length (get-child-groups parent))))))
+
+(test itemgroup-remove-child-group
+  (let ((parent (make-itemgroup 'parent :label "Parent"))
+        (child (make-itemgroup 'child :label "Child")))
+    (add-child-group parent child)
+    (is (eq child (get-child-group parent 'child)))
+    (remove-child-group parent 'child)
+    (is (null (get-child-group parent 'child)))
+    (is (= 0 (length (get-child-groups parent))))))

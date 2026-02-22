@@ -60,3 +60,32 @@
     (let ((tags-ht (gethash "tags" ht)))
       (is (hash-table-p tags-ht))
       (is (= 0 (hash-table-count tags-ht))))))
+
+(test itemgroup-to-ht--with-children
+  "Ensure children appear as vector of serialized child groups."
+  (let* ((parent (make-itemgroup 'parent :label "Parent"))
+         (child  (make-itemgroup 'child :label "Child" :parent-group 'parent)))
+    (add-child-group parent child)
+    (let* ((ht (itemgroup-to-ht parent))
+           (children (gethash "children" ht)))
+      (is (vectorp children))
+      (is (= 1 (length children)))
+      (is (string= "CHILD" (gethash "name" (aref children 0))))
+      (is (string= "Child" (gethash "label" (aref children 0)))))))
+
+(test itemgroup-to-ht--without-children
+  "Ensure empty vector when no children."
+  (let* ((grp (make-itemgroup 'solo :label "Solo"))
+         (ht  (itemgroup-to-ht grp)))
+    (let ((children (gethash "children" ht)))
+      (is (vectorp children))
+      (is (= 0 (length children))))))
+
+(test itemgroup-to-ht--parent-group
+  "Ensure parent-group is serialized as string or NIL."
+  (let* ((child (make-itemgroup 'child :label "Child" :parent-group 'parent))
+         (top   (make-itemgroup 'top :label "Top"))
+         (ht-child (itemgroup-to-ht child))
+         (ht-top   (itemgroup-to-ht top)))
+    (is (string= "PARENT" (gethash "parent-group" ht-child)))
+    (is (null (gethash "parent-group" ht-top)))))

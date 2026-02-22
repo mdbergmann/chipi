@@ -9,6 +9,12 @@
            #:label
            #:name
            #:tags
+           #:parent-group
+           #:child-groups
+           #:add-child-group
+           #:get-child-group
+           #:remove-child-group
+           #:get-child-groups
            #:add-item
            #:get-item
            #:remove-item
@@ -33,16 +39,24 @@
          :documentation "Tags as an association list (alist) of (key . value) pairs.
 A tag can exist without a value, e.g., (:ui-link), or with a value, e.g., (:ui-card . t).
 Higher-level code is responsible for interpreting the tags.")
+   (parent-group :initarg :parent-group
+                 :initform nil
+                 :reader parent-group
+                 :documentation "The symbol id of the parent itemgroup, or NIL for top-level groups.")
+   (child-groups :initform (make-hash-table :test #'eq)
+                 :reader child-groups
+                 :documentation "Hash-table of child itemgroups keyed by their symbol id.")
    (items :initform (make-hash-table :test #'equal)
           :reader items)))
 
-(defun make-itemgroup (id &key (label nil) (tags nil))
+(defun make-itemgroup (id &key (label nil) (tags nil) (parent-group nil))
   (check-type id symbol)
   (log:info "Creating itemgroup: ~a, label: ~a" id label)
   (make-instance 'itemgroup
                  :id id
                  :label label
-                 :tags tags))
+                 :tags tags
+                 :parent-group parent-group))
 
 (defun name (itemgroup)
   (id itemgroup))
@@ -58,6 +72,18 @@ Higher-level code is responsible for interpreting the tags.")
 
 (defun get-items (itemgroup)
   (hash-table-values (items itemgroup)))
+
+(defun add-child-group (itemgroup child)
+  (setf (gethash (id child) (child-groups itemgroup)) child))
+
+(defun get-child-group (itemgroup id)
+  (gethash id (child-groups itemgroup)))
+
+(defun remove-child-group (itemgroup id)
+  (remhash id (child-groups itemgroup)))
+
+(defun get-child-groups (itemgroup)
+  (hash-table-values (child-groups itemgroup)))
 
 (defun get-value (itemgroup)
   "Collects values (as futures) from all added items."
