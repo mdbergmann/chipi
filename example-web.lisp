@@ -52,7 +52,8 @@
 (defitemgroup 'og-lights "OG Lights" :tags '((:ui-link)) :group 'lights)
 
 (defitem 'switch1 "Switch1" 'boolean :initial-value 'item:false
-  :group '(eg-lights plugs switches))
+  :group '(eg-lights plugs switches)
+  :tags '((:ui-type . "Light")))
 (defitem 'light1 "Light1" 'float :initial-value 123.456
   :group '(og-lights))
 (defitem 'plug1 "Plug1" 'string :initial-value 'item:false

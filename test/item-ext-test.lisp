@@ -99,3 +99,16 @@
     (let ((tags-ht (gethash "tags" ht)))
       (is (hash-table-p tags-ht))
       (is (= 0 (hash-table-count tags-ht))))))  ; empty hash table
+
+(test item-to-ht--tags-key-types
+  "Test that tags hash-table keys are keyword symbols and can be looked up."
+  (let* ((item (make-instance 'item :receive t
+                                    :state (make-item-state :value 1)
+                                    :name "item5"
+                                    :label "label5"
+                                    :tags '((:ui-type . "Light")
+                                            (:ui-readonly . t))))
+         (ht (item-to-ht item))
+         (tags-ht (gethash "tags" ht)))
+    (is-true (gethash :ui-type tags-ht))
+    (is (equal "Light" (gethash :ui-type tags-ht)))))

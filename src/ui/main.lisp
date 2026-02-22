@@ -123,13 +123,16 @@ Shows child groups (as links or cards) above direct items."
          (item-label (gethash "label" item))
          (item-name (gethash "name" item))
          (item-state (gethash "item-state" item))
-         (type-hint (gethash "type-hint" item)))
-    
+         (type-hint (gethash "type-hint" item))
+         (tags (gethash "tags" item))
+         (ui-type (when (and tags (hash-table-p tags))
+                    (gethash :ui-type tags))))
+
     (create-div item-div :class "item-label"
                          :content item-label)
 
     (create-div item-div :class (format nil "item-type-badge ~a" (string-downcase type-hint))
-                         :content (%format-type-hint type-hint))
+                         :content (or ui-type (%format-type-hint type-hint)))
 
     (create-div item-div :class "item-name"
                          :content item-name)
@@ -182,7 +185,7 @@ Shows child groups (as links or cards) above direct items."
 
 (defun %format-value (value type-hint)
   (cond
-    ((string= "FLOAT" type-hint) (format nil "~f" value))
+    ((string= "FLOAT" type-hint) (format nil "~,2f" value))
     ((string= "INTEGER" type-hint) (format nil "~a" value))
     ((string= "STRING" type-hint) (if value value ""))
     (t (if value (format nil "~a" value) ""))))
