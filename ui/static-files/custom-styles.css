@@ -11948,18 +11948,68 @@ textarea.form-control-lg {
   margin-top: 1rem;
 }
 
-/* Group detail header – smaller than the main dashboard title */
-.group-header-line {
-  font-size: 1.5rem;
-  font-weight: 300;
-  text-align: center;
-  margin-bottom: 1rem;
-}
-
-/* Responsive font size adjustments */
+/* Responsive adjustments for tablets */
 @media (max-width: 768px) {
   .item-value-display {
     font-size: 1.25rem !important;
+  }
+}
+/* Compact mobile layout — show only essential info */
+@media (max-width: 576px) {
+  .header-line {
+    font-size: 1.5rem !important;
+    margin-bottom: 1rem !important;
+  }
+  .itemgroup-header {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.95rem;
+  }
+  /* Hide non-essential item details */
+  .item-name {
+    display: none;
+  }
+  .item-timestamp-display {
+    display: none;
+  }
+  /* Compact item cards */
+  .item-container {
+    padding: 0.5rem 0.75rem !important;
+  }
+  .item-label {
+    margin-bottom: 0.25rem !important;
+    font-size: 0.85rem;
+    padding-right: 5rem;
+  }
+  .item-type-badge {
+    font-size: 0.65rem;
+    top: 0.45rem;
+    right: 0.5rem;
+  }
+  .item-value-display {
+    font-size: 1.1rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+  .item-value-boolean {
+    margin-bottom: 0.25rem !important;
+  }
+  .item-value-boolean-input {
+    transform: scale(1.3);
+  }
+  /* Tighter card spacing */
+  .itemgroups-container {
+    --bs-gutter-y: 0.5rem;
+    --bs-gutter-x: 0.5rem;
+  }
+  .itemgroup-links-container {
+    margin-bottom: 1rem !important;
+  }
+  .itemgroup-link {
+    font-size: 1rem !important;
+    padding: 0.5rem 0.75rem;
+  }
+  .back-button {
+    margin-top: 0.5rem;
+    margin-bottom: 0.75rem !important;
   }
 }
 
