@@ -241,8 +241,9 @@ Shows child groups (as links or cards) above direct items."
                                  (ev:subscribe self self 'item:item-changed-event))
                          :receive (lambda (msg) (%item-listener-receive msg)))))
 
+    (setf clog-connection:*reconnect-delay* nil)
     (setf *item-value-form-update-funs* (make-hash-table :test #'equal))
-    
+
     (initialize 'on-main
                 :static-root system-root
                 :host host
