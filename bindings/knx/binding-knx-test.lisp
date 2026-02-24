@@ -17,36 +17,49 @@
          (&body))
     (hab:shutdown)))
 
+(def-fixture clean-knx-state ()
+  (unwind-protect
+       (progn
+         (setf binding-knx::*global-listener-registered-p* nil)
+         (clrhash binding-knx::*ga-binding-registry*)
+         (&body))
+    (progn
+      (setf binding-knx::*global-listener-registered-p* nil)
+      (clrhash binding-knx::*ga-binding-registry*))))
+
 (test make-knx-binding
   "Tests creating a knx binding"
-  (with-mocks ()
-    ;; binding should register listener function
-    (answer knx-client:add-tunnelling-request-listener t)
-    (let ((cut (knx-binding
-                :ga "1/2/3"
-                :dpt "9.001"
-                :initial-delay nil)))
-      (is-true cut)
-      (is (address:knx-group-address-p (binding-knx::group-address-read cut)))
-      (is (address:knx-group-address-p (binding-knx::group-address-write cut)))
-      (is (eq 'dpt:dpt-9.001 (binding-knx::dpt-type cut)))
-      (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener)))))))
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      ;; global listener should register once
+      (answer knx-client:add-tunnelling-request-listener t)
+      (let ((cut (knx-binding
+                  :ga "1/2/3"
+                  :dpt "9.001"
+                  :initial-delay nil)))
+        (is-true cut)
+        (is (address:knx-group-address-p (binding-knx::group-address-read cut)))
+        (is (address:knx-group-address-p (binding-knx::group-address-write cut)))
+        (is (eq 'dpt:dpt-9.001 (binding-knx::dpt-type cut)))
+        (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener))))
+        ;; verify binding is in registry
+        (is (= 1 (length (gethash "1/2/3" binding-knx::*ga-binding-registry*))))))))
 
 (test make-knx-binding--with-separate-read-write-gas
   "Tests creating a knx binding that specifies separate read and write GAs."
-  (with-mocks ()
-    ;; binding should register listener function
-    (answer knx-client:add-tunnelling-request-listener t)
-    (let ((cut (knx-binding
-                :ga '(:read "1/2/3" :write "1/2/4")
-                :dpt "9.001"
-                :initial-delay nil)))
-      (is-true cut)
-      (is (address:knx-group-address-p (binding-knx::group-address-read cut)))
-      (is (string= "1/2/3" (address:address-string-rep (binding-knx::group-address-read cut))))
-      (is (address:knx-group-address-p (binding-knx::group-address-write cut)))
-      (is (string= "1/2/4" (address:address-string-rep (binding-knx::group-address-write cut))))
-      (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener)))))))
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      (let ((cut (knx-binding
+                  :ga '(:read "1/2/3" :write "1/2/4")
+                  :dpt "9.001"
+                  :initial-delay nil)))
+        (is-true cut)
+        (is (address:knx-group-address-p (binding-knx::group-address-read cut)))
+        (is (string= "1/2/3" (address:address-string-rep (binding-knx::group-address-read cut))))
+        (is (address:knx-group-address-p (binding-knx::group-address-write cut)))
+        (is (string= "1/2/4" (address:address-string-rep (binding-knx::group-address-write cut))))
+        (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener))))))))
 
 (defun %make-test-tun-req (ga mc apci &optional (dpt (dpt:make-dpt1 'dpt:dpt-1.001 :on)))
   (tunnelling:make-tunnelling-request
@@ -59,119 +72,132 @@
           :dpt dpt)))
 
 (test binding-listens-on-ga-changes
-  (with-mocks ()
-    (let ((item-set-called-with nil)
-          (listener-fun-registered nil))
-      ;; binding should register listener function
-      (answer (knx-client:add-tunnelling-request-listener fun)
-        (progn
-          (setf listener-fun-registered fun)
-          t))
-      ;; binding should call `set-value' on bound items
-      (answer (item:set-value _ value :push nil)
-        (progn
-          (setf item-set-called-with value)
-          t))
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (let ((item-set-called-with nil)
+            (listener-fun-registered nil))
+        ;; capture the global listener
+        (answer (knx-client:add-tunnelling-request-listener fun)
+          (progn
+            (setf listener-fun-registered fun)
+            t))
+        (answer (item:set-value _ value :push nil)
+          (progn
+            (setf item-set-called-with value)
+            t))
 
-      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
-        (binding:bind-item cut :foo-item)
+        (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
+          (binding:bind-item cut :foo-item)
 
-        (is (functionp listener-fun-registered))
-        ;; we call the registered fun manually
-        ;; in production this is done automatically
-        (funcall listener-fun-registered
-                 (%make-test-tun-req "1/2/3"
-                                     cemi:+cemi-mc-l_data.ind+
-                                     (cemi:make-apci-gv-write)))
+          (is (functionp listener-fun-registered))
+          ;; call the global listener — it dispatches via hash-table
+          (funcall listener-fun-registered
+                   (%make-test-tun-req "1/2/3"
+                                       cemi:+cemi-mc-l_data.ind+
+                                       (cemi:make-apci-gv-write)))
 
-        (is (equal 'item:true item-set-called-with))
-        ))))
+          (is (equal 'item:true item-set-called-with)))))))
 
 (test binding-listens-on-ga-changes--check-errors
-  (with-mocks ()
-    (let ((item-set-called-with nil)
-          (listener-fun-registered nil))
-      (answer (knx-client:add-tunnelling-request-listener fun)
-        (progn
-          (setf listener-fun-registered fun)
-          t))
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (let ((item-set-called-with nil)
+            (listener-fun-registered nil))
+        (answer (knx-client:add-tunnelling-request-listener fun)
+          (progn
+            (setf listener-fun-registered fun)
+            t))
 
-      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
-        (binding:bind-item cut :foo-item)
+        (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
+          (binding:bind-item cut :foo-item)
 
-        (flet ((assert-no-processing (req)
-                 (funcall listener-fun-registered req)
-                 (is (eq nil item-set-called-with))))
-          ;; wrong ga
-          (assert-no-processing
-           (%make-test-tun-req "9/8/7"
-                               cemi:+cemi-mc-l_data.ind+
-                               (cemi:make-apci-gv-write)))
-          ;; wrong mc
-          (assert-no-processing
-           (%make-test-tun-req "1/2/3"
-                               cemi:+cemi-mc-l_data.con+
-                               (cemi:make-apci-gv-write)))
-          ;; wrong apci
-          (assert-no-processing
-           (%make-test-tun-req "1/2/3"
-                               cemi:+cemi-mc-l_data.ind+
-                               (cemi:make-apci-gv-read))))))))
+          (flet ((assert-no-processing (req)
+                   (funcall listener-fun-registered req)
+                   (is (eq nil item-set-called-with))))
+            ;; wrong ga — silently skipped (no matching registry entry)
+            (assert-no-processing
+             (%make-test-tun-req "9/8/7"
+                                 cemi:+cemi-mc-l_data.ind+
+                                 (cemi:make-apci-gv-write)))
+            ;; wrong mc — early return
+            (assert-no-processing
+             (%make-test-tun-req "1/2/3"
+                                 cemi:+cemi-mc-l_data.con+
+                                 (cemi:make-apci-gv-write)))
+            ;; wrong apci — early return
+            (assert-no-processing
+             (%make-test-tun-req "1/2/3"
+                                 cemi:+cemi-mc-l_data.ind+
+                                 (cemi:make-apci-gv-read)))))))))
 
 (test binding-listens-on-ga-changes--other-value-than-1.001
   "1.001 must be converted from :on/:off to 'item:true/'item:false"
-  (with-mocks ()
-    (let ((item-set-called-with nil)
-          (listener-fun-registered nil))
-      (answer (knx-client:add-tunnelling-request-listener fun)
-        (progn
-          (setf listener-fun-registered fun)
-          t))
-
-      (answer (item:set-value _ value :push nil)
-        (progn
-          (setf item-set-called-with value)
-          t))
-
-      (let ((cut (knx-binding :ga "1/2/3" :dpt "5.001" :initial-delay nil)))
-        (binding:bind-item cut :foo-item)
-
-        (is (functionp listener-fun-registered))
-        ;; we call the registered fun manually
-        ;; in production this is done automatically
-        (funcall listener-fun-registered
-                 (%make-test-tun-req "1/2/3"
-                                     cemi:+cemi-mc-l_data.ind+
-                                     (cemi:make-apci-gv-write)
-                                     (dpt:make-dpt5 'dpt:dpt-5.001 11)))
-
-        (is (equal 11 item-set-called-with))
-        ))))
-
-(test binding-can-pull--initially
-  "Pull is done after initializing the binding (and only once)."
-  (with-fixture destroy-all ()
+  (with-fixture clean-knx-state ()
     (with-mocks ()
-      (let ((item-set-called-with nil))
-        (answer knx-client:add-tunnelling-request-listener t)
-
-        (answer (knxc:request-value _ 'dpt:dpt-1.001)
-          (future:with-fut :on))
+      (let ((item-set-called-with nil)
+            (listener-fun-registered nil))
+        (answer (knx-client:add-tunnelling-request-listener fun)
+          (progn
+            (setf listener-fun-registered fun)
+            t))
 
         (answer (item:set-value _ value :push nil)
           (progn
             (setf item-set-called-with value)
             t))
 
-        (binding:bind-item
-         (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay .1)
-         :foo-item)
+        (let ((cut (knx-binding :ga "1/2/3" :dpt "5.001" :initial-delay nil)))
+          (binding:bind-item cut :foo-item)
 
-        (is-true (miscutils:await-cond 2.5
-                   (eq item-set-called-with 'item:true)))
-        ))))
+          (is (functionp listener-fun-registered))
+          (funcall listener-fun-registered
+                   (%make-test-tun-req "1/2/3"
+                                       cemi:+cemi-mc-l_data.ind+
+                                       (cemi:make-apci-gv-write)
+                                       (dpt:make-dpt5 'dpt:dpt-5.001 11)))
+
+          (is (equal 11 item-set-called-with)))))))
+
+(test binding-listens-on-ga-changes--dpt-1.009-converts-to-bool
+  "Any DPT-1.x type (not just 1.001) must convert :on/:off to item:true/item:false"
+  (with-fixture clean-knx-state ()
+    (let ((dpt-1.009 (intern "DPT-1.009" :dpt)))
+      ;; test the conversion functions directly
+      (is (eq 'item:true (binding-knx::%convert-dpt-1.x-to-item-bool :on dpt-1.009)))
+      (is (eq 'item:false (binding-knx::%convert-dpt-1.x-to-item-bool :off dpt-1.009)))
+      (is (eq t (binding-knx::%convert-item-bool-to-dpt-1.x 'item:true dpt-1.009)))
+      (is (eq nil (binding-knx::%convert-item-bool-to-dpt-1.x 'item:false dpt-1.009)))
+      ;; non-boolean DPT passes through unchanged
+      (is (eq :on (binding-knx::%convert-dpt-1.x-to-item-bool :on 'dpt:dpt-9.001)))
+      (is (eq 42 (binding-knx::%convert-item-bool-to-dpt-1.x 42 'dpt:dpt-9.001))))))
+
+(test binding-can-pull--initially
+  "Pull is done after initializing the binding (and only once)."
+  (with-fixture destroy-all ()
+    (with-fixture clean-knx-state ()
+      (with-mocks ()
+        (let ((item-set-called-with nil))
+          (answer knx-client:add-tunnelling-request-listener t)
+
+          (answer (knxc:request-value _ 'dpt:dpt-1.001)
+            (future:with-fut :on))
+
+          (answer (item:set-value _ value :push nil)
+            (progn
+              (setf item-set-called-with value)
+              t))
+
+          (binding:bind-item
+           (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay .1)
+           :foo-item)
+
+          (is-true (miscutils:await-cond 2.5
+                     (eq item-set-called-with 'item:true))))))))
 
 (defun binding-can-push-value (dpt-type-str push-value expected-value)
+  ;; Reset state since this helper is called from multiple tests
+  (setf binding-knx::*global-listener-registered-p* nil)
+  (clrhash binding-knx::*ga-binding-registry*)
   (with-mocks ()
     (answer knx-client:add-tunnelling-request-listener t)
     (let ((cut (knx-binding :ga "1/2/3" :dpt dpt-type-str))
@@ -196,7 +222,58 @@
     (is (= 1 (length (invocations 'hab:add-to-shutdown))))))
 
 (test shutdown-knx--closes-knx
-  (with-mocks ()
-    (answer knxc:knx-conn-destroy t)
-    (knx-shutdown)
-    (is (= 1 (length (invocations 'knxc:knx-conn-destroy))))))
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      ;; create a binding so there's state to clear
+      (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)
+      (is-true binding-knx::*global-listener-registered-p*)
+      (is (= 1 (hash-table-count binding-knx::*ga-binding-registry*)))
+
+      (answer knxc:knx-conn-destroy t)
+      (knx-shutdown)
+      (is (= 1 (length (invocations 'knxc:knx-conn-destroy))))
+      ;; registry should be cleared
+      (is-false binding-knx::*global-listener-registered-p*)
+      (is (= 0 (hash-table-count binding-knx::*ga-binding-registry*))))))
+
+;; --- New tests for global listener dispatch ---
+
+(test make-knx-binding--multiple-bindings-single-listener
+  "Two bindings on different GAs should only register one global listener."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      (let ((b1 (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil))
+            (b2 (knx-binding :ga "4/5/6" :dpt "9.001" :initial-delay nil)))
+        (is-true b1)
+        (is-true b2)
+        ;; only one call to add-tunnelling-request-listener
+        (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener))))
+        ;; both GAs in registry
+        (is (= 1 (length (gethash "1/2/3" binding-knx::*ga-binding-registry*))))
+        (is (= 1 (length (gethash "4/5/6" binding-knx::*ga-binding-registry*))))))))
+
+(test make-knx-binding--same-ga-multiple-bindings
+  "Two bindings on the same GA should both be in the registry."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      (let ((b1 (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil))
+            (b2 (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
+        (is-true b1)
+        (is-true b2)
+        (is (= 1 (length (invocations 'knx-client:add-tunnelling-request-listener))))
+        ;; same GA has 2 entries
+        (is (= 2 (length (gethash "1/2/3" binding-knx::*ga-binding-registry*))))))))
+
+(test destroy-knx-binding--deregisters-from-registry
+  "Destroying a knx-binding removes it from the GA registry."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
+        (is (= 1 (length (gethash "1/2/3" binding-knx::*ga-binding-registry*))))
+        (binding:destroy cut)
+        ;; GA entry removed entirely
+        (is (= 0 (hash-table-count binding-knx::*ga-binding-registry*)))))))

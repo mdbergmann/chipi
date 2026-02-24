@@ -140,7 +140,10 @@ This is to have the higher-level module decide how to handle the error."
                       (timer:schedule-recurring delay timer-fun timer-sig)
                       :delay))))))
 
-(defun destroy (binding)
+(defgeneric destroy (binding)
+  (:documentation "Destroys the binding and releases all resources."))
+
+(defmethod destroy ((binding binding))
   (log:info "Destroying binding: " binding)
   (with-slots (timers) binding
     (maphash (lambda (key timer)

@@ -9,6 +9,12 @@
 
 (in-package :chipi.binding.knx)
 
+(defvar *ga-binding-registry* (make-hash-table :test #'equal)
+  "Maps GA string -> list of (binding . dpt-type) entries.")
+
+(defvar *global-listener-registered-p* nil
+  "Whether the single global tunnelling listener has been registered.")
+
 (defclass knx-binding (binding)
   ((ga-read :initarg :ga-read
             :initform (error "Read group-address required!")
@@ -20,62 +26,97 @@
         :initform (error "DPT type required!")
         :reader dpt-type)))
 
-(defun %convert-1.001-to-item-bool (value dpt-type)
+(defun %dpt-1.x-p (dpt-type)
+  "Returns T if DPT-TYPE is any boolean DPT-1.xxx type."
+  (let ((name (symbol-name dpt-type)))
+    (and (>= (length name) 5)
+         (string= "DPT-1." name :end2 6))))
+
+(defun %convert-dpt-1.x-to-item-bool (value dpt-type)
   (cond
-    ((eq dpt-type 'dpt:dpt-1.001)
+    ((%dpt-1.x-p dpt-type)
      (case value
        (:on 'item:true)
        (:off 'item:false)))
     (t value)))
 
-(defun %convert-item-bool-to-1.001 (value dpt-type)
-  "Converts between `item:true'/`item:false' and `:on'/`:off' as `knxc:write-value' wants it."
+(defun %convert-item-bool-to-dpt-1.x (value dpt-type)
+  "Converts between `item:true'/`item:false' and `t'/`nil' as `knxc:write-value' wants it for DPT-1.x types."
   (cond
-    ((eq dpt-type 'dpt:dpt-1.001)
-     (cond 
+    ((%dpt-1.x-p dpt-type)
+     (cond
        ((eq value 'item:true) t)
        ((eq value 'item:false) nil)))
     (t value)))
 
-(defun %make-ind-write-listener-fun (binding ga dpt-type)
-  (flet ((assert-ga (req requested-ga)
-           (let* ((cemi (tunnelling:tunnelling-request-cemi req))
-                  (ga (cemi:cemi-destination-addr cemi)))
-             (log:debug "Received request for ga: ~a, required: ~a" ga requested-ga)
-             (unless (equalp ga requested-ga)
-               (error "GA not of required value!"))))
-         (assert-mc (req mc-type)
-           (unless (eql (tunnelling:tunnelling-cemi-message-code req) mc-type)
-             (error "MC not of required value!")))
-         (assert-apci (req apci-type)
-           (let ((cemi (tunnelling:tunnelling-request-cemi req)))
-             (unless (typep (cemi:cemi-apci cemi) apci-type)
-               (error "APCI not of required value!"))))
-         (coerce-dpt (req dpt-type)
-           (let* ((cemi (tunnelling:tunnelling-request-cemi req))
-                  (cemi-data (cemi:cemi-data cemi))
-                  (dpt (etypecase cemi-data
-                         (dpt cemi-data)
-                         ((vector octet) (parse-to-dpt dpt-type cemi-data))))
-                  (value (dpt:dpt-value dpt)))
-             value)))
-    (lambda (req)
-      (handler-case
-          (progn
-            (log:debug "KNX tunnel listener received: ~a" req)
-            (assert-ga req ga)
-            (assert-mc req cemi:+cemi-mc-l_data.ind+)
-            (assert-apci req 'cemi:apci-gv-write)
-            (let ((value (%convert-1.001-to-item-bool
-                          (coerce-dpt req dpt-type) dpt-type))
-                  (items (binding::bound-items binding)))
-              (log:info "Indicated value: ~a for ga: ~a" value ga)
+(defun %process-matching-bindings (req ga-string)
+  "Looks up GA in registry and processes all matching bindings."
+  (let ((entries (gethash ga-string *ga-binding-registry*)))
+    (when entries
+      (let ((cemi (tunnelling:tunnelling-request-cemi req)))
+        (dolist (entry entries)
+          (destructuring-bind (binding . dpt-type) entry
+            (let* ((cemi-data (cemi:cemi-data cemi))
+                   (dpt (etypecase cemi-data
+                          (dpt cemi-data)
+                          ((vector octet) (parse-to-dpt dpt-type cemi-data))))
+                   (value (%convert-dpt-1.x-to-item-bool (dpt:dpt-value dpt) dpt-type))
+                   (items (binding::bound-items binding)))
+              (log:info "Indicated value: ~a for ga: ~a" value ga-string)
               (log:debug "Setting on items (~a)..." (length items))
               (dolist (item items)
                 (log:debug "Setting on item: ~a" item)
-                (item:set-value item value :push nil))))
+                (item:set-value item value :push nil)))))))))
+
+(defun %make-global-tunnelling-listener ()
+  "Returns a single listener lambda for all KNX bindings."
+  (lambda (req)
+    (block listener
+      (handler-case
+          (progn
+            (log:debug "KNX global tunnel listener received: ~a" req)
+            (unless (eql (tunnelling:tunnelling-cemi-message-code req)
+                         cemi:+cemi-mc-l_data.ind+)
+              (return-from listener))
+            (let ((cemi (tunnelling:tunnelling-request-cemi req)))
+              (unless (typep (cemi:cemi-apci cemi) 'cemi:apci-gv-write)
+                (return-from listener))
+              (let ((ga-string (address:address-string-rep
+                                (cemi:cemi-destination-addr cemi))))
+                (%process-matching-bindings req ga-string))))
         (error (e)
-          (log:debug "From listener-fun: ~a" e))))))
+          (log:warn "Unexpected error in global KNX listener: ~a" e))))))
+
+(defun %register-binding-for-ga (binding ga-obj dpt-type)
+  "Registers a binding for the given GA in the global registry."
+  (let ((ga-string (address:address-string-rep ga-obj)))
+    (push (cons binding dpt-type)
+          (gethash ga-string *ga-binding-registry*))))
+
+(defun %ensure-global-listener ()
+  "Registers the global tunnelling listener once."
+  (unless *global-listener-registered-p*
+    (knx-client:add-tunnelling-request-listener
+     (%make-global-tunnelling-listener))
+    (setf *global-listener-registered-p* t)))
+
+(defun %deregister-binding (binding)
+  "Removes binding from the GA registry."
+  (let* ((ga-obj (group-address-read binding))
+         (ga-string (address:address-string-rep ga-obj)))
+    (let ((entries (gethash ga-string *ga-binding-registry*)))
+      (setf (gethash ga-string *ga-binding-registry*)
+            (remove binding entries :key #'car)))
+    (when (null (gethash ga-string *ga-binding-registry*))
+      (remhash ga-string *ga-binding-registry*))))
+
+(defun %reset-listener-registry ()
+  "Clears the GA registry and resets the global listener flag."
+  (clrhash *ga-binding-registry*)
+  (setf *global-listener-registered-p* nil))
+
+(defmethod binding:destroy :before ((binding knx-binding))
+  (%deregister-binding binding))
 
 (defun %make-binding-pull-fun (ga-obj dpt-type)
   (lambda ()
@@ -90,7 +131,7 @@
                 ((typep result 'error)
                  (error "Error: ~a" result))
                 (t
-                 (let ((value (%convert-1.001-to-item-bool result dpt-type)))
+                 (let ((value (%convert-dpt-1.x-to-item-bool result dpt-type)))
                    (log:info "Received value: ~a" value)
                    value))))))
       (values 
@@ -99,7 +140,7 @@
 
 (defun %make-binding-push-fun (ga-obj dpt-type)
   (lambda (value)
-    (let ((converted-value (%convert-item-bool-to-1.001 value dpt-type)))
+    (let ((converted-value (%convert-item-bool-to-dpt-1.x value dpt-type)))
       (log:info "Writing to bus, value: ~a ga: ~a, dpt: ~a" value ga-obj dpt-type)
       ;; wants `t' and `nil' for 1.001
       (knxc:write-value (address:address-string-rep ga-obj) dpt-type converted-value))))
@@ -123,8 +164,8 @@
                          rest-args)))
     (assert (and ga-read-obj ga-write-obj) nil "Unable to make group-address objects!")
     (assert dpt-type nil "Unable to parse dpt-type!")
-    (knx-client:add-tunnelling-request-listener
-     (%make-ind-write-listener-fun binding ga-read-obj dpt-type))
+    (%ensure-global-listener)
+    (%register-binding-for-ga binding ga-read-obj dpt-type)
     binding))
 
 ;; -----------------------------
@@ -169,4 +210,5 @@ A shutdown hook is added via `hab:add-to-shutdown' which calls `knx-shutdown'.
 (defun knx-shutdown ()
   "Shutdown KNX binding and release/clean all resources.
 Be aware that the global shutdown function (`hab:shutdown') will also call this so this usually doesn't need to be called manually except in test setups."
+  (%reset-listener-registry)
   (knxc:knx-conn-destroy))
