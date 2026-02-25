@@ -247,7 +247,7 @@ Shows child groups (as links or cards) above direct items."
                                  (ev:subscribe self self 'item:item-changed-event))
                          :receive (lambda (msg) (%item-listener-receive msg)))))
 
-    (setf clog-connection:*reconnect-delay* nil)
+    (setf clog-connection:*reconnect-delay* 2)
     (setf *item-value-form-update-funs* (make-hash-table :test #'equal))
 
     (initialize 'on-main

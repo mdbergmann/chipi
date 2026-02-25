@@ -1,0 +1,35 @@
+<!doctype HTML>
+<HTML>
+   <HEAD>
+      <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+      <meta http-equiv="Pragma" content="no-cache" />
+      <meta http-equiv="Expires" content="0" />
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"
+              integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+              crossorigin="anonymous"></script>
+      <script src="/js/boot.js" type="text/javascript"></script>
+      <noscript><%= (@ meta) %></noscript>
+   </HEAD>
+<BODY>
+  <noscript><%= (@ body) %></noscript>
+</BODY>
+<noscript>Your browser must support JavaScript and be HTML 5 compilant to see this site.</noscript>
+<script>
+setTimeout(function() {
+    var bodyChildren = document.body.children;
+    var hasContent = false;
+    for (var i = 0; i < bodyChildren.length; i++) {
+        if (bodyChildren[i].tagName !== 'NOSCRIPT' && bodyChildren[i].tagName !== 'SCRIPT') {
+            hasContent = true;
+            break;
+        }
+    }
+    if (!hasContent) {
+        console.log('CLOG watchdog: no content after timeout, reloading...');
+        window.location.reload();
+    }
+}, 5000);
+</script>
+</HTML>
