@@ -159,13 +159,19 @@ Shows child groups (as links or cards) above direct items."
 (defun %render-item-value (item-name item-value type-hint tags parent)
   (cond
     ((and (string= "BOOLEAN" type-hint) (%ui-readonly-p tags))
-     (let ((value-div (create-div parent :class "item-value-display"
+     (let ((value-div (create-div parent :class (format nil "item-value-display ~a"
+                                                        (if item-value "boolean-true" "boolean-false"))
                                          :content (if item-value "ON" "OFF"))))
        (set-on-value-update item-name
                             (lambda (updated-item-state)
                               (let ((updated-value (gethash "value" updated-item-state)))
                                 (setf (text value-div)
-                                      (if updated-value "ON" "OFF")))))))
+                                      (if updated-value "ON" "OFF"))
+                                (if updated-value
+                                    (progn (remove-class value-div "boolean-false")
+                                           (add-class value-div "boolean-true"))
+                                    (progn (remove-class value-div "boolean-true")
+                                           (add-class value-div "boolean-false"))))))))
     ((string= "BOOLEAN" type-hint)
      (let* ((form-check (create-div parent :class "item-value-boolean"))
             (toggle-input (create-form-element form-check "checkbox"

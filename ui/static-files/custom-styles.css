@@ -8415,7 +8415,7 @@ textarea.form-control-lg {
   color: rgba(var(--bs-secondary-rgb), var(--bs-text-opacity)) !important;
 }
 
-.text-success, .item-value-display.boolean-true, .item-value-display {
+.text-success, .item-value-display.boolean-false, .item-value-display {
   --bs-text-opacity: 1;
   color: rgba(var(--bs-success-rgb), var(--bs-text-opacity)) !important;
 }
@@ -8430,7 +8430,7 @@ textarea.form-control-lg {
   color: rgba(var(--bs-warning-rgb), var(--bs-text-opacity)) !important;
 }
 
-.text-danger, .item-value-display.boolean-false {
+.text-danger, .item-value-display.boolean-true {
   --bs-text-opacity: 1;
   color: rgba(var(--bs-danger-rgb), var(--bs-text-opacity)) !important;
 }

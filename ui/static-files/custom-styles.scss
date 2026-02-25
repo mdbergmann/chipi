@@ -125,11 +125,11 @@
 }
 
 /* Item value state colors */
-.item-value-display.boolean-true { 
-    @extend .text-success; 
+.item-value-display.boolean-true {
+    @extend .text-danger;
 }
-.item-value-display.boolean-false { 
-    @extend .text-danger; 
+.item-value-display.boolean-false {
+    @extend .text-success;
 }
 
 /* Item timestamp styling with icon */
