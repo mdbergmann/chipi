@@ -223,17 +223,17 @@ For item triggers, the =cdr= of the trigger is an =item:item-changed-event= stru
 Rules can also be triggered conditionally on specific value transitions using =:when-item-transition=. This allows firing only when an item changes FROM and/or TO specific values:
 
 #+begin_src lisp
-  ;; Only fire when light changes TO "true"
+  ;; Fire when light is turned on
   (defrule "Light turned on"
-    :when-item-transition '(my-light :to "true")
+    :when-item-transition '(my-light :from item:false :to item:true)
     :do (lambda (trigger)
           (let* ((event (cdr trigger))
                  (old-value (item:item-changed-event-old-value event)))
             (format t "Light turned on, was: ~a~%" old-value))))
 
-  ;; Fire when sensor changes FROM "off" TO "on"
-  (defrule "Sensor activated"
-    :when-item-transition '(my-sensor :from "off" :to "on")
+  ;; Fire when light is turned off (any previous value)
+  (defrule "Light turned off"
+    :when-item-transition '(my-light :to item:false)
     :do (lambda (trigger)
           (declare (ignore trigger))
           (do-some-action)))
