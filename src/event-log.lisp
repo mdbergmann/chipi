@@ -36,11 +36,11 @@
     (let ((oldest (%backup-file-path state max)))
       (when (probe-file oldest)
         (delete-file oldest)))
-    (loop for i from (1- max) downto 1
-          do (let ((src (%backup-file-path state i))
-                   (dst (%backup-file-path state (1+ i))))
-               (when (probe-file src)
-                 (rename-file src dst))))
+    (loop :for i :from (1- max) :downto 1
+          :do (let ((src (%backup-file-path state i))
+                    (dst (%backup-file-path state (1+ i))))
+                (when (probe-file src)
+                  (rename-file src dst))))
     (let ((current (%log-file-path state)))
       (when (probe-file current)
         (rename-file current (%backup-file-path state 1))))))

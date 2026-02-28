@@ -24,6 +24,7 @@ Write idiomatic Common Lisp:
 - **Error handling**: `handler-case` for recovery, `ignore-errors` for fire-and-forget cleanup, `unwind-protect` for guaranteed cleanup.
 - **Concurrency**: Actor messages via `!` (tell) and `?` (ask). Futures with `fmap`, `fcompleted`, `fresult`. Never access actor state outside actor context.
 - **Logging**: `log4cl` — use `log:info`, `log:debug`, `log:warn` with format strings.
+- **Loop**: Prefix `loop` clause keywords with `:` (e.g. `(loop :for x :in list :collect x)`).
 - **Formatting**: 2-space indentation. Keep lines reasonable length. Docstrings on exported functions, classes, and macros.
 
 ## Testing

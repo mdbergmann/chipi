@@ -31,9 +31,9 @@
   "Read all lines from a file."
   (when (probe-file path)
     (with-open-file (s path :direction :input)
-      (loop for line = (read-line s nil nil)
-            while line
-            collect line))))
+      (loop :for line = (read-line s nil nil)
+            :while line
+            :collect line))))
 
 (def-fixture init-destroy-env ()
   (let ((envi::*rel-runtime-dir* *test-runtime-dir*))
