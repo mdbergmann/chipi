@@ -143,6 +143,7 @@
       (set-value item 1)
       (is-true (await-cond 0.5 ev-received))
       (is (eq (item-changed-event-item ev-received) item))
+      (is (eq (item-changed-event-old-value ev-received) t))
       (is (= 1 (item::item-state-value (act-cell:state item)))))))
 
 (test item--pull-value-from-added-binding

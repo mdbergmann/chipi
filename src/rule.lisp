@@ -25,8 +25,9 @@ Both `:when-item-change' and `:when-cron' can be specified multiple times.
 `:do' is a function that will be called when the rule is triggered.
 It will be called with a single argument, an alist with either
 `:item' or `:cron' as the key, depending on what triggered the rule.
-`:item' will be the item that triggered the rule, and `:cron' will
-be the cron expression that triggered the rule.
+`:item' will have an `item:item-changed-event' struct as value, containing
+the item and the old-value before the change. `:cron' will be the cron
+expression that triggered the rule.
 
 Example:
   (make-rule \"my-rule\"
@@ -34,7 +35,11 @@ Example:
              :when-cron '(:minute 0 :hour 0)
              :do (lambda (trigger)
                    (case (car trigger)
-                     (:item (log:info \"Item changed: \" (cdr trigger)))
+                     (:item
+                      (let* ((event (cdr trigger))
+                             (item (item:item-changed-event-item event))
+                             (old-value (item:item-changed-event-old-value event)))
+                        (log:info \"Item changed: ~a, old: ~a\" item old-value)))
                      (:cron (log:info \"Cron triggered: \" (cdr trigger))))))
 
 This will create a rule that will be triggered when `my-item' changes,
@@ -90,7 +95,7 @@ When triggered, the rule will log a message to the info log.
         (when (member item-name
                       item-names
                       :test #'equal)
-          (funcall do-fun `(:item . ,item)))))
+          (funcall do-fun `(:item . ,msg)))))
     (when (and (listp msg)
                (eq (car msg) 'cron-triggered))
       (funcall do-fun `(:cron . ,(second msg))))))

@@ -32,11 +32,12 @@
            #:false-p
            ;; events
            #:item-changed-event
-           #:item-changed-event-item))
+           #:item-changed-event-item
+           #:item-changed-event-old-value))
 
 (in-package :chipi.item)
 
-(defstruct item-changed-event item)
+(defstruct item-changed-event item old-value)
 
 (defclass item (act:actor)
   ((label :initarg :label
@@ -97,13 +98,14 @@ Higher-level code is responsible for interpreting the tags.")
 (defun %item-receive (msg id)
   (log:debug "Received msg: ~a, item: ~a" msg id)
   (let ((self *self*))
-    (flet ((apply-new-value (new-value timestamp)
+    (flet ((apply-new-value (new-value timestamp old-value)
              (let ((timestamp (or timestamp (get-universal-time))))
                (prog1
                    (setf (item-state-value *state*) new-value
                          (item-state-timestamp *state*) timestamp)
                  (ev:publish self (make-item-changed-event
-                                   :item self)))))
+                                   :item self
+                                   :old-value old-value)))))
            (push-to-bindings (new-value push)
              (with-slots (bindings) self
                (log:debug "Processing ~a binding(s)." (length bindings))
@@ -136,7 +138,7 @@ Higher-level code is responsible for interpreting the tags.")
                (timestamp (getf (cdr msg) :timestamp)))
            (unless (equal old-val val)
              (log:debug "set-state: ~a on item: ~a" val id)
-             (apply-new-value val timestamp)
+             (apply-new-value val timestamp old-val)
              (when persist
                (apply-persistences))
              (push-to-bindings val push))))))))

@@ -18,20 +18,24 @@
     (envi:shutdown-env)))
 
 (test make-rule--do-when-item-changed
-  "Tests rule that fires event when item value changed."
+  "Tests rule that fires event when item value changed.
+The trigger is (:item . event) where event is an item-changed-event struct."
   (with-fixture init-destroy-env ()
     (let* ((item (item:make-item 'item1))
-           (expected)
+           (received-event)
            (rule (make-rule "test rule"
                             :when-item-change 'item1
                             :do (lambda (trigger)
                                   (assert (eq (car trigger) :item))
-                                  (setf expected (cdr trigger))))))
+                                  (setf received-event (cdr trigger))))))
       (is-true rule)
       (is (typep rule 'rule))
       (item:set-value item 1)
       (is-true (miscutils:await-cond 0.5
-                 (eq expected item))))))
+                 received-event))
+      (is (typep received-event 'item:item-changed-event))
+      (is (eq (item:item-changed-event-item received-event) item))
+      (is (eq (item:item-changed-event-old-value received-event) t)))))
 
 (test make-rule--do-only-for-subscribed-item
   "Tests rule that fires event when item changed, but only for subscribed item."

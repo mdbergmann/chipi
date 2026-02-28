@@ -203,8 +203,10 @@ Rules are scripts that are run on certain triggers. Triggers are the change of o
     :do (lambda (trigger)
           (case (car trigger)
             (:item
-             (let ((item (cdr trigger)))
-               (format t "Item changed: ~a~%" item)
+             (let* ((event (cdr trigger))
+                    (item (item:item-changed-event-item event))
+                    (old-value (item:item-changed-event-old-value event)))
+               (format t "Item changed: ~a, old: ~a~%" item old-value)
                ;; asynchronously do something with the value
                (future:fcompleted (item:get-value item)
                    (value)
@@ -215,6 +217,8 @@ Rules are scripts that are run on certain triggers. Triggers are the change of o
 #+end_src
 
 Rules can be triggered by item value changes. To subscribe to certain items one has to use =:when-item-change= with the item id of the item definition. Use multiple =:when-item-change= to subscribe to multiple item changes.
+
+For item triggers, the =cdr= of the trigger is an =item:item-changed-event= struct. Use =item:item-changed-event-item= to get the item and =item:item-changed-event-old-value= to get the value before the change.
 
 The other trigger is cron. The lowest granularity is minutes. Specify cron triggers with =:with-cron=. Also multiple triggers can be defined. The =cdr= of the trigger variable is the cron expression.
 
