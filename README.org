@@ -252,6 +252,31 @@ The other trigger is cron. The lowest granularity is minutes. Specify cron trigg
 
 When a cron trigger is specified as '=(:boot-only t)= then this means that the rule is called immediately after initialization, but only once.
 
+***** Event log
+
+Chipi provides an optional event log that records all item value changes to an NDJSON (newline-delimited JSON) file. This is useful for debugging, monitoring, and auditing item state changes.
+
+Each line in the log file looks like:
+
+#+begin_src json
+  {"timestamp":"2026-03-01T14:30:00.000000+01:00","item":"TEMP-SENSOR","old_value":20.0,"new_value":21.5}
+#+end_src
+
+To enable, call =ensure-event-log= inside your =defconfig= and register the shutdown hook:
+
+#+begin_src lisp
+  (defconfig "my-system"
+    (event-log:ensure-event-log :max-file-size (* 5 1024 1024)
+                                 :max-backup-files 3)
+    (hab:add-to-shutdown #'event-log:shutdown-event-log)
+    ;; ... items, rules, etc.
+    )
+#+end_src
+
+The log is written to =runtime/event-log/event-log.ndjson=. When the file exceeds =:max-file-size= (default 10 MB), it is rotated (=.1=, =.2=, ..., up to =:max-backup-files=, default 5). All parameters are optional.
+
+If you don't call =ensure-event-log=, no event log is created and there is no overhead.
+
 **** Redefining persistences, items and rules
 
 Those elements can be redefined, meaning re-evaluated to update a changed configuration. The re-evaluation usually happens in Emacs in the same way as functions are re-evaluated using =C-c C-c= or by reloading the whole script.
