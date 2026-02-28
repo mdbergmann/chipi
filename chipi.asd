@@ -33,6 +33,7 @@
                   :components
                   ((:file "base-binding")))
                  (:file "hab")
+                 (:file "event-log")
                  )))
   :in-order-to ((test-op (test-op "chipi/tests"))))
 
@@ -55,6 +56,7 @@
                  (:file "persistence-influx-test")
                  (:file "env-test")
                  (:file "hab-test")
+                 (:file "event-log-test")
                  )))
   :description "Test system for chipi"
   :perform (test-op (op c) (symbol-call :fiveam :run!
