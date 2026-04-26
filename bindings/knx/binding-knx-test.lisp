@@ -219,7 +219,30 @@
     (answer hab:add-to-shutdown t)
     (knx-init :gw-host "foo.bar" :gw-port 3671)
     (is (= 1 (length (invocations 'knxc:knx-conn-init))))
-    (is (= 1 (length (invocations 'hab:add-to-shutdown))))))
+    (is (= 1 (length (invocations 'hab:add-to-shutdown))))
+    ;; reconnect plumbing wired up by default
+    (is (string= "foo.bar" binding-knx::*gw-host*))
+    (is (= 3671 binding-knx::*gw-port*))
+    (is (eq #'binding-knx::%on-disconnected
+            knx-client:*on-disconnected*))
+    ;; cleanup
+    (setf knx-client:*on-disconnected* nil)
+    (setf binding-knx::*gw-host* nil)
+    (setf binding-knx::*gw-port* nil)))
+
+(test knx-init--auto-reconnect-nil-leaves-hook-unset
+  (with-mocks ()
+    (answer knxc:knx-conn-init t)
+    (answer hab:add-to-shutdown t)
+    ;; ensure hook starts unset
+    (setf knx-client:*on-disconnected* nil)
+    (knx-init :gw-host "foo.bar" :gw-port 3671 :auto-reconnect nil)
+    (is-false knx-client:*on-disconnected*)
+    ;; gw host/port still captured for any later manual reconnect
+    (is (string= "foo.bar" binding-knx::*gw-host*))
+    ;; cleanup
+    (setf binding-knx::*gw-host* nil)
+    (setf binding-knx::*gw-port* nil)))
 
 (test shutdown-knx--closes-knx
   (with-fixture clean-knx-state ()
@@ -229,13 +252,21 @@
       (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)
       (is-true binding-knx::*global-listener-registered-p*)
       (is (= 1 (hash-table-count binding-knx::*ga-binding-registry*)))
+      ;; pretend init wired us up
+      (setf knx-client:*on-disconnected* #'binding-knx::%on-disconnected)
+      (setf binding-knx::*gw-host* "foo.bar")
+      (setf binding-knx::*gw-port* 3671)
 
       (answer knxc:knx-conn-destroy t)
       (knx-shutdown)
       (is (= 1 (length (invocations 'knxc:knx-conn-destroy))))
       ;; registry should be cleared
       (is-false binding-knx::*global-listener-registered-p*)
-      (is (= 0 (hash-table-count binding-knx::*ga-binding-registry*))))))
+      (is (= 0 (hash-table-count binding-knx::*ga-binding-registry*)))
+      ;; reconnect plumbing torn down
+      (is-false knx-client:*on-disconnected*)
+      (is-false binding-knx::*gw-host*)
+      (is-false binding-knx::*gw-port*))))
 
 ;; --- New tests for global listener dispatch ---
 
@@ -277,3 +308,72 @@
         (binding:destroy cut)
         ;; GA entry removed entirely
         (is (= 0 (hash-table-count binding-knx::*ga-binding-registry*)))))))
+
+;; --- Reconnect plumbing ---
+
+(def-fixture reconnect-state ()
+  (let ((orig-progress binding-knx::*reconnect-in-progress-p*)
+        (orig-host binding-knx::*gw-host*)
+        (orig-port binding-knx::*gw-port*)
+        (orig-backoff binding-knx::*reconnect-backoff-secs*))
+    (unwind-protect
+         (progn
+           (setf binding-knx::*reconnect-in-progress-p* nil)
+           (setf binding-knx::*gw-host* "foo.bar")
+           (setf binding-knx::*gw-port* 3671)
+           ;; one quick attempt — keeps tests under a second
+           (setf binding-knx::*reconnect-backoff-secs* '(0))
+           (&body))
+      (setf binding-knx::*reconnect-in-progress-p* orig-progress)
+      (setf binding-knx::*gw-host* orig-host)
+      (setf binding-knx::*gw-port* orig-port)
+      (setf binding-knx::*reconnect-backoff-secs* orig-backoff))))
+
+(test do-reconnect--runs-disconnect-connect-receive-establish-on-success
+  "Direct call to `%do-reconnect' executes the full sequence and stops once the tunnel is up.
+Run synchronously so cl-mock answers (which are dynamic) are visible."
+  (with-fixture reconnect-state ()
+    (with-mocks ()
+      (answer ip-client:ip-disconnect t)
+      (answer ip-client:ip-connect t)
+      (answer knx-client:start-async-receive t)
+      (answer knx-client:establish-tunnel-connection
+        (sento.future:with-fut-resolve
+          (sento.future:fresolve t)))
+      (answer knx-client:tunnel-connection-established-p t)
+      (binding-knx::%do-reconnect)
+      (is (= 1 (length (invocations 'ip-client:ip-connect))))
+      (is (= 1 (length (invocations 'knx-client:start-async-receive))))
+      (is (= 1 (length (invocations 'knx-client:establish-tunnel-connection)))))))
+
+(test do-reconnect--retries-on-failure-then-gives-up
+  "When every attempt errors, `%do-reconnect' walks the full backoff list."
+  (with-fixture reconnect-state ()
+    ;; three attempts then give up — keep the test fast
+    (setf binding-knx::*reconnect-backoff-secs* '(0 0 0))
+    (with-mocks ()
+      (answer ip-client:ip-disconnect t)
+      (answer ip-client:ip-connect (error "boom"))
+      (binding-knx::%do-reconnect)
+      (is (= 3 (length (invocations 'ip-client:ip-connect)))))))
+
+(test on-disconnected--spawns-thread-and-flips-guard
+  "Hook entry point sets the single-flight flag and returns a live thread."
+  (with-fixture reconnect-state ()
+    ;; never-resolving establish-tunnel-connection isn't called from this thread
+    ;; once the guard is set; use a host that fails fast and a single 0-sec backoff
+    (setf binding-knx::*reconnect-backoff-secs* '(0))
+    (let ((thread (binding-knx::%on-disconnected :gateway-disconnect-request)))
+      (is (typep thread 'bt:thread))
+      (bt:join-thread thread)
+      ;; flag released by unwind-protect after the thread exits
+      (is-false binding-knx::*reconnect-in-progress-p*))))
+
+(test schedule-reconnect--single-flight-blocks-second-call
+  "When a reconnect is already in flight, a second event must not spawn a second thread."
+  (with-fixture reconnect-state ()
+    (setf binding-knx::*reconnect-in-progress-p* t)
+    (let ((result (binding-knx::%schedule-reconnect :heartbeat-failure)))
+      (is (null result)))
+    ;; guard remains set so the in-flight reconnect still owns it
+    (is-true binding-knx::*reconnect-in-progress-p*)))

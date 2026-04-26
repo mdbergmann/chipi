@@ -15,6 +15,21 @@
 (defvar *global-listener-registered-p* nil
   "Whether the single global tunnelling listener has been registered.")
 
+(defvar *gw-host* nil
+  "KNXNet/IP gateway host, captured by `knx-init' for use by `%reconnect'.")
+
+(defvar *gw-port* nil
+  "KNXNet/IP gateway port, captured by `knx-init' for use by `%reconnect'.")
+
+(defvar *reconnect-lock* (bt:make-lock "knx-binding-reconnect"))
+
+(defvar *reconnect-in-progress-p* nil
+  "Single-flight guard for `%reconnect' — protected by `*reconnect-lock*'.")
+
+(defparameter *reconnect-backoff-secs* '(1 2 5 10 30 60 60 60 60 60)
+  "Sequence of delays (in seconds) between reconnect attempts. After the list
+is exhausted, `%do-reconnect' gives up; the next disconnect event re-arms it.")
+
 (defclass knx-binding (binding)
   ((ga-read :initarg :ga-read
             :initform (error "Read group-address required!")
@@ -196,19 +211,73 @@ In particular, `:call-push-p' allows to forward item value changes which come fr
      (log:info "Make knx binding...")
      (%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args)))
 
-(defun knx-init (&key gw-host (gw-port 3671))
+(defun %do-reconnect ()
+  "Tear down the dead UDP socket, then walk through `*reconnect-backoff-secs*'
+re-establishing the tunnel until one attempt succeeds. Returns when the tunnel
+is back up or the backoff list is exhausted."
+  (loop :for delay :in *reconnect-backoff-secs*
+        :do (handler-case
+                (progn
+                  (log:info "Attempting KNX reconnect to ~a:~a..." *gw-host* *gw-port*)
+                  (ignore-errors (ip-client:ip-disconnect))
+                  (ip-client:ip-connect *gw-host* *gw-port*)
+                  (knx-client:start-async-receive)
+                  (future:fawait (knx-client:establish-tunnel-connection)
+                                 :timeout 5)
+                  (when (knx-client:tunnel-connection-established-p)
+                    (log:info "KNX tunnel reconnected.")
+                    (return)))
+              (error (c)
+                (log:warn "KNX reconnect attempt failed: ~a (retry in ~as)" c delay)))
+            (sleep delay)
+        :finally (log:warn "KNX reconnect: backoff exhausted, giving up until next disconnect event.")))
+
+(defun %schedule-reconnect (reason)
+  "Spawn a worker thread that runs `%do-reconnect'. The single-flight guard
+ensures only one reconnect thread runs at a time even if multiple disconnect
+events fire in quick succession."
+  (bt:with-lock-held (*reconnect-lock*)
+    (when *reconnect-in-progress-p*
+      (log:info "KNX reconnect already in progress, ignoring ~a." reason)
+      (return-from %schedule-reconnect))
+    (setf *reconnect-in-progress-p* t))
+  (bt:make-thread
+   (lambda ()
+     (unwind-protect
+          (%do-reconnect)
+       (bt:with-lock-held (*reconnect-lock*)
+         (setf *reconnect-in-progress-p* nil))))
+   :name (format nil "knx-binding-reconnect (~a)" reason)))
+
+(defun %on-disconnected (reason)
+  "Hook installed into `knx-client:*on-disconnected*' by `knx-init'."
+  (log:warn "KNX connection lost (~a). Scheduling reconnect." reason)
+  (%schedule-reconnect reason))
+
+(defun knx-init (&key gw-host (gw-port 3671) (auto-reconnect t))
   "Config and initialize KNX binding.
 This should be as part of `hab:defconfig'.
 A shutdown hook is added via `hab:add-to-shutdown' which calls `knx-shutdown'.
 
 `gw-host': host or UP address to a KNXNet/IP router/gateway.
-`gw-port': port to the gateway, default 3671."
+`gw-port': port to the gateway, default 3671.
+`auto-reconnect': when true (default), register a hook that automatically
+re-establishes the tunnel on heartbeat failure or gateway-initiated disconnect.
+Set to NIL to opt out — the connection then stays down until `knx-init` is
+called again or a manual reconnect is triggered."
   (hab:add-to-shutdown #'knx-shutdown)
+  (setf *gw-host* gw-host)
+  (setf *gw-port* gw-port)
+  (when auto-reconnect
+    (setf knx-client:*on-disconnected* #'%on-disconnected))
   (knxc:knx-conn-init gw-host
                       :port gw-port))
 
 (defun knx-shutdown ()
   "Shutdown KNX binding and release/clean all resources.
 Be aware that the global shutdown function (`hab:shutdown') will also call this so this usually doesn't need to be called manually except in test setups."
+  (setf knx-client:*on-disconnected* nil)
+  (setf *gw-host* nil)
+  (setf *gw-port* nil)
   (%reset-listener-registry)
   (knxc:knx-conn-destroy))

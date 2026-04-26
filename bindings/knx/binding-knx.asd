@@ -3,7 +3,8 @@
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("chipi"
-               "knx-conn")
+               "knx-conn"
+               "bordeaux-threads")
   :components ((:file "binding-knx"))
   :in-order-to ((test-op (test-op "binding-knx/tests"))))
 
