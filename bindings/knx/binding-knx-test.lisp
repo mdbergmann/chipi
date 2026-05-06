@@ -337,9 +337,7 @@ Run synchronously so cl-mock answers (which are dynamic) are visible."
       (answer ip-client:ip-disconnect t)
       (answer ip-client:ip-connect t)
       (answer knx-client:start-async-receive t)
-      (answer knx-client:establish-tunnel-connection
-        (sento.future:with-fut-resolve
-          (sento.future:fresolve t)))
+      (answer knx-client:establish-tunnel-connection t)
       (answer knx-client:tunnel-connection-established-p t)
       (binding-knx::%do-reconnect)
       (is (= 1 (length (invocations 'ip-client:ip-connect))))
