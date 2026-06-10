@@ -10,7 +10,8 @@
                "drakma"
                "local-time"
                "binding-arrows"
-               "parse-float")
+               "parse-float"
+               "babel")
   :components ((:module "src"
                 :serial t
                 :components
