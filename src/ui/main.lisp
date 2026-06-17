@@ -12,15 +12,23 @@
 
 (in-package :chipi-ui.main)
 
-(defvar *item-value-form-update-funs* (make-hash-table :test #'equal))
+(defvar *item-value-form-update-funs* (make-hash-table :test #'equal)
+  "Maps an item name to a LIST of value-update callbacks.  A single item
+renders several components that each react to a change (e.g. the value display
+and the timestamp display), so more than one callback is registered per item
+and all of them must run on a change.")
 
 (defun set-on-value-update (item-name fun)
-  (setf (gethash item-name *item-value-form-update-funs*) fun))
+  "Register FUN as a value-update callback for ITEM-NAME.  Additive: callbacks
+already registered for ITEM-NAME are kept, so the value display and the
+timestamp display (and any other reactive component) all update together."
+  (push fun (gethash item-name *item-value-form-update-funs*)))
 
 (defun call-item-value-update-fun (item-name updated-item-state)
-  (let ((update-fun (gethash item-name *item-value-form-update-funs*)))
-    (if update-fun
-        (funcall update-fun updated-item-state)
+  (let ((update-funs (gethash item-name *item-value-form-update-funs*)))
+    (if update-funs
+        (dolist (fun update-funs)
+          (funcall fun updated-item-state))
         (log:debug "No update function registered for: ~a" item-name))))
 
 (defun on-main (body)
@@ -195,12 +203,13 @@ Shows child groups (as links or cards) above direct items."
      (let ((value-div (create-div parent :class "item-value-display"
                                          :content (%format-value item-value type-hint))))
        (set-on-value-update item-name
-                            (lambda (updated-value)
-                              (log:debug "Setting value: ~a on component: ~a"
-                                         updated-value value-div)
-                              (log:debug "Current value: ~a" (text value-div))
-                              (setf (text value-div)
-                                    (%format-value updated-value type-hint))))))))
+                            (lambda (updated-item-state)
+                              (let ((updated-value (gethash "value" updated-item-state)))
+                                (log:debug "Setting value: ~a on component: ~a"
+                                           updated-value value-div)
+                                (log:debug "Current value: ~a" (text value-div))
+                                (setf (text value-div)
+                                      (%format-value updated-value type-hint)))))))))
 
 (defun %format-timestamp (timestamp)
   (local-time:format-rfc1123-timestring nil (local-time:unix-to-timestamp timestamp)))

@@ -19,8 +19,11 @@
                "cl-mock"
                )
   :components ((:module "test/ui"
+                :serial t
                 :components
-                ()))
+                ((:file "all-ui-tests")
+                 (:file "main-test")
+                 (:file "render-test"))))
   :description "Test system for chipi-ui."
   :perform (test-op (op c) (symbol-call :fiveam :run!
                                         (uiop:find-symbol* '#:test-suite
