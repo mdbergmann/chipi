@@ -492,44 +492,58 @@
                    :if (and (stringp line)
                             (search "\"event\":" line)
                             (search "\"type\":\"heartbeat\"" line))
-                     :collect line)))
+                     :collect line))
+           ;; The server sends the connection event, our item-change event and
+           ;; *max-heartbeats* heartbeats, then its handler returns and the SSE
+           ;; connection is closed.  Reading past that close must be treated as
+           ;; a clean end-of-stream: read-line's eof-value covers a close on a
+           ;; record boundary, and the handler-case covers a close mid-record
+           ;; (which otherwise surfaces END-OF-FILE from the chunked transfer
+           ;; decoder).  Either way the reader stops instead of racing the
+           ;; server's close -- this is what made the test flaky.
+           (read-sse-line (stream)
+             (handler-case (read-line stream nil :eof)
+               (end-of-file () :eof))))
       (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read :update)))
              (item (hab:defitem 'test-sensor "Test Sensor" 'float :initial-value 20.0))
              (heartbeat-sleep-s eventsc:*heartbeat-sleep-time-s*)
              (max-heartbeats eventsc:*max-heartbeats*))
         (setf eventsc:*heartbeat-sleep-time-s* 0.1
               eventsc:*max-heartbeats* 2)
-      
-        ;; Create persistent SSE connection using Drakma with streaming
-        (multiple-value-bind (stream status headers)
-            (make-sse-request `(("X-Api-Key" . ,apikey-id))
-                              :want-stream t
-                              :keep-alive t)
-          (declare (ignore headers))
+        (unwind-protect
+             ;; Create persistent SSE connection using Drakma with streaming
+             (multiple-value-bind (stream status headers)
+                 (make-sse-request `(("X-Api-Key" . ,apikey-id))
+                                   :want-stream t
+                                   :keep-alive t)
+               (declare (ignore headers))
 
-          (is (= status 200))
-          ;; Read SSE events for a limited time
-          (let ((received-all-data)
-                (sse-data nil))
-            (loop :while (not received-all-data)
-                  :for line := (read-line stream nil nil)
-                  :do (when (> (length line) 0)
-                        (push line sse-data))
-                      (when (and (search "\"event\":" line)
-                                 (search "\"type\":\"connection\"" line))
-                        ;; now update the value
-                        (item:set-value item 25.5))
-                      (when (= 4 (length sse-data))
-                        (setf received-all-data t)
-                        (when stream (close stream))))
-        
-            (is (find-in-sse-data (lambda (line) 
-                                    (and (stringp line)
-                                         (search "\"event\":" line)
-                                         (search "TEST-SENSOR" line)
-                                         (search "25.5" line)))
-                                  sse-data))
-            (is (= 2 (length (filter-heartbeat-msgs sse-data)))))
+               (is (= status 200))
+               ;; Drain the stream until the server closes it (the :repeat cap
+               ;; is a guard against a hang should the server never close).
+               ;; Collect non-empty lines and trigger the item-change once the
+               ;; connection event arrives.
+               (let ((sse-data nil)
+                     (value-set nil))
+                 (loop :repeat 64
+                       :for line := (read-sse-line stream)
+                       :until (eq line :eof)
+                       :do (when (> (length line) 0)
+                             (push line sse-data))
+                           (when (and (not value-set)
+                                      (search "\"event\":" line)
+                                      (search "\"type\":\"connection\"" line))
+                             ;; connection established -> update the value
+                             (setf value-set t)
+                             (item:set-value item 25.5)))
+                 (when stream (close stream))
 
+                 (is (find-in-sse-data (lambda (line)
+                                         (and (stringp line)
+                                              (search "\"event\":" line)
+                                              (search "TEST-SENSOR" line)
+                                              (search "25.5" line)))
+                                       sse-data))
+                 (is (= 2 (length (filter-heartbeat-msgs sse-data))))))
           (setf eventsc:*heartbeat-sleep-time-s* heartbeat-sleep-s
                 eventsc:*max-heartbeats* max-heartbeats))))))
