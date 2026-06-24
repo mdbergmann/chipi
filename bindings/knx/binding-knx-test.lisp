@@ -200,12 +200,13 @@
   (clrhash binding-knx::*ga-binding-registry*)
   (with-mocks ()
     (answer knx-client:add-tunnelling-request-listener t)
-    (let ((cut (knx-binding :ga "1/2/3" :dpt dpt-type-str))
-          (pushed-value nil))
-      (answer (knxc:write-value _ _ push-value)
-        (setf pushed-value push-value))
+    (answer knxc:write-value t)
+    (let ((cut (knx-binding :ga "1/2/3" :dpt dpt-type-str)))
       (binding:exec-push cut push-value)
-      (is (equalp pushed-value expected-value)))))
+      ;; invocation = (name ga dpt converted-value :retries .. :retry-backoff ..)
+      (let* ((inv (first (invocations 'knxc:write-value)))
+             (pushed-value (fourth inv)))
+        (is (equalp pushed-value expected-value))))))
 
 (test binding-can-push-on-item-value-change
   (binding-can-push-value "1.001" 'item:false nil))
@@ -344,16 +345,27 @@ Run synchronously so cl-mock answers (which are dynamic) are visible."
       (is (= 1 (length (invocations 'knx-client:start-async-receive))))
       (is (= 1 (length (invocations 'knx-client:establish-tunnel-connection)))))))
 
-(test do-reconnect--retries-on-failure-then-gives-up
-  "When every attempt errors, `%do-reconnect' walks the full backoff list."
+(test do-reconnect--retries-persistently-until-gw-cleared
+  "On persistent failure `%do-reconnect' keeps retrying past the end of the
+backoff list (repeating the final delay) and only stops once the gateway config
+is cleared — i.e. it never gives up on its own while still configured."
   (with-fixture reconnect-state ()
-    ;; three attempts then give up — keep the test fast
-    (setf binding-knx::*reconnect-backoff-secs* '(0 0 0))
+    ;; a short list so we prove retries continue *beyond* its length
+    (setf binding-knx::*reconnect-backoff-secs* '(0 0))
     (with-mocks ()
       (answer ip-client:ip-disconnect t)
-      (answer ip-client:ip-connect (error "boom"))
+      ;; fail every attempt; after the 5th, simulate shutdown by clearing the
+      ;; gateway host so the loop terminates on its next top-of-loop check
+      (let ((calls 0))
+        (answer ip-client:ip-connect
+          (progn
+            (incf calls)
+            (when (>= calls 5)
+              (setf binding-knx::*gw-host* nil))
+            (error "boom"))))
       (binding-knx::%do-reconnect)
-      (is (= 3 (length (invocations 'ip-client:ip-connect)))))))
+      ;; 5 attempts > backoff length (2) => it did not give up at list end
+      (is (= 5 (length (invocations 'ip-client:ip-connect)))))))
 
 (test on-disconnected--spawns-thread-and-flips-guard
   "Hook entry point sets the single-flight flag and returns a live thread."
@@ -363,6 +375,9 @@ Run synchronously so cl-mock answers (which are dynamic) are visible."
     (setf binding-knx::*reconnect-backoff-secs* '(0))
     (let ((thread (binding-knx::%on-disconnected :gateway-disconnect-request)))
       (is (typep thread 'bt:thread))
+      ;; reconnect is now persistent, so stop it by clearing the gateway config
+      ;; (the same signal `knx-shutdown' uses)
+      (setf binding-knx::*gw-host* nil)
       (bt:join-thread thread)
       ;; flag released by unwind-protect after the thread exits
       (is-false binding-knx::*reconnect-in-progress-p*))))
@@ -375,3 +390,177 @@ Run synchronously so cl-mock answers (which are dynamic) are visible."
       (is (null result)))
     ;; guard remains set so the in-flight reconnect still owns it
     (is-true binding-knx::*reconnect-in-progress-p*)))
+
+;; --- write result is honoured (transport retry passed through) ---
+
+(test push--passes-transport-retries-to-write-value
+  "The binding push asks `knxc:write-value' to retry rather than discarding a
+negative-con/timeout."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      (answer knxc:write-value t)
+      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
+        (binding:exec-push cut 'item:true)
+        (let ((inv (first (invocations 'knxc:write-value))))
+          ;; (name ga dpt value :retries N :retry-backoff B)
+          (is (eql binding-knx::*write-retries* (getf (cddddr inv) :retries)))
+          (is (eql binding-knx::*write-retry-backoff*
+                   (getf (cddddr inv) :retry-backoff))))))))
+
+;; --- read-back verify policy ---
+
+(def-fixture sync-verify ()
+  "Run the verify flow synchronously and deterministically in the calling thread."
+  (let ((binding-knx::*verify-run-fun*
+          (lambda (delay thunk) (declare (ignore delay)) (funcall thunk))))
+    (&body)))
+
+(defmacro with-verify-binding ((var &rest binding-args) &body body)
+  "Create a verifying knx-binding (separate read/write GAs) bound to VAR."
+  `(progn
+     (setf binding-knx::*global-listener-registered-p* nil)
+     (clrhash binding-knx::*ga-binding-registry*)
+     (answer knx-client:add-tunnelling-request-listener t)
+     (let ((,var (knx-binding :ga '(:read "1/2/3" :write "1/2/4")
+                              :dpt "1.001"
+                              :initial-delay nil
+                              :verify t
+                              ,@binding-args)))
+       ,@body)))
+
+(test verify--match-does-not-repush
+  "When the read-back matches the pushed value, no re-push happens."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (answer knxc:write-value t)
+        (answer knxc:request-value (future:with-fut :on)) ; status = on
+        (with-verify-binding (cut :verify-retries 3)
+          (binding:exec-push cut 'item:true)
+          ;; one initial write, one read-back, no re-push
+          (is (= 1 (length (invocations 'knxc:write-value))))
+          (is (= 1 (length (invocations 'knxc:request-value)))))))))
+
+(test verify--mismatch-then-success-repushes-once
+  "A mismatch triggers a re-push; once the status matches, verify stops."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (answer knxc:write-value t)
+        (let ((reads 0))
+          (answer knxc:request-value
+            (future:with-fut (if (zerop (prog1 reads (incf reads))) :off :on))))
+        (with-verify-binding (cut :verify-retries 3)
+          (binding:exec-push cut 'item:true)
+          ;; initial write + exactly one re-push
+          (is (= 2 (length (invocations 'knxc:write-value))))
+          ;; two read-backs: mismatch, then match
+          (is (= 2 (length (invocations 'knxc:request-value)))))))))
+
+(test verify--exhaustion-calls-on-fail
+  "Persistent mismatch exhausts the re-push budget and invokes verify-on-fail."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (answer knxc:write-value t)
+        (answer knxc:request-value (future:with-fut :off)) ; never matches :on
+        (let ((failure nil))
+          (with-verify-binding (cut
+                                :verify-retries 2
+                                :verify-on-fail (lambda (info) (setf failure info)))
+            (binding:exec-push cut 'item:true)
+            ;; initial write + 2 re-pushes
+            (is (= 3 (length (invocations 'knxc:write-value))))
+            ;; 3 read-backs (2 with budget left + final give-up)
+            (is (= 3 (length (invocations 'knxc:request-value))))
+            (is-true failure)
+            (is (eq 'item:true (getf failure :desired)))
+            (is (string= "1/2/4" (getf failure :write-ga)))))))))
+
+(test verify--write-failure-calls-on-fail-and-skips-readback
+  "A permanent write failure is not discarded: on-fail fires and no read-back is
+attempted."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (let ((err (make-condition 'knx-client:knx-response-timeout-error
+                                   :format-control "no ack")))
+          (answer knxc:write-value err)       ; write reports failure
+          (answer knxc:request-value (future:with-fut :on))
+          (let ((failure nil))
+            (with-verify-binding (cut
+                                  :verify-on-fail (lambda (info) (setf failure info)))
+              (binding:exec-push cut 'item:true)
+              (is-true failure)
+              (is (eq err (getf failure :actual)))
+              ;; no read-back when the write itself failed
+              (is (= 0 (length (invocations 'knxc:request-value)))))))))))
+
+(test verify--values-equal-dpt-aware
+  "Comparison is exact for booleans/ints and tolerant for floats; an explicit
+comparator overrides."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      ;; float binding with tolerance
+      (let ((fb (knx-binding :ga '(:read "1/2/3" :write "1/2/4")
+                             :dpt "9.001" :initial-delay nil
+                             :verify t :verify-tolerance 0.5)))
+        (is-true (binding-knx::%verify-values-equal fb 21.0 21.3))
+        (is-false (binding-knx::%verify-values-equal fb 21.0 22.0)))
+      ;; integer binding, exact (tolerance 0)
+      (let ((ib (knx-binding :ga '(:read "1/3/3" :write "1/3/4")
+                             :dpt "5.010" :initial-delay nil
+                             :verify t)))
+        (is-true (binding-knx::%verify-values-equal ib 5 5))
+        (is-false (binding-knx::%verify-values-equal ib 5 6)))
+      ;; boolean binding, symbol equality
+      (let ((bb (knx-binding :ga '(:read "1/4/3" :write "1/4/4")
+                             :dpt "1.001" :initial-delay nil
+                             :verify t)))
+        (is-true (binding-knx::%verify-values-equal bb 'item:true 'item:true))
+        (is-false (binding-knx::%verify-values-equal bb 'item:true 'item:false)))
+      ;; explicit comparator override
+      (let ((cb (knx-binding :ga '(:read "1/5/3" :write "1/5/4")
+                             :dpt "5.010" :initial-delay nil
+                             :verify t
+                             :verify-compare (lambda (d a) (declare (ignore d a)) t))))
+        (is-true (binding-knx::%verify-values-equal cb 1 999))))))
+
+(test verify--newer-push-supersedes-pending-verify
+  "Bumping the generation (a newer push) makes an older in-flight verify abort."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      (answer knxc:request-value (future:with-fut :off))
+      (answer knxc:write-value t)
+      (with-verify-binding (cut :verify-retries 5)
+        (let ((stale-gen (binding-knx::verify-generation cut)))
+          ;; simulate a newer push having armed a fresh verify
+          (incf (binding-knx::verify-generation cut))
+          ;; the stale verify must not read back nor re-push
+          (binding-knx::%run-verify cut 'item:true 5 stale-gen)
+          (is (= 0 (length (invocations 'knxc:request-value))))
+          (is (= 0 (length (invocations 'knxc:write-value)))))))))
+
+;; --- async path: real timer + dedicated dispatcher (no cross-thread mocks) ---
+
+(test verify--dispatch-runs-on-dedicated-pool-not-timer
+  "`%dispatch-verify' honours the delay via the timer and runs the work on the
+dedicated :knx-verify dispatcher, which is registered on demand."
+  (with-fixture destroy-all ()
+    (let ((ran nil)
+          (worker-thread nil)
+          (this-thread (bt:current-thread)))
+      (binding-knx::%dispatch-verify
+       0.1
+       (lambda ()
+         (setf worker-thread (bt:current-thread))
+         (setf ran t)))
+      (is-true (miscutils:await-cond 2.5 ran))
+      ;; the dedicated dispatcher was registered
+      (is-true (getf (asys:dispatchers (isys:ensure-isys))
+                     binding-knx::*verify-dispatcher-id*))
+      ;; work ran on a worker thread, not the caller
+      (is (not (eq this-thread worker-thread))))))

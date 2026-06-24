@@ -77,3 +77,30 @@ This creates a new item and attaches a `knx-binding`.
 
 It'a also possible to use `:delay` to periodically update the item value from the bus but this is actually not needed as the binding listens on bus changes for the specified GA and updates the item value asynchronously.  
 If some action should be performed upon a certain item value change it is possible to specify a Chipi rule via `defrule`.
+
+##### Reliable writes
+
+Every write goes out via `knxc:write-value` with a transport-level retry, so a write that comes back with a negative `L_Data.con` or an ACK/response timeout is resent instead of silently dropped (see `*write-retries*` / `*write-retry-backoff*`).
+
+That only guarantees the telegram reached the bus — not that the device actually switched. For that, enable the optional **read-back verify** policy: after a push the actuator status is read back from the read GA and, on mismatch, the value is re-pushed; if it still cannot be confirmed, `:verify-on-fail` is called (e.g. to raise an alarm). Works for any DPT.
+
+```lisp
+(defitem 'my-light-foo "Light Foo" 'boolean
+  (knx-binding :ga '(:read "1/2/3" :write "1/2/4")  ;; read GA must have its read flag set
+               :dpt "1.001"
+               :call-push-p t
+               :verify t
+               :verify-on-fail (lambda (info)
+                                 (log:warn "switch not confirmed: ~a" info))))
+```
+
+Verify keys (all optional):
+
+- `:verify` — enable read-back verification.
+- `:verify-delay` — seconds to wait after a push before reading back (default `*default-verify-delay*`).
+- `:verify-retries` — number of re-push attempts on mismatch (default `*default-verify-retries*`).
+- `:verify-tolerance` — allowed absolute difference for numeric DPTs (floats); ignored for booleans.
+- `:verify-compare` — optional `(desired actual)` predicate overriding the default DPT-aware comparison.
+- `:verify-on-fail` — optional `(info-plist)` callback invoked when verification is exhausted or a write fails permanently. The plist holds `:binding`, `:write-ga`, `:desired` and `:actual`.
+
+Verify never blocks the shared timer thread or the item actors: the delay is honoured by the timer, and the read-back runs on a small dedicated worker pool whose size is set via `knx-init :verify-workers` (default 2).

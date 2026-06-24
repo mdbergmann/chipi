@@ -26,9 +26,31 @@
 (defvar *reconnect-in-progress-p* nil
   "Single-flight guard for `%reconnect' — protected by `*reconnect-lock*'.")
 
-(defparameter *reconnect-backoff-secs* '(1 2 5 10 30 60 60 60 60 60)
-  "Sequence of delays (in seconds) between reconnect attempts. After the list
-is exhausted, `%do-reconnect' gives up; the next disconnect event re-arms it.")
+(defparameter *reconnect-backoff-secs* '(1 2 5 10 30 60)
+  "Escalating delays (in seconds) between reconnect attempts. `%do-reconnect'
+walks this list and then repeats the final delay indefinitely — it never gives
+up on its own. Persisting is essential: once the tunnel is down the heartbeat
+is stopped and `knx-client:%trigger-disconnected' can no longer fire (it is
+gated on a live channel-id), so nothing else would ever re-arm the reconnect.
+The loop only stops when the gateway config is cleared (i.e. on shutdown).")
+
+;; Transport-level write retry — passed to `knxc:write-value' so a negative
+;; L_Data.con / timeout is resent instead of discarded.
+(defparameter *write-retries* 2)
+(defparameter *write-retry-backoff* 0.5)
+
+;; Read-back verify defaults.
+(defparameter *default-verify-delay* 3)
+(defparameter *default-verify-retries* 3)
+(defparameter *verify-read-timeout-secs* 3)
+
+;; Dedicated verify worker pool (never the shared timer thread / item actors).
+(defvar *verify-dispatcher-id* :knx-verify)
+(defparameter *verify-workers* 2)
+
+;; Test seam: when bound to a function of (delay thunk), used instead of the
+;; timer + dispatcher so tests can run the verify flow synchronously.
+(defvar *verify-run-fun* nil)
 
 (defclass knx-binding (binding)
   ((ga-read :initarg :ga-read
@@ -39,7 +61,26 @@ is exhausted, `%do-reconnect' gives up; the next disconnect event re-arms it.")
              :reader group-address-write)
    (dpt :initarg :dpt
         :initform (error "DPT type required!")
-        :reader dpt-type)))
+        :reader dpt-type)
+   ;; --- read-back verify policy (works for any DPT) ---
+   (verify-p :initarg :verify :initform nil :reader verify-p)
+   (verify-delay :initarg :verify-delay
+                 :initform *default-verify-delay* :reader verify-delay)
+   ;; number of re-push attempts on mismatch
+   (verify-retries :initarg :verify-retries
+                   :initform *default-verify-retries* :reader verify-retries)
+   ;; allowed absolute diff for numeric DPTs; ignored for booleans
+   (verify-tolerance :initarg :verify-tolerance
+                     :initform 0 :reader verify-tolerance)
+   ;; optional 2-arg (desired actual) predicate overriding the default compare
+   (verify-compare :initarg :verify-compare
+                   :initform nil :reader verify-compare)
+   ;; optional 1-arg callback (plist) on exhaustion / permanent write failure
+   (verify-on-fail :initarg :verify-on-fail
+                   :initform nil :reader verify-on-fail)
+   ;; bumped per push (only by the item actor) so a newer push supersedes an
+   ;; in-flight verify; single-writer + monotonic, so no lock needed
+   (verify-generation :initform 0 :accessor verify-generation)))
 
 (defun %dpt-1.x-p (dpt-type)
   "Returns T if DPT-TYPE is any boolean DPT-1.xxx type."
@@ -153,14 +194,161 @@ is exhausted, `%do-reconnect' gives up; the next disconnect event re-arms it.")
        fut
        '(:push nil)))))
 
-(defun %make-binding-push-fun (ga-obj dpt-type)
-  (lambda (value)
-    (let ((converted-value (%convert-item-bool-to-dpt-1.x value dpt-type)))
-      (log:info "Writing to bus, value: ~a ga: ~a, dpt: ~a" value ga-obj dpt-type)
-      ;; wants `t' and `nil' for 1.001
-      (knxc:write-value (address:address-string-rep ga-obj) dpt-type converted-value))))
+;; -----------------------------
+;; write to bus (transport retry honoured)
+;; -----------------------------
 
-(defun %make-knx-binding (&rest other-args &key ga dpt &allow-other-keys)
+(defun %push-value (binding value)
+  "Write VALUE to the write GA, honouring (not discarding) the result. The
+transport retry lives in `knxc:write-value'. Returns T or the failure condition."
+  (let ((ga (address:address-string-rep (group-address-write binding)))
+        (dpt-type (dpt-type binding)))
+    (handler-case
+        (knxc:write-value ga dpt-type
+                          (%convert-item-bool-to-dpt-1.x value dpt-type)
+                          :retries *write-retries*
+                          :retry-backoff *write-retry-backoff*)
+      (error (c)
+        (log:error "KNX write to ~a signalled: ~a" ga c)
+        c))))
+
+;; -----------------------------
+;; verify (read-back + re-push)
+;; -----------------------------
+
+(defun %ensure-verify-dispatcher ()
+  "Register the dedicated verify dispatcher on the item actor-system unless it
+already exists (registration is not idempotent)."
+  (let ((isys (isys:ensure-isys)))
+    (unless (getf (asys:dispatchers isys) *verify-dispatcher-id*)
+      (asys:register-dispatcher
+       isys
+       (disp:make-dispatcher isys *verify-dispatcher-id*
+                             :workers *verify-workers*
+                             :strategy :round-robin)))))
+
+(defun %dispatch-verify (delay thunk)
+  "Run THUNK after DELAY seconds. The wheel-timer only honours the delay; its
+callback hands the blocking read-back to the dedicated verify pool, so the timer
+thread is never blocked. A bound `*verify-run-fun*' overrides this for tests."
+  (if *verify-run-fun*
+      (funcall *verify-run-fun* delay thunk)
+      (timer:schedule-once
+       delay
+       (lambda ()
+         (handler-case
+             (progn
+               (%ensure-verify-dispatcher)
+               (tasks:with-context ((isys:ensure-isys) *verify-dispatcher-id*)
+                 (tasks:task-start thunk)))
+           (error (c)
+             (log:error "KNX verify dispatch failed: ~a" c)))))))
+
+(defun %verify-current-p (binding gen)
+  "T if GEN is still the current generation (not superseded by a newer push)."
+  (= gen (verify-generation binding)))
+
+(defun %verify-values-equal (binding desired actual)
+  "DPT-aware comparison of the DESIRED vs read-back ACTUAL value."
+  (let ((compare (verify-compare binding))
+        (tol (verify-tolerance binding)))
+    (cond
+      (compare (funcall compare desired actual))
+      ((and (realp desired) (realp actual))
+       (<= (abs (- desired actual)) (or tol 0)))
+      (t (equal desired actual)))))
+
+(defun %read-back (binding)
+  "Read the actuator status from the read GA, in item-space. Signals on
+timeout/error."
+  (let* ((ga (address:address-string-rep (group-address-read binding)))
+         (dpt-type (dpt-type binding))
+         (result (future:fawait (knxc:request-value ga dpt-type)
+                                :timeout *verify-read-timeout-secs*)))
+    (when (or (null result) (typep result 'error))
+      (error "KNX read-back of ~a failed: ~a" ga result))
+    (%convert-dpt-1.x-to-item-bool result dpt-type)))
+
+(defun %trigger-verify-fail (binding desired actual-or-error)
+  (let ((on-fail (verify-on-fail binding)))
+    (when on-fail
+      (handler-case
+          (funcall on-fail (list :binding binding
+                                 :write-ga (address:address-string-rep
+                                            (group-address-write binding))
+                                 :desired desired
+                                 :actual actual-or-error))
+        (error (c)
+          (log:error "KNX verify-on-fail handler error: ~a" c))))))
+
+(defun %run-verify (binding desired-value remaining gen)
+  "One verify attempt: read the status back, and on mismatch re-push (while
+re-push budget REMAINING allows) or give up. Aborts if superseded by a newer
+push (GEN)."
+  (unless (%verify-current-p binding gen)
+    (log:debug "KNX verify superseded for ~a, skipping."
+               (group-address-write binding))
+    (return-from %run-verify))
+  (let ((write-ga (group-address-write binding)))
+    (handler-case
+        (let ((actual (%read-back binding)))
+          (cond
+            ((%verify-values-equal binding desired-value actual)
+             (log:info "KNX verify ok for ~a: desired=~a actual=~a"
+                       write-ga desired-value actual))
+            ((<= remaining 0)
+             (log:error "KNX verify FAILED for ~a: desired=~a actual=~a — giving up"
+                        write-ga desired-value actual)
+             (%trigger-verify-fail binding desired-value actual))
+            (t
+             (log:warn "KNX verify mismatch for ~a: desired=~a actual=~a — re-pushing (~a left)"
+                       write-ga desired-value actual remaining)
+             (%push-value binding desired-value)
+             (when (%verify-current-p binding gen)
+               (%schedule-verify binding desired-value (1- remaining) gen)))))
+      (error (c)
+        ;; read-back failed: retry the read (no re-push) until budget exhausted
+        (cond
+          ((<= remaining 0)
+           (log:error "KNX verify read error for ~a, giving up: ~a" write-ga c)
+           (%trigger-verify-fail binding desired-value c))
+          (t
+           (log:warn "KNX verify read error for ~a: ~a — retrying (~a left)"
+                     write-ga c remaining)
+           (when (%verify-current-p binding gen)
+             (%schedule-verify binding desired-value (1- remaining) gen))))))))
+
+(defun %schedule-verify (binding desired-value remaining gen)
+  (%dispatch-verify
+   (verify-delay binding)
+   (lambda () (%run-verify binding desired-value remaining gen))))
+
+(defun %arm-verify (binding desired-value)
+  "Bump the generation (superseding any pending verify) and schedule a fresh
+verify. Runs on the item actor, the only writer of the generation."
+  (let ((gen (incf (verify-generation binding))))
+    (%schedule-verify binding desired-value (verify-retries binding) gen)))
+
+(defun %make-binding-push-fun (binding)
+  (lambda (value)
+    (log:info "Writing to bus, value: ~a ga: ~a, dpt: ~a"
+              value (group-address-write binding) (dpt-type binding))
+    (let ((result (%push-value binding value)))
+      (cond
+        ((eq result t)
+         (when (verify-p binding)
+           (%arm-verify binding value)))
+        (t
+         (log:error "KNX write to ~a failed permanently: ~a"
+                    (group-address-write binding) result)
+         (%trigger-verify-fail binding value result)))
+      result)))
+
+(defun %make-knx-binding (&rest other-args
+                          &key ga dpt
+                            verify verify-delay verify-retries
+                            verify-tolerance verify-compare verify-on-fail
+                          &allow-other-keys)
   (let* ((ga-read-obj (if (stringp ga)
                           (make-group-address ga)
                           (make-group-address (getf ga :read))))
@@ -168,17 +356,29 @@ is exhausted, `%do-reconnect' gives up; the next disconnect event re-arms it.")
                            (make-group-address ga)
                            (make-group-address (getf ga :write))))
          (dpt-type (value-type-string-to-symbol dpt))
-         (rest-args (remove-from-plist other-args :ga :dpt))
+         (rest-args (remove-from-plist other-args
+                                       :ga :dpt
+                                       :verify :verify-delay :verify-retries
+                                       :verify-tolerance :verify-compare
+                                       :verify-on-fail))
          (binding (apply #'make-instance 'knx-binding
                          :ga-read ga-read-obj
                          :ga-write ga-write-obj
                          :dpt dpt-type
                          :initial-delay (getf other-args :initial-delay 2)
-                         :push-fun (%make-binding-push-fun ga-write-obj dpt-type)
                          :pull-fun (%make-binding-pull-fun ga-read-obj dpt-type)
+                         :verify verify
+                         :verify-delay (or verify-delay *default-verify-delay*)
+                         :verify-retries (or verify-retries *default-verify-retries*)
+                         :verify-tolerance (or verify-tolerance 0)
+                         :verify-compare verify-compare
+                         :verify-on-fail verify-on-fail
                          rest-args)))
     (assert (and ga-read-obj ga-write-obj) nil "Unable to make group-address objects!")
     (assert dpt-type nil "Unable to parse dpt-type!")
+    ;; push-fun closes over the fully-constructed binding (for verify policy)
+    (setf (slot-value binding 'binding::push-fun)
+          (%make-binding-push-fun binding))
     (%ensure-global-listener)
     (%register-binding-for-ga binding ga-read-obj dpt-type)
     binding))
@@ -202,7 +402,26 @@ That means with `:initial-delay' or `:delay' the GA specified must have the 'rea
 - `dpt': dpt-type string, i.e. '1.001'
 
 `other-args' will be forwarded to the `base-binding' constructor. So things like `:call-push-p' and `:delay' also work here. However, be careful with `:push' and `:pull'. Using them redefine the behavior of the knx-binding.
-In particular, `:call-push-p' allows to forward item value changes which come from other places than the KNX bus to push to the bus."
+In particular, `:call-push-p' allows to forward item value changes which come from other places than the KNX bus to push to the bus.
+
+Read-back verify policy (optional, works for any DPT):
+- `:verify' — when non-nil, after a push the actuator status is read back from
+the read GA and, on mismatch, the value is re-pushed.
+- `:verify-delay' — seconds to wait after a push before reading back (default
+`*default-verify-delay*').
+- `:verify-retries' — number of re-push attempts on mismatch (default
+`*default-verify-retries*').
+- `:verify-tolerance' — allowed absolute difference for numeric DPTs (e.g.
+floats); ignored for booleans.
+- `:verify-compare' — optional 2-arg predicate (desired actual) overriding the
+default DPT-aware comparison.
+- `:verify-on-fail' — optional 1-arg callback invoked with a plist
+(`:binding' `:write-ga' `:desired' `:actual') when verification is exhausted or
+a write fails permanently.
+
+Note: the read GA must have its read flag set so the status can be requested.
+Verify never blocks the shared timer thread or the item actors — the delay is
+honoured by the timer, and the read-back runs on a dedicated worker pool."
   `(progn
      (assert (or (stringp ,ga)
                  (listp ,ga))
@@ -212,24 +431,38 @@ In particular, `:call-push-p' allows to forward item value changes which come fr
      (%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args)))
 
 (defun %do-reconnect ()
-  "Tear down the dead UDP socket, then walk through `*reconnect-backoff-secs*'
-re-establishing the tunnel until one attempt succeeds. Returns when the tunnel
-is back up or the backoff list is exhausted."
-  (loop :for delay :in *reconnect-backoff-secs*
-        :do (handler-case
-                (progn
-                  (log:info "Attempting KNX reconnect to ~a:~a..." *gw-host* *gw-port*)
-                  (ignore-errors (ip-client:ip-disconnect))
-                  (ip-client:ip-connect *gw-host* *gw-port*)
-                  (knx-client:start-async-receive)
-                  (knx-client:establish-tunnel-connection)
-                  (when (knx-client:tunnel-connection-established-p)
-                    (log:info "KNX tunnel reconnected.")
-                    (return)))
-              (error (c)
-                (log:warn "KNX reconnect attempt failed: ~a (retry in ~as)" c delay)))
-            (sleep delay)
-        :finally (log:warn "KNX reconnect: backoff exhausted, giving up until next disconnect event.")))
+  "Tear down the dead UDP socket, then keep re-establishing the tunnel using the
+escalating `*reconnect-backoff-secs*' delays, repeating the final delay
+indefinitely until one attempt succeeds. Returns when the tunnel is back up, or
+when the gateway config is cleared (shutdown), at which point it stops.
+
+It must not give up while the gateway is still configured: once disconnected the
+heartbeat is gone and no further disconnect event can be raised to re-arm it, so
+giving up would leave the tunnel dead until the next process restart."
+  (let ((backoff *reconnect-backoff-secs*))
+    (loop
+      (unless *gw-host*
+        (log:info "KNX reconnect: gateway config cleared, stopping reconnect loop.")
+        (return))
+      (let ((delay (or (car backoff)
+                       (car (last *reconnect-backoff-secs*))
+                       60)))
+        ;; advance through the list, then stick on its last (longest) delay
+        (when (cdr backoff)
+          (setf backoff (cdr backoff)))
+        (handler-case
+            (progn
+              (log:info "Attempting KNX reconnect to ~a:~a..." *gw-host* *gw-port*)
+              (ignore-errors (ip-client:ip-disconnect))
+              (ip-client:ip-connect *gw-host* *gw-port*)
+              (knx-client:start-async-receive)
+              (knx-client:establish-tunnel-connection)
+              (when (knx-client:tunnel-connection-established-p)
+                (log:info "KNX tunnel reconnected.")
+                (return)))
+          (error (c)
+            (log:warn "KNX reconnect attempt failed: ~a (retry in ~as)" c delay)))
+        (sleep delay)))))
 
 (defun %schedule-reconnect (reason)
   "Spawn a worker thread that runs `%do-reconnect'. The single-flight guard
@@ -253,7 +486,7 @@ events fire in quick succession."
   (log:warn "KNX connection lost (~a). Scheduling reconnect." reason)
   (%schedule-reconnect reason))
 
-(defun knx-init (&key gw-host (gw-port 3671) (auto-reconnect t))
+(defun knx-init (&key gw-host (gw-port 3671) (auto-reconnect t) (verify-workers 2))
   "Config and initialize KNX binding.
 This should be as part of `hab:defconfig'.
 A shutdown hook is added via `hab:add-to-shutdown' which calls `knx-shutdown'.
@@ -263,10 +496,13 @@ A shutdown hook is added via `hab:add-to-shutdown' which calls `knx-shutdown'.
 `auto-reconnect': when true (default), register a hook that automatically
 re-establishes the tunnel on heartbeat failure or gateway-initiated disconnect.
 Set to NIL to opt out — the connection then stays down until `knx-init` is
-called again or a manual reconnect is triggered."
+called again or a manual reconnect is triggered.
+`verify-workers': number of workers in the dedicated read-back verify pool
+(default 2). The pool is created lazily the first time a verifying binding pushes."
   (hab:add-to-shutdown #'knx-shutdown)
   (setf *gw-host* gw-host)
   (setf *gw-port* gw-port)
+  (setf *verify-workers* verify-workers)
   (when auto-reconnect
     (setf knx-client:*on-disconnected* #'%on-disconnected))
   (knxc:knx-conn-init gw-host

@@ -1,5 +1,5 @@
 (defsystem "binding-knx"
-  :version "0.2.1"
+  :version "0.3.0"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("chipi"
