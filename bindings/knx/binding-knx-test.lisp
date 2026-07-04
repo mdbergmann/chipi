@@ -21,10 +21,12 @@
   (unwind-protect
        (progn
          (setf binding-knx::*global-listener-registered-p* nil)
+         (setf binding-knx::*knx-bindings* '())
          (clrhash binding-knx::*ga-binding-registry*)
          (&body))
     (progn
       (setf binding-knx::*global-listener-registered-p* nil)
+      (setf binding-knx::*knx-bindings* '())
       (clrhash binding-knx::*ga-binding-registry*))))
 
 (test make-knx-binding
@@ -543,6 +545,111 @@ comparator overrides."
           (binding-knx::%run-verify cut 'item:true 5 stale-gen)
           (is (= 0 (length (invocations 'knxc:request-value))))
           (is (= 0 (length (invocations 'knxc:write-value)))))))))
+
+(test verify--read-error-connected--retries-until-exhausted
+  "While the tunnel is up, a read-back error is retried until the budget is
+exhausted, then on-fail fires."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (answer knxc:write-value t)
+        (answer knxc:request-value
+          (future:with-fut (make-condition 'simple-error
+                                           :format-control "read boom")))
+        (let ((failure nil)
+              (knx-client::*channel-id* 1)) ; tunnel established
+          (with-verify-binding (cut
+                                :verify-retries 2
+                                :verify-on-fail (lambda (info) (setf failure info)))
+            (binding:exec-push cut 'item:true)
+            ;; 2 retries with budget left + final give-up, no re-pushes
+            (is (= 3 (length (invocations 'knxc:request-value))))
+            (is (= 1 (length (invocations 'knxc:write-value))))
+            (is-true failure)))))))
+
+(test verify--read-error-disconnected--fails-fast
+  "While the tunnel is down, verify does not burn its retry budget against the
+dead connection: it fails fast, latches on-fail, and records the pending
+re-push for the reconnect sweep."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (answer knxc:write-value t)
+        (answer knxc:request-value
+          (future:with-fut (make-condition 'simple-error
+                                           :format-control "no connection")))
+        (let ((failure nil)
+              (knx-client::*channel-id* nil)) ; tunnel down
+          (with-verify-binding (cut
+                                :verify-retries 3
+                                :verify-on-fail (lambda (info) (setf failure info)))
+            (binding:exec-push cut 'item:true)
+            ;; exactly one read attempt, no retry burn
+            (is (= 1 (length (invocations 'knxc:request-value))))
+            (is-true failure)
+            (is (equal '(item:true) (binding-knx::pending-repush cut)))))))))
+
+;; --- pending re-push after reconnect ---
+
+(test repush--write-failure-records-pending--new-push-supersedes
+  "A permanent write failure records the desired value for re-push; a newer
+push supersedes the record."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (let ((fail-p t)
+              (err (make-condition 'knx-client:knx-response-timeout-error
+                                   :format-control "no ack")))
+          (answer knxc:write-value (if fail-p err t))
+          ;; read-back status matches the second push (:off = item:false)
+          (answer knxc:request-value (future:with-fut :off))
+          (with-verify-binding (cut)
+            (binding:exec-push cut 'item:true)
+            (is (equal '(item:true) (binding-knx::pending-repush cut)))
+            ;; a newer (successful) push supersedes the pending record
+            (setf fail-p nil)
+            (binding:exec-push cut 'item:false)
+            (is (null (binding-knx::pending-repush cut)))))))))
+
+(test repush--reconnect-sweep-repushes-and-clears
+  "After reconnect, `%repush-pending-bindings' re-runs the full push+verify
+cycle for the recorded value and clears the record."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (let ((fail-p t)
+              (err (make-condition 'knx-client:knx-response-timeout-error
+                                   :format-control "no ack")))
+          (answer knxc:write-value (if fail-p err t))
+          (answer knxc:request-value (future:with-fut :on))
+          (with-verify-binding (cut)
+            (binding:exec-push cut 'item:true)
+            (is (equal '(item:true) (binding-knx::pending-repush cut)))
+            ;; tunnel re-established, writes succeed again
+            (setf fail-p nil)
+            (binding-knx::%repush-pending-bindings)
+            ;; failed initial push + successful re-push
+            (is (= 2 (length (invocations 'knxc:write-value))))
+            ;; re-push succeeded and verified: record cleared
+            (is (null (binding-knx::pending-repush cut)))
+            (is (= 1 (length (invocations 'knxc:request-value))))))))))
+
+(test repush--reconnect-sweep-failure-rerecords
+  "When the re-push fails again, the value is re-recorded for the next
+reconnect."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (answer knxc:write-value
+          (make-condition 'knx-client:knx-response-timeout-error
+                          :format-control "no ack"))
+        (with-verify-binding (cut)
+          (binding:exec-push cut 'item:true)
+          (is (equal '(item:true) (binding-knx::pending-repush cut)))
+          (binding-knx::%repush-pending-bindings)
+          (is (= 2 (length (invocations 'knxc:write-value))))
+          ;; still recorded for the next reconnect
+          (is (equal '(item:true) (binding-knx::pending-repush cut))))))))
 
 ;; --- async path: real timer + dedicated dispatcher (no cross-thread mocks) ---
 

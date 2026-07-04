@@ -12,6 +12,15 @@
 (defvar *ga-binding-registry* (make-hash-table :test #'equal)
   "Maps GA string -> list of (binding . dpt-type) entries.")
 
+(defvar *knx-bindings* '()
+  "All live knx-bindings. Needed for module-level events like the
+post-reconnect re-push sweep (see `%repush-pending-bindings').")
+
+(defvar *on-reconnected-fun* nil
+  "Optional 0-arity callback set via `knx-init' `:on-reconnect'. Invoked from
+the reconnect thread after the tunnel is re-established and pending re-pushes
+have been dispatched. Errors are caught and logged.")
+
 (defvar *global-listener-registered-p* nil
   "Whether the single global tunnelling listener has been registered.")
 
@@ -80,7 +89,12 @@ The loop only stops when the gateway config is cleared (i.e. on shutdown).")
                    :initform nil :reader verify-on-fail)
    ;; bumped per push (only by the item actor) so a newer push supersedes an
    ;; in-flight verify; single-writer + monotonic, so no lock needed
-   (verify-generation :initform 0 :accessor verify-generation)))
+   (verify-generation :initform 0 :accessor verify-generation)
+   ;; NIL, or `(list desired-value)' recorded on permanent push/verify failure.
+   ;; Consumed by `%repush-pending-bindings' once the tunnel is back so a value
+   ;; the bus never (confirmably) received is re-sent instead of silently lost.
+   ;; A new push always supersedes it (cleared at push start).
+   (pending-repush :initform nil :accessor pending-repush)))
 
 (defun %dpt-1.x-p (dpt-type)
   "Returns T if DPT-TYPE is any boolean DPT-1.xxx type."
@@ -172,7 +186,8 @@ The loop only stops when the gateway config is cleared (i.e. on shutdown).")
   (setf *global-listener-registered-p* nil))
 
 (defmethod binding:destroy :before ((binding knx-binding))
-  (%deregister-binding binding))
+  (%deregister-binding binding)
+  (setf *knx-bindings* (remove binding *knx-bindings*)))
 
 (defun %make-binding-pull-fun (ga-obj dpt-type)
   (lambda ()
@@ -270,12 +285,17 @@ timeout/error."
     (%convert-dpt-1.x-to-item-bool result dpt-type)))
 
 (defun %trigger-verify-fail (binding desired actual-or-error)
+  ;; record the unconfirmed value so it is re-sent once the tunnel is back
+  ;; (see `%repush-pending-bindings')
+  (setf (pending-repush binding) (list desired))
   (let ((on-fail (verify-on-fail binding)))
     (when on-fail
       (handler-case
           (funcall on-fail (list :binding binding
                                  :write-ga (address:address-string-rep
                                             (group-address-write binding))
+                                 :items (mapcar #'item:name
+                                                (binding::bound-items binding))
                                  :desired desired
                                  :actual actual-or-error))
         (error (c)
@@ -309,6 +329,13 @@ push (GEN)."
       (error (c)
         ;; read-back failed: retry the read (no re-push) until budget exhausted
         (cond
+          ((not (knx-client:tunnel-connection-established-p))
+           ;; retrying against a dead tunnel just burns the budget in seconds;
+           ;; fail fast (latching any alarm) and let the post-reconnect
+           ;; re-push sweep re-send + re-verify
+           (log:warn "KNX verify read error for ~a: ~a — connection down, deferring to reconnect re-push"
+                     write-ga c)
+           (%trigger-verify-fail binding desired-value c))
           ((<= remaining 0)
            (log:error "KNX verify read error for ~a, giving up: ~a" write-ga c)
            (%trigger-verify-fail binding desired-value c))
@@ -333,6 +360,9 @@ verify. Runs on the item actor, the only writer of the generation."
   (lambda (value)
     (log:info "Writing to bus, value: ~a ga: ~a, dpt: ~a"
               value (group-address-write binding) (dpt-type binding))
+    ;; a new push supersedes any recorded re-push; on failure below,
+    ;; %trigger-verify-fail records this (latest) value again
+    (setf (pending-repush binding) nil)
     (let ((result (%push-value binding value)))
       (cond
         ((eq result t)
@@ -381,6 +411,7 @@ verify. Runs on the item actor, the only writer of the generation."
           (%make-binding-push-fun binding))
     (%ensure-global-listener)
     (%register-binding-for-ga binding ga-read-obj dpt-type)
+    (push binding *knx-bindings*)
     binding))
 
 ;; -----------------------------
@@ -416,8 +447,14 @@ floats); ignored for booleans.
 - `:verify-compare' — optional 2-arg predicate (desired actual) overriding the
 default DPT-aware comparison.
 - `:verify-on-fail' — optional 1-arg callback invoked with a plist
-(`:binding' `:write-ga' `:desired' `:actual') when verification is exhausted or
-a write fails permanently.
+(`:binding' `:write-ga' `:items' `:desired' `:actual') when verification is
+exhausted or a write fails permanently. `:items' is the list of bound item
+names.
+
+On permanent failure the desired value is additionally recorded on the binding
+and automatically re-pushed (full push+verify cycle) once the tunnel connection
+is re-established, so a value the bus never confirmably received is not
+silently lost. A newer push supersedes the recorded value.
 
 Note: the read GA must have its read flag set so the status can be requested.
 Verify never blocks the shared timer thread or the item actors — the delay is
@@ -429,6 +466,28 @@ honoured by the timer, and the read-back runs on a dedicated worker pool."
      (assert (typep ,dpt 'string) nil "Parameter dpt must be string!")
      (log:info "Make knx binding...")
      (%make-knx-binding :ga ,ga :dpt ,dpt ,@other-args)))
+
+(defun %repush-pending-bindings ()
+  "Re-run the full push+verify cycle for every binding whose last push/verify
+failed permanently (recorded in `pending-repush'). Called from the reconnect
+thread after the tunnel is re-established. `exec-push' runs the binding's
+push-fun, which clears the pending record first and — on renewed failure —
+re-records it for the next reconnect.
+
+Note: calling push-fun from the reconnect thread technically breaks the
+item-actor single-writer discipline on `verify-generation'; the worst case of
+that race is a duplicated (immediately superseded) read-back, which is benign."
+  (dolist (binding *knx-bindings*)
+    (let ((pending (pending-repush binding)))
+      (when pending
+        (let ((value (car pending)))
+          (log:info "KNX re-pushing pending value ~a to ~a after reconnect."
+                    value (group-address-write binding))
+          (handler-case
+              (binding:exec-push binding value)
+            (error (c)
+              (log:warn "KNX re-push to ~a failed: ~a"
+                        (group-address-write binding) c))))))))
 
 (defun %do-reconnect ()
   "Tear down the dead UDP socket, then keep re-establishing the tunnel using the
@@ -459,6 +518,11 @@ giving up would leave the tunnel dead until the next process restart."
               (knx-client:establish-tunnel-connection)
               (when (knx-client:tunnel-connection-established-p)
                 (log:info "KNX tunnel reconnected.")
+                (%repush-pending-bindings)
+                (when *on-reconnected-fun*
+                  (handler-case (funcall *on-reconnected-fun*)
+                    (error (c)
+                      (log:warn "Error in :on-reconnect callback: ~a" c))))
                 (return)))
           (error (c)
             (log:warn "KNX reconnect attempt failed: ~a (retry in ~as)" c delay)))
@@ -486,7 +550,8 @@ events fire in quick succession."
   (log:warn "KNX connection lost (~a). Scheduling reconnect." reason)
   (%schedule-reconnect reason))
 
-(defun knx-init (&key gw-host (gw-port 3671) (auto-reconnect t) (verify-workers 2))
+(defun knx-init (&key gw-host (gw-port 3671) (auto-reconnect t) (verify-workers 2)
+                   on-reconnect)
   "Config and initialize KNX binding.
 This should be as part of `hab:defconfig'.
 A shutdown hook is added via `hab:add-to-shutdown' which calls `knx-shutdown'.
@@ -498,11 +563,15 @@ re-establishes the tunnel on heartbeat failure or gateway-initiated disconnect.
 Set to NIL to opt out — the connection then stays down until `knx-init` is
 called again or a manual reconnect is triggered.
 `verify-workers': number of workers in the dedicated read-back verify pool
-(default 2). The pool is created lazily the first time a verifying binding pushes."
+(default 2). The pool is created lazily the first time a verifying binding pushes.
+`on-reconnect': optional 0-arity function invoked (from the reconnect thread)
+after the tunnel has been re-established and pending re-pushes were dispatched.
+Only effective together with `auto-reconnect'."
   (hab:add-to-shutdown #'knx-shutdown)
   (setf *gw-host* gw-host)
   (setf *gw-port* gw-port)
   (setf *verify-workers* verify-workers)
+  (setf *on-reconnected-fun* on-reconnect)
   (when auto-reconnect
     (setf knx-client:*on-disconnected* #'%on-disconnected))
   (knxc:knx-conn-init gw-host
@@ -514,5 +583,7 @@ Be aware that the global shutdown function (`hab:shutdown') will also call this 
   (setf knx-client:*on-disconnected* nil)
   (setf *gw-host* nil)
   (setf *gw-port* nil)
+  (setf *on-reconnected-fun* nil)
+  (setf *knx-bindings* '())
   (%reset-listener-registry)
   (knxc:knx-conn-destroy))
