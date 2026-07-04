@@ -566,7 +566,15 @@ called again or a manual reconnect is triggered.
 (default 2). The pool is created lazily the first time a verifying binding pushes.
 `on-reconnect': optional 0-arity function invoked (from the reconnect thread)
 after the tunnel has been re-established and pending re-pushes were dispatched.
-Only effective together with `auto-reconnect'."
+Only effective together with `auto-reconnect'.
+
+With `auto-reconnect', a failure to establish the tunnel during init (e.g. the
+gateway refuses with E_NO_MORE_UNIQUE_CONNECTIONS because it still holds stale
+tunnels from an unclean shutdown, or it doesn't respond at all) does NOT
+signal: the reconnect loop takes over with its escalating backoff and the rest
+of the application can boot. Failures before the transport/actor structures
+exist (UDP socket, actor system) still signal — there is nothing for the
+reconnect loop to drive then."
   (hab:add-to-shutdown #'knx-shutdown)
   (setf *gw-host* gw-host)
   (setf *gw-port* gw-port)
@@ -574,8 +582,18 @@ Only effective together with `auto-reconnect'."
   (setf *on-reconnected-fun* on-reconnect)
   (when auto-reconnect
     (setf knx-client:*on-disconnected* #'%on-disconnected))
-  (knxc:knx-conn-init gw-host
-                      :port gw-port))
+  (handler-case
+      (knxc:knx-conn-init gw-host
+                          :port gw-port)
+    (error (c)
+      ;; a live async-handler means the failure was at the tunnel-establish
+      ;; stage; ip/asys structures exist, so %do-reconnect can drive recovery
+      (cond
+        ((and auto-reconnect knx-client:*async-handler*)
+         (log:warn "KNX init: could not establish tunnel (~a). Scheduling reconnect." c)
+         (%schedule-reconnect :init-failure))
+        (t
+         (error c))))))
 
 (defun knx-shutdown ()
   "Shutdown KNX binding and release/clean all resources.

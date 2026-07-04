@@ -247,6 +247,55 @@
     (setf binding-knx::*gw-host* nil)
     (setf binding-knx::*gw-port* nil)))
 
+(test knx-init--tunnel-establish-failure--schedules-reconnect
+  "When the tunnel cannot be established at init time (gateway refuses or
+doesn't answer) but the transport/actor structures exist, knx-init does not
+signal — the reconnect loop takes over so the application can boot."
+  (with-mocks ()
+    (answer knxc:knx-conn-init
+      (error "Could not establish tunnel connection!"))
+    (answer hab:add-to-shutdown t)
+    (answer (binding-knx::%schedule-reconnect reason)
+      (progn (is (eq :init-failure reason)) t))
+    (let ((knx-client:*async-handler* 'dummy)) ; init got past ip/asys setup
+      (finishes (knx-init :gw-host "foo.bar" :gw-port 3671))
+      (is (= 1 (length (invocations 'binding-knx::%schedule-reconnect)))))
+    ;; cleanup
+    (setf knx-client:*on-disconnected* nil)
+    (setf binding-knx::*gw-host* nil)
+    (setf binding-knx::*gw-port* nil)))
+
+(test knx-init--early-failure--signals
+  "A failure before the transport/actor structures exist (e.g. UDP socket)
+cannot be recovered by the reconnect loop and must signal."
+  (with-mocks ()
+    (answer knxc:knx-conn-init
+      (error "Could not connect to KNX/IP"))
+    (answer hab:add-to-shutdown t)
+    (answer binding-knx::%schedule-reconnect t)
+    (let ((knx-client:*async-handler* nil))
+      (signals error (knx-init :gw-host "foo.bar" :gw-port 3671))
+      (is (= 0 (length (invocations 'binding-knx::%schedule-reconnect)))))
+    ;; cleanup
+    (setf knx-client:*on-disconnected* nil)
+    (setf binding-knx::*gw-host* nil)
+    (setf binding-knx::*gw-port* nil)))
+
+(test knx-init--failure-without-auto-reconnect--signals
+  "Without auto-reconnect there is no recovery machinery: init failure signals."
+  (with-mocks ()
+    (answer knxc:knx-conn-init
+      (error "Could not establish tunnel connection!"))
+    (answer hab:add-to-shutdown t)
+    (answer binding-knx::%schedule-reconnect t)
+    (let ((knx-client:*async-handler* 'dummy))
+      (signals error (knx-init :gw-host "foo.bar" :gw-port 3671
+                               :auto-reconnect nil))
+      (is (= 0 (length (invocations 'binding-knx::%schedule-reconnect)))))
+    ;; cleanup
+    (setf binding-knx::*gw-host* nil)
+    (setf binding-knx::*gw-port* nil)))
+
 (test shutdown-knx--closes-knx
   (with-fixture clean-knx-state ()
     (with-mocks ()
