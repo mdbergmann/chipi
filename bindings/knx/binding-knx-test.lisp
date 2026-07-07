@@ -700,6 +700,30 @@ reconnect."
           ;; still recorded for the next reconnect
           (is (equal '(item:true) (binding-knx::pending-repush cut))))))))
 
+;; --- read re-pull after reconnect ---
+
+(test repull--reconnect-refetches-active-read-bindings
+  "`%repull-read-bindings' re-reads active-read bindings and sets the item; a
+listen-only binding is skipped."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (let ((set-values '()))
+        (answer knx-client:add-tunnelling-request-listener t)
+        (answer (knxc:request-value _ 'dpt:dpt-1.001)
+          (future:with-fut :on))
+        (answer (item:set-value _ value :push nil)
+          (progn (push value set-values) t))
+        (let ((active (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil))
+              (listen-only (knx-binding :ga "4/5/6" :dpt "1.001" :initial-delay nil)))
+          ;; bind with initial-delay nil (no real timer), then mark ACTIVE
+          (binding:bind-item active :active-item)
+          (binding:bind-item listen-only :listen-item)
+          (setf (slot-value active 'binding::initial-delay) 1)
+          (binding-knx::%repull-read-bindings)
+          ;; only the active-read binding was pulled and its item set
+          (is (= 1 (length (invocations 'knxc:request-value))))
+          (is (equal '(item:true) set-values)))))))
+
 ;; --- async path: real timer + dedicated dispatcher (no cross-thread mocks) ---
 
 (test verify--dispatch-runs-on-dedicated-pool-not-timer

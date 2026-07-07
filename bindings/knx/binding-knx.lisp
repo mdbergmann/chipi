@@ -489,6 +489,21 @@ that race is a duplicated (immediately superseded) read-back, which is benign."
               (log:warn "KNX re-push to ~a failed: ~a"
                         (group-address-write binding) c))))))))
 
+(defun %repull-read-bindings ()
+  "Re-issue the read for every binding with an active read (`initial-delay' or
+`delay'). Called from the reconnect thread once the tunnel is back. Recovers the
+one-shot `initial-delay' read when it fired before the tunnel was up, and
+refreshes values that may have changed while down. Listen-only bindings are
+skipped."
+  (dolist (binding *knx-bindings*)
+    (when (or (slot-value binding 'binding::initial-delay)
+              (slot-value binding 'binding::delay))
+      (handler-case
+          (binding:exec-pull binding)
+        (error (c)
+          (log:warn "KNX re-pull of ~a failed: ~a"
+                    (group-address-read binding) c))))))
+
 (defun %do-reconnect ()
   "Tear down the dead UDP socket, then keep re-establishing the tunnel using the
 escalating `*reconnect-backoff-secs*' delays, repeating the final delay
@@ -518,6 +533,9 @@ giving up would leave the tunnel dead until the next process restart."
               (knx-client:establish-tunnel-connection)
               (when (knx-client:tunnel-connection-established-p)
                 (log:info "KNX tunnel reconnected.")
+                ;; refresh reads first, then re-send writes so an intended
+                ;; write wins over freshly-read bus state on a shared GA
+                (%repull-read-bindings)
                 (%repush-pending-bindings)
                 (when *on-reconnected-fun*
                   (handler-case (funcall *on-reconnected-fun*)
