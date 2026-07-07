@@ -514,6 +514,10 @@ It must not give up while the gateway is still configured: once disconnected the
 heartbeat is gone and no further disconnect event can be raised to re-arm it, so
 giving up would leave the tunnel dead until the next process restart."
   (let ((backoff *reconnect-backoff-secs*))
+    ;; clear any socket left open by the failed init/previous attempt; from here
+    ;; on each failed attempt tears itself down in the unwind-protect below, so
+    ;; no per-iteration leading disconnect is needed.
+    (ignore-errors (ip-client:ip-disconnect))
     (loop
       (unless *gw-host*
         (log:info "KNX reconnect: gateway config cleared, stopping reconnect loop.")
@@ -529,7 +533,6 @@ giving up would leave the tunnel dead until the next process restart."
             (handler-case
                 (progn
                   (log:info "Attempting KNX reconnect to ~a:~a..." *gw-host* *gw-port*)
-                  (ignore-errors (ip-client:ip-disconnect))
                   (ip-client:ip-connect *gw-host* *gw-port*)
                   (knx-client:start-async-receive)
                   (knx-client:establish-tunnel-connection)
