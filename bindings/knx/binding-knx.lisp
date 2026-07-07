@@ -514,9 +514,8 @@ It must not give up while the gateway is still configured: once disconnected the
 heartbeat is gone and no further disconnect event can be raised to re-arm it, so
 giving up would leave the tunnel dead until the next process restart."
   (let ((backoff *reconnect-backoff-secs*))
-    ;; clear any socket left open by the failed init/previous attempt; from here
-    ;; on each failed attempt tears itself down in the unwind-protect below, so
-    ;; no per-iteration leading disconnect is needed.
+    ;; clear any socket left open by a failed init; each attempt below tears
+    ;; itself down, so no per-iteration leading disconnect is needed.
     (ignore-errors (ip-client:ip-disconnect))
     (loop
       (unless *gw-host*
@@ -539,10 +538,8 @@ giving up would leave the tunnel dead until the next process restart."
                   (setf established (knx-client:tunnel-connection-established-p)))
               (error (c)
                 (log:warn "KNX reconnect attempt failed: ~a (retry in ~as)" c delay)))
-          ;; A failed attempt must not hold its UDP socket (and receive loop)
-          ;; open across the backoff sleep — that leaves the gateway endpoint
-          ;; idle for up to a minute. Tear it down now; a successful attempt
-          ;; keeps the socket, as that is the live tunnel.
+          ;; close a failed attempt's socket now, not across the backoff sleep;
+          ;; a successful attempt keeps its socket as the live tunnel.
           (unless established
             (ignore-errors (ip-client:ip-disconnect))))
         (when established
