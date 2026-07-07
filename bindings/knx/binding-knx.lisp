@@ -520,30 +520,39 @@ giving up would leave the tunnel dead until the next process restart."
         (return))
       (let ((delay (or (car backoff)
                        (car (last *reconnect-backoff-secs*))
-                       60)))
+                       60))
+            (established nil))
         ;; advance through the list, then stick on its last (longest) delay
         (when (cdr backoff)
           (setf backoff (cdr backoff)))
-        (handler-case
-            (progn
-              (log:info "Attempting KNX reconnect to ~a:~a..." *gw-host* *gw-port*)
-              (ignore-errors (ip-client:ip-disconnect))
-              (ip-client:ip-connect *gw-host* *gw-port*)
-              (knx-client:start-async-receive)
-              (knx-client:establish-tunnel-connection)
-              (when (knx-client:tunnel-connection-established-p)
-                (log:info "KNX tunnel reconnected.")
-                ;; refresh reads first, then re-send writes so an intended
-                ;; write wins over freshly-read bus state on a shared GA
-                (%repull-read-bindings)
-                (%repush-pending-bindings)
-                (when *on-reconnected-fun*
-                  (handler-case (funcall *on-reconnected-fun*)
-                    (error (c)
-                      (log:warn "Error in :on-reconnect callback: ~a" c))))
-                (return)))
-          (error (c)
-            (log:warn "KNX reconnect attempt failed: ~a (retry in ~as)" c delay)))
+        (unwind-protect
+            (handler-case
+                (progn
+                  (log:info "Attempting KNX reconnect to ~a:~a..." *gw-host* *gw-port*)
+                  (ignore-errors (ip-client:ip-disconnect))
+                  (ip-client:ip-connect *gw-host* *gw-port*)
+                  (knx-client:start-async-receive)
+                  (knx-client:establish-tunnel-connection)
+                  (setf established (knx-client:tunnel-connection-established-p)))
+              (error (c)
+                (log:warn "KNX reconnect attempt failed: ~a (retry in ~as)" c delay)))
+          ;; A failed attempt must not hold its UDP socket (and receive loop)
+          ;; open across the backoff sleep — that leaves the gateway endpoint
+          ;; idle for up to a minute. Tear it down now; a successful attempt
+          ;; keeps the socket, as that is the live tunnel.
+          (unless established
+            (ignore-errors (ip-client:ip-disconnect))))
+        (when established
+          (log:info "KNX tunnel reconnected.")
+          ;; refresh reads first, then re-send writes so an intended
+          ;; write wins over freshly-read bus state on a shared GA
+          (%repull-read-bindings)
+          (%repush-pending-bindings)
+          (when *on-reconnected-fun*
+            (handler-case (funcall *on-reconnected-fun*)
+              (error (c)
+                (log:warn "Error in :on-reconnect callback: ~a" c))))
+          (return))
         (sleep delay)))))
 
 (defun %schedule-reconnect (reason)
