@@ -578,7 +578,7 @@ events fire in quick succession."
   (%schedule-reconnect reason))
 
 (defun knx-init (&key gw-host (gw-port 3671) (auto-reconnect t) (verify-workers 2)
-                   on-reconnect)
+                   on-reconnect on-connect)
   "Config and initialize KNX binding.
 This should be as part of `hab:defconfig'.
 A shutdown hook is added via `hab:add-to-shutdown' which calls `knx-shutdown'.
@@ -594,6 +594,8 @@ called again or a manual reconnect is triggered.
 `on-reconnect': optional 0-arity function invoked (from the reconnect thread)
 after the tunnel has been re-established and pending re-pushes were dispatched.
 Only effective together with `auto-reconnect'.
+`on-connect': optional 0-arity function invoked on every successful tunnel
+connect (initial connect and every reconnect).
 
 With `auto-reconnect', a failure to establish the tunnel during init (e.g. the
 gateway refuses with E_NO_MORE_UNIQUE_CONNECTIONS because it still holds stale
@@ -607,6 +609,7 @@ reconnect loop to drive then."
   (setf *gw-port* gw-port)
   (setf *verify-workers* verify-workers)
   (setf *on-reconnected-fun* on-reconnect)
+  (setf knx-client:*on-connected* on-connect)
   (when auto-reconnect
     (setf knx-client:*on-disconnected* #'%on-disconnected))
   (handler-case
@@ -626,6 +629,7 @@ reconnect loop to drive then."
   "Shutdown KNX binding and release/clean all resources.
 Be aware that the global shutdown function (`hab:shutdown') will also call this so this usually doesn't need to be called manually except in test setups."
   (setf knx-client:*on-disconnected* nil)
+  (setf knx-client:*on-connected* nil)
   (setf *gw-host* nil)
   (setf *gw-port* nil)
   (setf *on-reconnected-fun* nil)
