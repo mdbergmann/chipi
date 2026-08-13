@@ -15,6 +15,11 @@
 # Systems directory and CSV
 systems/
 systems.csv
+ocicl/
+ocicl.csv
+
+# Working specs
+specs/
 
 # UI build artifacts and dependencies
 ui-ts/node_modules/
