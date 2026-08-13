@@ -1,234 +1,67 @@
 (defpackage :chipi-ui.main
   (:use :cl :clog)
   (:nicknames :ui-main)
-  (:import-from #:itemsc
-                #:update-item-value)
-  (:import-from #:itemgroupsc
-                #:retrieve-itemgroups
-                #:retrieve-top-level-itemgroups)
+  (:import-from #:ui-renderer
+                #:make-nav-context
+                #:nav-context-body
+                #:nav-context-depth
+                #:render-page
+                #:render-overview
+                #:render-not-found
+                #:call-item-value-update-fun)
   (:export #:start-main
-           #:shutdown-main)
-  )
+           #:shutdown-main))
 
 (in-package :chipi-ui.main)
 
-(defvar *item-value-form-update-funs* (make-hash-table :test #'equal)
-  "Maps an item name to a LIST of value-update callbacks.  A single item
-renders several components that each react to a change (e.g. the value display
-and the timestamp display), so more than one callback is registered per item
-and all of them must run on a change.")
-
-(defun set-on-value-update (item-name fun)
-  "Register FUN as a value-update callback for ITEM-NAME.  Additive: callbacks
-already registered for ITEM-NAME are kept, so the value display and the
-timestamp display (and any other reactive component) all update together."
-  (push fun (gethash item-name *item-value-form-update-funs*)))
-
-(defun call-item-value-update-fun (item-name updated-item-state)
-  (let ((update-funs (gethash item-name *item-value-form-update-funs*)))
-    (if update-funs
-        (dolist (fun update-funs)
-          (funcall fun updated-item-state))
-        (log:debug "No update function registered for: ~a" item-name))))
-
 (defun on-main (body)
-  "The main page."
-  (log:info "Rendering main...")
+  "Entry handler for every new connection.  Dispatches the requested URL path
+to a `page:defpage'd page, to the auto-generated itemgroup overview (root path
+when no page claims it), or to a not-found view.  Rendering is a pure function
+of the current URL path: in-app navigation pushes history entries and browser
+back/forward re-renders via the popstate handler."
+  (log:info "Rendering main, path: ~a" (path-name (location body)))
   (load-css (html-document body)
             "/custom-styles.css")
+  (load-css (html-document body)
+            "/page-styles.css")
+  (load-css (html-document body)
+            "https://cdn.jsdelivr.net/npm/uplot@1/dist/uPlot.min.css")
   (load-script (html-document body)
                "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js")
+  (load-script (html-document body)
+               "https://cdn.jsdelivr.net/npm/uplot@1/dist/uPlot.iife.min.js")
 
-  (let ((container (create-div body :class "container")))
-    (%show-overview container)))
-
-(defun %show-overview (container)
-  "Renders the overview page with all itemgroups."
-  (setf (inner-html container) "")
-  (clrhash *item-value-form-update-funs*)
-  (create-div container :class "header-line"
-                        :content "Chipi Home Automation Dashboard")
-  (let* ((groups (retrieve-top-level-itemgroups))
-         (link-groups (remove-if-not #'%itemgroup-link-p groups))
-         (card-groups (remove-if #'%itemgroup-link-p groups)))
-    ;; Render link groups as a list if any exist
-    (when link-groups
-      (let ((links-container (create-div container :class "itemgroup-links-container")))
-        (dolist (ig link-groups)
-          (%render-itemgroup-link ig links-container container
-                                  (lambda () (%show-overview container))))))
-    ;; Render card groups in the grid
-    (when card-groups
-      (let ((itemgroups-container (create-div container :class "itemgroups-container")))
-        (dolist (ig card-groups)
-          (%render-itemgroup ig itemgroups-container))))))
-
-(defun %itemgroup-link-p (itemg)
-  "Returns T if the itemgroup should render as a link (has :ui-link tag)."
-  (let ((tags (gethash "tags" itemg)))
-    (when (and tags (hash-table-p tags))
-      (multiple-value-bind (val present-p)
-          (gethash :ui-link tags)
-        (declare (ignore val))
-        present-p))))
-
-(defun %render-itemgroup-link (itemg parent container back-fn)
-  "Renders an itemgroup as a clickable link."
-  (let ((link-div (create-div parent :class "itemgroup-link"
-                                     :content (gethash "label" itemg))))
-    (set-on-click link-div
-                  (lambda (obj)
-                    (declare (ignore obj))
-                    (%show-itemgroup-detail itemg container back-fn)))))
-
-(defun %show-itemgroup-detail (itemg container back-fn)
-  "Shows a detail page for a single itemgroup with a back button.
-Shows child groups (as links or cards) above direct items."
-  (setf (inner-html container) "")
-  (clrhash *item-value-form-update-funs*)
-  (let ((back-btn (create-button container
-                                 :class "back-button"
-                                 :content "&larr; Back")))
-    (set-on-click back-btn
-                  (lambda (obj)
-                    (declare (ignore obj))
-                    (funcall back-fn))))
-  (create-div container :class "group-header-line"
-                        :content (gethash "label" itemg))
-  ;; Show child groups if any
-  (let* ((children (coerce (gethash "children" itemg) 'list))
-         (link-children (remove-if-not #'%itemgroup-link-p children))
-         (card-children (remove-if #'%itemgroup-link-p children)))
-    (when link-children
-      (let ((links-container (create-div container :class "itemgroup-links-container")))
-        (dolist (child link-children)
-          (%render-itemgroup-link child links-container container
-                                  (lambda ()
-                                    (%show-itemgroup-detail itemg container back-fn))))))
-    (when card-children
-      (let ((itemgroups-container (create-div container :class "itemgroups-container")))
-        (dolist (child card-children)
-          (%render-itemgroup child itemgroups-container)))))
-  ;; Show direct items as card (only if there are items)
-  (let ((items (gethash "items" itemg)))
-    (when (and items (> (length items) 0))
-      (let ((itemgroups-container (create-div container :class "itemgroups-container")))
-        (%render-itemgroup itemg itemgroups-container)))))
-
-(defun %render-itemgroup (itemg parent)
-  (let* ((col-div (create-div parent :class "itemgroup-column"))
-         (card-div (create-div col-div :class "itemgroup-card")))
-    (create-div card-div :class "itemgroup-header"
-                         :content (gethash "label" itemg))
-    
-    (let ((items-container (create-div card-div :class "items-container")))
-      (map nil (lambda (item)
-                 (%render-item item items-container))
-           (gethash "items" itemg)))))
-
-(defun %render-item (item parent)
-  (let* ((item-div (create-div parent :class "item-container"))
-         (item-label (gethash "label" item))
-         (item-name (gethash "name" item))
-         (item-state (gethash "item-state" item))
-         (type-hint (gethash "type-hint" item))
-         (tags (gethash "tags" item))
-         (ui-type (when (and tags (hash-table-p tags))
-                    (gethash :ui-type tags))))
-
-    (create-div item-div :class "item-label"
-                         :content item-label)
-
-    (create-div item-div :class (format nil "item-type-badge ~a" (string-downcase type-hint))
-                         :content (or ui-type (%format-type-hint type-hint)))
-
-    (create-div item-div :class "item-name"
-                         :content item-name)
-        
-    (%render-item-value item-name (gethash "value" item-state) type-hint tags item-div)
-
-    (let ((ts-div
-            (create-div item-div :class "item-timestamp-display"
-                                 :content (%format-timestamp (gethash "timestamp" item-state)))))
-      (set-on-value-update item-name
-                           (lambda (updated-item-state)
-                             (setf (text ts-div)
-                                   (%format-timestamp
-                                    (gethash "timestamp" updated-item-state))))))))
-
-(defun %ui-readonly-p (tags)
-  "Returns T if the item has the :ui-readonly tag."
-  (when (and tags (hash-table-p tags))
-    (multiple-value-bind (val present-p)
-        (gethash :ui-readonly tags)
-      (declare (ignore val))
-      present-p)))
-
-(defun %render-item-value (item-name item-value type-hint tags parent)
-  (cond
-    ((and (string= "BOOLEAN" type-hint) (%ui-readonly-p tags))
-     (let ((value-div (create-div parent :class (format nil "item-value-display ~a"
-                                                        (if item-value "boolean-true" "boolean-false"))
-                                         :content (if item-value "ON" "OFF"))))
-       (set-on-value-update item-name
-                            (lambda (updated-item-state)
-                              (let ((updated-value (gethash "value" updated-item-state)))
-                                (setf (text value-div)
-                                      (if updated-value "ON" "OFF"))
-                                (if updated-value
-                                    (progn (remove-class value-div "boolean-false")
-                                           (add-class value-div "boolean-true"))
-                                    (progn (remove-class value-div "boolean-true")
-                                           (add-class value-div "boolean-false"))))))))
-    ((string= "BOOLEAN" type-hint)
-     (let* ((form-check (create-div parent :class "item-value-boolean"))
-            (toggle-input (create-form-element form-check "checkbox"
-                                               :role "switch"
-                                               :class "item-value-boolean-input")))
-       (set-on-value-update item-name
-                            (lambda (updated-item-state)
-                              (let ((updated-value (gethash "value" updated-item-state)))
-                                (log:debug "Setting value: ~a on component: ~a"
-                                           updated-value toggle-input)
-                                (setf (checkedp toggle-input) updated-value))))
-       (setf (checkedp toggle-input) item-value)
-       (set-on-change toggle-input
+  (let* ((container (create-div body :class "container"))
+         (ctx (make-nav-context :body body :container container)))
+    ;; browser back/forward fires popstate with the URL already updated;
+    ;; re-render whatever the current path addresses
+    (set-on-pop-state (window body)
                       (lambda (obj)
-                        (let ((current-state (checkedp obj)))
-                          (log:debug "Toggled (change): ~a = ~a" obj current-state)
-                          (update-item-value item-name
-                                             (item-ext:item-value-ext-to-internal current-state))
-                          )))))
-    (t
-     (let ((value-div (create-div parent :class "item-value-display"
-                                         :content (%format-value item-value type-hint))))
-       (set-on-value-update item-name
-                            (lambda (updated-item-state)
-                              (let ((updated-value (gethash "value" updated-item-state)))
-                                (log:debug "Setting value: ~a on component: ~a"
-                                           updated-value value-div)
-                                (log:debug "Current value: ~a" (text value-div))
-                                (setf (text value-div)
-                                      (%format-value updated-value type-hint)))))))))
+                        (declare (ignore obj))
+                        (setf (nav-context-depth ctx)
+                              (max 0 (1- (nav-context-depth ctx))))
+                        (%dispatch-path ctx)))
+    (%dispatch-path ctx)))
 
-(defun %format-timestamp (timestamp)
-  (local-time:format-rfc1123-timestring nil (local-time:unix-to-timestamp timestamp)))
+(defun %dispatch-path (ctx)
+  "Renders the view matching the connection's current URL path."
+  (let* ((path (page:normalize-path
+                (path-name (location (nav-context-body ctx)))))
+         (matching-page (page:find-page-by-path path)))
+    (cond
+      (matching-page (render-page matching-page ctx))
+      ((string= "/" path) (render-overview ctx))
+      (t (render-not-found ctx path)))))
 
-(defun %format-value (value type-hint)
-  (cond
-    ((string= "FLOAT" type-hint) (format nil "~,2f" value))
-    ((string= "INTEGER" type-hint) (format nil "~a" value))
-    ((string= "STRING" type-hint) (if value value ""))
-    (t (if value (format nil "~a" value) ""))))
-
-
-(defun %format-type-hint (type-hint)
-  (cond
-    ((string= "BOOLEAN" type-hint) "Switch")
-    ((string= "FLOAT" type-hint) "Decimal Number")
-    ((string= "INTEGER" type-hint) "Whole Number")
-    ((string= "STRING" type-hint) "Text")
-    (t "Undefined type")))
+(defun %register-page-route (page)
+  "Registers PAGE's URL path as a CLOG route so that a direct browser visit
+(deep link) to it serves the boot file and lands in `on-main'."
+  (unless (string= "/" (page:page-path page))
+    (log:debug "Registering page route: ~a" (page:page-path page))
+    (set-on-new-window 'on-main
+                       :path (page:page-path page)
+                       :boot-file "/boot.html")))
 
 (defvar *item-change-listener* nil)
 
@@ -239,8 +72,7 @@ Shows child groups (as links or cards) above direct items."
        (log:debug "Item changed: ~a" item)
        (call-item-value-update-fun
         (item:name item)
-        (gethash "item-state" (item-ext:item-to-ht item))))
-       )))
+        (gethash "item-state" (item-ext:item-to-ht item)))))))
 
 (defun start-main (host port)
   "Starts the CLOG UI and sets up handlers for the pages."
@@ -257,16 +89,23 @@ Shows child groups (as links or cards) above direct items."
                          :receive (lambda (msg) (%item-listener-receive msg)))))
 
     (setf clog-connection:*reconnect-delay* 2)
-    (setf *item-value-form-update-funs* (make-hash-table :test #'equal))
+    (setf ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal))
 
     (initialize 'on-main
                 :static-root system-root
                 :host host
                 :port port
-                :extended-routing t)))
+                :extended-routing t)
+
+    ;; routes for pages defined before the UI started ...
+    (dolist (p (page:get-pages))
+      (%register-page-route p))
+    ;; ... and for pages defined (or re-defined) afterwards
+    (setf page:*page-registered-hook* #'%register-page-route)))
 
 (defun shutdown-main ()
   "Shuts down and cleans up resources."
+  (setf page:*page-registered-hook* nil)
   (shutdown)
   (when *item-change-listener*
     (ac:stop (isys:ensure-isys) *item-change-listener*)

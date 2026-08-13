@@ -1,0 +1,772 @@
+(defpackage :chipi-ui.page-renderer
+  (:use :cl :clog)
+  (:nicknames :ui-renderer)
+  (:import-from #:alexandria
+                #:when-let)
+  (:import-from #:itemsc
+                #:update-item-value)
+  (:import-from #:itemgroupsc
+                #:retrieve-top-level-itemgroups)
+  (:export #:nav-context
+           #:make-nav-context
+           #:nav-context-body
+           #:nav-context-container
+           #:nav-context-depth
+           #:render-page
+           #:render-overview
+           #:render-not-found
+           #:render-widget
+           #:navigate-to-page
+           #:set-on-value-update
+           #:clear-value-update-funs
+           #:call-item-value-update-fun
+           #:*item-value-form-update-funs*))
+
+(in-package :chipi-ui.page-renderer)
+
+;; ---------------------------------------------------------------------------
+;; navigation context
+;; ---------------------------------------------------------------------------
+
+(defstruct nav-context
+  "Per-connection rendering/navigation state.  Every browser connection gets
+its own context; it owns the value-update callbacks of the currently rendered
+view and carries the navigation depth for the back button."
+  body        ; the connection's clog body
+  container   ; the top-level container div views render into
+  (depth 0))  ; number of in-app pushState navigations
+
+;; ---------------------------------------------------------------------------
+;; item value-update registry
+;; ---------------------------------------------------------------------------
+
+(defvar *item-value-form-update-funs* (make-hash-table :test #'equal)
+  "Maps an item name to a nested hash of owner -> list of value-update
+callbacks.  The owner is the `nav-context' of one browser connection: several
+connections render components for the same item concurrently, and re-rendering
+or closing one connection must only drop that connection's callbacks.")
+
+(defun set-on-value-update (owner item-name fun)
+  "Registers FUN as a value-update callback for ITEM-NAME on behalf of OWNER.
+Additive per owner: a single item renders several components that each react
+to a change (e.g. the value display and the timestamp display), so more than
+one callback is registered per item and all of them run on a change."
+  (let ((owner-funs (or (gethash item-name *item-value-form-update-funs*)
+                        (setf (gethash item-name *item-value-form-update-funs*)
+                              (make-hash-table :test #'eq)))))
+    (push fun (gethash owner owner-funs))))
+
+(defun clear-value-update-funs (owner)
+  "Drops all callbacks registered by OWNER; called before OWNER re-renders."
+  (maphash (lambda (item-name owner-funs)
+             (declare (ignore item-name))
+             (remhash owner owner-funs))
+           *item-value-form-update-funs*))
+
+(defun %owner-alive-p (owner)
+  "Whether the owner's browser connection is still alive."
+  (if (nav-context-p owner)
+      (validp (nav-context-body owner))
+      t))
+
+(defun call-item-value-update-fun (item-name updated-item-state)
+  "Runs all callbacks registered for ITEM-NAME across all owners.  Callbacks
+of owners whose connection has gone away are dropped instead of run."
+  (let ((owners (gethash item-name *item-value-form-update-funs*)))
+    (if owners
+        (maphash (lambda (owner funs)
+                   (if (%owner-alive-p owner)
+                       (dolist (fun funs)
+                         (funcall fun updated-item-state))
+                       (remhash owner owners)))
+                 owners)
+        (log:debug "No update function registered for: ~a" item-name))))
+
+;; ---------------------------------------------------------------------------
+;; formatting helpers
+;; ---------------------------------------------------------------------------
+
+(defun %format-timestamp (timestamp)
+  (local-time:format-rfc1123-timestring nil (local-time:unix-to-timestamp timestamp)))
+
+(defun %format-value (value type-hint)
+  (cond
+    ((string= "FLOAT" type-hint) (format nil "~,2f" value))
+    ((string= "INTEGER" type-hint) (format nil "~a" value))
+    ((string= "STRING" type-hint) (if value value ""))
+    (t (if value (format nil "~a" value) ""))))
+
+(defun %format-type-hint (type-hint)
+  (cond
+    ((string= "BOOLEAN" type-hint) "Switch")
+    ((string= "FLOAT" type-hint) "Decimal Number")
+    ((string= "INTEGER" type-hint) "Whole Number")
+    ((string= "STRING" type-hint) "Text")
+    (t "Undefined type")))
+
+(defun %format-widget-value (value type-hint format)
+  "Formats VALUE with the widget's format string when given, falling back to
+the type-hint based default formatting."
+  (if (and format value (not (eq value 'cl:null)))
+      (format nil format value)
+      (%format-value value type-hint)))
+
+(defun %ext-value (value)
+  "Maps the external JSON null marker back to `nil' for display purposes."
+  (if (eq value 'cl:null) nil value))
+
+(defun %ui-readonly-p (tags)
+  "Returns T if the item has the :ui-readonly tag."
+  (when (and tags (hash-table-p tags))
+    (multiple-value-bind (val present-p)
+        (gethash :ui-readonly tags)
+      (declare (ignore val))
+      present-p)))
+
+(defun %itemgroup-link-p (itemg)
+  "Returns T if the itemgroup should render as a link (has :ui-link tag)."
+  (let ((tags (gethash "tags" itemg)))
+    (when (and tags (hash-table-p tags))
+      (multiple-value-bind (val present-p)
+          (gethash :ui-link tags)
+        (declare (ignore val))
+        present-p))))
+
+(defun %parse-number (str type-hint)
+  "Parses STR according to TYPE-HINT.  Returns `nil' if not parsable."
+  (handler-case
+      (if (string= "INTEGER" type-hint)
+          (parse-integer str)
+          (coerce (parse-float:parse-float str) 'single-float))
+    (error ()
+      (log:warn "Cannot parse ~s as ~a" str type-hint)
+      nil)))
+
+;; ---------------------------------------------------------------------------
+;; value controls
+;;
+;; The shared building blocks between the widget renderers and the legacy
+;; itemgroup card rendering: each creates one reactive control wired to the
+;; item via `update-item-value' (input) and the value-update registry (output).
+;; ---------------------------------------------------------------------------
+
+(defun %create-boolean-display (owner parent item-name value)
+  "A read-only ON/OFF display for a boolean item."
+  (let ((value-div (create-div parent :class (format nil "item-value-display ~a"
+                                                     (if value "boolean-true" "boolean-false"))
+                                      :content (if value "ON" "OFF"))))
+    (set-on-value-update owner item-name
+                         (lambda (updated-item-state)
+                           (let ((updated-value (gethash "value" updated-item-state)))
+                             (setf (text value-div)
+                                   (if updated-value "ON" "OFF"))
+                             (if updated-value
+                                 (progn (remove-class value-div "boolean-false")
+                                        (add-class value-div "boolean-true"))
+                                 (progn (remove-class value-div "boolean-true")
+                                        (add-class value-div "boolean-false"))))))
+    value-div))
+
+(defun %set-checked (toggle-input value)
+  "Sets the live checked state of a checkbox.  CLOG's `(setf checkedp)'
+writes the 'checked' HTML attribute, which browsers ignore once the user has
+interacted with the checkbox; the property reflects the state reliably."
+  (jquery-execute toggle-input
+                  (format nil "prop('checked',~a)" (if value "true" "false"))))
+
+(defun %create-toggle-control (owner parent item-name value)
+  "A switch control for a boolean item."
+  (let* ((form-check (create-div parent :class "item-value-boolean"))
+         (toggle-input (create-form-element form-check "checkbox"
+                                            :role "switch"
+                                            :class "item-value-boolean-input")))
+    (set-on-value-update owner item-name
+                         (lambda (updated-item-state)
+                           (let ((updated-value (gethash "value" updated-item-state)))
+                             (log:debug "Setting value: ~a on component: ~a"
+                                        updated-value toggle-input)
+                             (%set-checked toggle-input updated-value))))
+    (%set-checked toggle-input value)
+    (set-on-change toggle-input
+                   (lambda (obj)
+                     (let ((current-state (checkedp obj)))
+                       (log:debug "Toggled (change): ~a = ~a" obj current-state)
+                       (update-item-value item-name
+                                          (item-ext:item-value-ext-to-internal current-state)))))
+    toggle-input))
+
+(defun %create-value-display (owner parent item-name value type-hint &optional format)
+  "A read-only formatted display of the item's value."
+  (let ((value-div (create-div parent :class "item-value-display"
+                                      :content (%format-widget-value value type-hint format))))
+    (set-on-value-update owner item-name
+                         (lambda (updated-item-state)
+                           (let ((updated-value (gethash "value" updated-item-state)))
+                             (log:debug "Setting value: ~a on component: ~a"
+                                        updated-value value-div)
+                             (setf (text value-div)
+                                   (%format-widget-value updated-value type-hint format)))))
+    value-div))
+
+(defun %create-text-input-control (owner parent item-name value)
+  "A text field writing its value to the item on change."
+  (let ((input (create-form-element parent "text"
+                                    :class "widget-text-input"
+                                    :value (or (%ext-value value) ""))))
+    (set-on-value-update owner item-name
+                         (lambda (updated-item-state)
+                           (let ((updated-value (%ext-value (gethash "value" updated-item-state))))
+                             (setf (value input) (or updated-value "")))))
+    (set-on-change input
+                   (lambda (obj)
+                     (update-item-value item-name
+                                        (item-ext:item-value-ext-to-internal (value obj)))))
+    input))
+
+(defun %create-number-input-control (owner parent item-name value type-hint
+                                     &key min max step)
+  "A number entry field writing its parsed value to the item on change."
+  (let ((input (create-form-element parent "number"
+                                    :class "widget-number-input"
+                                    :value (%format-value (%ext-value value) type-hint))))
+    (when min (setf (minimum input) min))
+    (when max (setf (maximum input) max))
+    (when step (setf (attribute input "step") step))
+    (set-on-value-update owner item-name
+                         (lambda (updated-item-state)
+                           (setf (value input)
+                                 (%format-value (%ext-value (gethash "value" updated-item-state))
+                                                type-hint))))
+    (set-on-change input
+                   (lambda (obj)
+                     (when-let ((num (%parse-number (value obj) type-hint)))
+                       (update-item-value item-name num))))
+    input))
+
+(defun %create-slider-control (owner parent item-name value type-hint
+                               &key min max step)
+  "A range slider with a value label to its left, writing its value to the
+item on change.  Some browsers (Safari) fire change events continuously while
+dragging; each one round-trips through the item and echoes back an update.
+Applying such an echo mid-drag makes the thumb fight the user, so a
+client-side pointer-active flag suppresses echoes while dragging, and the
+label updates instantly from client-side input events instead."
+  (let* ((wrapper (create-div parent :class "widget-slider-wrap"))
+         (value-div (create-div wrapper :class "slider-value"
+                                        :content (%format-value (%ext-value value) type-hint)))
+         (input (create-form-element wrapper "range"
+                                     :class "widget-slider")))
+    (setf (minimum input) min)
+    (setf (maximum input) max)
+    (setf (attribute input "step") step)
+    (setf (value input) (%js-number (or (%ext-value value) min)))
+    ;; live label while dragging + the drag-active flag, all client-side
+    (jquery-execute input
+                    (format nil "on('pointerdown touchstart',function(){this.dataset.act='1';}).on('pointerup touchend blur',function(){delete this.dataset.act;}).on('input',function(){$('#~a').text(this.value);})"
+                            (html-id value-div)))
+    (set-on-value-update owner item-name
+                         (lambda (updated-item-state)
+                           (let ((updated-value (%ext-value (gethash "value" updated-item-state))))
+                             (when (numberp updated-value)
+                               (setf (text value-div)
+                                     (%format-value updated-value type-hint))
+                               (js-execute input
+                                           (format nil "var el=document.getElementById('~a'); if(el && !el.dataset.act){el.value='~a';}"
+                                                   (html-id input)
+                                                   (%js-number updated-value)))))))
+    (set-on-change input
+                   (lambda (obj)
+                     (when-let ((num (%parse-number (value obj) type-hint)))
+                       (update-item-value item-name num))))
+    wrapper))
+
+(defun %create-setpoint-control (owner parent item-name value type-hint
+                                 &key min max step)
+  "A +/- stepper for a number item.  The displayed value only changes when the
+item change comes back from the server, so it always reflects the item state."
+  (let* ((wrapper (create-div parent :class "widget-setpoint"))
+         (dec-btn (create-button wrapper :class "setpoint-btn" :content "&minus;"))
+         (value-div (create-div wrapper :class "setpoint-value"
+                                        :content (%format-value (%ext-value value) type-hint)))
+         (inc-btn (create-button wrapper :class "setpoint-btn" :content "+"))
+         (current (let ((v (%ext-value value)))
+                    (if (numberp v) v (or min 0)))))
+    (flet ((step-by (direction)
+             (let ((new (+ current (* direction step))))
+               (when min (setf new (max new min)))
+               (when max (setf new (min new max)))
+               (when (string= "INTEGER" type-hint)
+                 (setf new (round new)))
+               (update-item-value item-name new))))
+      (set-on-click dec-btn (lambda (obj)
+                              (declare (ignore obj))
+                              (step-by -1)))
+      (set-on-click inc-btn (lambda (obj)
+                              (declare (ignore obj))
+                              (step-by 1))))
+    (set-on-value-update owner item-name
+                         (lambda (updated-item-state)
+                           (let ((updated-value (%ext-value (gethash "value" updated-item-state))))
+                             (when (numberp updated-value)
+                               (setf current updated-value))
+                             (setf (text value-div)
+                                   (%format-value updated-value type-hint)))))
+    wrapper))
+
+(defun %create-selection-control (owner parent item-name value choices)
+  "A dropdown writing the selected choice value to the item on change."
+  (let ((select (create-select parent :class "widget-selection")))
+    (dolist (choice choices)
+      (add-select-option select (car choice) (cdr choice)))
+    (when-let ((v (%ext-value value)))
+      (setf (value select) (format nil "~a" v)))
+    (set-on-value-update owner item-name
+                         (lambda (updated-item-state)
+                           (let ((updated-value (%ext-value (gethash "value" updated-item-state))))
+                             (setf (value select)
+                                   (if updated-value (format nil "~a" updated-value) "")))))
+    (set-on-change select
+                   (lambda (obj)
+                     (update-item-value item-name
+                                        (item-ext:item-value-ext-to-internal (value obj)))))
+    select))
+
+;; ---------------------------------------------------------------------------
+;; widget rendering
+;; ---------------------------------------------------------------------------
+
+(defgeneric render-widget (widget ctx parent)
+  (:documentation "Renders WIDGET into the CLOG PARENT container.
+CTX is the connection's `nav-context'; it owns the registered value-update
+callbacks and carries navigation state."))
+
+(defun %resolve-item-ht (widget)
+  "Resolves the widget's item symbol to the item's hash-table representation,
+or `nil' when no such item is defined."
+  (when-let ((item (hab:get-item (page:item-widget-item-id widget))))
+    (item-ext:item-to-ht item)))
+
+(defun %render-missing (parent kind id)
+  (log:warn "Unknown ~a referenced by widget: ~a" kind id)
+  (create-div parent :class "widget widget-missing"
+                     :content (format nil "Unknown ~a: ~a" kind id)))
+
+(defun %render-item-row (widget ctx parent css-class control-fn)
+  "Renders the common row (label + control) for an item-bound widget.
+CONTROL-FN is called with the row container and the item hash-table."
+  (let ((item-ht (%resolve-item-ht widget)))
+    (if (null item-ht)
+        (%render-missing parent "item" (page:item-widget-item-id widget))
+        (let ((row (create-div parent :class (format nil "widget ~a" css-class))))
+          (create-div row :class "widget-label"
+                          :content (or (page:item-widget-label widget)
+                                       (gethash "label" item-ht)))
+          (funcall control-fn row item-ht)
+          row))))
+
+(defmacro %with-item-state ((item-ht name value type-hint) &body body)
+  "Binds NAME, VALUE and TYPE-HINT from the item hash-table ITEM-HT."
+  (let ((ht (gensym "HT")))
+    `(let* ((,ht ,item-ht)
+            (,name (gethash "name" ,ht))
+            (,value (gethash "value" (gethash "item-state" ,ht)))
+            (,type-hint (gethash "type-hint" ,ht)))
+       (declare (ignorable ,value ,type-hint))
+       ,@body)))
+
+(defmethod render-widget ((w page:value-display) ctx parent)
+  (%render-item-row w ctx parent "widget-value"
+                    (lambda (row item-ht)
+                      (%with-item-state (item-ht name value type-hint)
+                        (if (and (string= "BOOLEAN" type-hint)
+                                 (null (page:value-display-format w)))
+                            (%create-boolean-display ctx row name value)
+                            (%create-value-display ctx row name value type-hint
+                                                   (page:value-display-format w)))))))
+
+(defmethod render-widget ((w page:toggle) ctx parent)
+  (%render-item-row w ctx parent "widget-toggle"
+                    (lambda (row item-ht)
+                      (%with-item-state (item-ht name value type-hint)
+                        (%create-toggle-control ctx row name value)))))
+
+(defmethod render-widget ((w page:text-input) ctx parent)
+  (%render-item-row w ctx parent "widget-text"
+                    (lambda (row item-ht)
+                      (%with-item-state (item-ht name value type-hint)
+                        (%create-text-input-control ctx row name value)))))
+
+(defmethod render-widget ((w page:number-input) ctx parent)
+  (%render-item-row w ctx parent "widget-number"
+                    (lambda (row item-ht)
+                      (%with-item-state (item-ht name value type-hint)
+                        (%create-number-input-control ctx row name value type-hint
+                                                      :min (page:number-input-min w)
+                                                      :max (page:number-input-max w)
+                                                      :step (page:number-input-step w))))))
+
+(defmethod render-widget ((w page:slider) ctx parent)
+  (%render-item-row w ctx parent "widget-slider-row"
+                    (lambda (row item-ht)
+                      (%with-item-state (item-ht name value type-hint)
+                        (%create-slider-control ctx row name value type-hint
+                                                :min (page:slider-min w)
+                                                :max (page:slider-max w)
+                                                :step (page:slider-step w))))))
+
+(defmethod render-widget ((w page:setpoint) ctx parent)
+  (%render-item-row w ctx parent "widget-setpoint-row"
+                    (lambda (row item-ht)
+                      (%with-item-state (item-ht name value type-hint)
+                        (%create-setpoint-control ctx row name value type-hint
+                                                  :min (page:setpoint-min w)
+                                                  :max (page:setpoint-max w)
+                                                  :step (page:setpoint-step w))))))
+
+(defmethod render-widget ((w page:selection) ctx parent)
+  (%render-item-row w ctx parent "widget-selection-row"
+                    (lambda (row item-ht)
+                      (%with-item-state (item-ht name value type-hint)
+                        (%create-selection-control ctx row name value
+                                                   (page:selection-choices w))))))
+
+(defmethod render-widget ((w page:section) ctx parent)
+  (let ((card (create-div parent :class "page-section")))
+    (create-div card :class "page-section-header"
+                     :content (page:section-label w))
+    (let ((body (create-div card :class "page-section-body")))
+      (dolist (child (page:section-children w))
+        (render-widget child ctx body)))
+    card))
+
+(defmethod render-widget ((w page:page-link) ctx parent)
+  (let ((target (page:get-page (page:page-link-page-id w))))
+    (if (null target)
+        (%render-missing parent "page" (page:page-link-page-id w))
+        (let ((link-div (create-div parent :class "page-nav-link"
+                                           :content (or (page:page-link-label w)
+                                                        (page:page-label target)))))
+          (set-on-click link-div
+                        (lambda (obj)
+                          (declare (ignore obj))
+                          (navigate-to-page target ctx)))
+          link-div))))
+
+(defmethod render-widget ((w page:itemgroup-ref) ctx parent)
+  (let* ((group-id (page:itemgroup-ref-group-id w))
+         (group (hab:get-itemgroup group-id)))
+    (if (null group)
+        (%render-missing parent "itemgroup" group-id)
+        (let ((grid (create-div parent :class "itemgroups-container")))
+          (%render-itemgroup ctx (itemgroup-ext:itemgroup-to-ht group) grid)
+          grid))))
+
+;; ---------------------------------------------------------------------------
+;; chart widget
+;; ---------------------------------------------------------------------------
+
+(defmethod render-widget ((w page:chart) ctx parent)
+  (let ((item (hab:get-item (page:item-widget-item-id w))))
+    (if (null item)
+        (%render-missing parent "item" (page:item-widget-item-id w))
+        (let ((row (create-div parent :class "widget widget-chart")))
+          (create-div row :class "widget-label"
+                          :content (or (page:item-widget-label w)
+                                       (item:label item)))
+          (let ((plot-div (create-div row :class "chart-plot"))
+                (persistence (%chart-persistence w)))
+            (if (null persistence)
+                (progn
+                  (log:warn "No historic persistence for chart on item: ~a"
+                            (page:item-widget-item-id w))
+                  (create-div plot-div :class "chart-empty"
+                                       :content "No history available"))
+                (%load-and-render-chart ctx w item plot-div persistence)))
+          row))))
+
+(defun %chart-persistence (w)
+  "The persistence to load chart data from: the one named on the widget, or
+the first defined historic persistence."
+  (if (page:chart-persistence w)
+      (hab:get-persistence (page:chart-persistence w))
+      (when hab:*persistences*
+        (loop :for p :being :the :hash-value :of hab:*persistences*
+              :if (typep p 'persp:base-historic-persistence)
+                :return p))))
+
+(defun %load-and-render-chart (ctx w item plot-div persistence)
+  (future:fcompleted
+      (persp:fetch persistence item (page:chart-range w))
+      (result)
+    (if (and (consp result) (eq :error (car result)))
+        (progn
+          (log:warn "Chart data fetch failed for item ~a: ~a"
+                    (item:name item) (cdr result))
+          (create-div plot-div :class "chart-empty"
+                               :content "Failed to load history"))
+        (%render-uplot ctx w (item:name item) plot-div result))))
+
+(defun %universal-to-unix (universal-ts)
+  (local-time:timestamp-to-unix (local-time:universal-to-timestamp universal-ts)))
+
+(defun %chart-y-value (ext-value)
+  "Maps an external item value to a uPlot y-value: numbers pass through,
+booleans chart as 1/0, anything else as a gap (null)."
+  (cond
+    ((numberp ext-value) ext-value)
+    ((eq ext-value t) 1)
+    ((null ext-value) 0)
+    (t "null")))
+
+(defun %js-number (value)
+  "Formats VALUE as a JS number literal.  Floats print via ~f: with ~a, a
+float whose type differs from `*read-default-float-format*' (which varies by
+thread) prints with a CL reader exponent marker (\"87.0f0\", \"1.5d8\") that
+JS cannot parse — and e.g. a range input silently reverts to its default when
+assigned such a string."
+  (cond
+    ((integerp value) (format nil "~a" value))
+    ((realp value) (format nil "~f" value))
+    (t value)))
+
+(defun %js-escape (str)
+  "Escapes backslashes and single quotes for embedding STR in a JS string."
+  (with-output-to-string (out)
+    (loop :for ch :across (or str "")
+          :do (progn
+                (when (or (char= ch #\\) (char= ch #\'))
+                  (write-char #\\ out))
+                (write-char ch out)))))
+
+(defun %chart-points (persisted-items)
+  "Extracts (timestamps values) as two lists of JS literals from the persisted
+items, skipping entries without a proper timestamp (e.g. aggregates)."
+  (let ((timestamps '())
+        (values '()))
+    (dolist (p persisted-items)
+      (let ((ts (persp:persisted-item-timestamp p)))
+        (when (integerp ts)
+          (push (%universal-to-unix ts) timestamps)
+          (push (%js-number
+                 (%chart-y-value
+                  (item-ext:item-value-internal-to-ext
+                   (%ext-value (persp:persisted-item-value p)))))
+                values))))
+    (list (nreverse timestamps) (nreverse values))))
+
+(defun %uplot-init-js (plot-id label chart-type timestamps values)
+  "The JS that instantiates the uPlot chart once the uPlot library is loaded."
+  (format nil "(function() {
+  function init() {
+    if (!window.uPlot) { setTimeout(init, 150); return; }
+    var el = document.getElementById('~a');
+    if (!el) { return; }
+    var data = [[~{~a~^,~}], [~{~a~^,~}]];
+    var opts = {
+      width: el.clientWidth || 600,
+      height: 220,
+      series: [
+        {},
+        { label: '~a', stroke: '#0d6efd', fill: 'rgba(13,110,253,0.08)'~a }
+      ]
+    };
+    window.chipiCharts = window.chipiCharts || {};
+    window.chipiCharts['~a'] = new uPlot(opts, data, el);
+  }
+  init();
+})();"
+          plot-id timestamps values (%js-escape label)
+          (if (eq chart-type :bar)
+              ", paths: uPlot.paths.bars({size: [0.6, 100]})"
+              "")
+          plot-id))
+
+(defun %render-uplot (ctx w item-name plot-div persisted-items)
+  (let ((plot-id (html-id plot-div))
+        (points (%chart-points persisted-items)))
+    (js-execute plot-div
+                (%uplot-init-js plot-id
+                                (or (page:item-widget-label w) item-name)
+                                (page:chart-type w)
+                                (first points)
+                                (second points)))
+    ;; live append on item change; timestamps in the update state are unix already
+    (set-on-value-update ctx item-name
+                         (lambda (updated-item-state)
+                           (let ((y (%chart-y-value
+                                     (%ext-value (gethash "value" updated-item-state))))
+                                 (ts (gethash "timestamp" updated-item-state)))
+                             (js-execute plot-div
+                                         (format nil "if (window.chipiCharts && window.chipiCharts['~a']) {
+  var c = window.chipiCharts['~a'];
+  c.data[0].push(~a); c.data[1].push(~a);
+  c.setData(c.data);
+}"
+                                                 plot-id plot-id ts (%js-number y))))))))
+
+;; ---------------------------------------------------------------------------
+;; page rendering / navigation
+;; ---------------------------------------------------------------------------
+
+(defun render-page (page ctx)
+  "Renders PAGE into the context's container, replacing previous content."
+  (log:debug "Rendering page: ~a" (page:page-id page))
+  (let ((container (nav-context-container ctx))
+        (body (nav-context-body ctx)))
+    (setf (inner-html container) "")
+    (clear-value-update-funs ctx)
+    (when (plusp (nav-context-depth ctx))
+      (%render-back-button container))
+    (when (page:page-title page)
+      (create-div container :class "header-line"
+                            :content (page:page-title page)))
+    (setf (title (html-document body))
+          (or (page:page-title page) (page:page-label page)))
+    (dolist (w (page:page-children page))
+      (render-widget w ctx container))))
+
+(defun navigate-to-page (page ctx)
+  "Navigates the connection to PAGE: pushes the page's path onto the browser
+history and renders it.  Browser back (or the rendered back button, which just
+calls history.back()) returns via the popstate handler in `chipi-ui.main'."
+  (incf (nav-context-depth ctx))
+  (url-push-state (window (nav-context-body ctx)) (page:page-path page))
+  (render-page page ctx))
+
+(defun %render-back-button (container)
+  (let ((back-btn (create-button container :class "back-button"
+                                           :content "&larr; Back")))
+    (set-on-click back-btn
+                  (lambda (obj)
+                    (js-execute obj "history.back()")))))
+
+(defun render-not-found (ctx path)
+  "Renders a 'no page defined' view with links to all defined pages."
+  (let ((container (nav-context-container ctx)))
+    (setf (inner-html container) "")
+    (clear-value-update-funs ctx)
+    (create-div container :class "header-line" :content "Page not found")
+    (create-div container :class "not-found-path"
+                          :content (format nil "No page is defined for ~a" path))
+    (let ((links (create-div container :class "page-nav-links")))
+      (dolist (p (page:get-pages))
+        (render-widget (page:page-link (page:page-id p)) ctx links)))))
+
+;; ---------------------------------------------------------------------------
+;; auto-generated overview (fallback when no page claims the root path)
+;; ---------------------------------------------------------------------------
+
+(defun render-overview (ctx)
+  "Renders the overview page with all itemgroups."
+  (let ((container (nav-context-container ctx)))
+    (setf (inner-html container) "")
+    (clear-value-update-funs ctx)
+    (create-div container :class "header-line"
+                          :content "Chipi Home Automation Dashboard")
+    (let* ((groups (retrieve-top-level-itemgroups))
+           (link-groups (remove-if-not #'%itemgroup-link-p groups))
+           (card-groups (remove-if #'%itemgroup-link-p groups)))
+      ;; Render link groups as a list if any exist
+      (when link-groups
+        (let ((links-container (create-div container :class "itemgroup-links-container")))
+          (dolist (ig link-groups)
+            (%render-itemgroup-link ctx ig links-container
+                                    (lambda () (render-overview ctx))))))
+      ;; Render card groups in the grid
+      (when card-groups
+        (let ((itemgroups-container (create-div container :class "itemgroups-container")))
+          (dolist (ig card-groups)
+            (%render-itemgroup ctx ig itemgroups-container)))))))
+
+(defun %render-itemgroup-link (ctx itemg parent back-fn)
+  "Renders an itemgroup as a clickable link."
+  (let ((link-div (create-div parent :class "itemgroup-link"
+                                     :content (gethash "label" itemg))))
+    (set-on-click link-div
+                  (lambda (obj)
+                    (declare (ignore obj))
+                    (%show-itemgroup-detail ctx itemg back-fn)))))
+
+(defun %show-itemgroup-detail (ctx itemg back-fn)
+  "Shows a detail page for a single itemgroup with a back button.
+Shows child groups (as links or cards) above direct items."
+  (let ((container (nav-context-container ctx)))
+    (setf (inner-html container) "")
+    (clear-value-update-funs ctx)
+    (let ((back-btn (create-button container
+                                   :class "back-button"
+                                   :content "&larr; Back")))
+      (set-on-click back-btn
+                    (lambda (obj)
+                      (declare (ignore obj))
+                      (funcall back-fn))))
+    (create-div container :class "group-header-line"
+                          :content (gethash "label" itemg))
+    ;; Show child groups if any
+    (let* ((children (coerce (gethash "children" itemg) 'list))
+           (link-children (remove-if-not #'%itemgroup-link-p children))
+           (card-children (remove-if #'%itemgroup-link-p children)))
+      (when link-children
+        (let ((links-container (create-div container :class "itemgroup-links-container")))
+          (dolist (child link-children)
+            (%render-itemgroup-link ctx child links-container
+                                    (lambda ()
+                                      (%show-itemgroup-detail ctx itemg back-fn))))))
+      (when card-children
+        (let ((itemgroups-container (create-div container :class "itemgroups-container")))
+          (dolist (child card-children)
+            (%render-itemgroup ctx child itemgroups-container)))))
+    ;; Show direct items as card (only if there are items)
+    (let ((items (gethash "items" itemg)))
+      (when (and items (> (length items) 0))
+        (let ((itemgroups-container (create-div container :class "itemgroups-container")))
+          (%render-itemgroup ctx itemg itemgroups-container))))))
+
+(defun %render-itemgroup (ctx itemg parent)
+  (let* ((col-div (create-div parent :class "itemgroup-column"))
+         (card-div (create-div col-div :class "itemgroup-card")))
+    (create-div card-div :class "itemgroup-header"
+                         :content (gethash "label" itemg))
+    (let ((items-container (create-div card-div :class "items-container")))
+      (map nil (lambda (item)
+                 (%render-item ctx item items-container))
+           (gethash "items" itemg)))))
+
+(defun %render-item (ctx item parent)
+  (let* ((item-div (create-div parent :class "item-container"))
+         (item-label (gethash "label" item))
+         (item-name (gethash "name" item))
+         (item-state (gethash "item-state" item))
+         (type-hint (gethash "type-hint" item))
+         (tags (gethash "tags" item))
+         (ui-type (when (and tags (hash-table-p tags))
+                    (gethash :ui-type tags))))
+
+    (create-div item-div :class "item-label"
+                         :content item-label)
+
+    (create-div item-div :class (format nil "item-type-badge ~a" (string-downcase type-hint))
+                         :content (or ui-type (%format-type-hint type-hint)))
+
+    (create-div item-div :class "item-name"
+                         :content item-name)
+
+    (%render-item-value ctx item-name (gethash "value" item-state) type-hint tags item-div)
+
+    (let ((ts-div
+            (create-div item-div :class "item-timestamp-display"
+                                 :content (%format-timestamp (gethash "timestamp" item-state)))))
+      (set-on-value-update ctx item-name
+                           (lambda (updated-item-state)
+                             (setf (text ts-div)
+                                   (%format-timestamp
+                                    (gethash "timestamp" updated-item-state))))))))
+
+(defun %render-item-value (ctx item-name item-value type-hint tags parent)
+  (cond
+    ((and (string= "BOOLEAN" type-hint) (%ui-readonly-p tags))
+     (%create-boolean-display ctx parent item-name item-value))
+    ((string= "BOOLEAN" type-hint)
+     (%create-toggle-control ctx parent item-name item-value))
+    (t
+     (%create-value-display ctx parent item-name item-value type-hint))))
