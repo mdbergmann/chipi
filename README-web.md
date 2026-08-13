@@ -206,27 +206,108 @@ API key.
 
 # Chipi UI
 
-Chipi UI is a responsive UI, based on CLOG and Bootstrap 5 with realtime updates of values.
+Chipi UI is a responsive web UI, based on CLOG and Bootstrap 5, with realtime
+updates of values. It offers two modes that can be combined:
+
+* an **auto-generated overview** at `/` that renders all itemgroups and items,
+  driven by UI tags (see below) — zero configuration;
+* **pages** declared with `defpage`: explicitly composed views built from
+  widgets (toggles, inputs, sliders, charts, …), each served at its own URL —
+  a wall-panel tablet bookmarks `/wall`, a phone `/mobile`, and so on.
 
 Example of setup:
 
 ```lisp
 (hab:defconfig "chipi"
-  ;; 1 – initialises runtime, actor system, timers …
-  ;; 2 – Chipi-API specific environment
-  (api-env:init
-    :apikey-store (apikey-store:make-simple-file-backend) ; or *memory-backend* for testing
-    :apikey-lifetime (ltd:duration :day 100))
-
-  ;; 3 – HTTP server on port 8765
-  ;;(api:start)
-  
-  ;; 4 - UI
-  ;; API server is not needed for UI, but api-env is (eventually, because we want API key security)
-  ;; ATM it's WIP and doesn't need that either
-  (ui:start :host "your-host" :port <your-port>)
-  )
+  ;; neither api-env:init nor api:start are required for the UI
+  (ui:start :host "localhost" :port 8080))
 ```
+
+For a complete, runnable example (items, pages, a chart with demo data) see
+[example-web.lisp](./example-web.lisp).
+
+## Pages
+
+Pages are defined with the `defpage` macro from package `chipi-ui.page`
+(nickname `page`), typically via `(:use :cl :hab :page)` in the config
+package:
+
+```lisp
+(defpage 'wall-panel "Wall panel"
+  :path "/wall"                    ; optional; defaults to "/<id>" downcased
+  :title "Ground floor"            ; optional page heading + browser tab title
+  (section "Lights"
+    (toggle 'switch1)
+    (value 'motion-sensor :label "Motion"))
+  (section "Climate"
+    (value 'outside-temp :format "~,1f °C")
+    (setpoint 'target-temp :min 15.0 :max 25.0 :step 0.5)
+    (chart 'outside-temp :range '(:hours 6)))
+  (page-link 'cellar))
+
+(defpage 'cellar "Cellar"
+  ;; embeds an existing itemgroup, rendered like on the overview
+  (itemgroup-ref 'plugs))
+```
+
+Semantics:
+
+* The page `label` is the short name used by `page-link`s pointing at the
+  page; `:title`, when given, renders as the page heading and becomes the
+  browser tab title. Without `:title` no heading is rendered (useful for
+  space-constrained panels).
+* Every page is directly reachable (deep-linkable) at its `:path`. A page
+  with `:path "/"` replaces the auto-generated overview; without one the
+  overview stays on `/`.
+* `page-link` navigation pushes browser history: back/forward work, a back
+  button is rendered on navigated pages, and a reload stays on the current
+  page.
+* Re-defining a page (same id) replaces it, like the other `def*` macros.
+* Widgets are ordinary values, so pages can be composed programmatically:
+
+```lisp
+(apply #'section "All temperatures"
+       (mapcar (lambda (id) (value id :format "~,1f °C"))
+               '(cellar-temp boiler-temp freezer-temp)))
+```
+
+### Widgets
+
+| Widget | Item type | Description |
+|--------|-----------|-------------|
+| `(value item &key label format)` | any | Read-only display; `format` is a CL format string (e.g. `"~,1f °C"`); booleans render as ON/OFF |
+| `(toggle item &key label)` | boolean | Switch control |
+| `(text-input item &key label)` | string | Text field |
+| `(number-input item &key label min max step)` | integer/float | Number entry field |
+| `(slider item &key label min max step)` | integer/float | Slider with a live value label (defaults 0–100, step 1) |
+| `(setpoint item &key label min max step)` | integer/float | Stepper with −/+ buttons, e.g. for target temperatures |
+| `(selection item &key label choices)` | string | Dropdown; `choices` is an alist of `(value . label)` |
+| `(chart item &key label type range persistence)` | number/boolean | History chart (see below) |
+| `(section label &rest widgets)` | — | Titled card grouping widgets |
+| `(page-link page-id &key label)` | — | Navigation link to another page |
+| `(itemgroup-ref group-id)` | — | Embeds an itemgroup as an overview-style card |
+
+The widget `label` always defaults to the item's own label. Unknown item or
+page references render an inline "Unknown …" placeholder instead of breaking
+the page.
+
+### Charts
+
+`chart` plots an item's history from a **historic persistence** (e.g.
+influx) and appends new values in realtime as the item changes.
+
+* `:range` — either a plist passed to `persp:make-relative-range`, e.g.
+  `'(:hours 6)` or `'(:days 1)` (default: last day), or a ready
+  `persp:range` object.
+* `:type` — `:line` (default) or `:bar`.
+* `:persistence` — the persistence id to load from; without it the first
+  defined historic persistence is used.
+* Items without a historic persistence render a "No history available"
+  placeholder. `example-web.lisp` contains a small in-memory historic
+  persistence that seeds demo data for the chart.
+* Charts are rendered with [uPlot](https://github.com/leeoniya/uPlot); uPlot
+  and Bootstrap are loaded from a CDN, so the *browser* needs internet
+  access (the server does not).
 
 ## UI Tags
 
@@ -260,8 +341,11 @@ Items and itemgroups support special tags that control how they are rendered in 
 (defitemgroup 'lights "Lights" :tags '((:ui-link)))
 ```
 
+These tags drive the auto-generated overview and `itemgroup-ref` widgets;
+explicit pages choose their widgets directly.
+
 ## Screenshot
 
 ![Screenshot](docs/ui/UI.png)
 
-This is mostly WIP. Still under investigation if this is a practical or not.
+The UI is under active development.
