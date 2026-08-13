@@ -41,6 +41,7 @@
                 :components
                 ((:file "all-tests")
                  (:file "sse-fake-stream")
+                 (:file "api-env-test")
                  (:file "apikey-store-test")
                  (:file "auth-controller-test")
                  (:file "items-controller-test")

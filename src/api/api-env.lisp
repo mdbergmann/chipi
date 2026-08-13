@@ -19,12 +19,17 @@
                                 :direction :output
                                 :if-exists :supersede)
             (with-standard-io-syntax
-              (prin1 apikey-store::*sign-key* file))))
+              ;; print as a plain list of octets: a specialized vector would
+              ;; print as #A(...) on sbcl/cmucl, an extension other
+              ;; implementations cannot read; a list is portable
+              (prin1 (coerce apikey-store::*sign-key* 'list) file))))
         (progn
           (log:info "Loading apikey sign key")
           (with-open-file (file apikey-sign-key
                                 :direction :input)
             (with-standard-io-syntax
+              ;; coerce accepts any sequence: new-style list files as well as
+              ;; legacy vector files (#A.../#...) written by older versions
               (setf apikey-store::*sign-key*
                     (coerce (read file)
                             '(simple-array (unsigned-byte 8) (*)))))))))
