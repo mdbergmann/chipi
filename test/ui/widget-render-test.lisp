@@ -272,6 +272,43 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
                                     (list (%series "sensor.temp" "Temp" 2.5)))
         (is-true (js~ "[null]]"))))))
 
+(test chart--collect-series-data--success
+  (with-fixture render-env ()
+    (with-mocks ()
+      (answer item:name "sensor.temp")
+      (answer persp:retrieve-range
+        (list (persp:make-persisted-item :value 1.5 :timestamp 3900000000)))
+      (multiple-value-bind (series-data any-ok)
+          (ui-renderer::%collect-chart-series-data
+           (page:chart 'temp) (list (list :mock-item "Temp")) :mock-persp)
+        (is-true any-ok)
+        (destructuring-bind (name label items) (first series-data)
+          (is (string= "sensor.temp" name))
+          (is (string= "Temp" label))
+          (is (= 1 (length items))))))))
+
+(test chart--collect-series-data--empty-series-is-ok
+  (with-fixture render-env ()
+    (with-mocks ()
+      (answer item:name "sensor.temp")
+      (answer persp:retrieve-range '())
+      (multiple-value-bind (series-data any-ok)
+          (ui-renderer::%collect-chart-series-data
+           (page:chart 'temp) (list (list :mock-item "Temp")) :mock-persp)
+        (is-true any-ok)
+        (is (null (third (first series-data))))))))
+
+(test chart--collect-series-data--all-failed
+  (with-fixture render-env ()
+    (with-mocks ()
+      (answer item:name "sensor.temp")
+      (answer persp:retrieve-range '(:error . "boom"))
+      (multiple-value-bind (series-data any-ok)
+          (ui-renderer::%collect-chart-series-data
+           (page:chart 'temp) (list (list :mock-item "Temp")) :mock-persp)
+        (is-false any-ok)
+        (is (null (third (first series-data))))))))
+
 (test widget--chart-multi-series-joins-tables-and-pads-live-appends
   (with-fixture render-env ()
     (with-captured-clog

@@ -503,32 +503,59 @@ the first defined historic persistence."
               :if (typep p 'persp:base-historic-persistence)
                 :return p))))
 
-(defun %load-and-render-chart (ctx w series plot-div persistence)
+(defun %fetch-chart-series (persistence item range)
+  "Fetches ITEM's history for RANGE by calling the persistence's
+`retrieve-range' directly on the calling thread instead of asking the
+persistence actor via `persp:fetch': an ask-future can intermittently lose
+its completion (the actor replies but the future never completes), which
+stalled chart rendering.  Historic persistence reads are side-effect free,
+so bypassing the actor mailbox is safe here.
+Returns (values persisted-items ok-p); nil/not-ok when the fetch errored or
+returned something unusable (each logged)."
+  (let ((result (handler-case (persp:retrieve-range persistence item range)
+                  (error (e) `(:error . ,e)))))
+    (cond
+      ((and (consp result) (eq :error (car result)))
+       (log:warn "Chart data fetch failed for item ~a: ~a"
+                 (item:name item) (cdr result))
+       nil)
+      ((listp result)
+       (values result t))
+      (t
+       (log:warn "Chart data fetch for item ~a returned: ~a"
+                 (item:name item) result)
+       nil))))
+
+(defun %collect-chart-series-data (w series persistence)
   "Fetches the history of every chart series -- a list of (item label) --
-then renders the plot.  Fetches are chained so no two run concurrently; a
-failed fetch charts that series empty.  SERIES-DATA handed on to the
-renderer is a list of (item-name series-label persisted-items)."
-  (labels ((fetch-next (remaining acc any-ok)
-             (if (null remaining)
-                 (if any-ok
-                     (%render-uplot ctx w plot-div (nreverse acc))
-                     (create-div plot-div :class "chart-empty"
-                                          :content "Failed to load history"))
-                 (destructuring-bind (item series-label) (first remaining)
-                   (future:fcompleted
-                       (persp:fetch persistence item (page:chart-range w))
-                       (result)
-                     (let ((failed (and (consp result) (eq :error (car result)))))
-                       (when failed
-                         (log:warn "Chart data fetch failed for item ~a: ~a"
-                                   (item:name item) (cdr result)))
-                       (fetch-next (rest remaining)
-                                   (cons (list (item:name item)
-                                               series-label
-                                               (unless failed result))
-                                         acc)
-                                   (or any-ok (not failed)))))))))
-    (fetch-next series '() nil)))
+blocking until all are in.  Returns (values series-data any-ok) where
+SERIES-DATA is a list of (item-name series-label persisted-items) and
+ANY-OK is t when at least one fetch succeeded."
+  (let ((any-ok nil))
+    (values
+     (loop :for (item series-label) :in series
+           :collect (list (item:name item)
+                          series-label
+                          (multiple-value-bind (items ok)
+                              (%fetch-chart-series
+                               persistence item (page:chart-range w))
+                            (when ok (setf any-ok t))
+                            items)))
+     any-ok)))
+
+(defun %load-and-render-chart (ctx w series plot-div persistence)
+  "Fetches the history of every chart series -- a list of (item label) -- in
+a background thread (so page rendering is not blocked), then renders the
+plot into PLOT-DIV."
+  (bt2:make-thread
+   (lambda ()
+     (multiple-value-bind (series-data any-ok)
+         (%collect-chart-series-data w series persistence)
+       (if any-ok
+           (%render-uplot ctx w plot-div series-data)
+           (create-div plot-div :class "chart-empty"
+                                :content "Failed to load history"))))
+   :name "chipi-ui-chart-loader"))
 
 (defun %universal-to-unix (universal-ts)
   (local-time:timestamp-to-unix (local-time:universal-to-timestamp universal-ts)))

@@ -216,9 +216,17 @@ we append the simple Flux aggregate fn."
 (defun %parse-csv-to-time-value-pairs (body)
   "Parses influx output csv.
 Returns a list of `(timestamp . value) pairs.
+An empty response body (the query yielded no data) parses to an empty list.
 Applied aggregate functions omit the _time column, in this case the timestamo in return as `NIL`."
-  (let* ((csv-lines (str:split (format nil "~c~c" #\return #\linefeed) body :omit-nulls t))
-         (csv-headers (str:split "," (first csv-lines) :omit-nulls t))
+  (let ((csv-lines (and body
+                        (str:split (format nil "~c~c" #\return #\linefeed) body
+                                   :omit-nulls t))))
+    (if (null csv-lines)
+        '()
+        (%parse-csv-lines csv-lines))))
+
+(defun %parse-csv-lines (csv-lines)
+  (let* ((csv-headers (str:split "," (first csv-lines) :omit-nulls t))
          (index-time (position "_time" csv-headers :test #'equal))
          (index-value (position "_value" csv-headers :test #'equal))
          (csv-columns

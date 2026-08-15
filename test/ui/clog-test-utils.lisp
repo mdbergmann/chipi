@@ -22,11 +22,13 @@ CLOG emits is pushed onto *CAPTURED* instead of going to a browser.  A
 connection-data hash is registered for +CONN-ID+ so event binding
 (set-on-click / set-on-change) takes the live path rather than no-opping, and
 a stub connection is registered so `clog:validp' reports the connection as
-alive."
+alive.
+*CAPTURED* is assigned globally (not rebound per-thread) so commands that
+renderers emit from background threads are captured too."
   (let ((save-exec (gensym "EXEC")) (save-query (gensym "QUERY")))
-    `(let ((*captured* nil)
-           (,save-exec (fdefinition 'clog-connection:execute))
+    `(let ((,save-exec (fdefinition 'clog-connection:execute))
            (,save-query (fdefinition 'clog-connection:query)))
+       (setf *captured* nil)
        (unwind-protect
             (progn
               (setf (fdefinition 'clog-connection:execute)

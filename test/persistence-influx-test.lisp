@@ -147,6 +147,15 @@
           (assert-fetched fetched-range))          
         ))))
 
+(test influx-persistence--range--no-data-yields-empty-list
+  "A range fetch for a measurement without any data yields an empty list
+instead of an error (influx responds with an empty body)."
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-cut))
+          (item (item:make-item 'never-persisted-item :type-hint 'float)))
+      (is (null (persp:retrieve-range cut item
+                                      (persp:make-relative-range :seconds 20)))))))
+
 (test influx-persistence--range--fetch-with-error--api-response-4xy
   "Fetch raises error, i.e. api response 4xy."
   (with-fixture init-destroy-env ()
