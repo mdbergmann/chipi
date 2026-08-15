@@ -37,6 +37,7 @@
            #:chart-type
            #:chart-range
            #:chart-persistence
+           #:chart-transform
            #:section
            #:section-label
            #:section-children
@@ -96,7 +97,8 @@
 (defstruct (chart (:include item-widget))
   (type :line)  ; :line or :bar
   range         ; persp:range
-  persistence)  ; persistence id; nil => first defined historic persistence
+  persistence   ; persistence id; nil => first defined historic persistence
+  transform)    ; nil, or 1-arg function applied to every charted value
 
 (defstruct (section (:include widget))
   label
@@ -253,16 +255,21 @@ Boolean items render as ON/OFF."
 item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
-(defun chart (item-id &key label (type :line) range persistence)
+(defun chart (item-id &key label (type :line) range persistence transform)
   "A history chart of the item's persisted values.
 `type' is :line or :bar.
 `range' is either a `persp:range' object or a plist passed to
 `persp:make-relative-range', e.g. '(:days 1) or '(:hours 6); defaults to
 the last day.
 `persistence' names the persistence to load from; without it the first
-defined historic persistence is used."
+defined historic persistence is used.
+`transform', when given, is a one-argument function applied to every charted
+value, historic and live alike -- e.g. converting a raw sensor reading to a
+display unit.  It is called with a number (booleans chart as 1/0) and must
+return a number."
   (make-chart :item-id item-id :label label :type type
               :persistence persistence
+              :transform transform
               :range (etypecase range
                        (null (persp:make-relative-range :days 1))
                        (cons (apply #'persp:make-relative-range range))

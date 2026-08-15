@@ -282,7 +282,7 @@ Semantics:
 | `(slider item &key label min max step)` | integer/float | Slider with a live value label (defaults 0–100, step 1) |
 | `(setpoint item &key label min max step)` | integer/float | Stepper with −/+ buttons, e.g. for target temperatures |
 | `(selection item &key label choices)` | string | Dropdown; `choices` is an alist of `(value . label)` |
-| `(chart item &key label type range persistence)` | number/boolean | History chart (see below) |
+| `(chart item &key label type range persistence transform)` | number/boolean | History chart (see below) |
 | `(section label &rest widgets)` | — | Titled card grouping widgets |
 | `(page-link page-id &key label)` | — | Navigation link to another page |
 | `(itemgroup-ref group-id)` | — | Embeds an itemgroup as an overview-style card |
@@ -302,6 +302,11 @@ influx) and appends new values in realtime as the item changes.
 * `:type` — `:line` (default) or `:bar`.
 * `:persistence` — the persistence id to load from; without it the first
   defined historic persistence is used.
+* `:transform` — a one-argument function applied to every charted value,
+  historic and live alike, e.g. to chart a raw sensor reading in a display
+  unit: `(chart 'level-sensor :transform (lambda (ma) (- (* 18.87 ma) 147.19)))`.
+  It is called with a number (booleans chart as 1/0) and must return a
+  number; a failing transform charts the point as a gap.
 * Items without a historic persistence render a "No history available"
   placeholder. `example-web.lisp` contains a small in-memory historic
   persistence that seeds demo data for the chart.

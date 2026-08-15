@@ -157,3 +157,11 @@
   (let ((c (chart 'temp :type :bar :persistence :influx)))
     (is (eq :bar (chart-type c)))
     (is (eq :influx (chart-persistence c)))))
+
+(test chart--transform-stored
+  (let* ((fn (lambda (v) (* 2 v)))
+         (c (chart 'temp :transform fn)))
+    (is (eq fn (chart-transform c)))))
+
+(test chart--transform-defaults-to-nil
+  (is (null (chart-transform (chart 'temp)))))

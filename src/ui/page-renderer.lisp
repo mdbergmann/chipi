@@ -518,6 +518,17 @@ booleans chart as 1/0, anything else as a gap (null)."
     ((null ext-value) 0)
     (t "null")))
 
+(defun %chart-transformed-y (transform ext-value)
+  "The uPlot y-value for EXT-VALUE with the chart's TRANSFORM applied.
+A failing transform charts the point as a gap instead of breaking the page."
+  (let ((y (%chart-y-value ext-value)))
+    (if (and transform (numberp y))
+        (handler-case (funcall transform y)
+          (error (c)
+            (log:warn "Chart transform failed for value ~a: ~a" y c)
+            "null"))
+        y)))
+
 (defun %js-number (value)
   "Formats VALUE as a JS number literal.  Floats print via ~f: with ~a, a
 float whose type differs from `*read-default-float-format*' (which varies by
@@ -538,7 +549,7 @@ assigned such a string."
                   (write-char #\\ out))
                 (write-char ch out)))))
 
-(defun %chart-points (persisted-items)
+(defun %chart-points (persisted-items transform)
   "Extracts (timestamps values) as two lists of JS literals from the persisted
 items, skipping entries without a proper timestamp (e.g. aggregates)."
   (let ((timestamps '())
@@ -548,7 +559,8 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
         (when (integerp ts)
           (push (%universal-to-unix ts) timestamps)
           (push (%js-number
-                 (%chart-y-value
+                 (%chart-transformed-y
+                  transform
                   (item-ext:item-value-internal-to-ext
                    (%ext-value (persp:persisted-item-value p)))))
                 values))))
@@ -583,7 +595,7 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
 
 (defun %render-uplot (ctx w item-name plot-div persisted-items)
   (let ((plot-id (html-id plot-div))
-        (points (%chart-points persisted-items)))
+        (points (%chart-points persisted-items (page:chart-transform w))))
     (js-execute plot-div
                 (%uplot-init-js plot-id
                                 (or (page:item-widget-label w) item-name)
@@ -593,7 +605,8 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
     ;; live append on item change; timestamps in the update state are unix already
     (set-on-value-update ctx item-name
                          (lambda (updated-item-state)
-                           (let ((y (%chart-y-value
+                           (let ((y (%chart-transformed-y
+                                     (page:chart-transform w)
                                      (%ext-value (gethash "value" updated-item-state))))
                                  (ts (gethash "timestamp" updated-item-state)))
                              (js-execute plot-div

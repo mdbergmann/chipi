@@ -197,12 +197,14 @@ chipi-ui.page-renderer."
                 (local-time:universal-to-timestamp universal)))
          (points (ui-renderer::%chart-points
                   (list (persp:make-persisted-item :value 1.5 :timestamp universal)
-                        (persp:make-persisted-item :value 'item:true :timestamp universal)))))
+                        (persp:make-persisted-item :value 'item:true :timestamp universal))
+                  nil)))
     (is (equal (list unix unix) (first points)))
     (is (equal (list "1.5" "1") (second points)))))
 
 (test %chart-points--skips-undefined-timestamps
   (let ((points (ui-renderer::%chart-points
-                 (list (persp:make-persisted-item :value 1.0 :timestamp :undefined)))))
+                 (list (persp:make-persisted-item :value 1.0 :timestamp :undefined))
+                 nil)))
     (is (null (first points)))
     (is (null (second points)))))

@@ -220,6 +220,57 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (is-true (js~ "No history available")))))))
 
 ;; ----------------------------------------------------------------------------
+;; chart -- uPlot data from history and live appends, with :transform.
+;; ----------------------------------------------------------------------------
+
+(defun %chart-live-update (item-name value)
+  "Dispatches a live value update as the item-change listener would."
+  (let ((state (make-hash-table :test #'equal)))
+    (setf (gethash "value" state) value
+          (gethash "timestamp" state) 1755000000)
+    (ui-renderer:call-item-value-update-fun item-name state)))
+
+(test widget--chart-renders-history-and-appends-live
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart 'temp)))
+        (ui-renderer::%render-uplot
+         :owner w "sensor.temp" (clog:create-div body)
+         (list (persp:make-persisted-item :value 2.5
+                                          :timestamp (get-universal-time))))
+        (is-true (js~ "new uPlot"))
+        (is-true (js~ "[2.5]]"))
+        (%chart-live-update "sensor.temp" 3.5)
+        (is-true (js~ "push(3.5)"))))))
+
+(test widget--chart-transform-applies-to-history-and-live
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart 'temp :transform (lambda (v) (* 10 v)))))
+        (ui-renderer::%render-uplot
+         :owner w "sensor.temp" (clog:create-div body)
+         (list (persp:make-persisted-item :value 2.5
+                                          :timestamp (get-universal-time))))
+        (is-true (js~ "[25.0]]"))
+        (%chart-live-update "sensor.temp" 3.5)
+        (is-true (js~ "push(35.0)"))))))
+
+(test widget--chart-failing-transform-charts-gap
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart 'temp :transform (lambda (v)
+                                              (declare (ignore v))
+                                              (error "boom")))))
+        (ui-renderer::%render-uplot
+         :owner w "sensor.temp" (clog:create-div body)
+         (list (persp:make-persisted-item :value 2.5
+                                          :timestamp (get-universal-time))))
+        (is-true (js~ "[null]]"))))))
+
+;; ----------------------------------------------------------------------------
 ;; page-link + navigation.
 ;; ----------------------------------------------------------------------------
 
