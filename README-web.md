@@ -282,7 +282,7 @@ Semantics:
 | `(slider item &key label min max step)` | integer/float | Slider with a live value label (defaults 0–100, step 1) |
 | `(setpoint item &key label min max step)` | integer/float | Stepper with −/+ buttons, e.g. for target temperatures |
 | `(selection item &key label choices)` | string | Dropdown; `choices` is an alist of `(value . label)` |
-| `(chart item &key label type range persistence transform)` | number/boolean | History chart (see below) |
+| `(chart item-or-items &key label type range persistence transform)` | number/boolean | History chart, one series per item (see below) |
 | `(section label &rest widgets)` | — | Titled card grouping widgets |
 | `(page-link page-id &key label)` | — | Navigation link to another page |
 | `(itemgroup-ref group-id)` | — | Embeds an itemgroup as an overview-style card |
@@ -293,8 +293,20 @@ the page.
 
 ### Charts
 
-`chart` plots an item's history from a **historic persistence** (e.g.
-influx) and appends new values in realtime as the item changes.
+`chart` plots one or more items' history from a **historic persistence**
+(e.g. influx) and appends new values in realtime as the items change.
+
+* Passing a list of items renders one series per item in a shared,
+  timestamp-aligned plot with a legend.  List elements are item ids or
+  `(item-id . "Series label")` conses; series labels default to the item
+  labels:
+
+```lisp
+(chart '((kessel-temp . "Kessel")
+         (puffer-temp . "Puffer")
+         boiler-temp)
+       :label "Heizung" :range '(:hours 12))
+```
 
 * `:range` — either a plist passed to `persp:make-relative-range`, e.g.
   `'(:hours 6)` or `'(:days 1)` (default: last day), or a ready

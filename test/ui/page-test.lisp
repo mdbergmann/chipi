@@ -165,3 +165,18 @@
 
 (test chart--transform-defaults-to-nil
   (is (null (chart-transform (chart 'temp)))))
+
+(test chart--single-item-makes-one-series
+  (let ((c (chart 'temp)))
+    (is (equal '((temp . nil)) (chart-series c)))
+    (is (eq 'temp (item-widget-item-id c)))))
+
+(test chart--item-list-normalized-to-series-with-labels
+  (let ((c (chart '(kessel (puffer . "Puffer oben") boiler))))
+    (is (equal '((kessel . nil) (puffer . "Puffer oben") (boiler . nil))
+               (chart-series c)))
+    (is (eq 'kessel (item-widget-item-id c)))))
+
+(test chart--single-labeled-cons-makes-one-series
+  (let ((c (chart '(temp . "Temperature"))))
+    (is (equal '((temp . "Temperature")) (chart-series c)))))

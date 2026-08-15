@@ -38,6 +38,7 @@
            #:chart-range
            #:chart-persistence
            #:chart-transform
+           #:chart-series
            #:section
            #:section-label
            #:section-children
@@ -45,6 +46,7 @@
            #:page-link-page-id
            #:page-link-label
            #:itemgroup-ref
+           #:itemgroup-ref-p
            #:itemgroup-ref-group-id
            ;; DSL
            #:defpage
@@ -98,7 +100,8 @@
   (type :line)  ; :line or :bar
   range         ; persp:range
   persistence   ; persistence id; nil => first defined historic persistence
-  transform)    ; nil, or 1-arg function applied to every charted value
+  transform     ; nil, or 1-arg function applied to every charted value
+  series)       ; list of (item-id . label-or-nil), one entry per series
 
 (defstruct (section (:include widget))
   label
@@ -255,8 +258,11 @@ Boolean items render as ON/OFF."
 item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
-(defun chart (item-id &key label (type :line) range persistence transform)
-  "A history chart of the item's persisted values.
+(defun chart (item-ids &key label (type :line) range persistence transform)
+  "A history chart of one or more items' persisted values.
+`item-ids' is a single item id, or a list whose elements are item ids or
+`(item-id . \"Series label\")' conses; each entry becomes one chart series
+(the series label defaults to the item's own label).
 `type' is :line or :bar.
 `range' is either a `persp:range' object or a plist passed to
 `persp:make-relative-range', e.g. '(:days 1) or '(:hours 6); defaults to
@@ -264,16 +270,26 @@ the last day.
 `persistence' names the persistence to load from; without it the first
 defined historic persistence is used.
 `transform', when given, is a one-argument function applied to every charted
-value, historic and live alike -- e.g. converting a raw sensor reading to a
-display unit.  It is called with a number (booleans chart as 1/0) and must
-return a number."
-  (make-chart :item-id item-id :label label :type type
-              :persistence persistence
-              :transform transform
-              :range (etypecase range
-                       (null (persp:make-relative-range :days 1))
-                       (cons (apply #'persp:make-relative-range range))
-                       (persp:range range))))
+value of every series, historic and live alike -- e.g. converting a raw
+sensor reading to a display unit.  It is called with a number (booleans
+chart as 1/0) and must return a number."
+  (let ((series (cond
+                  ((symbolp item-ids) (list (cons item-ids nil)))
+                  ;; a single (item-id . "label") cons
+                  ((and (consp item-ids) (stringp (cdr item-ids)))
+                   (list item-ids))
+                  (t (mapcar (lambda (s)
+                               (if (consp s) s (cons s nil)))
+                             item-ids)))))
+    (make-chart :item-id (car (first series))
+                :label label :type type
+                :persistence persistence
+                :transform transform
+                :series series
+                :range (etypecase range
+                         (null (persp:make-relative-range :days 1))
+                         (cons (apply #'persp:make-relative-range range))
+                         (persp:range range)))))
 
 (defun section (label &rest children)
   "A titled group of widgets, rendered as a card."

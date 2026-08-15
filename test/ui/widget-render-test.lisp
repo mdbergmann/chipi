@@ -230,15 +230,21 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (gethash "timestamp" state) 1755000000)
     (ui-renderer:call-item-value-update-fun item-name state)))
 
+(defun %series (item-name label &rest values)
+  "One %render-uplot series-data entry with one persisted item per value."
+  (list item-name label
+        (mapcar (lambda (v)
+                  (persp:make-persisted-item :value v
+                                             :timestamp (get-universal-time)))
+                values)))
+
 (test widget--chart-renders-history-and-appends-live
   (with-fixture render-env ()
     (with-captured-clog
       (let ((body (make-body))
             (w (page:chart 'temp)))
-        (ui-renderer::%render-uplot
-         :owner w "sensor.temp" (clog:create-div body)
-         (list (persp:make-persisted-item :value 2.5
-                                          :timestamp (get-universal-time))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
         (is-true (js~ "new uPlot"))
         (is-true (js~ "[2.5]]"))
         (%chart-live-update "sensor.temp" 3.5)
@@ -249,10 +255,8 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
     (with-captured-clog
       (let ((body (make-body))
             (w (page:chart 'temp :transform (lambda (v) (* 10 v)))))
-        (ui-renderer::%render-uplot
-         :owner w "sensor.temp" (clog:create-div body)
-         (list (persp:make-persisted-item :value 2.5
-                                          :timestamp (get-universal-time))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
         (is-true (js~ "[25.0]]"))
         (%chart-live-update "sensor.temp" 3.5)
         (is-true (js~ "push(35.0)"))))))
@@ -264,11 +268,25 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
             (w (page:chart 'temp :transform (lambda (v)
                                               (declare (ignore v))
                                               (error "boom")))))
-        (ui-renderer::%render-uplot
-         :owner w "sensor.temp" (clog:create-div body)
-         (list (persp:make-persisted-item :value 2.5
-                                          :timestamp (get-universal-time))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
         (is-true (js~ "[null]]"))))))
+
+(test widget--chart-multi-series-joins-tables-and-pads-live-appends
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart '(temp1 temp2))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "s.temp1" "Kessel" 1.5)
+                                          (%series "s.temp2" "Puffer" 2.5)))
+        (is-true (js~ "uPlot.join"))
+        (is-true (js~ "Kessel"))
+        (is-true (js~ "Puffer"))
+        (is-true (js~ "spanGaps"))
+        ;; a live update on the second series pads the first with null
+        (%chart-live-update "s.temp2" 5.5)
+        (is-true (js~ "c.data[1].push(null); c.data[2].push(5.5);"))))))
 
 ;; ----------------------------------------------------------------------------
 ;; page-link + navigation.
@@ -320,6 +338,54 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "header-line"))
         (is-true (js~ "Ground floor"))
         (is-false (js~ "back-button"))))))
+
+(defun %js-count (substr)
+  "How often SUBSTR appears in the captured JS."
+  (let ((s (captured-js)))
+    (loop :with start = 0
+          :for pos = (search substr s :start2 start)
+          :while pos
+          :count 1
+          :do (setf start (1+ pos)))))
+
+(defun %make-group-ht (&optional (label "Group"))
+  "A mock itemgroup hash-table shaped like itemgroup-ext:itemgroup-to-ht output."
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "label" ht) label
+          (gethash "items" ht) #())
+    ht))
+
+(test render-page--consecutive-itemgroup-refs-share-one-grid
+  (with-fixture render-env ()
+    (page:defpage 'rooms "Rooms" :path "/rooms"
+      (page:itemgroup-ref 'g1)
+      (page:itemgroup-ref 'g2)
+      (page:itemgroup-ref 'g3))
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (with-mocks ()
+          (answer hab:get-itemgroup :mock-group)
+          (answer itemgroup-ext:itemgroup-to-ht (%make-group-ht))
+          (ui-renderer:render-page (page:get-page 'rooms) ctx)
+          (is (= 1 (%js-count "itemgroups-container")))
+          (is (= 3 (%js-count "itemgroup-card"))))))))
+
+(test render-page--refs-split-by-other-widget-get-separate-grids
+  (with-fixture render-env ()
+    (page:defpage 'rooms "Rooms" :path "/rooms"
+      (page:itemgroup-ref 'g1)
+      (page:section "In between")
+      (page:itemgroup-ref 'g2))
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (with-mocks ()
+          (answer hab:get-itemgroup :mock-group)
+          (answer itemgroup-ext:itemgroup-to-ht (%make-group-ht))
+          (ui-renderer:render-page (page:get-page 'rooms) ctx)
+          (is (= 2 (%js-count "itemgroups-container")))
+          (is-true (js~ "In between")))))))
 
 (test render-page--without-title-renders-no-heading
   (with-fixture render-env ()

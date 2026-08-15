@@ -452,27 +452,36 @@ CONTROL-FN is called with the row container and the item hash-table."
                           (navigate-to-page target ctx)))
           link-div))))
 
-(defmethod render-widget ((w page:itemgroup-ref) ctx parent)
+(defun %render-itemgroup-ref (w ctx grid)
+  "Renders the itemgroup-ref W as a card into GRID (an itemgroups-container)."
   (let* ((group-id (page:itemgroup-ref-group-id w))
          (group (hab:get-itemgroup group-id)))
     (if (null group)
-        (%render-missing parent "itemgroup" group-id)
-        (let ((grid (create-div parent :class "itemgroups-container")))
-          (%render-itemgroup ctx (itemgroup-ext:itemgroup-to-ht group) grid)
-          grid))))
+        (%render-missing grid "itemgroup" group-id)
+        (%render-itemgroup ctx (itemgroup-ext:itemgroup-to-ht group) grid))))
+
+(defmethod render-widget ((w page:itemgroup-ref) ctx parent)
+  (let ((grid (create-div parent :class "itemgroups-container")))
+    (%render-itemgroup-ref w ctx grid)
+    grid))
 
 ;; ---------------------------------------------------------------------------
 ;; chart widget
 ;; ---------------------------------------------------------------------------
 
 (defmethod render-widget ((w page:chart) ctx parent)
-  (let ((item (hab:get-item (page:item-widget-item-id w))))
-    (if (null item)
+  (let ((series (loop :for (id . label) :in (page:chart-series w)
+                      :for item = (hab:get-item id)
+                      :if item
+                        :collect (list item (or label (item:label item)))
+                      :else
+                        :do (log:warn "Chart references unknown item: ~a" id))))
+    (if (null series)
         (%render-missing parent "item" (page:item-widget-item-id w))
         (let ((row (create-div parent :class "widget widget-chart")))
           (create-div row :class "widget-label"
                           :content (or (page:item-widget-label w)
-                                       (item:label item)))
+                                       (second (first series))))
           (let ((plot-div (create-div row :class "chart-plot"))
                 (persistence (%chart-persistence w)))
             (if (null persistence)
@@ -481,7 +490,7 @@ CONTROL-FN is called with the row container and the item hash-table."
                             (page:item-widget-item-id w))
                   (create-div plot-div :class "chart-empty"
                                        :content "No history available"))
-                (%load-and-render-chart ctx w item plot-div persistence)))
+                (%load-and-render-chart ctx w series plot-div persistence)))
           row))))
 
 (defun %chart-persistence (w)
@@ -494,17 +503,32 @@ the first defined historic persistence."
               :if (typep p 'persp:base-historic-persistence)
                 :return p))))
 
-(defun %load-and-render-chart (ctx w item plot-div persistence)
-  (future:fcompleted
-      (persp:fetch persistence item (page:chart-range w))
-      (result)
-    (if (and (consp result) (eq :error (car result)))
-        (progn
-          (log:warn "Chart data fetch failed for item ~a: ~a"
-                    (item:name item) (cdr result))
-          (create-div plot-div :class "chart-empty"
-                               :content "Failed to load history"))
-        (%render-uplot ctx w (item:name item) plot-div result))))
+(defun %load-and-render-chart (ctx w series plot-div persistence)
+  "Fetches the history of every chart series -- a list of (item label) --
+then renders the plot.  Fetches are chained so no two run concurrently; a
+failed fetch charts that series empty.  SERIES-DATA handed on to the
+renderer is a list of (item-name series-label persisted-items)."
+  (labels ((fetch-next (remaining acc any-ok)
+             (if (null remaining)
+                 (if any-ok
+                     (%render-uplot ctx w plot-div (nreverse acc))
+                     (create-div plot-div :class "chart-empty"
+                                          :content "Failed to load history"))
+                 (destructuring-bind (item series-label) (first remaining)
+                   (future:fcompleted
+                       (persp:fetch persistence item (page:chart-range w))
+                       (result)
+                     (let ((failed (and (consp result) (eq :error (car result)))))
+                       (when failed
+                         (log:warn "Chart data fetch failed for item ~a: ~a"
+                                   (item:name item) (cdr result)))
+                       (fetch-next (rest remaining)
+                                   (cons (list (item:name item)
+                                               series-label
+                                               (unless failed result))
+                                         acc)
+                                   (or any-ok (not failed)))))))))
+    (fetch-next series '() nil)))
 
 (defun %universal-to-unix (universal-ts)
   (local-time:timestamp-to-unix (local-time:universal-to-timestamp universal-ts)))
@@ -566,20 +590,40 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
                 values))))
     (list (nreverse timestamps) (nreverse values))))
 
-(defun %uplot-init-js (plot-id label chart-type timestamps values)
-  "The JS that instantiates the uPlot chart once the uPlot library is loaded."
+(defparameter *chart-series-colors*
+  '("#0d6efd" "#dc3545" "#198754" "#fd7e14" "#6f42c1"
+    "#20c997" "#d63384" "#0dcaf0" "#6c757d" "#ffc107")
+  "Stroke colors assigned to chart series in definition order (cycled).")
+
+(defun %uplot-series-def (label color chart-type single-p)
+  "The JS series definition object for one chart series.  A single series
+keeps the classic look (area fill, gaps stay gaps); with several series the
+gaps that timestamp-alignment introduces are spanned instead."
+  (format nil "{ label: '~a', stroke: '~a'~a~a }"
+          (%js-escape label) color
+          (if single-p ", fill: 'rgba(13,110,253,0.08)'" ", spanGaps: true")
+          (if (eq chart-type :bar)
+              ", paths: uPlot.paths.bars({size: [0.6, 100]})"
+              "")))
+
+(defun %uplot-init-js (plot-id chart-type series-defs tables)
+  "The JS that instantiates the uPlot chart once the uPlot library is loaded.
+SERIES-DEFS are JS series objects, TABLES one [[timestamps],[values]] JS
+literal per series; several tables are timestamp-aligned via uPlot.join."
   (format nil "(function() {
   function init() {
     if (!window.uPlot) { setTimeout(init, 150); return; }
     var el = document.getElementById('~a');
     if (!el) { return; }
-    var data = [[~{~a~^,~}], [~{~a~^,~}]];
+    var tables = [~{~a~^,~}];
+    var data = tables.length === 1 ? tables[0] : uPlot.join(tables);
     var opts = {
       width: el.clientWidth || 600,
       height: 220,
       series: [
         {},
-        { label: '~a', stroke: '#0d6efd', fill: 'rgba(13,110,253,0.08)'~a }
+        ~{~a~^,
+        ~}
       ]
     };
     window.chipiCharts = window.chipiCharts || {};
@@ -587,35 +631,56 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
   }
   init();
 })();"
-          plot-id timestamps values (%js-escape label)
-          (if (eq chart-type :bar)
-              ", paths: uPlot.paths.bars({size: [0.6, 100]})"
-              "")
-          plot-id))
+          plot-id tables series-defs plot-id))
 
-(defun %render-uplot (ctx w item-name plot-div persisted-items)
-  (let ((plot-id (html-id plot-div))
-        (points (%chart-points persisted-items (page:chart-transform w))))
-    (js-execute plot-div
-                (%uplot-init-js plot-id
-                                (or (page:item-widget-label w) item-name)
-                                (page:chart-type w)
-                                (first points)
-                                (second points)))
-    ;; live append on item change; timestamps in the update state are unix already
-    (set-on-value-update ctx item-name
-                         (lambda (updated-item-state)
-                           (let ((y (%chart-transformed-y
-                                     (page:chart-transform w)
-                                     (%ext-value (gethash "value" updated-item-state))))
-                                 (ts (gethash "timestamp" updated-item-state)))
-                             (js-execute plot-div
-                                         (format nil "if (window.chipiCharts && window.chipiCharts['~a']) {
+(defun %uplot-append-js (plot-id ts series-count series-idx y-literal)
+  "The JS that appends one live value: the new row carries Y-LITERAL in
+series SERIES-IDX (1-based) and null in every other series column."
+  (format nil "if (window.chipiCharts && window.chipiCharts['~a']) {
   var c = window.chipiCharts['~a'];
-  c.data[0].push(~a); c.data[1].push(~a);
+  c.data[0].push(~a);~{ c.data[~a].push(~a);~}
   c.setData(c.data);
 }"
-                                                 plot-id plot-id ts (%js-number y))))))))
+          plot-id plot-id ts
+          (loop :for i :from 1 :to series-count
+                :append (list i (if (= i series-idx) y-literal "null")))))
+
+(defun %render-uplot (ctx w plot-div series-data)
+  "Renders the uPlot chart for SERIES-DATA -- a list of
+(item-name series-label persisted-items) -- and registers a live-append
+callback per series item."
+  (let* ((plot-id (html-id plot-div))
+         (transform (page:chart-transform w))
+         (single-p (= 1 (length series-data)))
+         (series-count (length series-data))
+         (tables (loop :for (nil nil persisted-items) :in series-data
+                       :for points = (%chart-points persisted-items transform)
+                       :collect (format nil "[[~{~a~^,~}],[~{~a~^,~}]]"
+                                        (first points) (second points))))
+         (series-defs (loop :for (nil label nil) :in series-data
+                            :for idx :from 0
+                            :collect (%uplot-series-def
+                                      label
+                                      (nth (mod idx (length *chart-series-colors*))
+                                           *chart-series-colors*)
+                                      (page:chart-type w)
+                                      single-p))))
+    (js-execute plot-div
+                (%uplot-init-js plot-id (page:chart-type w) series-defs tables))
+    ;; live append on item change; timestamps in the update state are unix already
+    (loop :for (item-name nil nil) :in series-data
+          :for series-idx :from 1
+          :do (let ((idx series-idx))
+                (set-on-value-update
+                 ctx item-name
+                 (lambda (updated-item-state)
+                   (let ((y (%chart-transformed-y
+                             transform
+                             (%ext-value (gethash "value" updated-item-state))))
+                         (ts (gethash "timestamp" updated-item-state)))
+                     (js-execute plot-div
+                                 (%uplot-append-js plot-id ts series-count
+                                                   idx (%js-number y))))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; page rendering / navigation
@@ -635,8 +700,18 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
                             :content (page:page-title page)))
     (setf (title (html-document body))
           (or (page:page-title page) (page:page-label page)))
-    (dolist (w (page:page-children page))
-      (render-widget w ctx container))))
+    (%render-page-widgets ctx container (page:page-children page))))
+
+(defun %render-page-widgets (ctx parent widgets)
+  "Renders WIDGETS into PARENT.  Consecutive itemgroup-refs share one
+itemgroups-container so their cards flow into the responsive grid columns
+(several per row on wide screens) instead of stacking one per row."
+  (loop :while widgets
+        :do (if (page:itemgroup-ref-p (first widgets))
+                (let ((grid (create-div parent :class "itemgroups-container")))
+                  (loop :while (and widgets (page:itemgroup-ref-p (first widgets)))
+                        :do (%render-itemgroup-ref (pop widgets) ctx grid)))
+                (render-widget (pop widgets) ctx parent))))
 
 (defun navigate-to-page (page ctx)
   "Navigates the connection to PAGE: pushes the page's path onto the browser
