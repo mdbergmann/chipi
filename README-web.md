@@ -361,8 +361,15 @@ Items and itemgroups support special tags that control how they are rendered in 
 These tags drive the auto-generated overview and `itemgroup-ref` widgets;
 explicit pages choose their widgets directly.
 
-## Screenshot
+## Screenshots
 
-![Screenshot](docs/ui/UI.png)
+The auto-generated itemgroup overview:
+
+![Overview](docs/ui/UI.png)
+
+A `defpage`-designed page — the UI is freely designable with widgets and
+supports charts of item history:
+
+![Page with widgets and chart](docs/ui/UI2.png)
 
 The UI is under active development.
