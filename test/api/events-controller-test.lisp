@@ -43,7 +43,7 @@
           (client-id "test-client-123")
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 0)) ; Exit immediately after initial message
-      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:add-client (future:with-fut client-id))
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
@@ -67,7 +67,7 @@
           (client-id "test-client-456")
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 0)) ; Exit immediately after initial message
-      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:add-client (future:with-fut client-id))
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
@@ -84,7 +84,7 @@
           (client-id "test-client-789")
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 2)) ; Send initial message + 2 heartbeats
-      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:add-client (future:with-fut client-id))
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
@@ -110,7 +110,7 @@
           (client-id "test-client-normal")
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 0)) ; Exit immediately after initial message
-      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:add-client (future:with-fut client-id))
       (answer chipi-api.sse-manager:remove-client nil)
       
       ;; Test the function
@@ -129,7 +129,7 @@
           (client-id "test-client-error")
           (*heartbeat-sleep-time-s* 10.0)
           (*max-heartbeats* nil)) ; Unlimited heartbeats
-      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:add-client (future:with-fut client-id))
       (answer chipi-api.sse-manager:remove-client nil)
       
       (close-test-stream stream)
@@ -148,7 +148,7 @@
           (client-id "test-client-error")
           (*heartbeat-sleep-time-s* .01)
           (*max-heartbeats* nil)) ; Unlimited heartbeats
-      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:add-client (future:with-fut client-id))
       (answer chipi-api.sse-manager:remove-client nil)
 
       (let ((thread (bt2:make-thread
@@ -179,7 +179,7 @@
           (client-id "test-client-format")
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 1)) ; Send initial message + 1 heartbeat
-      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:add-client (future:with-fut client-id))
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
@@ -205,7 +205,7 @@
           (client-id "test-client-json")
           (*heartbeat-sleep-time-s* 0.001)
           (*max-heartbeats* 1)) ; Send initial message + 1 heartbeat
-      (answer chipi-api.sse-manager:add-client client-id)
+      (answer chipi-api.sse-manager:add-client (future:with-fut client-id))
       
       ;; Test the function
       (finishes (handle-sse-connection stream))
