@@ -39,6 +39,15 @@
            #:chart-persistence
            #:chart-transform
            #:chart-series
+           #:button
+           #:button-p
+           #:button-caption
+           #:button-label
+           #:button-action
+           #:button-group
+           #:button-group-p
+           #:button-group-label
+           #:button-group-buttons
            #:section
            #:section-label
            #:section-children
@@ -102,6 +111,15 @@
   persistence   ; persistence id; nil => first defined historic persistence
   transform     ; nil, or 1-arg function applied to every charted value
   series)       ; list of (item-id . label-or-nil), one entry per series
+
+(defstruct (button (:include widget))
+  caption    ; the button's own text
+  label      ; row label to the left of the button; nil => none
+  action)    ; function (or symbol naming one) called with no arguments
+
+(defstruct (button-group (:include widget))
+  label      ; row label to the left of the buttons; nil => none
+  buttons)   ; list of `button's, rendered side by side in one row
 
 (defstruct (section (:include widget))
   label
@@ -290,6 +308,38 @@ chart as 1/0) and must return a number."
                          (null (persp:make-relative-range :days 1))
                          (cons (apply #'persp:make-relative-range range))
                          (persp:range range)))))
+
+(defun button (caption action &key label)
+  "A push-button that calls ACTION when clicked.
+
+Unlike every other widget this one is not bound to an item: it triggers an
+action.  That is what momentary commands need -- a door opener, a shutter's
+Auf/Ab/Stopp -- because `item:set-value' is a no-op when the value does not
+change, so an item-bound control cannot send the same command twice.
+
+ACTION takes no arguments and its return value is ignored; an error it
+signals is logged and does not reach the browser connection.  A symbol naming
+a function is resolved on every click, so redefining that function (from the
+REPL, over Slynk) takes effect without re-evaluating the page:
+
+  (button \"Auf\" 'jal-wz-up)          ; late-bound, survives a redefinition
+  (button \"Auf\" #'jal-wz-up)         ; the function as of page definition
+
+`label' renders to the left of the button, like the label of an item widget;
+without it the button stands alone in its row."
+  (make-button :caption caption :action action :label label))
+
+(defun button-group (label &rest buttons)
+  "Several `button's sharing one row and one label, e.g. the Auf/Stopp/Ab of
+one shutter:
+
+  (button-group \"Wohnzimmer\"
+    (button \"Auf\" 'jal-wz-up)
+    (button \"Stopp\" 'jal-wz-stop)
+    (button \"Ab\" 'jal-wz-down))"
+  (dolist (b buttons)
+    (check-type b button))
+  (make-button-group :label label :buttons buttons))
 
 (defun section (label &rest children)
   "A titled group of widgets, rendered as a card."

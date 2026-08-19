@@ -430,6 +430,50 @@ CONTROL-FN is called with the row container and the item hash-table."
                         (%create-selection-control ctx row name value
                                                    (page:selection-choices w))))))
 
+(defun %run-button-action (w)
+  "Runs the button's action.  CLOG dispatches every browser event on its own
+thread, so a slow action (a bus write waiting for its ack) does not stall the
+connection; an error in it is logged rather than left to CLOG's generic event
+handler, which would only print it."
+  (let ((caption (page:button-caption w)))
+    (log:info "Button pressed: ~a" caption)
+    (handler-case (funcall (page:button-action w))
+      (error (c)
+        (log:warn "Button action failed (~a): ~a" caption c)))))
+
+(defun %create-button-control (parent w)
+  "The button of the `button' widget W, wired to run its action on click."
+  (let ((btn (create-button parent :class "widget-button"
+                                   :content (page:button-caption w))))
+    (set-on-click btn
+                  (lambda (obj)
+                    (declare (ignore obj))
+                    (%run-button-action w)))
+    btn))
+
+(defun %render-button-row (parent label control-fn)
+  "Renders the common row (optional label + buttons) of the button widgets.
+Unlike `%render-item-row' this resolves no item: buttons are not item-bound."
+  (let ((row (create-div parent :class "widget widget-button-row")))
+    (when label
+      (create-div row :class "widget-label" :content label))
+    (funcall control-fn row)
+    row))
+
+(defmethod render-widget ((w page:button) ctx parent)
+  (declare (ignore ctx))
+  (%render-button-row parent (page:button-label w)
+                      (lambda (row)
+                        (%create-button-control row w))))
+
+(defmethod render-widget ((w page:button-group) ctx parent)
+  (declare (ignore ctx))
+  (%render-button-row parent (page:button-group-label w)
+                      (lambda (row)
+                        (let ((btns (create-div row :class "widget-buttons")))
+                          (dolist (b (page:button-group-buttons w))
+                            (%create-button-control btns b))))))
+
 (defmethod render-widget ((w page:section) ctx parent)
   (let ((card (create-div parent :class "page-section")))
     (create-div card :class "page-section-header"

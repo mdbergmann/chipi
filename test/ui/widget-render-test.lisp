@@ -29,6 +29,15 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
      (answer item-ext:item-to-ht (make-item-ht ,@item-ht-args))
      ,@body))
 
+(defun %js-count (substr)
+  "How often SUBSTR appears in the captured JS."
+  (let ((s (captured-js)))
+    (loop :with start = 0
+          :for pos = (search substr s :start2 start)
+          :while pos
+          :count 1
+          :do (setf start (1+ pos)))))
+
 ;; ----------------------------------------------------------------------------
 ;; item widgets -- row rendering + controls.
 ;; ----------------------------------------------------------------------------
@@ -184,6 +193,93 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (is-true (js~ "Automatic"))
           (is-true (js~ "Off"))
           (is-true (js~ "on('change'")))))))
+
+;; ----------------------------------------------------------------------------
+;; button -- the one widget that is not item-bound: it runs an action.
+;; ----------------------------------------------------------------------------
+
+(test widget--button-renders-caption-label-and-click-binding
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer:render-widget
+         (page:button "Auf" (lambda ()) :label "Wohnzimmer") :owner body)
+        (is-true (js~ "widget widget-button-row"))
+        (is-true (js~ "widget-label"))
+        (is-true (js~ "Wohnzimmer"))
+        (is-true (js~ "<button"))
+        (is-true (js~ "widget-button"))
+        (is-true (js~ "Auf"))
+        (is-true (js~ "on('click'"))))))
+
+(test widget--button-without-label-renders-no-label-div
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer:render-widget (page:button "Öffnen" (lambda ())) :owner body)
+        (is-true (js~ "widget-button"))
+        (is-false (js~ "widget-label"))))))
+
+(test widget--button-click-runs-the-action
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let* ((body (make-body))
+             (presses 0)
+             (btn (ui-renderer::%create-button-control
+                   (clog:create-div body)
+                   (page:button "Auf" (lambda () (incf presses))))))
+        (is-true (fire-click btn))
+        (is (= 1 presses))
+        ;; a momentary command must be repeatable -- unlike an item-bound
+        ;; control, which is a no-op when the value does not change
+        (fire-click btn)
+        (is (= 2 presses))))))
+
+(defvar *action-result* nil
+  "What the button action under test last recorded.")
+
+(test widget--button-action-symbol-is-resolved-on-click
+  ;; a symbol action is late-bound: redefining the function it names takes
+  ;; effect without re-defining the page
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let* ((body (make-body))
+             (btn (ui-renderer::%create-button-control
+                   (clog:create-div body)
+                   (page:button "Auf" 'button-test-action))))
+        (setf (fdefinition 'button-test-action) (lambda () (setf *action-result* :first)))
+        (fire-click btn)
+        (is (eq :first *action-result*))
+        (setf (fdefinition 'button-test-action) (lambda () (setf *action-result* :second)))
+        (fire-click btn)
+        (is (eq :second *action-result*))))))
+
+(test widget--failing-button-action-does-not-escape
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let* ((body (make-body))
+             (btn (ui-renderer::%create-button-control
+                   (clog:create-div body)
+                   (page:button "Boom" (lambda () (error "boom"))))))
+        (finishes (fire-click btn))))))
+
+(test widget--button-group-renders-all-buttons-in-one-row
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer:render-widget
+         (page:button-group "Wohnzimmer"
+                            (page:button "Auf" 'jal-up)
+                            (page:button "Stopp" 'jal-stop)
+                            (page:button "Ab" 'jal-down))
+         :owner body)
+        (is (= 1 (%js-count "widget widget-button-row")))
+        (is (= 1 (%js-count "widget-buttons")))
+        (is (= 3 (%js-count "<button")))
+        (is-true (js~ "Wohnzimmer"))
+        (is-true (js~ "Auf"))
+        (is-true (js~ "Stopp"))
+        (is-true (js~ "Ab"))))))
 
 ;; ----------------------------------------------------------------------------
 ;; section -- container card with recursive children.
@@ -375,15 +471,6 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "header-line"))
         (is-true (js~ "Ground floor"))
         (is-false (js~ "back-button"))))))
-
-(defun %js-count (substr)
-  "How often SUBSTR appears in the captured JS."
-  (let ((s (captured-js)))
-    (loop :with start = 0
-          :for pos = (search substr s :start2 start)
-          :while pos
-          :count 1
-          :do (setf start (1+ pos)))))
 
 (defun %make-group-ht (&optional (label "Group"))
   "A mock itemgroup hash-table shaped like itemgroup-ext:itemgroup-to-ht output."

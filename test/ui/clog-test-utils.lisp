@@ -7,7 +7,8 @@
            #:js~
            #:make-body
            #:make-item-ht
-           #:invalidate-connection))
+           #:invalidate-connection
+           #:fire-click))
 
 (in-package :chipi-ui.test-utils)
 
@@ -52,6 +53,16 @@ renderers emit from background threads are captured too."
 (defun invalidate-connection ()
   "Makes the stub connection report as dead (`clog:validp' => nil)."
   (remhash +conn-id+ clog-connection::*connection-ids*))
+
+(defun fire-click (clog-obj)
+  "Invokes the click handler `set-on-click' bound on CLOG-OBJ, the way an
+incoming browser event would.  CLOG keeps event handlers in the connection
+data under \"<html-id>:<event>\".  Returns t if a handler was bound."
+  (let ((handler (gethash (format nil "~a:click" (clog:html-id clog-obj))
+                          (clog:connection-data clog-obj))))
+    (when handler
+      (funcall handler "")
+      t)))
 
 (defun captured-js ()
   "All captured commands joined into one string for substring assertions."

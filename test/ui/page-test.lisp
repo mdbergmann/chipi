@@ -127,6 +127,31 @@
     (is (typep v 'value-display))
     (is (string= "~,1f °C" (value-display-format v)))))
 
+(test widget-constructors--button
+  (let* ((fn (lambda () :pressed))
+         (b (button "Auf" fn)))
+    (is (typep b 'button))
+    (is (string= "Auf" (button-caption b)))
+    (is (eq fn (button-action b)))
+    ;; no row label unless one is given
+    (is-false (button-label b))
+    (is (string= "Wohnzimmer"
+                 (button-label (button "Auf" fn :label "Wohnzimmer")))))
+  ;; a symbol is kept as such: it is resolved on every click, so redefining
+  ;; the named function takes effect without re-defining the page
+  (is (eq 'jal-up (button-action (button "Auf" 'jal-up)))))
+
+(test widget-constructors--button-group
+  (let* ((up (button "Auf" 'jal-up))
+         (down (button "Ab" 'jal-down))
+         (g (button-group "Wohnzimmer" up down)))
+    (is (typep g 'button-group))
+    (is (string= "Wohnzimmer" (button-group-label g)))
+    (is (equal (list up down) (button-group-buttons g)))))
+
+(test widget-constructors--button-group-rejects-non-buttons
+  (signals type-error (button-group "Mixed" (button "Auf" 'jal-up) (toggle 'lamp))))
+
 (test widget-constructors--page-link-and-itemgroup-ref
   (let ((link (page-link 'cellar :label "Cellar")))
     (is (eq 'cellar (page-link-page-id link)))

@@ -283,6 +283,8 @@ Semantics:
 | `(setpoint item &key label min max step)` | integer/float | Stepper with −/+ buttons, e.g. for target temperatures |
 | `(selection item &key label choices)` | string | Dropdown; `choices` is an alist of `(value . label)` |
 | `(chart item-or-items &key label type range persistence transform)` | number/boolean | History chart, one series per item (see below) |
+| `(button caption action &key label)` | — | Push-button running `action` (see below) |
+| `(button-group label &rest buttons)` | — | Several buttons sharing one row and label |
 | `(section label &rest widgets)` | — | Titled card grouping widgets |
 | `(page-link page-id &key label)` | — | Navigation link to another page |
 | `(itemgroup-ref group-id)` | — | Embeds an itemgroup as an overview-style card |
@@ -290,6 +292,39 @@ Semantics:
 The widget `label` always defaults to the item's own label. Unknown item or
 page references render an inline "Unknown …" placeholder instead of breaking
 the page.
+
+### Action buttons
+
+`button` is the one widget that is not bound to an item: clicking it calls a
+function. That is what **momentary commands** need — a door opener, a
+shutter's Auf/Stopp/Ab — because `item:set-value` is a no-op when the value
+does not change, so an item-bound control cannot send the same command twice
+in a row.
+
+```lisp
+(section "Jalousie Wohnzimmer"
+  (button-group "Auf/Stopp/Ab"
+    (button "▲" 'jal-wz-up)
+    (button "■" 'jal-wz-stop)
+    (button "▼" 'jal-wz-down))
+  (slider 'jal-wz-pos :label "Position [%]"))
+
+;; a single button; :label renders to the left, like an item widget's label
+(button "Öffnen" 'tueroeffner-trigger :label "Türöffner")
+```
+
+* The action takes no arguments and its return value is ignored. An error it
+  signals is logged (`Button action failed …`) and does not reach the browser
+  connection, so a failing command cannot break the page.
+* A **symbol** naming a function is resolved on every click, so redefining
+  that function — from the REPL, over Slynk, against a running instance —
+  takes effect without re-evaluating the page. `#'the-function` captures the
+  function as of page definition instead.
+* CLOG dispatches every browser event on its own thread, so an action that
+  blocks (a bus write waiting for its ack) does not stall the UI.
+* The action runs whenever anyone reaching the UI clicks the button; the UI
+  has no per-widget authorization, so treat a button exactly like the
+  toggles next to it.
 
 ### Charts
 

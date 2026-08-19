@@ -160,7 +160,24 @@
   (section "Energy"
     (slider 'heizstab-wd1-energy :min 0 :max 100 :step 1)
     (text-input 'plug1 :label "Plug name"))
+  ;; buttons are not bound to an item: they run a function.  That is what
+  ;; momentary commands need -- `set-item-value' is a no-op when the value
+  ;; does not change, so a toggle cannot send the same command twice.
+  (section "Commands"
+    (button-group "Outside temperature"
+      (button "Colder" 'demo-colder)
+      (button "Warmer" 'demo-warmer))
+    ;; the symbol is resolved on every click, so redefining `demo-warmer'
+    ;; from the REPL takes effect without re-evaluating the page
+    (button "Reset to 15 °C" (lambda () (set-item-value 'outside-temp 15))
+            :label "Outside temperature"))
   (page-link 'cellar))
+
+(defun demo-colder ()
+  (set-item-value 'outside-temp (1- (get-item-valueq 'outside-temp))))
+
+(defun demo-warmer ()
+  (set-item-value 'outside-temp (1+ (get-item-valueq 'outside-temp))))
 
 (defpage 'cellar "Cellar"
   :title "Cellar"
