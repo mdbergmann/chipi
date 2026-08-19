@@ -346,6 +346,23 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (%chart-live-update "sensor.temp" 3.5)
         (is-true (js~ "push(3.5)"))))))
 
+(test widget--chart-y-axis-is-sized-to-its-widest-label
+  ;; uPlot's y axis is a fixed 50px, ~35px of it text once ticks and gap are
+  ;; subtracted. It formats numbers in the *browser's* locale, so a German
+  ;; one renders -20000 as "-20.000" -- which got clipped down to "20.000",
+  ;; losing the minus sign and a leading digit on a power chart in W.
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart 'power)))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "s.power" "Netz" -20000)))
+        (is-true (js~ "axes:"))
+        (is-true (js~ "size: ySize"))
+        (is-true (js~ "measureText"))
+        ;; sizing must converge: uPlot re-runs it until the size is stable
+        (is-true (js~ "cycleNum > 1"))))))
+
 (test widget--chart-transform-applies-to-history-and-live
   (with-fixture render-env ()
     (with-captured-clog

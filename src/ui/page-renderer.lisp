@@ -680,8 +680,33 @@ gaps that timestamp-alignment introduces are spanned instead."
 (defun %uplot-init-js (plot-id chart-type series-defs tables)
   "The JS that instantiates the uPlot chart once the uPlot library is loaded.
 SERIES-DEFS are JS series objects, TABLES one [[timestamps],[values]] JS
-literal per series; several tables are timestamp-aligned via uPlot.join."
+literal per series; several tables are timestamp-aligned via uPlot.join.
+
+The y axis is sized to its widest tick label instead of uPlot's fixed 50px.
+That default leaves ~35px for text once ticks and gap are subtracted, which
+silently clips wider labels -- uPlot formats numbers with the *browser's*
+locale, so 20000 renders as \"20.000\" and -20000 as \"-20.000\", and a power
+chart in W lost its minus signs and leading digits."
+  (declare (ignore chart-type))
   (format nil "(function() {
+  function ySize(u, values, axisIdx, cycleNum) {
+    var axis = u.axes[axisIdx];
+    // uPlot re-runs sizing until it converges; bail out after the first pass
+    if (cycleNum > 1) { return axis._size; }
+    var size = (axis.ticks.size || 0) + axis.gap;
+    var longest = '';
+    (values || []).forEach(function(v) {
+      v = String(v);
+      if (v.length > longest.length) { longest = v; }
+    });
+    if (longest !== '') {
+      // axis.font is [css-font, size] and already scaled by the pixel ratio,
+      // so measureText returns device pixels -- convert back to CSS pixels
+      u.ctx.font = axis.font[0];
+      size += u.ctx.measureText(longest).width / (window.devicePixelRatio || 1);
+    }
+    return Math.max(50, Math.ceil(size));
+  }
   function init() {
     if (!window.uPlot) { setTimeout(init, 150); return; }
     var el = document.getElementById('~a');
@@ -691,6 +716,10 @@ literal per series; several tables are timestamp-aligned via uPlot.join."
     var opts = {
       width: el.clientWidth || 600,
       height: 220,
+      axes: [
+        {},
+        { size: ySize }
+      ],
       series: [
         {},
         ~{~a~^,
