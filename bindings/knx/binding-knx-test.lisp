@@ -47,6 +47,35 @@
         ;; verify binding is in registry
         (is (= 1 (length (gethash "1/2/3" binding-knx::*ga-binding-registry*))))))))
 
+(test make-knx-binding--call-push-p-defaults-to-t
+  "A knx-binding forwards item changes to the bus unless told otherwise.
+The `base-binding' slot initform is NIL, so the default has to come from
+`%make-knx-binding'; without it every knx item would silently be read-only."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      (let ((default (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil))
+            (explicit-t (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil
+                                     :call-push-p t))
+            (explicit-nil (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil
+                                       :call-push-p nil)))
+        (is-true (binding:call-push-p default))
+        (is-true (binding:call-push-p explicit-t))
+        ;; an explicit NIL must still win over the new default
+        (is-false (binding:call-push-p explicit-nil))))))
+
+(test make-knx-binding--initial-delay-explicit-nil-wins
+  "Guards the duplicate-initarg rule the call-push-p default also relies on:
+`%make-knx-binding' passes :initial-delay/:call-push-p explicitly *and* forwards
+them again in rest-args, so the leftmost occurrence must win."
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (answer knx-client:add-tunnelling-request-listener t)
+      (let ((cut (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil)))
+        (is (null (slot-value cut 'binding::initial-delay))))
+      (let ((cut (knx-binding :ga "1/2/4" :dpt "1.001" :initial-delay 7)))
+        (is (= 7 (slot-value cut 'binding::initial-delay)))))))
+
 (test make-knx-binding--with-separate-read-write-gas
   "Tests creating a knx binding that specifies separate read and write GAs."
   (with-fixture clean-knx-state ()

@@ -396,6 +396,12 @@ verify. Runs on the item actor, the only writer of the generation."
                          :ga-write ga-write-obj
                          :dpt dpt-type
                          :initial-delay (getf other-args :initial-delay 2)
+                         ;; A knx-binding exists to talk to the bus, so item
+                         ;; changes are forwarded by default -- same default as
+                         ;; `binding:make-function-binding'. Without this the
+                         ;; `base-binding' slot initform (NIL) would win and
+                         ;; every item would silently be read-only.
+                         :call-push-p (getf other-args :call-push-p t)
                          :pull-fun (%make-binding-pull-fun ga-read-obj dpt-type)
                          :verify verify
                          :verify-delay (or verify-delay *default-verify-delay*)
