@@ -104,12 +104,31 @@ of owners whose connection has gone away are dropped instead of run."
     ((string= "STRING" type-hint) "Text")
     (t "Undefined type")))
 
-(defun %format-widget-value (value type-hint format)
-  "Formats VALUE with the widget's format string when given, falling back to
-the type-hint based default formatting."
-  (if (and format value (not (eq value 'cl:null)))
-      (format nil format value)
-      (%format-value value type-hint)))
+(defun %mapped-label (value mapping)
+  "The text MAPPING gives VALUE, or `nil' when it has none.
+
+MAPPING is an item's `:ui-mapping' tag, built by `page:value-mapping': a
+hash-table of value -> label for items whose value is a code rather than a
+quantity -- an HVAC mode, a fault number.  Only the codes listed are mapped;
+anything else falls through to the normal formatting, so an unexpected value
+shows as itself instead of silently reading as one of the known ones."
+  (when mapping
+    (if (hash-table-p mapping)
+        (gethash value mapping)
+        (progn
+          (log:warn "Ignoring :ui-mapping ~s -- expected a hash-table from ~
+`page:value-mapping'. An alist here would also fail the items API, which ~
+serializes tags to JSON."
+                    mapping)
+          nil))))
+
+(defun %format-widget-value (value type-hint format &optional mapping)
+  "Formats VALUE: the label MAPPING gives it, else the widget's format string
+when given, else the type-hint based default formatting."
+  (or (%mapped-label value mapping)
+      (if (and format value (not (eq value 'cl:null)))
+          (format nil format value)
+          (%format-value value type-hint))))
 
 (defun %ext-value (value)
   "Maps the external JSON null marker back to `nil' for display purposes."
@@ -122,6 +141,12 @@ the type-hint based default formatting."
         (gethash :ui-readonly tags)
       (declare (ignore val))
       present-p)))
+
+(defun %ui-mapping (tags)
+  "The item's `:ui-mapping' tag -- a hash-table of value -> label, built by
+`page:value-mapping' -- or `nil'."
+  (when (and tags (hash-table-p tags))
+    (gethash :ui-mapping tags)))
 
 (defun %itemgroup-link-p (itemg)
   "Returns T if the itemgroup should render as a link (has :ui-link tag)."
@@ -195,17 +220,20 @@ interacted with the checkbox; the property reflects the state reliably."
                                           (item-ext:item-value-ext-to-internal current-state)))))
     toggle-input))
 
-(defun %create-value-display (owner parent item-name value type-hint &optional format)
+(defun %create-value-display (owner parent item-name value type-hint
+                              &optional format mapping)
   "A read-only formatted display of the item's value."
   (let ((value-div (create-div parent :class "item-value-display"
-                                      :content (%format-widget-value value type-hint format))))
+                                      :content (%format-widget-value value type-hint
+                                                                     format mapping))))
     (set-on-value-update owner item-name
                          (lambda (updated-item-state)
                            (let ((updated-value (gethash "value" updated-item-state)))
                              (log:debug "Setting value: ~a on component: ~a"
                                         updated-value value-div)
                              (setf (text value-div)
-                                   (%format-widget-value updated-value type-hint format)))))
+                                   (%format-widget-value updated-value type-hint
+                                                         format mapping)))))
     value-div))
 
 (defun %create-text-input-control (owner parent item-name value)
@@ -378,11 +406,14 @@ CONTROL-FN is called with the row container and the item hash-table."
   (%render-item-row w ctx parent "widget-value"
                     (lambda (row item-ht)
                       (%with-item-state (item-ht name value type-hint)
-                        (if (and (string= "BOOLEAN" type-hint)
-                                 (null (page:value-display-format w)))
-                            (%create-boolean-display ctx row name value)
-                            (%create-value-display ctx row name value type-hint
-                                                   (page:value-display-format w)))))))
+                        (let ((mapping (%ui-mapping (gethash "tags" item-ht))))
+                          (if (and (string= "BOOLEAN" type-hint)
+                                   (null (page:value-display-format w))
+                                   (null mapping))
+                              (%create-boolean-display ctx row name value)
+                              (%create-value-display ctx row name value type-hint
+                                                     (page:value-display-format w)
+                                                     mapping)))))))
 
 (defmethod render-widget ((w page:toggle) ctx parent)
   (%render-item-row w ctx parent "widget-toggle"
@@ -526,7 +557,12 @@ Unlike `%render-item-row' this resolves no item: buttons are not item-bound."
           (create-div row :class "widget-label"
                           :content (or (page:item-widget-label w)
                                        (second (first series))))
-          (let ((plot-div (create-div row :class "chart-plot"))
+          ;; The stylesheet's min-height keeps the plot area from collapsing
+          ;; while the history loads; it has to track the widget's height, or
+          ;; a chart shorter than the default would still reserve 220px.
+          (let ((plot-div (create-div row :class "chart-plot"
+                                          :style (format nil "min-height:~apx"
+                                                         (page:chart-height w))))
                 (persistence (%chart-persistence w)))
             (if (null persistence)
                 (progn
@@ -677,10 +713,11 @@ gaps that timestamp-alignment introduces are spanned instead."
               ", paths: uPlot.paths.bars({size: [0.6, 100]})"
               "")))
 
-(defun %uplot-init-js (plot-id chart-type series-defs tables)
+(defun %uplot-init-js (plot-id chart-type series-defs tables height)
   "The JS that instantiates the uPlot chart once the uPlot library is loaded.
 SERIES-DEFS are JS series objects, TABLES one [[timestamps],[values]] JS
 literal per series; several tables are timestamp-aligned via uPlot.join.
+HEIGHT is the plot height in CSS pixels; the width follows the container.
 
 The y axis is sized to its widest tick label instead of uPlot's fixed 50px.
 That default leaves ~35px for text once ticks and gap are subtracted, which
@@ -715,7 +752,7 @@ chart in W lost its minus signs and leading digits."
     var data = tables.length === 1 ? tables[0] : uPlot.join(tables);
     var opts = {
       width: el.clientWidth || 600,
-      height: 220,
+      height: ~a,
       axes: [
         {},
         { size: ySize }
@@ -731,7 +768,7 @@ chart in W lost its minus signs and leading digits."
   }
   init();
 })();"
-          plot-id tables series-defs plot-id))
+          plot-id tables height series-defs plot-id))
 
 (defun %uplot-append-js (plot-id ts series-count series-idx y-literal)
   "The JS that appends one live value: the new row carries Y-LITERAL in
@@ -766,7 +803,8 @@ callback per series item."
                                       (page:chart-type w)
                                       single-p))))
     (js-execute plot-div
-                (%uplot-init-js plot-id (page:chart-type w) series-defs tables))
+                (%uplot-init-js plot-id (page:chart-type w) series-defs tables
+                                (page:chart-height w)))
     ;; live append on item change; timestamps in the update state are unix already
     (loop :for (item-name nil nil) :in series-data
           :for series-idx :from 1
@@ -951,10 +989,16 @@ Shows child groups (as links or cards) above direct items."
                                     (gethash "timestamp" updated-item-state))))))))
 
 (defun %render-item-value (ctx item-name item-value type-hint tags parent)
-  (cond
-    ((and (string= "BOOLEAN" type-hint) (%ui-readonly-p tags))
-     (%create-boolean-display ctx parent item-name item-value))
-    ((string= "BOOLEAN" type-hint)
-     (%create-toggle-control ctx parent item-name item-value))
-    (t
-     (%create-value-display ctx parent item-name item-value type-hint))))
+  (let ((mapping (%ui-mapping tags)))
+    (cond
+      ;; a writable boolean keeps its toggle -- a switch has no text for a
+      ;; mapping to replace
+      ((and (string= "BOOLEAN" type-hint) (not (%ui-readonly-p tags)))
+       (%create-toggle-control ctx parent item-name item-value))
+      ;; ON/OFF is itself a code, so a read-only boolean that carries a
+      ;; mapping shows its labels instead
+      ((and (string= "BOOLEAN" type-hint) (null mapping))
+       (%create-boolean-display ctx parent item-name item-value))
+      (t
+       (%create-value-display ctx parent item-name item-value type-hint
+                              nil mapping)))))

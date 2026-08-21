@@ -71,6 +71,99 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (is-true (js~ "widget widget-value"))
           (is-true (js~ "23.5 °C")))))))
 
+;; ----------------------------------------------------------------------------
+;; :ui-mapping -- a coded value shows its label, not the code.
+;; ----------------------------------------------------------------------------
+
+(defun %tags (&rest key-value-pairs)
+  (let ((ht (make-hash-table)))
+    (loop :for (k v) :on key-value-pairs :by #'cddr :do (setf (gethash k ht) v))
+    ht))
+
+(defparameter +hvac-mapping+
+  (page:value-mapping 0 "Auto" 1 "Komfort" 2 "Standby"))
+
+(test value-mapping--is-a-hash-table
+  ;; not an alist: item tags go through jzon, which signals on one -- a single
+  ;; alist tag would fail the whole items listing
+  (is-true (hash-table-p +hvac-mapping+))
+  (is (string= "Komfort" (gethash 1 +hvac-mapping+))))
+
+(test widget--value-shows-mapped-label-instead-of-the-code
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Betriebsmodus" :name "hvac.mode" :type-hint "INTEGER"
+                    :value 1 :tags (%tags :ui-mapping +hvac-mapping+))
+          (ui-renderer:render-widget (page:value 'mode) :owner body)
+          (is-true (js~ "Komfort"))
+          (is-false (js~ ">1</div>")))))))
+
+(test widget--value-unmapped-code-shows-itself
+  ;; an unlisted code must stay visible rather than read as a known mode
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Betriebsmodus" :name "hvac.mode" :type-hint "INTEGER"
+                    :value 9 :tags (%tags :ui-mapping +hvac-mapping+))
+          (ui-renderer:render-widget (page:value 'mode) :owner body)
+          (is-true (js~ ">9</div>"))
+          (is-false (js~ "Komfort")))))))
+
+(test render-item--card-row-shows-mapped-label
+  ;; the itemgroup card path, where a coded item has no widget to carry a format
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-item
+         :owner
+         (make-item-ht :label "Betriebsmodus" :name "hvac.mode"
+                       :type-hint "INTEGER" :value 2
+                       :tags (%tags :ui-mapping +hvac-mapping+))
+         body)
+        (is-true (js~ "Standby"))))))
+
+(test render-item--mapping-does-not-disarm-a-writable-boolean
+  ;; a switch has no text for a mapping to replace, so it stays a toggle
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-item
+         :owner
+         (make-item-ht :label "Lamp" :name "switch.lamp" :type-hint "BOOLEAN" :value t
+                       :tags (%tags :ui-mapping (page:value-mapping t "An" nil "Aus")))
+         body)
+        (is-true (js~ "checkbox"))
+        (is-false (js~ "An</div>"))))))
+
+(test render-item--readonly-boolean-mapping-replaces-on-off
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-item
+         :owner
+         (make-item-ht :label "Frost" :name "s.frost" :type-hint "BOOLEAN" :value t
+                       :tags (%tags :ui-readonly t
+                                    :ui-mapping (page:value-mapping t "Frostschutz"
+                                                                    nil "Normal")))
+         body)
+        (is-true (js~ "Frostschutz"))
+        (is-false (js~ ">ON</div>"))))))
+
+(test render-item--non-hash-table-mapping-is-ignored-not-applied
+  ;; an alist would render here but fail the items API, so it must not work
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-item
+         :owner
+         (make-item-ht :label "Betriebsmodus" :name "hvac.mode"
+                       :type-hint "INTEGER" :value 1
+                       :tags (%tags :ui-mapping '((1 . "Komfort"))))
+         body)
+        (is-false (js~ "Komfort"))
+        (is-true (js~ ">1</div>"))))))
+
 (test widget--value-boolean-renders-on-off
   (with-fixture render-env ()
     (with-captured-clog
@@ -384,6 +477,35 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (ui-renderer::%render-uplot :owner w (clog:create-div body)
                                     (list (%series "sensor.temp" "Temp" 2.5)))
         (is-true (js~ "[null]]"))))))
+
+(test widget--chart-height-defaults-and-is-configurable
+  ;; the plot height reaches the browser twice: as uPlot's `height' option and
+  ;; as the plot div's min-height, which holds the space open while the
+  ;; history loads
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart 'temp) (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
+        (is-true (js~ "height: 220"))))
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart 'temp :height 420)
+                                    (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
+        (is-true (js~ "height: 420"))
+        (is-false (js~ "height: 220"))))))
+
+(test widget--chart-height-sets-plot-div-min-height
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (hab:*persistences* nil))
+        (with-mocks ()
+          (answer hab:get-item :mock-item)
+          (answer item:label "Temperature")
+          (ui-renderer:render-widget (page:chart 'temp :height 420) :owner body)
+          (is-true (js~ "min-height:420px")))))))
 
 (test chart--collect-series-data--success
   (with-fixture render-env ()

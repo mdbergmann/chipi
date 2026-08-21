@@ -39,6 +39,7 @@
            #:chart-persistence
            #:chart-transform
            #:chart-series
+           #:chart-height
            #:button
            #:button-p
            #:button-caption
@@ -60,6 +61,7 @@
            ;; DSL
            #:defpage
            #:value
+           #:value-mapping
            ;; registry
            #:*pages*
            #:*page-registered-hook*
@@ -110,7 +112,8 @@
   range         ; persp:range
   persistence   ; persistence id; nil => first defined historic persistence
   transform     ; nil, or 1-arg function applied to every charted value
-  series)       ; list of (item-id . label-or-nil), one entry per series
+  series        ; list of (item-id . label-or-nil), one entry per series
+  (height 220)) ; plot height in CSS pixels
 
 (defstruct (button (:include widget))
   caption    ; the button's own text
@@ -250,6 +253,29 @@ without it the value is formatted according to the item's type-hint.
 Boolean items render as ON/OFF."
   (make-value-display :item-id item-id :label label :format format))
 
+(defun value-mapping (&rest value-label-pairs)
+  "Builds an item's `:ui-mapping' tag from alternating values and labels:
+
+  (defitem 'hvac-mode \"Betriebsmodus\" 'integer
+    :tags (list (cons :ui-mapping
+                      (page:value-mapping 0 \"Auto\" 1 \"Komfort\" 2 \"Standby\")))
+    ...)
+
+An item whose value is a code rather than a quantity displays that code
+verbatim -- `2' tells a reader nothing.  With this tag every read-only
+display of the item shows the label instead, both the `value' widget and the
+item's row in an `itemgroup-ref' card.  Values not listed keep showing
+themselves, so an unexpected code is visible rather than silently reading as
+one of the known ones.
+
+The result is a hash-table on purpose: item tags are serialized to JSON by
+the items API, and `com.inuoe.jzon' renders a hash-table as an object but
+signals on an alist -- one alist tag would fail the whole item listing."
+  (let ((ht (make-hash-table :test #'equal)))
+    (loop :for (value label) :on value-label-pairs :by #'cddr
+          :do (setf (gethash value ht) label))
+    ht))
+
 (defun toggle (item-id &key label)
   "A switch control for a boolean item."
   (make-toggle :item-id item-id :label label))
@@ -276,7 +302,8 @@ Boolean items render as ON/OFF."
 item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
-(defun chart (item-ids &key label (type :line) range persistence transform)
+(defun chart (item-ids &key label (type :line) range persistence transform
+                            (height 220))
   "A history chart of one or more items' persisted values.
 `item-ids' is a single item id, or a list whose elements are item ids or
 `(item-id . \"Series label\")' conses; each entry becomes one chart series
@@ -290,7 +317,11 @@ defined historic persistence is used.
 `transform', when given, is a one-argument function applied to every charted
 value of every series, historic and live alike -- e.g. converting a raw
 sensor reading to a display unit.  It is called with a number (booleans
-chart as 1/0) and must return a number."
+chart as 1/0) and must return a number.
+`height' is the plot height in CSS pixels; the width always follows the
+container.  Raise it for charts whose series share a wide value range -- at
+the default 220 the lines of a multi-series chart sit too close together to
+be read apart."
   (let ((series (cond
                   ((symbolp item-ids) (list (cons item-ids nil)))
                   ;; a single (item-id . "label") cons
@@ -304,6 +335,7 @@ chart as 1/0) and must return a number."
                 :persistence persistence
                 :transform transform
                 :series series
+                :height height
                 :range (etypecase range
                          (null (persp:make-relative-range :days 1))
                          (cons (apply #'persp:make-relative-range range))
