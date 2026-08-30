@@ -702,12 +702,13 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
     "#20c997" "#d63384" "#0dcaf0" "#6c757d" "#ffc107")
   "Stroke colors assigned to chart series in definition order (cycled).")
 
-(defun %uplot-series-def (label color chart-type single-p)
-  "The JS series definition object for one chart series.  A single series
-keeps the classic look (area fill, gaps stay gaps); with several series the
-gaps that timestamp-alignment introduces are spanned instead."
-  (format nil "{ label: '~a', stroke: '~a'~a~a }"
-          (%js-escape label) color
+(defun %uplot-series-def (label color line-width chart-type single-p)
+  "The JS series definition object for one chart series.  LINE-WIDTH is the
+stroke width in CSS pixels.  A single series keeps the classic look (area
+fill, gaps stay gaps); with several series the gaps that timestamp-alignment
+introduces are spanned instead."
+  (format nil "{ label: '~a', stroke: '~a', width: ~a~a~a }"
+          (%js-escape label) color (%js-number line-width)
           (if single-p ", fill: 'rgba(13,110,253,0.08)'" ", spanGaps: true")
           (if (eq chart-type :bar)
               ", paths: uPlot.paths.bars({size: [0.6, 100]})"
@@ -800,6 +801,7 @@ callback per series item."
                                       label
                                       (nth (mod idx (length *chart-series-colors*))
                                            *chart-series-colors*)
+                                      (page:chart-line-width w)
                                       (page:chart-type w)
                                       single-p))))
     (js-execute plot-div

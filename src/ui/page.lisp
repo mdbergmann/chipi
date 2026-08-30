@@ -40,6 +40,7 @@
            #:chart-transform
            #:chart-series
            #:chart-height
+           #:chart-line-width
            #:button
            #:button-p
            #:button-caption
@@ -113,7 +114,8 @@
   persistence   ; persistence id; nil => first defined historic persistence
   transform     ; nil, or 1-arg function applied to every charted value
   series        ; list of (item-id . label-or-nil), one entry per series
-  (height 220)) ; plot height in CSS pixels
+  (height 220)  ; plot height in CSS pixels
+  (line-width 2)) ; stroke width of every series in CSS pixels
 
 (defstruct (button (:include widget))
   caption    ; the button's own text
@@ -303,7 +305,7 @@ item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
 (defun chart (item-ids &key label (type :line) range persistence transform
-                            (height 220))
+                            (height 220) (line-width 2))
   "A history chart of one or more items' persisted values.
 `item-ids' is a single item id, or a list whose elements are item ids or
 `(item-id . \"Series label\")' conses; each entry becomes one chart series
@@ -321,7 +323,10 @@ chart as 1/0) and must return a number.
 `height' is the plot height in CSS pixels; the width always follows the
 container.  Raise it for charts whose series share a wide value range -- at
 the default 220 the lines of a multi-series chart sit too close together to
-be read apart."
+be read apart.
+`line-width' is the stroke width of every series in CSS pixels (uPlot scales
+it for the device pixel ratio).  The default 2 is twice uPlot's own 1px,
+which reads as hairlines on a high-density display."
   (let ((series (cond
                   ((symbolp item-ids) (list (cons item-ids nil)))
                   ;; a single (item-id . "label") cons
@@ -336,6 +341,7 @@ be read apart."
                 :transform transform
                 :series series
                 :height height
+                :line-width line-width
                 :range (etypecase range
                          (null (persp:make-relative-range :days 1))
                          (cons (apply #'persp:make-relative-range range))

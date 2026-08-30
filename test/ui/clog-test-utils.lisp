@@ -5,6 +5,7 @@
            #:with-captured-clog
            #:captured-js
            #:js~
+           #:count-js
            #:make-body
            #:make-item-ht
            #:invalidate-connection
@@ -71,6 +72,14 @@ data under \"<html-id>:<event>\".  Returns t if a handler was bound."
 (defun js~ (substr)
   "True if SUBSTR appears anywhere in the captured JS."
   (and (search substr (captured-js)) t))
+
+(defun count-js (substr)
+  "How often SUBSTR appears in the captured JS (non-overlapping)."
+  (loop :with js = (captured-js)
+        :for pos = (search substr js :start2 0)
+          :then (search substr js :start2 (+ pos (length substr)))
+        :while pos
+        :count t))
 
 (defun make-body ()
   (clog::make-clog-body +conn-id+))

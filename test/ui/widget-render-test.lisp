@@ -496,6 +496,25 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "height: 420"))
         (is-false (js~ "height: 220"))))))
 
+(test widget--chart-line-width-defaults-and-is-configurable
+  ;; uPlot strokes 1px unless told otherwise, which reads as hairlines on a
+  ;; high-density display; every series gets the chart's width
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart '(temp power))
+                                    (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)
+                                          (%series "sensor.power" "Power" 300)))
+        (is (= 2 (count-js "width: 2")))))
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart 'temp :line-width 3.5)
+                                    (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
+        (is-true (js~ "width: 3.5"))
+        (is-false (js~ "width: 2"))))))
+
 (test widget--chart-height-sets-plot-div-min-height
   (with-fixture render-env ()
     (with-captured-clog
