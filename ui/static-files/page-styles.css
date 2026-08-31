@@ -24,6 +24,37 @@
     padding: 0.5rem 1rem;
 }
 
+/* --- horizontal rows ----------------------------------------------------- */
+
+/* A `row' widget: its children share one line in equally wide columns.  The
+   count comes from an inline --cols so the breakpoint below can still win. */
+.widget-row {
+    display: grid;
+    /* minmax(0, 1fr), not 1fr: a grid item defaults to min-width:auto and so
+       refuses to shrink below its content, which lets a chart canvas push its
+       column wider than its share and blow out the row */
+    grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+    gap: 1rem;
+}
+
+/* see minmax above -- this is the same fix for the children's side */
+.widget-row > * {
+    min-width: 0;
+}
+
+/* the row's own gap separates the children, and a rule under the last one of a
+   line would hang in mid-air */
+.widget-row > .widget {
+    border-bottom: none;
+}
+
+/* half of a phone's width is too little for any of these widgets */
+@media (max-width: 768px) {
+    .widget-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* --- widget rows --------------------------------------------------------- */
 
 .widget {

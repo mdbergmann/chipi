@@ -54,6 +54,10 @@
            #:section
            #:section-label
            #:section-children
+           #:row
+           #:row-p
+           #:row-columns
+           #:row-children
            #:page-link
            #:page-link-page-id
            #:page-link-label
@@ -130,6 +134,10 @@
 
 (defstruct (section (:include widget))
   label
+  children)
+
+(defstruct (row (:include widget))
+  columns    ; nil => one column per child
   children)
 
 (defstruct (page-link (:include widget))
@@ -226,7 +234,8 @@ All other body forms must evaluate to widgets, e.g.:
     :title \"Ground floor\"
     (section \"Climate\"
       (value 'outside-temp :format \"~,1f °C\")
-      (chart 'outside-temp :range '(:days 1)))
+      (row (chart 'outside-temp :range '(:days 1))
+           (chart 'cistern-level :range '(:days 7))))
     (page-link 'cellar))
 
 Widgets are ordinary values, so they can be composed programmatically
@@ -393,6 +402,33 @@ one shutter:
 (defun section (label &rest children)
   "A titled group of widgets, rendered as a card."
   (make-section :label label :children children))
+
+(defun row (&rest children)
+  "Lays CHILDREN out side by side in equally wide columns instead of stacking
+them, e.g. two charts at half width each:
+
+  (row (chart 'outside-temp :label \"Außen [°C]\")
+       (chart 'cistern :label \"Zisterne [%]\"))
+
+Without `:columns' there is one column per child, so two children render
+50/50 and three 33/33/33.  On a narrow screen the row collapses to a single
+column, so a phone still gets one widget per line.
+
+`:columns' sets the column count explicitly, which wraps the children over
+several lines when they outnumber it -- four charts as a 2x2 block:
+
+  (row :columns 2 (chart 'a) (chart 'b) (chart 'c) (chart 'd))
+
+Any widget can go in a row, not just charts: two `section's in one row put
+two cards next to each other.  Charts are the main beneficiary though -- a
+single-series chart over a short range is mostly empty space at full width,
+whereas one with many series stays easier to read wide (see `chart's
+`height')."
+  (let ((columns (loop :for (k v) :on children
+                       :if (eq k :columns)
+                         :return v)))
+    (make-row :columns columns
+              :children (remove-if-not (lambda (x) (typep x 'widget)) children))))
 
 (defun page-link (page-id &key label)
   "A navigation link to another page defined with `defpage'."

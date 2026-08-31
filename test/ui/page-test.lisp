@@ -66,6 +66,22 @@
         (is (= 3 (length (section-children sec))))))))
 
 ;; ----------------------------------------------------------------------------
+;; row -- column count from the child count, or from :columns.
+;; ----------------------------------------------------------------------------
+
+(test row--columns-default-to-nil-and-children-are-kept
+  (let ((r (row (value 'a) (value 'b))))
+    (is (typep r 'row))
+    (is (null (row-columns r)))
+    (is (= 2 (length (row-children r))))))
+
+(test row--columns-key-is-read-and-not-kept-as-a-child
+  (let ((r (row :columns 2 (value 'a) (value 'b) (value 'c))))
+    (is (= 2 (row-columns r)))
+    (is (= 3 (length (row-children r))))
+    (is (every (lambda (c) (typep c 'widget)) (row-children r)))))
+
+;; ----------------------------------------------------------------------------
 ;; find-page-by-path -- path normalization and duplicate handling.
 ;; ----------------------------------------------------------------------------
 

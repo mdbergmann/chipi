@@ -514,6 +514,19 @@ Unlike `%render-item-row' this resolves no item: buttons are not item-bound."
         (render-widget child ctx body)))
     card))
 
+(defmethod render-widget ((w page:row) ctx parent)
+  (let* ((children (page:row-children w))
+         ;; the column count rides in a custom property rather than in
+         ;; `grid-template-columns' directly: an inline template could not be
+         ;; overridden by the stylesheet's narrow-screen rule without
+         ;; `!important'
+         (columns (or (page:row-columns w) (max 1 (length children))))
+         (grid (create-div parent :class "widget-row"
+                                  :style (format nil "--cols:~a" columns))))
+    (dolist (child children)
+      (render-widget child ctx grid))
+    grid))
+
 (defmethod render-widget ((w page:page-link) ctx parent)
   (let ((target (page:get-page (page:page-link-page-id w))))
     (if (null target)
@@ -718,7 +731,8 @@ introduces are spanned instead."
   "The JS that instantiates the uPlot chart once the uPlot library is loaded.
 SERIES-DEFS are JS series objects, TABLES one [[timestamps],[values]] JS
 literal per series; several tables are timestamp-aligned via uPlot.join.
-HEIGHT is the plot height in CSS pixels; the width follows the container.
+HEIGHT is the plot height in CSS pixels; the width follows the container, both
+at init and afterwards via a `ResizeObserver'.
 
 The y axis is sized to its widest tick label instead of uPlot's fixed 50px.
 That default leaves ~35px for text once ticks and gap are subtracted, which
@@ -765,7 +779,27 @@ chart in W lost its minus signs and leading digits."
       ]
     };
     window.chipiCharts = window.chipiCharts || {};
-    window.chipiCharts['~a'] = new uPlot(opts, data, el);
+    var u = new uPlot(opts, data, el);
+    window.chipiCharts['~a'] = u;
+    // uPlot takes a fixed pixel width, so without this a chart keeps the width
+    // it was measured at: in a `row' that breaks as soon as the layout changes
+    // shape -- rendered two-up and then narrowed past the stylesheet's
+    // single-column breakpoint, the canvas would overflow its column.  Only
+    // width is reacted to; height comes from the widget, and feeding our own
+    // setSize back in as a resize would loop.  The first callback fires with
+    // the current size, which the guard makes a no-op -- unless the plot was
+    // measured at 0 (rendered while hidden) and fell back to 600, in which case
+    // this is what repairs it.
+    if (window.ResizeObserver) {
+      var lastWidth = opts.width;
+      new ResizeObserver(function() {
+        var w = el.clientWidth;
+        if (w > 0 && w !== lastWidth) {
+          lastWidth = w;
+          u.setSize({ width: w, height: opts.height });
+        }
+      }).observe(el);
+    }
   }
   init();
 })();"

@@ -392,6 +392,58 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (is-true (js~ "widget widget-value")))))))
 
 ;; ----------------------------------------------------------------------------
+;; row -- children side by side, column count as a custom property.
+;; ----------------------------------------------------------------------------
+
+(test widget--row-renders-one-column-per-child
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Temp" :name "s.temp" :type-hint "FLOAT" :value 1.0)
+          (ui-renderer:render-widget
+           (page:row (page:value 'temp) (page:value 'temp) (page:value 'temp))
+           :owner body)
+          (is-true (js~ "widget-row"))
+          (is-true (js~ "--cols:3"))
+          (is (= 3 (%js-count "widget widget-value"))))))))
+
+(test widget--row-columns-override-child-count
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Temp" :name "s.temp" :type-hint "FLOAT" :value 1.0)
+          (ui-renderer:render-widget
+           (page:row :columns 2
+                     (page:value 'temp) (page:value 'temp)
+                     (page:value 'temp) (page:value 'temp))
+           :owner body)
+          (is-true (js~ "--cols:2"))
+          ;; the :columns key and its value are not widgets and must not render
+          (is (= 4 (%js-count "widget widget-value"))))))))
+
+(test widget--empty-row-still-renders-one-column
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer:render-widget (page:row) :owner body)
+        (is-true (js~ "widget-row"))
+        (is-true (js~ "--cols:1"))))))
+
+(test widget--row-nests-sections-side-by-side
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Temp" :name "s.temp" :type-hint "FLOAT" :value 1.0)
+          (ui-renderer:render-widget
+           (page:row (page:section "Left" (page:value 'temp))
+                     (page:section "Right" (page:value 'temp)))
+           :owner body)
+          (is-true (js~ "--cols:2"))
+          (is (= 2 (%js-count "page-section-header")))
+          (is-true (js~ "Left"))
+          (is-true (js~ "Right")))))))
+
+;; ----------------------------------------------------------------------------
 ;; chart -- no historic persistence -> placeholder.
 ;; ----------------------------------------------------------------------------
 
@@ -455,6 +507,23 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "measureText"))
         ;; sizing must converge: uPlot re-runs it until the size is stable
         (is-true (js~ "cycleNum > 1"))))))
+
+(test widget--chart-follows-its-container-width-after-init
+  ;; uPlot takes a fixed pixel width, so a chart in a `row' would keep the
+  ;; width it was measured at and overflow its column once the layout
+  ;; collapses to one column on a narrow screen.
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart 'temp)))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
+        (is-true (js~ "ResizeObserver"))
+        (is-true (js~ "setSize"))
+        ;; only width is reacted to -- reacting to height would feed our own
+        ;; setSize back in as a resize
+        (is-true (js~ "height: opts.height"))
+        (is-true (js~ "w !== lastWidth"))))))
 
 (test widget--chart-transform-applies-to-history-and-live
   (with-fixture render-env ()

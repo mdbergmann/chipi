@@ -286,12 +286,39 @@ Semantics:
 | `(button caption action &key label)` | — | Push-button running `action` (see below) |
 | `(button-group label &rest buttons)` | — | Several buttons sharing one row and label |
 | `(section label &rest widgets)` | — | Titled card grouping widgets |
+| `(row &rest widgets)` | — | Lays its widgets side by side in equal columns (see below) |
 | `(page-link page-id &key label)` | — | Navigation link to another page |
 | `(itemgroup-ref group-id)` | — | Embeds an itemgroup as an overview-style card |
 
 The widget `label` always defaults to the item's own label. Unknown item or
 page references render an inline "Unknown …" placeholder instead of breaking
 the page.
+
+### Horizontal rows
+
+Widgets normally stack, one per line. `row` puts several next to each other in
+equally wide columns — one column per child, so two children render 50/50 and
+three 33/33/33:
+
+```lisp
+(section "Status"
+  (row
+    (chart 'outside-temp :label "Außentemperatur [°C]" :range '(:hours 12))
+    (chart 'cistern-level :label "Füllgrad Zisterne [%]" :range '(:days 7))))
+```
+
+* `:columns` sets the count explicitly and wraps the children over several
+  lines when they outnumber it, e.g. `(row :columns 2 …)` with four charts
+  renders a 2×2 block.
+* Below 768px the row collapses to a single column, so a phone still gets one
+  widget per line.
+* Any widget works, not just charts — `(row (section "A" …) (section "B" …))`
+  puts two cards side by side.
+
+Charts are the main beneficiary: a single-series chart over a short range is
+mostly empty space at full width. A chart with many series is the opposite
+case and stays easier to read wide — halving its width also halves the room
+its time axis has.
 
 ### Action buttons
 
