@@ -312,8 +312,25 @@ three 33/33/33:
   renders a 2×2 block.
 * Below 768px the row collapses to a single column, so a phone still gets one
   widget per line.
-* Any widget works, not just charts — `(row (section "A" …) (section "B" …))`
-  puts two cards side by side.
+* Any widget works, not just charts.
+
+A row does **not** have to be inside a section — it is an ordinary widget and
+goes anywhere one can, including directly under `defpage`. A page-level row of
+sections puts two cards next to each other, which is otherwise impossible:
+every section is full width on its own.
+
+```lisp
+(defpage 'technik "Technik"
+  :title "Technik"
+  (row (section "Kessel" (value 'boiler-temp))
+       (section "Puffer" (value 'buffer-temp)))
+  (page-link 'cellar))
+```
+
+One caveat when going section-less: the white card comes from `section`, not
+from `row`. Bare item widgets in a page-level row sit directly on the page
+background with no card around them — put a `section` in the row (as above),
+or the row in a `section`, unless that is what you want.
 
 Charts are the main beneficiary: a single-series chart over a short range is
 mostly empty space at full width. A chart with many series is the opposite

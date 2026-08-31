@@ -741,6 +741,24 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (is (= 1 (%js-count "itemgroups-container")))
           (is (= 3 (%js-count "itemgroup-card"))))))))
 
+(test render-page--row-works-as-a-direct-page-child
+  ;; a row is an ordinary widget, so it needs no enclosing section -- a
+  ;; page-level row of sections is the only way to get two cards side by side
+  (with-fixture render-env ()
+    (page:defpage 'demo "Demo" :path "/demo"
+      (page:row (page:section "Links" (page:value 'temp))
+                (page:section "Rechts" (page:value 'temp))))
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (with-item (:label "Temp" :name "s.temp" :type-hint "FLOAT" :value 1.0)
+          (ui-renderer:render-page (page:get-page 'demo) ctx)
+          (is (= 1 (%js-count "widget-row")))
+          (is-true (js~ "--cols:2"))
+          (is (= 2 (%js-count "page-section-header")))
+          (is-true (js~ "Links"))
+          (is-true (js~ "Rechts")))))))
+
 (test render-page--refs-split-by-other-widget-get-separate-grids
   (with-fixture render-env ()
     (page:defpage 'rooms "Rooms" :path "/rooms"
