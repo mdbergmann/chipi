@@ -412,11 +412,11 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
 ;; chart -- uPlot data from history and live appends, with :transform.
 ;; ----------------------------------------------------------------------------
 
-(defun %chart-live-update (item-name value)
+(defun %chart-live-update (item-name value &optional (timestamp 1755000000))
   "Dispatches a live value update as the item-change listener would."
   (let ((state (make-hash-table :test #'equal)))
     (setf (gethash "value" state) value
-          (gethash "timestamp" state) 1755000000)
+          (gethash "timestamp" state) timestamp)
     (ui-renderer:call-item-value-update-fun item-name state)))
 
 (defun %series (item-name label &rest values)
@@ -562,6 +562,25 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
            (page:chart 'temp) (list (list :mock-item "Temp")) :mock-persp)
         (is-false any-ok)
         (is (null (third (first series-data))))))))
+
+(test widget--chart-refresh-throttles-live-appends
+  ;; a KNX item can broadcast every second; :refresh keeps such an item from
+  ;; appending a point per telegram -- updates inside the window are dropped
+  ;; before they reach the browser connection
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart 'temp :refresh 60)))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
+        (%chart-live-update "sensor.temp" 3.5 1755000000)
+        (is-true (js~ "push(3.5)"))
+        ;; 30s later: inside the window, dropped
+        (%chart-live-update "sensor.temp" 4.5 1755000030)
+        (is-false (js~ "push(4.5)"))
+        ;; 60s after the last appended point: charted again
+        (%chart-live-update "sensor.temp" 5.5 1755000060)
+        (is-true (js~ "push(5.5)"))))))
 
 (test widget--chart-multi-series-joins-tables-and-pads-live-appends
   (with-fixture render-env ()

@@ -808,19 +808,26 @@ callback per series item."
                 (%uplot-init-js plot-id (page:chart-type w) series-defs tables
                                 (page:chart-height w)))
     ;; live append on item change; timestamps in the update state are unix already
-    (loop :for (item-name nil nil) :in series-data
+    (loop :with refresh = (page:chart-refresh w)
+          :for (item-name nil nil) :in series-data
           :for series-idx :from 1
-          :do (let ((idx series-idx))
+          :do (let ((idx series-idx)
+                    (last-ts nil))
                 (set-on-value-update
                  ctx item-name
                  (lambda (updated-item-state)
-                   (let ((y (%chart-transformed-y
-                             transform
-                             (%ext-value (gethash "value" updated-item-state))))
-                         (ts (gethash "timestamp" updated-item-state)))
-                     (js-execute plot-div
-                                 (%uplot-append-js plot-id ts series-count
-                                                   idx (%js-number y))))))))))
+                   (let ((ts (gethash "timestamp" updated-item-state)))
+                     ;; :refresh drops updates inside the window Lisp-side, so
+                     ;; they never reach the browser connection at all
+                     (unless (and refresh last-ts ts
+                                  (< (- ts last-ts) refresh))
+                       (when ts (setf last-ts ts))
+                       (let ((y (%chart-transformed-y
+                                 transform
+                                 (%ext-value (gethash "value" updated-item-state)))))
+                         (js-execute plot-div
+                                     (%uplot-append-js plot-id ts series-count
+                                                       idx (%js-number y))))))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; page rendering / navigation

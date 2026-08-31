@@ -41,6 +41,7 @@
            #:chart-series
            #:chart-height
            #:chart-line-width
+           #:chart-refresh
            #:button
            #:button-p
            #:button-caption
@@ -115,7 +116,8 @@
   transform     ; nil, or 1-arg function applied to every charted value
   series        ; list of (item-id . label-or-nil), one entry per series
   (height 220)  ; plot height in CSS pixels
-  (line-width 2)) ; stroke width of every series in CSS pixels
+  (line-width 2) ; stroke width of every series in CSS pixels
+  refresh)      ; nil, or minimum seconds between live-appended points
 
 (defstruct (button (:include widget))
   caption    ; the button's own text
@@ -305,7 +307,7 @@ item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
 (defun chart (item-ids &key label (type :line) range persistence transform
-                            (height 220) (line-width 2))
+                            (height 220) (line-width 2) refresh)
   "A history chart of one or more items' persisted values.
 `item-ids' is a single item id, or a list whose elements are item ids or
 `(item-id . \"Series label\")' conses; each entry becomes one chart series
@@ -326,7 +328,15 @@ the default 220 the lines of a multi-series chart sit too close together to
 be read apart.
 `line-width' is the stroke width of every series in CSS pixels (uPlot scales
 it for the device pixel ratio).  The default 2 is twice uPlot's own 1px,
-which reads as hairlines on a high-density display."
+which reads as hairlines on a high-density display.
+`refresh', when given, is the minimum number of seconds between two
+live-appended points of one series; item updates arriving sooner are not
+charted (the item itself and its persistence still see every update).
+Without it every value change appends a point, which is the wrong cadence
+for an item that broadcasts every few seconds -- a KNX room temperature
+sending once a second appends a point per telegram for as long as the page
+stays open.  The history load is unaffected: it always shows what the
+persistence stored, at the persistence's own granularity."
   (let ((series (cond
                   ((symbolp item-ids) (list (cons item-ids nil)))
                   ;; a single (item-id . "label") cons
@@ -342,6 +352,7 @@ which reads as hairlines on a high-density display."
                 :series series
                 :height height
                 :line-width line-width
+                :refresh refresh
                 :range (etypecase range
                          (null (persp:make-relative-range :days 1))
                          (cons (apply #'persp:make-relative-range range))

@@ -1,5 +1,5 @@
 (defsystem "chipi-ui"
-  :version "0.1.7"
+  :version "0.1.8"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("chipi-api"
