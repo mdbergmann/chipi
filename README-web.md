@@ -286,7 +286,7 @@ Semantics:
 | `(slider item &key label min max step)` | integer/float | Slider with a live value label (defaults 0–100, step 1) |
 | `(setpoint item &key label min max step)` | integer/float | Stepper with −/+ buttons, e.g. for target temperatures |
 | `(selection item &key label choices)` | string | Dropdown; `choices` is an alist of `(value . label)` |
-| `(chart item-or-items &key label type range persistence transform)` | number/boolean | History chart, one series per item (see below) |
+| `(chart item-or-items &key label type range persistence transform fill line-width height refresh)` | number/boolean | History chart, one series per item (see below) |
 | `(button caption action &key label)` | — | Push-button running `action` (see below) |
 | `(button-group label &rest buttons)` | — | Several buttons sharing one row and label |
 | `(section label &rest widgets)` | — | Titled card grouping widgets |
@@ -402,6 +402,20 @@ in a row.
   unit: `(chart 'level-sensor :transform (lambda (ma) (- (* 18.87 ma) 147.19)))`.
   It is called with a number (booleans chart as 1/0) and must return a
   number; a failing transform charts the point as a gap.
+* `:fill` — the translucent area between each line and zero, in the series'
+  own colour. `:auto` (default) fills a lone series and leaves a multi-series
+  chart as bare lines; `t` fills every series (the fills overlap, fine for a
+  few power flows around zero, mud for nine temperatures); `nil` never fills.
+* `:line-width` — stroke width of every series in CSS pixels (default 2).
+* `:height` — plot height in CSS pixels (default 220); the width follows the
+  container.
+* `:refresh` — minimum seconds between two live-appended points of one
+  series, for items that broadcast every few seconds. The history load is
+  unaffected.
+* Points (markers) on a line are uPlot's own doing: it draws them only when
+  the data is sparse enough that consecutive samples sit further apart than a
+  marker, i.e. a lone series persisted every 30 minutes over 12 hours shows
+  its samples, a dense one does not.
 * Items without a historic persistence render a "No history available"
   placeholder. `example-web.lisp` contains a small in-memory historic
   persistence that seeds demo data for the chart.

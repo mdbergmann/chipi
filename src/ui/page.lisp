@@ -42,6 +42,7 @@
            #:chart-height
            #:chart-line-width
            #:chart-refresh
+           #:chart-fill
            #:button
            #:button-p
            #:button-caption
@@ -121,7 +122,8 @@
   series        ; list of (item-id . label-or-nil), one entry per series
   (height 220)  ; plot height in CSS pixels
   (line-width 2) ; stroke width of every series in CSS pixels
-  refresh)      ; nil, or minimum seconds between live-appended points
+  refresh       ; nil, or minimum seconds between live-appended points
+  (fill :auto)) ; area fill under the lines: :auto (lone series only), t, nil
 
 (defstruct (button (:include widget))
   caption    ; the button's own text
@@ -316,7 +318,7 @@ item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
 (defun chart (item-ids &key label (type :line) range persistence transform
-                            (height 220) (line-width 2) refresh)
+                            (height 220) (line-width 2) refresh (fill :auto))
   "A history chart of one or more items' persisted values.
 `item-ids' is a single item id, or a list whose elements are item ids or
 `(item-id . \"Series label\")' conses; each entry becomes one chart series
@@ -345,7 +347,12 @@ Without it every value change appends a point, which is the wrong cadence
 for an item that broadcasts every few seconds -- a KNX room temperature
 sending once a second appends a point per telegram for as long as the page
 stays open.  The history load is unaffected: it always shows what the
-persistence stored, at the persistence's own granularity."
+persistence stored, at the persistence's own granularity.
+`fill' controls the translucent area between each line and zero, drawn in
+the series' own colour: `:auto' (the default) fills a lone series and leaves a
+multi-series chart as bare lines, `t' fills every series, `nil' none.  With
+several series the fills overlap, which suits a few series around a common
+zero (power flows) but turns a dense chart into mud."
   (let ((series (cond
                   ((symbolp item-ids) (list (cons item-ids nil)))
                   ;; a single (item-id . "label") cons
@@ -362,6 +369,7 @@ persistence stored, at the persistence's own granularity."
                 :height height
                 :line-width line-width
                 :refresh refresh
+                :fill (ecase fill ((:auto t nil) fill))
                 :range (etypecase range
                          (null (persp:make-relative-range :days 1))
                          (cons (apply #'persp:make-relative-range range))

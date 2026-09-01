@@ -718,14 +718,23 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
     "#20c997" "#d63384" "#0dcaf0" "#6c757d" "#ffc107")
   "Stroke colors assigned to chart series in definition order (cycled).")
 
-(defun %uplot-series-def (label color line-width chart-type single-p)
+(defun %uplot-fill-color (stroke)
+  "The CSS colour of the area fill under a series stroked in STROKE (a
+\"#rrggbb\" string): the same hue, nearly transparent."
+  (flet ((component (start)
+           (parse-integer stroke :start start :end (+ start 2) :radix 16)))
+    (format nil "rgba(~d,~d,~d,0.08)"
+            (component 1) (component 3) (component 5))))
+
+(defun %uplot-series-def (label color line-width chart-type single-p fill-p)
   "The JS series definition object for one chart series.  LINE-WIDTH is the
-stroke width in CSS pixels.  A single series keeps the classic look (area
-fill, gaps stay gaps); with several series the gaps that timestamp-alignment
-introduces are spanned instead."
-  (format nil "{ label: '~a', stroke: '~a', width: ~a~a~a }"
+stroke width in CSS pixels, FILL-P whether the area between line and zero is
+filled in the series' colour.  A single series keeps its gaps; with several
+series the gaps that timestamp-alignment introduces are spanned instead."
+  (format nil "{ label: '~a', stroke: '~a', width: ~a~a~a~a }"
           (%js-escape label) color (%js-number line-width)
-          (if single-p ", fill: 'rgba(13,110,253,0.08)'" ", spanGaps: true")
+          (if fill-p (format nil ", fill: '~a'" (%uplot-fill-color color)) "")
+          (if single-p "" ", spanGaps: true")
           (if (eq chart-type :bar)
               ", paths: uPlot.paths.bars({size: [0.6, 100]})"
               "")))
@@ -827,6 +836,10 @@ callback per series item."
   (let* ((plot-id (html-id plot-div))
          (transform (page:chart-transform w))
          (single-p (= 1 (length series-data)))
+         (fill-p (ecase (page:chart-fill w)
+                   (:auto single-p)
+                   ((t) t)
+                   ((nil) nil)))
          (series-count (length series-data))
          (tables (loop :for (nil nil persisted-items) :in series-data
                        :for points = (%chart-points persisted-items transform)
@@ -840,7 +853,8 @@ callback per series item."
                                            *chart-series-colors*)
                                       (page:chart-line-width w)
                                       (page:chart-type w)
-                                      single-p))))
+                                      single-p
+                                      fill-p))))
     (js-execute plot-div
                 (%uplot-init-js plot-id (page:chart-type w) series-defs tables
                                 (page:chart-height w)))

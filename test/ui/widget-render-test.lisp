@@ -584,6 +584,49 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "width: 3.5"))
         (is-false (js~ "width: 2"))))))
 
+(test widget--chart-fill-auto-fills-a-lone-series-only
+  ;; the classic single-series look: area under the line in the series colour;
+  ;; a multi-series chart stays bare lines unless asked
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart 'temp) (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
+        (is-true (js~ "fill: 'rgba(13,110,253,0.08)'"))))
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart '(temp power))
+                                    (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)
+                                          (%series "sensor.power" "Power" 300)))
+        (is-false (js~ "fill:"))))))
+
+(test widget--chart-fill-t-fills-every-series-in-its-own-color
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart '(temp power) :fill t)
+                                    (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)
+                                          (%series "sensor.power" "Power" 300)))
+        ;; first two entries of *chart-series-colors*
+        (is-true (js~ "stroke: '#0d6efd', width: 2, fill: 'rgba(13,110,253,0.08)'"))
+        (is-true (js~ "stroke: '#dc3545', width: 2, fill: 'rgba(220,53,69,0.08)'"))
+        ;; the multi-series gap spanning is kept alongside the fill
+        (is (= 2 (count-js "spanGaps: true")))))))
+
+(test widget--chart-fill-nil-leaves-even-a-lone-series-bare
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart 'temp :fill nil)
+                                    (clog:create-div body)
+                                    (list (%series "sensor.temp" "Temp" 2.5)))
+        (is-false (js~ "fill:"))))))
+
+(test chart--rejects-unknown-fill-mode
+  (signals error (page:chart 'temp :fill :always)))
+
 (test widget--chart-height-sets-plot-div-min-height
   (with-fixture render-env ()
     (with-captured-clog
