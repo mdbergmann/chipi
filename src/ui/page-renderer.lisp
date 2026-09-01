@@ -15,6 +15,9 @@
            #:render-page
            #:render-overview
            #:render-not-found
+           #:render-home
+           #:render-settings
+           #:home-page
            #:render-widget
            #:navigate-to-page
            #:set-on-value-update
@@ -867,6 +870,39 @@ callback per series item."
 ;; page rendering / navigation
 ;; ---------------------------------------------------------------------------
 
+;; ---------------------------------------------------------------------------
+;; app header
+;; ---------------------------------------------------------------------------
+
+(defun %header-button (parent content hint on-click)
+  (let ((btn (create-button parent :class "app-header-btn"
+                                   :content content)))
+    (setf (attribute btn "title") hint)
+    (setf (attribute btn "aria-label") hint)
+    (set-on-click btn (lambda (obj)
+                        (declare (ignore obj))
+                        (funcall on-click)))
+    btn))
+
+(defun %render-app-header (ctx container)
+  "Renders the app bar that every view carries: back (once the connection has
+navigated), the app name, and the home and settings buttons.
+
+Installed as a web app the UI has no browser chrome -- no back button, no
+address bar -- so this bar is the only navigation the user has left."
+  (let* ((header (create-div container :class "app-header"))
+         (left (create-div header :class "app-header-side")))
+    (when (plusp (nav-context-depth ctx))
+      (%header-button left "&larr;" "Back"
+                      (lambda ()
+                        (js-execute (nav-context-body ctx) "history.back()"))))
+    (create-div header :class "app-brand" :content ui-webapp:+app-name+)
+    (let ((right (create-div header :class "app-header-side app-header-right")))
+      (%header-button right "&#8962;" "Home" (lambda () (navigate-home ctx)))
+      (%header-button right "&#9881;" "Settings"
+                      (lambda () (navigate-to-settings ctx))))
+    header))
+
 (defun render-page (page ctx)
   "Renders PAGE into the context's container, replacing previous content."
   (log:debug "Rendering page: ~a" (page:page-id page))
@@ -874,8 +910,7 @@ callback per series item."
         (body (nav-context-body ctx)))
     (setf (inner-html container) "")
     (clear-value-update-funs ctx)
-    (when (plusp (nav-context-depth ctx))
-      (%render-back-button container))
+    (%render-app-header ctx container)
     (when (page:page-title page)
       (create-div container :class "header-line"
                             :content (page:page-title page)))
@@ -902,18 +937,24 @@ calls history.back()) returns via the popstate handler in `chipi-ui.main'."
   (url-push-state (window (nav-context-body ctx)) (page:page-path page))
   (render-page page ctx))
 
-(defun %render-back-button (container)
-  (let ((back-btn (create-button container :class "back-button"
-                                           :content "&larr; Back")))
-    (set-on-click back-btn
-                  (lambda (obj)
-                    (js-execute obj "history.back()")))))
+(defun navigate-home (ctx)
+  "Navigates the connection to the root path and renders its home view."
+  (incf (nav-context-depth ctx))
+  (url-push-state (window (nav-context-body ctx)) "/")
+  (render-home ctx))
+
+(defun navigate-to-settings (ctx)
+  "Navigates the connection to the built-in settings view."
+  (incf (nav-context-depth ctx))
+  (url-push-state (window (nav-context-body ctx)) ui-settings:+settings-path+)
+  (render-settings ctx))
 
 (defun render-not-found (ctx path)
   "Renders a 'no page defined' view with links to all defined pages."
   (let ((container (nav-context-container ctx)))
     (setf (inner-html container) "")
     (clear-value-update-funs ctx)
+    (%render-app-header ctx container)
     (create-div container :class "header-line" :content "Page not found")
     (create-div container :class "not-found-path"
                           :content (format nil "No page is defined for ~a" path))
@@ -930,6 +971,7 @@ calls history.back()) returns via the popstate handler in `chipi-ui.main'."
   (let ((container (nav-context-container ctx)))
     (setf (inner-html container) "")
     (clear-value-update-funs ctx)
+    (%render-app-header ctx container)
     (create-div container :class "header-line"
                           :content "Chipi Home Automation Dashboard")
     (let* ((groups (retrieve-top-level-itemgroups))
@@ -962,6 +1004,7 @@ Shows child groups (as links or cards) above direct items."
   (let ((container (nav-context-container ctx)))
     (setf (inner-html container) "")
     (clear-value-update-funs ctx)
+    (%render-app-header ctx container)
     (let ((back-btn (create-button container
                                    :class "back-button"
                                    :content "&larr; Back")))
@@ -1045,3 +1088,95 @@ Shows child groups (as links or cards) above direct items."
       (t
        (%create-value-display ctx parent item-name item-value type-hint
                               nil mapping)))))
+
+;; ---------------------------------------------------------------------------
+;; home view
+;; ---------------------------------------------------------------------------
+
+(defun home-page (stored-path)
+  "The page the root path should show for a device that stored STORED-PATH:
+that page while it exists, else the page claiming the root path, else `nil',
+which stands for the generated itemgroup overview.
+
+A stored path outlives the page it names -- a `defpage' gets renamed or
+dropped, the device keeps its setting -- so a stale one falls back instead of
+leaving the device on a 'page not found'."
+  (or (when stored-path
+        (page:find-page-by-path stored-path))
+      (page:find-page-by-path "/")))
+
+(defun render-home (ctx)
+  "Renders the connection's home view: the page this device picked in the
+settings, the page claiming \"/\", or the generated itemgroup overview."
+  (let* ((stored (ui-settings:home-path (nav-context-body ctx)))
+         (page (home-page stored)))
+    (when (and stored (not (page:find-page-by-path stored)))
+      (log:info "Home page ~a set on this device no longer exists, using the default"
+                stored))
+    (if page
+        (render-page page ctx)
+        (render-overview ctx))))
+
+;; ---------------------------------------------------------------------------
+;; settings view
+;; ---------------------------------------------------------------------------
+
+(defun %default-home-label ()
+  "What the default home option resolves to right now."
+  (let ((root-page (page:find-page-by-path "/")))
+    (if root-page
+        (format nil "~a (page at /)" (page:page-label root-page))
+        "Itemgroup overview")))
+
+(defun %render-home-option (ctx parent label detail path current)
+  "One selectable home-page row.  PATH is what gets stored for it: `nil' for
+the default option, which clears the setting again."
+  (let* ((selected (equal path current))
+         (row (create-div parent :class (if selected
+                                            "settings-option selected"
+                                            "settings-option"))))
+    (create-div row :class "settings-option-label" :content label)
+    (create-div row :class "settings-option-detail" :content (or detail ""))
+    (create-div row :class "settings-option-check"
+                    :content (if selected "&#10003;" "&nbsp;"))
+    (set-on-click row (lambda (obj)
+                        (declare (ignore obj))
+                        (ui-settings:set-home-path (nav-context-body ctx) path)
+                        ;; re-render rather than just move the checkmark: the
+                        ;; view is cheap and this shows what the browser
+                        ;; actually stored
+                        (render-settings ctx)))
+    row))
+
+(defun render-settings (ctx)
+  "Renders the built-in settings view.
+
+Settings are per device -- they live in the browser's `localStorage' -- so the
+wall tablet and a phone each open on the page that suits them."
+  (let* ((container (nav-context-container ctx))
+         (body (nav-context-body ctx))
+         (current (ui-settings:home-path body)))
+    (setf (inner-html container) "")
+    (clear-value-update-funs ctx)
+    (%render-app-header ctx container)
+    (create-div container :class "header-line" :content "Settings")
+    (setf (title (html-document body)) "Settings")
+    (let* ((card (create-div container :class "page-section"))
+           (card-body (progn
+                        (create-div card :class "page-section-header"
+                                         :content "Home page")
+                        (create-div card :class "page-section-body"))))
+      (create-div card-body
+                  :class "settings-hint"
+                  :content (format nil "The page this device opens on. ~
+Stored on this device only, so every phone or tablet can have its own."))
+      (%render-home-option ctx card-body "Default" (%default-home-label)
+                           nil current)
+      ;; the page claiming "/" is already reachable via "Default" above --
+      ;; listing it again under its own path would give it two rows whose
+      ;; selected state disagrees depending on which one the setting was last
+      ;; stored through
+      (dolist (p (page:get-pages))
+        (unless (equal (page:page-path p) "/")
+          (%render-home-option ctx card-body (page:page-label p)
+                               (page:page-path p) (page:page-path p) current))))))

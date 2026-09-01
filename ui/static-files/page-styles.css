@@ -3,6 +3,124 @@
    carries the Bootstrap base; these classes only style the new page widgets
    and work alongside it. */
 
+/* --- installed web app --------------------------------------------------- */
+
+/* Standalone (added to the home screen or the dock) there is no browser
+   chrome: the page owns the notch, the home indicator and the rubber band. */
+body {
+    overscroll-behavior-y: none;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* no double-tap zoom delay and no grey flash on the controls */
+.app-header-btn,
+.widget-button,
+.setpoint-btn,
+.page-nav-link,
+.itemgroup-link,
+.settings-option {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* a long press on a control should act on the control, not select its text or
+   pop up the magnifier */
+.app-header-btn,
+.settings-option {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* --- app header ---------------------------------------------------------- */
+
+.app-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.app-brand {
+    flex-grow: 1;
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+/* both sides reserve the same width so the brand stays centred whether or not
+   a back button is rendered */
+.app-header-side {
+    display: flex;
+    gap: 0.25rem;
+    min-width: 6rem;
+}
+
+.app-header-right {
+    justify-content: flex-end;
+}
+
+.app-header-btn {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    background: #f8f9fa;
+    color: #212529;
+    /* 44px: the smallest target a finger hits reliably */
+    min-width: 2.75rem;
+    height: 2.75rem;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.app-header-btn:active {
+    background: #e9ecef;
+}
+
+/* --- settings ------------------------------------------------------------ */
+
+.settings-hint {
+    color: #6c757d;
+    margin-bottom: 0.75rem;
+}
+
+.settings-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+}
+
+.settings-option:last-child {
+    border-bottom: none;
+}
+
+.settings-option.selected {
+    background: #f1f6ff;
+}
+
+.settings-option-label {
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.settings-option-detail {
+    flex-grow: 1;
+    color: #6c757d;
+    text-align: right;
+}
+
+.settings-option-check {
+    min-width: 1rem;
+    color: #0d6efd;
+    font-weight: 700;
+}
+
 /* --- sections ------------------------------------------------------------ */
 
 .page-section {

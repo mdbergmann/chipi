@@ -6,7 +6,8 @@
                 #:nav-context-body
                 #:nav-context-depth
                 #:render-page
-                #:render-overview
+                #:render-home
+                #:render-settings
                 #:render-not-found
                 #:call-item-value-update-fun)
   (:export #:start-main
@@ -25,12 +26,14 @@ back/forward re-renders via the popstate handler."
             "/custom-styles.css")
   (load-css (html-document body)
             "/page-styles.css")
+  ;; from static-files rather than from a CDN: installed as a web app the
+  ;; dashboard has to come up on a LAN that has no way out to the internet
   (load-css (html-document body)
-            "https://cdn.jsdelivr.net/npm/uplot@1/dist/uPlot.min.css")
+            "/vendor/uPlot.min.css")
   (load-script (html-document body)
-               "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js")
+               "/vendor/bootstrap.bundle.min.js")
   (load-script (html-document body)
-               "https://cdn.jsdelivr.net/npm/uplot@1/dist/uPlot.iife.min.js")
+               "/vendor/uPlot.iife.min.js")
 
   (let* ((container (create-div body :class "container"))
          (ctx (make-nav-context :body body :container container)))
@@ -45,23 +48,45 @@ back/forward re-renders via the popstate handler."
     (%dispatch-path ctx)))
 
 (defun %dispatch-path (ctx)
-  "Renders the view matching the connection's current URL path."
-  (let* ((path (page:normalize-path
-                (path-name (location (nav-context-body ctx)))))
-         (matching-page (page:find-page-by-path path)))
+  "Renders the view matching the connection's current URL path.
+
+The root path is resolved before the page registry is consulted: it is the
+app's home slot, and which view fills it is the device's setting (see
+`chipi-ui.settings') rather than a property of a page."
+  (let ((path (page:normalize-path
+               (path-name (location (nav-context-body ctx))))))
     (cond
-      (matching-page (render-page matching-page ctx))
-      ((string= "/" path) (render-overview ctx))
-      (t (render-not-found ctx path)))))
+      ((string= ui-settings:+settings-path+ path) (render-settings ctx))
+      ((string= "/" path) (render-home ctx))
+      (t (let ((matching-page (page:find-page-by-path path)))
+           (if matching-page
+               (render-page matching-page ctx)
+               (render-not-found ctx path)))))))
 
 (defun %register-page-route (page)
   "Registers PAGE's URL path as a CLOG route so that a direct browser visit
 (deep link) to it serves the boot file and lands in `on-main'."
+  (when (string= ui-settings:+settings-path+ (page:page-path page))
+    (log:warn "Page ~a claims ~a, which the built-in settings view serves; ~
+the page will not be reachable."
+              (page:page-id page) (page:page-path page)))
   (unless (string= "/" (page:page-path page))
     (log:debug "Registering page route: ~a" (page:page-path page))
     (set-on-new-window 'on-main
                        :path (page:page-path page)
                        :boot-file "/boot.html")))
+
+(defparameter *reconnect-delay* 120
+  "Seconds the server keeps a closed connection's session alive so that the
+browser can reconnect to it.
+
+Installed as a web app the UI is suspended whenever the user switches away, and
+the websocket dies with it; the session has to outlive that absence, or coming
+back would find the page rendered but dead -- CLOG's client reconnects with the
+old connection id, and a server that has already dropped it just closes the
+socket again.  The boot page reloads when it detects that, but a reload
+re-renders the whole view, so the session is kept for a couple of minutes
+first.  Costs one parked thread per closed connection for the duration.")
 
 (defvar *item-change-listener* nil)
 
@@ -88,14 +113,21 @@ back/forward re-renders via the popstate handler."
                                  (ev:subscribe self self 'item:item-changed-event))
                          :receive (lambda (msg) (%item-listener-receive msg)))))
 
-    (setf clog-connection:*reconnect-delay* 2)
+    (setf clog-connection:*reconnect-delay* *reconnect-delay*)
     (setf ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal))
 
     (initialize 'on-main
                 :static-root system-root
                 :host host
                 :port port
-                :extended-routing t)
+                :extended-routing t
+                :lack-middleware-list (list #'ui-webapp:manifest-middleware))
+
+    ;; the settings view is built in rather than a `defpage', so its route is
+    ;; registered here and not by the page hook below
+    (set-on-new-window 'on-main
+                       :path ui-settings:+settings-path+
+                       :boot-file "/boot.html")
 
     ;; routes for pages defined before the UI started ...
     (dolist (p (page:get-pages))

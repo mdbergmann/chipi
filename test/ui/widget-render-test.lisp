@@ -699,8 +699,9 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is (= 1 (ui-renderer:nav-context-depth ctx)))
         (is-true (js~ "history.pushState"))
         (is-true (js~ "/cellar"))
-        ;; navigated view carries a back button (depth > 0)
-        (is-true (js~ "back-button"))
+        ;; navigated view carries a back button in the app header (depth > 0)
+        (is-true (js~ "app-header"))
+        (is-true (js~ "Back"))
         (is-true (js~ "The cellar"))))))
 
 ;; ----------------------------------------------------------------------------
@@ -716,7 +717,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (ui-renderer:render-page (page:get-page 'wall) ctx)
         (is-true (js~ "header-line"))
         (is-true (js~ "Ground floor"))
-        (is-false (js~ "back-button"))))))
+        (is-false (js~ "Back"))))))
 
 (defun %make-group-ht (&optional (label "Group"))
   "A mock itemgroup hash-table shaped like itemgroup-ext:itemgroup-to-ht output."

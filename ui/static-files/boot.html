@@ -5,10 +5,25 @@
       <meta http-equiv="Pragma" content="no-cache" />
       <meta http-equiv="Expires" content="0" />
       <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <script src="https://code.jquery.com/jquery-3.6.0.min.js"
-              integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
-              crossorigin="anonymous"></script>
+      <!-- viewport-fit=cover: installed on a phone the page owns the whole
+           screen, notch and home indicator included; page-styles.css keeps the
+           content out of them with the safe-area insets -->
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+      <meta name="theme-color" content="#0d6efd">
+      <!-- installable web app: the manifest covers Safari's "Add to Dock" and
+           Chrome, the apple- tags cover "Add to Home Screen" on iOS -->
+      <link rel="manifest" href="/manifest.webmanifest">
+      <meta name="apple-mobile-web-app-capable" content="yes">
+      <meta name="mobile-web-app-capable" content="yes">
+      <meta name="apple-mobile-web-app-title" content="Chipi">
+      <meta name="apple-mobile-web-app-status-bar-style" content="default">
+      <!-- iOS takes the home screen icon from this link, not from the manifest -->
+      <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png">
+      <link rel="icon" type="image/png" href="/icons/icon-192.png">
+      <title>Chipi</title>
+      <!-- served from static-files, not from a CDN: the dashboard has to come
+           up when the house has no internet, only a LAN -->
+      <script src="/vendor/jquery-3.6.0.min.js" type="text/javascript"></script>
       <script src="/js/boot.js" type="text/javascript"></script>
       <noscript><%= (@ meta) %></noscript>
    </HEAD>
@@ -31,5 +46,30 @@ setTimeout(function() {
         window.location.reload();
     }
 }, 5000);
+
+// Resume watchdog.  Installed as a web app the UI is suspended when the user
+// switches away, and the websocket dies with it.  boot.js reconnects on its
+// own, but only while the server still holds the session (see *reconnect-delay*
+// in chipi-ui.main); after a longer absence the page comes back rendered but
+// dead -- no item updates, no reaction to taps.  Give the reconnect a few
+// seconds, then reload, which re-renders the current path from scratch.
+var clogResumeCheck = null;
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible') { return; }
+    if (clogResumeCheck !== null) { return; }
+    var tries = 0;
+    clogResumeCheck = setInterval(function() {
+        tries++;
+        if (typeof ws !== 'undefined' && ws !== null && ws.readyState === 1) {
+            clearInterval(clogResumeCheck);
+            clogResumeCheck = null;
+        } else if (tries >= 8) {
+            clearInterval(clogResumeCheck);
+            clogResumeCheck = null;
+            console.log('CLOG resume watchdog: websocket did not come back, reloading...');
+            window.location.reload();
+        }
+    }, 500);
+});
 </script>
 </HTML>

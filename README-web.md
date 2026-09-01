@@ -258,10 +258,14 @@ Semantics:
   space-constrained panels).
 * Every page is directly reachable (deep-linkable) at its `:path`. A page
   with `:path "/"` replaces the auto-generated overview; without one the
-  overview stays on `/`.
+  overview stays on `/`. Either is only the *default* for `/` — each device
+  can pick its own home page, see [Settings](#settings).
 * `page-link` navigation pushes browser history: back/forward work, a back
-  button is rendered on navigated pages, and a reload stays on the current
-  page.
+  button appears in the app header on navigated pages, and a reload stays on
+  the current page.
+* Every view carries an app header: back (once navigated), the app name, a
+  home button and the settings gear. Installed as a web app there is no
+  browser chrome, so this is the navigation the user gets.
 * Re-defining a page (same id) replaces it, like the other `def*` macros.
 * Widgets are ordinary values, so pages can be composed programmatically:
 
@@ -401,9 +405,47 @@ in a row.
 * Items without a historic persistence render a "No history available"
   placeholder. `example-web.lisp` contains a small in-memory historic
   persistence that seeds demo data for the chart.
-* Charts are rendered with [uPlot](https://github.com/leeoniya/uPlot); uPlot
-  and Bootstrap are loaded from a CDN, so the *browser* needs internet
-  access (the server does not).
+* Charts are rendered with [uPlot](https://github.com/leeoniya/uPlot). uPlot,
+  Bootstrap and jQuery are served by chipi itself from
+  `ui/static-files/vendor/`, so neither the server nor the browser needs
+  internet access.
+
+## Settings
+
+The gear in the app header opens `/settings`. Settings are **per device**:
+they live in the browser's `localStorage`, so a wall tablet, a phone and a
+desktop browser can each keep their own — nothing is stored on the server.
+
+| Setting | Description |
+|---------|-------------|
+| Home page | The page `/` shows on this device: any `defpage`, or *Default* — the page with `:path "/"` if there is one, otherwise the auto-generated overview. A stored page that no longer exists falls back to the default. |
+
+`/settings` is served by the UI itself; a `defpage` claiming that path is
+not reachable (a warning is logged).
+
+## Installing as an app
+
+The UI is an installable web app: Safari's *Add to Home Screen* on an iPhone
+or iPad, *Add to Dock* on a Mac, or Chrome's install prompt give it an icon
+and open it full screen without browser chrome, launching on the device's
+home page. The app is named *Chipi*; icons live in `ui/static-files/icons/`
+and can be replaced with your own (180×180 for iOS, 192×192 and 512×512 for
+the manifest).
+
+Two things make this work that are worth knowing about:
+
+* The manifest's `start_url` is always `/` — the launch URL is baked into the
+  install, so the home page is a device setting (above) rather than part of
+  the manifest, and changing it takes effect on the next launch without
+  reinstalling.
+* An installed app is suspended when the user switches away and its
+  websocket dies with it. The server keeps a dropped session for
+  `chipi-ui.main:*reconnect-delay*` seconds (default 120) so a short absence
+  resumes in place; after a longer one the boot page notices the socket did
+  not come back and reloads, which re-renders the current path.
+
+Plain HTTP over the LAN is enough for installing; only service workers and
+Web Push would need HTTPS, and the UI uses neither.
 
 ## UI Tags
 
