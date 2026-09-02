@@ -265,7 +265,8 @@ Semantics:
   the current page.
 * Every view carries an app header: back (once navigated), the app name, a
   home button and the settings gear. Installed as a web app there is no
-  browser chrome, so this is the navigation the user gets.
+  browser chrome, so this is the navigation the user gets. On a locked
+  device (see [Settings](#settings)) the gear is left out.
 * Re-defining a page (same id) replaces it, like the other `def*` macros.
 * Widgets are ordinary values, so pages can be composed programmatically:
 
@@ -433,9 +434,41 @@ desktop browser can each keep their own — nothing is stored on the server.
 | Setting | Description |
 |---------|-------------|
 | Home page | The page `/` shows on this device: any `defpage`, or *Default* — the page with `:path "/"` if there is one, otherwise the auto-generated overview. A stored page that no longer exists falls back to the default. |
+| Device lock | Hides the settings gear on this device and puts a PIN prompt in front of `/settings`. Only offered when `ui:start` was given a `:settings-pin`. |
 
 `/settings` is served by the UI itself; a `defpage` claiming that path is
 not reachable (a warning is logged).
+
+### Locking a device
+
+For a device that should show one page and stay on it — a wall panel, or the
+kids' tablet — configure a PIN and lock the device:
+
+```lisp
+(ui:start :host "0.0.0.0" :port 8080 :settings-pin "4711")
+```
+
+Then, on the device: gear → pick its home page → *Lock this device*. From
+then on the gear is gone. To get back into the settings, tap the *Chipi*
+name in the header five times within three seconds (the only way in an
+installed app, which has no address bar), or open `/settings` in a browser;
+either way the PIN prompt comes first. The PIN is compared on the server and
+never sent to the device. A correct PIN unlocks the settings for that
+connection only — a reload asks again — and *Unlock this device* removes
+the lock.
+
+Two limits worth knowing:
+
+* The lock is a `localStorage` flag like the home page. Clearing the site
+  data or reinstalling the app resets the device to unlocked and the default
+  home page, so make the page for `/` the one that is harmless to land on.
+* The lock fixes the home page, not what the device can reach: every page
+  its home page links to is still one tap away, and a browser can still type
+  a page's URL.
+
+Dropping `:settings-pin` from the config again unlocks every device: without
+a PIN the stored flag is ignored, so no device is ever stranded without a way
+into its settings.
 
 ## Installing as an app
 

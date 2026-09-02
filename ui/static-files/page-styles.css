@@ -14,8 +14,10 @@ body {
     padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* no double-tap zoom delay and no grey flash on the controls */
+/* no double-tap zoom delay and no grey flash on the controls; the brand is
+   one too -- on a locked device a run of taps on it opens the settings */
 .app-header-btn,
+.app-brand,
 .widget-button,
 .setpoint-btn,
 .page-nav-link,
@@ -28,6 +30,7 @@ body {
 /* a long press on a control should act on the control, not select its text or
    pop up the magnifier */
 .app-header-btn,
+.app-brand,
 .settings-option {
     -webkit-user-select: none;
     user-select: none;
@@ -119,6 +122,30 @@ body {
     min-width: 1rem;
     color: #0d6efd;
     font-weight: 700;
+}
+
+/* the PIN prompt of a locked device */
+.settings-pin-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.settings-pin-input {
+    max-width: 10rem;
+    font-size: 1.25rem;
+    letter-spacing: 0.25em;
+}
+
+.settings-pin-btn {
+    height: 2.75rem;
+    white-space: nowrap;
+}
+
+.settings-pin-error {
+    color: #dc3545;
+    min-height: 1.5rem;
+    margin-top: 0.5rem;
 }
 
 /* --- sections ------------------------------------------------------------ */

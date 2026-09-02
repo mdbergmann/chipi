@@ -293,6 +293,258 @@ ANSWER, which is what the browser sends back for a `storage-element' read."
         (is-true (js~ "The start page"))))))
 
 ;; ----------------------------------------------------------------------------
+;; device lock -- a locked device hides the settings gear and asks for the PIN
+;; configured on the server before it shows its settings.
+;; ----------------------------------------------------------------------------
+
+(defmacro with-pin ((pin) &body body)
+  `(let ((ui-settings:*settings-pin* ,pin))
+     ,@body))
+
+(defun fire-enter (clog-obj)
+  "Invokes the key-down handler bound on CLOG-OBJ with an Enter key event, in
+the wire format `clog:parse-keyboard-event' reads.  Matches what a real
+browser sends for Enter: CLOG's `keyboard-event-script' computes :key-code
+client-side as `e.key.charCodeAt(0)', which for \"Enter\" is 69 (the code of
+`E'), not the standard numeric key code 13.  Returns t if bound."
+  (let ((handler (gethash (format nil "~a:keydown" (clog:html-id clog-obj))
+                          (clog:connection-data clog-obj))))
+    (when handler
+      (funcall handler "69:0:false:false:false:false:Enter")
+      t)))
+
+(test lock-available-p--takes-a-configured-pin
+  (with-pin (nil) (is-false (ui-settings:lock-available-p)))
+  (with-pin ("4711") (is-true (ui-settings:lock-available-p))))
+
+(test locked-p--reads-what-the-browser-stored
+  (with-pin ("4711")
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-query-answer ("true")
+          (is-true (ui-settings:locked-p body)))
+        (with-query-answer ("null")
+          (is-false (ui-settings:locked-p body)))
+        ;; a query that timed out
+        (is-false (ui-settings:locked-p body))))))
+
+(test locked-p--never-without-a-configured-pin
+  ;; the PIN dropped from the config again must not strand a locked device
+  ;; with no way into its settings
+  (with-pin (nil)
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-query-answer ("true")
+          (is-false (ui-settings:locked-p body)))))))
+
+(test set-locked--writes-and-removes-the-flag
+  (with-captured-clog
+    (let ((body (make-body)))
+      (ui-settings:set-locked body t)
+      (is-true (js~ "localStorage.setItem('chipi-settings-locked','true')"))
+      (ui-settings:set-locked body nil)
+      (is-true (js~ "localStorage.removeItem('chipi-settings-locked')")))))
+
+(test pin-matches-p--compares-the-trimmed-entry-with-the-configured-pin
+  (with-pin ("4711")
+    (is-true (ui-settings:pin-matches-p "4711"))
+    (is-true (ui-settings:pin-matches-p " 4711 "))
+    (is-false (ui-settings:pin-matches-p "0000"))
+    (is-false (ui-settings:pin-matches-p ""))
+    ;; the field's value query timed out
+    (is-false (ui-settings:pin-matches-p nil)))
+  (with-pin (nil)
+    (is-false (ui-settings:pin-matches-p "4711"))))
+
+(test app-header--locked-device-has-no-settings-gear
+  (with-fixture settings-env ()
+    (page:defpage 'wall "Wall panel" :path "/wall")
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (with-mocks ()
+            (answer ui-settings:locked-p t)
+            (ui-renderer:render-page (page:get-page 'wall) ctx)
+            (is-true (js~ "Home"))
+            (is-false (js~ "&#9881;"))
+            (is-false (js~ "Settings"))))))))
+
+(test brand--five-taps-open-the-settings-on-a-locked-device
+  (with-fixture settings-env ()
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body))
+             (brand (ui-renderer::%render-brand ctx body t)))
+        (loop :repeat 4 :do (fire-click brand))
+        (is-false (js~ "history.pushState"))
+        (fire-click brand)
+        (is-true (js~ (format nil "history.pushState({},'','~a')"
+                              ui-settings:+settings-path+)))))))
+
+(test brand--is-inert-on-an-unlocked-device
+  (with-fixture settings-env ()
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body))
+             (brand (ui-renderer::%render-brand ctx body nil)))
+        (is-false (fire-click brand))))))
+
+(test %set-on-secret-taps--only-taps-within-the-window-count
+  (with-captured-clog
+    (let* ((body (make-body))
+           (div (clog:create-div body))
+           (now 0)
+           (fired 0))
+      (ui-renderer::%set-on-secret-taps div (lambda () (incf fired))
+                                        :clock (lambda () now))
+      (loop :repeat 4 :do (fire-click div))
+      ;; a pause longer than the window forgets the taps so far
+      (incf now (* 10 internal-time-units-per-second))
+      (fire-click div)
+      (is (= 0 fired))
+      (loop :repeat 3 :do (fire-click div))
+      (is (= 0 fired))
+      (fire-click div)
+      (is (= 1 fired)))))
+
+(test render-settings--locked-device-gets-the-pin-prompt
+  (with-fixture settings-env ()
+    (page:defpage 'rooms "Rooms" :path "/rooms")
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (with-mocks ()
+            (answer ui-settings:locked-p t)
+            (ui-renderer:render-settings ctx)
+            (is-true (js~ "Device locked"))
+            (is-true (js~ "settings-pin-input"))
+            ;; none of the settings themselves, and no gear either
+            (is-false (js~ "settings-option-label"))
+            (is-false (js~ "Rooms"))
+            (is-false (js~ "&#9881;"))))))))
+
+(test render-settings--unlocked-connection-sees-the-locked-devices-settings
+  (with-fixture settings-env ()
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (setf (ui-renderer:nav-context-settings-unlocked ctx) t)
+          (with-mocks ()
+            (answer ui-settings:locked-p t)
+            (ui-renderer:render-settings ctx)
+            (is-true (js~ "Home page"))
+            (is-true (js~ "Unlock this device"))
+            (is-false (js~ "settings-pin-input"))
+            ;; the device is still locked, so the gear stays hidden
+            (is-false (js~ "&#9881;"))))))))
+
+(test render-settings--offers-the-lock-only-with-a-configured-pin
+  (with-fixture settings-env ()
+    (with-pin (nil)
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (ui-renderer:render-settings ctx)
+          (is-true (js~ "Home page"))
+          (is-false (js~ "Device lock")))))
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (ui-renderer:render-settings ctx)
+          (is-true (js~ "Device lock"))
+          (is-true (js~ "Lock this device")))))))
+
+(test pin-prompt--the-right-pin-unlocks-the-connection
+  (with-fixture settings-env ()
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (with-mocks ()
+            (answer ui-settings:locked-p t)
+            (multiple-value-bind (input button)
+                (ui-renderer::%render-pin-prompt ctx (clog:create-div body))
+              (declare (ignore input))
+              ;; the browser answers the field's value query with the entry
+              (with-query-answer ("4711")
+                (is-true (fire-click button)))
+              (is-true (ui-renderer:nav-context-settings-unlocked ctx))
+              (is-true (js~ "Unlock this device")))))))))
+
+(test pin-prompt--enter-in-the-field-tries-the-pin
+  (with-fixture settings-env ()
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (with-mocks ()
+            (answer ui-settings:locked-p t)
+            (multiple-value-bind (input button)
+                (ui-renderer::%render-pin-prompt ctx (clog:create-div body))
+              (declare (ignore button))
+              (with-query-answer ("4711")
+                (is-true (fire-enter input)))
+              (is-true (ui-renderer:nav-context-settings-unlocked ctx)))))))))
+
+(test pin-prompt--a-wrong-pin-says-so-and-keeps-the-lock
+  (with-fixture settings-env ()
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (multiple-value-bind (input button)
+              (ui-renderer::%render-pin-prompt ctx (clog:create-div body))
+            (declare (ignore input))
+            (with-query-answer ("0000")
+              (fire-click button))
+            (is-false (ui-renderer:nav-context-settings-unlocked ctx))
+            (is-true (js~ "Wrong PIN"))
+            (is-false (js~ "Home page"))))))))
+
+(test lock-row--click-locks-the-device-and-keeps-this-connection-in
+  (with-fixture settings-env ()
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body))
+               (row (ui-renderer::%render-lock-section
+                     ctx (clog:create-div body) nil)))
+          (is-true (fire-click row))
+          (is-true (js~ "localStorage.setItem('chipi-settings-locked','true')"))
+          (is-true (ui-renderer:nav-context-settings-unlocked ctx)))))))
+
+(test lock-row--click-on-a-locked-device-unlocks-it
+  (with-fixture settings-env ()
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body))
+               (row (ui-renderer::%render-lock-section
+                     ctx (clog:create-div body) t)))
+          (is-true (fire-click row))
+          (is-true (js~ "localStorage.removeItem('chipi-settings-locked')")))))))
+
+(test dispatch-path--typed-settings-url-meets-the-pin-prompt-on-a-locked-device
+  ;; a plain browser has an address bar; typing /settings into it must not get
+  ;; around the lock
+  (with-fixture settings-env ()
+    (with-pin ("4711")
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (with-mocks ()
+            (answer ui-settings:locked-p t)
+            ;; the stubbed connection answers the location query with the path
+            (with-query-answer ("/settings")
+              (ui-main::%dispatch-path ctx))
+            (is-true (js~ "Device locked"))
+            (is-false (js~ "settings-option-label"))))))))
+
+;; ----------------------------------------------------------------------------
 ;; manifest -- what makes the UI installable.
 ;; ----------------------------------------------------------------------------
 

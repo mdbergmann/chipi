@@ -12,6 +12,7 @@
            #:nav-context-body
            #:nav-context-container
            #:nav-context-depth
+           #:nav-context-settings-unlocked
            #:render-page
            #:render-overview
            #:render-not-found
@@ -37,7 +38,11 @@ its own context; it owns the value-update callbacks of the currently rendered
 view and carries the navigation depth for the back button."
   body        ; the connection's clog body
   container   ; the top-level container div views render into
-  (depth 0))  ; number of in-app pushState navigations
+  (depth 0)   ; number of in-app pushState navigations
+  ;; whether this connection may see the settings of a locked device: set by
+  ;; a correct PIN, or by locking the device from the settings view.  Lives
+  ;; for the connection only, so a reload asks for the PIN again.
+  (settings-unlocked nil))
 
 ;; ---------------------------------------------------------------------------
 ;; item value-update registry
@@ -898,23 +903,64 @@ callback per series item."
                         (funcall on-click)))
     btn))
 
-(defun %render-app-header (ctx container)
+(defparameter *secret-taps* 5
+  "How often the brand in the app header has to be tapped on a locked device
+to open the settings view.")
+
+(defparameter *secret-tap-window* 3
+  "Seconds within which the `*secret-taps*' have to happen.")
+
+(defun %set-on-secret-taps (element on-taps &key (clock #'get-internal-real-time))
+  "Calls ON-TAPS once ELEMENT has been clicked `*secret-taps*' times within
+`*secret-tap-window*' seconds.  CLOCK answers in internal time units and is a
+parameter so the window can be tested without waiting for it."
+  (let ((taps nil)
+        (window (* *secret-tap-window* internal-time-units-per-second)))
+    (set-on-click element
+                  (lambda (obj)
+                    (declare (ignore obj))
+                    (let ((now (funcall clock)))
+                      (setf taps (cons now (remove-if (lambda (tap)
+                                                        (> (- now tap) window))
+                                                      taps)))
+                      (when (>= (length taps) *secret-taps*)
+                        (setf taps nil)
+                        (funcall on-taps)))))))
+
+(defun %render-brand (ctx header locked)
+  "Renders the app name into HEADER.  On a LOCKED device it doubles as the
+hidden way into the settings: tapped `*secret-taps*' times in a row it opens
+the settings view, which then asks for the PIN."
+  (let ((brand (create-div header :class "app-brand"
+                                  :content ui-webapp:+app-name+)))
+    (when locked
+      (%set-on-secret-taps brand (lambda () (navigate-to-settings ctx))))
+    brand))
+
+(defun %render-app-header (ctx container
+                           &optional (locked (ui-settings:locked-p
+                                              (nav-context-body ctx))))
   "Renders the app bar that every view carries: back (once the connection has
 navigated), the app name, and the home and settings buttons.
 
 Installed as a web app the UI has no browser chrome -- no back button, no
-address bar -- so this bar is the only navigation the user has left."
+address bar -- so this bar is the only navigation the user has left.
+
+On a LOCKED device (read from the device unless the caller already did) the
+settings button is left out; the brand takes over that role, see
+`%render-brand'."
   (let* ((header (create-div container :class "app-header"))
          (left (create-div header :class "app-header-side")))
     (when (plusp (nav-context-depth ctx))
       (%header-button left "&larr;" "Back"
                       (lambda ()
                         (js-execute (nav-context-body ctx) "history.back()"))))
-    (create-div header :class "app-brand" :content ui-webapp:+app-name+)
+    (%render-brand ctx header locked)
     (let ((right (create-div header :class "app-header-side app-header-right")))
       (%header-button right "&#8962;" "Home" (lambda () (navigate-home ctx)))
-      (%header-button right "&#9881;" "Settings"
-                      (lambda () (navigate-to-settings ctx))))
+      (unless locked
+        (%header-button right "&#9881;" "Settings"
+                        (lambda () (navigate-to-settings ctx)))))
     header))
 
 (defun render-page (page ctx)
@@ -1162,35 +1208,122 @@ the default option, which clears the setting again."
                         (render-settings ctx)))
     row))
 
+(defun %settings-card (container heading)
+  "A settings section titled HEADING; returns the element to fill."
+  (let ((card (create-div container :class "page-section")))
+    (create-div card :class "page-section-header" :content heading)
+    (create-div card :class "page-section-body")))
+
+(defun %render-home-section (ctx container)
+  "The home page choice: the default, or any page but the one claiming \"/\"."
+  (let ((card-body (%settings-card container "Home page"))
+        (current (ui-settings:home-path (nav-context-body ctx))))
+    (create-div card-body
+                :class "settings-hint"
+                :content (format nil "The page this device opens on. ~
+Stored on this device only, so every phone or tablet can have its own."))
+    (%render-home-option ctx card-body "Default" (%default-home-label)
+                         nil current)
+    ;; the page claiming "/" is already reachable via "Default" above --
+    ;; listing it again under its own path would give it two rows whose
+    ;; selected state disagrees depending on which one the setting was last
+    ;; stored through
+    (dolist (p (page:get-pages))
+      (unless (equal (page:page-path p) "/")
+        (%render-home-option ctx card-body (page:page-label p)
+                             (page:page-path p) (page:page-path p) current)))))
+
+(defun %render-lock-section (ctx container locked)
+  "The device lock: one row that locks an unlocked device, or unlocks a
+LOCKED one.  Returns the row."
+  (let ((card-body (%settings-card container "Device lock")))
+    (create-div card-body
+                :class "settings-hint"
+                :content
+                (if locked
+                    (format nil "This device is locked: the settings gear is ~
+hidden and this view asks for the PIN.")
+                    (format nil "Locking hides the settings gear on this ~
+device. To get back here, tap the ~a name in the header ~a times and enter ~
+the PIN."
+                            ui-webapp:+app-name+ *secret-taps*)))
+    (let ((row (create-div card-body :class "settings-option")))
+      (create-div row :class "settings-option-label"
+                      :content (if locked "Unlock this device" "Lock this device"))
+      (create-div row :class "settings-option-detail"
+                      :content (if locked "Locked" "Not locked"))
+      (create-div row :class "settings-option-check"
+                      :content (if locked "&#128274;" "&nbsp;"))
+      (set-on-click row (lambda (obj)
+                          (declare (ignore obj))
+                          (ui-settings:set-locked (nav-context-body ctx)
+                                                  (not locked))
+                          ;; whoever locks the device from in here stays in
+                          ;; until the connection ends -- the lock is meant
+                          ;; for the next person picking the device up, not
+                          ;; for the one setting it up
+                          (setf (nav-context-settings-unlocked ctx) t)
+                          (render-settings ctx)))
+      row)))
+
+(defun %render-pin-prompt (ctx container)
+  "What a locked device shows instead of its settings: a PIN field.  The
+right PIN marks the connection as unlocked and renders the settings; a wrong
+one says so and stays.  Returns the PIN field and the unlock button."
+  (let* ((card-body (%settings-card container "Device locked"))
+         (form (progn
+                 (create-div card-body
+                             :class "settings-hint"
+                             :content (format nil "The settings of this device ~
+are locked. Enter the PIN to change them."))
+                 (create-div card-body :class "settings-pin-form")))
+         (input (create-form-element form "password"
+                                     :class "form-control settings-pin-input"))
+         (button (create-button form :class "btn btn-primary settings-pin-btn"
+                                     :content "Unlock"))
+         (message (create-div card-body :class "settings-pin-error")))
+    (setf (attribute input "placeholder") "PIN")
+    (setf (attribute input "inputmode") "numeric")
+    (setf (attribute input "autocomplete") "off")
+    (setf (attribute input "aria-label") "PIN")
+    (flet ((try-unlock ()
+             (cond
+               ((ui-settings:pin-matches-p (value input))
+                (setf (nav-context-settings-unlocked ctx) t)
+                (render-settings ctx))
+               (t
+                (setf (text message) "Wrong PIN")
+                (setf (value input) "")))))
+      (set-on-click button (lambda (obj)
+                             (declare (ignore obj))
+                             (try-unlock)))
+      (set-on-key-down input (lambda (obj data)
+                               (declare (ignore obj))
+                               (when (equal "Enter" (getf data :key))
+                                 (try-unlock)))))
+    (values input button)))
+
 (defun render-settings (ctx)
   "Renders the built-in settings view.
 
 Settings are per device -- they live in the browser's `localStorage' -- so the
-wall tablet and a phone each open on the page that suits them."
+wall tablet and a phone each open on the page that suits them.
+
+A locked device gets the PIN prompt instead, unless this connection already
+unlocked it.  This holds for the typed URL as much as for the header, so the
+address bar of a plain browser is no way around the lock."
   (let* ((container (nav-context-container ctx))
          (body (nav-context-body ctx))
-         (current (ui-settings:home-path body)))
+         (locked (ui-settings:locked-p body)))
     (setf (inner-html container) "")
     (clear-value-update-funs ctx)
-    (%render-app-header ctx container)
+    (%render-app-header ctx container locked)
     (create-div container :class "header-line" :content "Settings")
     (setf (title (html-document body)) "Settings")
-    (let* ((card (create-div container :class "page-section"))
-           (card-body (progn
-                        (create-div card :class "page-section-header"
-                                         :content "Home page")
-                        (create-div card :class "page-section-body"))))
-      (create-div card-body
-                  :class "settings-hint"
-                  :content (format nil "The page this device opens on. ~
-Stored on this device only, so every phone or tablet can have its own."))
-      (%render-home-option ctx card-body "Default" (%default-home-label)
-                           nil current)
-      ;; the page claiming "/" is already reachable via "Default" above --
-      ;; listing it again under its own path would give it two rows whose
-      ;; selected state disagrees depending on which one the setting was last
-      ;; stored through
-      (dolist (p (page:get-pages))
-        (unless (equal (page:page-path p) "/")
-          (%render-home-option ctx card-body (page:page-label p)
-                               (page:page-path p) (page:page-path p) current))))))
+    (cond
+      ((and locked (not (nav-context-settings-unlocked ctx)))
+       (%render-pin-prompt ctx container))
+      (t
+       (%render-home-section ctx container)
+       (when (ui-settings:lock-available-p)
+         (%render-lock-section ctx container locked))))))
