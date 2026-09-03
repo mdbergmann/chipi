@@ -43,6 +43,7 @@
            #:chart-line-width
            #:chart-refresh
            #:chart-fill
+           #:chart-right-axis
            #:button
            #:button-p
            #:button-caption
@@ -123,7 +124,8 @@
   (height 220)  ; plot height in CSS pixels
   (line-width 2) ; stroke width of every series in CSS pixels
   refresh       ; nil, or minimum seconds between live-appended points
-  (fill :auto)) ; area fill under the lines: :auto (lone series only), t, nil
+  (fill :auto)  ; area fill under the lines: :auto (lone series only), t, nil
+  right-axis)   ; nil, or (:series (item-id ...) :range (min max)) -- see `chart'
 
 (defstruct (button (:include widget))
   caption    ; the button's own text
@@ -317,8 +319,30 @@ signals on an alist -- one alist tag would fail the whole item listing."
 item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
+(defun %check-right-axis (right-axis series)
+  "Validates the `chart' RIGHT-AXIS plist against SERIES -- the chart's
+normalized (item-id . label) list -- and returns it normalized, or `nil'.
+Signals at page definition, where a typo is found, rather than rendering a
+chart with a silently ignored axis."
+  (when right-axis
+    (destructuring-bind (&key ((:series ids)) range) right-axis
+      (unless (and ids (listp ids))
+        (error ":right-axis needs a :series list of item ids, got ~s" right-axis))
+      (dolist (id ids)
+        (unless (assoc id series)
+          (error "Right-axis series ~a is not a series of the chart" id)))
+      (when range
+        (unless (and (listp range)
+                     (= 2 (length range))
+                     (every #'realp range)
+                     (< (first range) (second range)))
+          (error ":right-axis :range must be (min max) with min < max, got ~s"
+                 range)))
+      (list :series ids :range range))))
+
 (defun chart (item-ids &key label (type :line) range persistence transform
-                            (height 220) (line-width 2) refresh (fill :auto))
+                            (height 220) (line-width 2) refresh (fill :auto)
+                            right-axis)
   "A history chart of one or more items' persisted values.
 `item-ids' is a single item id, or a list whose elements are item ids or
 `(item-id . \"Series label\")' conses; each entry becomes one chart series
@@ -352,7 +376,27 @@ persistence stored, at the persistence's own granularity.
 the series' own colour: `:auto' (the default) fills a lone series and leaves a
 multi-series chart as bare lines, `t' fills every series, `nil' none.  With
 several series the fills overlap, which suits a few series around a common
-zero (power flows) but turns a dense chart into mud."
+zero (power flows) but turns a dense chart into mud.
+`right-axis', when given, plots some of the series against a second y-axis at
+the right edge of the plot, with a scale of its own.  That is for a series
+whose unit differs from the rest -- a battery's state of charge in % among
+power flows in W would otherwise be a flat line at the bottom of a scale in
+thousands:
+
+  (chart '((pv-power . \"PV\")
+           (grid-power . \"Netz\")
+           (battery-soc . \"Batterie [%]\"))
+         :label \"Energie [W]\"
+         :right-axis '(:series (battery-soc) :range (0 100)))
+
+`:series' lists the item ids (of `item-ids') that read against the right axis;
+`:range', when given, fixes its bounds as (min max).  Without it the axis
+auto-scales like the left one, which for a percentage lets 60..80 fill the
+plot height and suggests swings that are not there.  Right-axis series are
+drawn dashed and never filled -- the fill is about the left-axis quantity's
+sign, and a dashed line tells the two axes' series apart without consulting
+the legend.  With exactly one right-axis series the axis takes that series'
+colour."
   (let ((series (cond
                   ((symbolp item-ids) (list (cons item-ids nil)))
                   ;; a single (item-id . "label") cons
@@ -370,6 +414,7 @@ zero (power flows) but turns a dense chart into mud."
                 :line-width line-width
                 :refresh refresh
                 :fill (ecase fill ((:auto t nil) fill))
+                :right-axis (%check-right-axis right-axis series)
                 :range (etypecase range
                          (null (persp:make-relative-range :days 1))
                          (cons (apply #'persp:make-relative-range range))

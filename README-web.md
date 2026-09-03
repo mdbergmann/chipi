@@ -287,7 +287,7 @@ Semantics:
 | `(slider item &key label min max step)` | integer/float | Slider with a live value label (defaults 0–100, step 1) |
 | `(setpoint item &key label min max step)` | integer/float | Stepper with −/+ buttons, e.g. for target temperatures |
 | `(selection item &key label choices)` | string | Dropdown; `choices` is an alist of `(value . label)` |
-| `(chart item-or-items &key label type range persistence transform fill line-width height refresh)` | number/boolean | History chart, one series per item (see below) |
+| `(chart item-or-items &key label type range persistence transform fill line-width height refresh right-axis)` | number/boolean | History chart, one series per item (see below) |
 | `(button caption action &key label)` | — | Push-button running `action` (see below) |
 | `(button-group label &rest buttons)` | — | Several buttons sharing one row and label |
 | `(section label &rest widgets)` | — | Titled card grouping widgets |
@@ -408,6 +408,26 @@ in a row.
   chart as bare lines; `t` fills every series (the fills overlap, fine for a
   few power flows around zero, mud for nine temperatures); `nil` never fills.
 * `:line-width` — stroke width of every series in CSS pixels (default 2).
+* `:right-axis` — plots some of the series against a second y-axis at the
+  right edge, with a scale of its own, for a series whose unit differs from
+  the rest — a battery's state of charge in % among power flows in W would
+  otherwise be a flat line at the bottom of a scale in thousands:
+
+  ```lisp
+  (chart '((pv-power . "PV")
+           (grid-power . "Netz")
+           (battery-soc . "Batterie [%]"))
+         :label "Energie [W]"
+         :right-axis '(:series (battery-soc) :range (0 100)))
+  ```
+
+  `:series` lists the item ids that read against the right axis; `:range`
+  fixes its bounds as `(min max)` (without it the axis auto-scales, which for
+  a percentage lets 60..80 fill the plot height). Right-axis series are drawn
+  dashed and never filled, so they can be told from the left-axis ones without
+  the legend; a lone right-axis series lends the axis its colour. A series id
+  not in the chart, or a range with `min >= max`, is an error at page
+  definition.
 * `:height` — plot height in CSS pixels (default 220); the width follows the
   container.
 * `:refresh` — minimum seconds between two live-appended points of one
@@ -504,6 +524,7 @@ Items and itemgroups support special tags that control how they are rendered in 
 |-----|-------|-------------|
 | `:ui-type` | string | Overrides the default type badge label (e.g. "Light" instead of "Switch") |
 | `:ui-readonly` | `t` | Boolean items render as plain "ON"/"OFF" text instead of an interactive toggle |
+| `:ui-order` | number | Position of the item in its itemgroup's card: items are listed ascending by it, items without the tag after every ordered one, ties in definition order |
 
 ```lisp
 ;; Custom type label
@@ -514,6 +535,12 @@ Items and itemgroups support special tags that control how they are rendered in 
 (defitem 'motion-sensor "Motion Sensor" 'boolean :initial-value 'item:true
   :tags '((:ui-readonly . t)))
 ```
+
+`:ui-order` is for a card that mixes kinds of items — a room with sockets,
+lights, window contacts and its heating. Give every kind its own order in the
+macro that defines it (sockets 10, lights 20, windows 30, …) and each room
+card lists them kind by kind instead of in definition order, which is
+whatever the config file happened to interleave.
 
 ### Itemgroup tags
 

@@ -731,25 +731,55 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
     (format nil "rgba(~d,~d,~d,0.08)"
             (component 1) (component 3) (component 5))))
 
-(defun %uplot-series-def (label color line-width chart-type single-p fill-p)
+(defun %uplot-series-def (label color line-width chart-type single-p fill-p
+                          &optional right-p)
   "The JS series definition object for one chart series.  LINE-WIDTH is the
 stroke width in CSS pixels, FILL-P whether the area between line and zero is
 filled in the series' colour.  A single series keeps its gaps; with several
-series the gaps that timestamp-alignment introduces are spanned instead."
-  (format nil "{ label: '~a', stroke: '~a', width: ~a~a~a~a }"
+series the gaps that timestamp-alignment introduces are spanned instead.
+RIGHT-P puts the series on the `y2' scale of the chart's right axis, drawn
+dashed and never filled: the fill is about the left-axis quantity's sign, and
+the dashes tell the two axes' series apart without the legend."
+  (format nil "{ label: '~a', stroke: '~a', width: ~a~a~a~a~a }"
           (%js-escape label) color (%js-number line-width)
-          (if fill-p (format nil ", fill: '~a'" (%uplot-fill-color color)) "")
+          (if (and fill-p (not right-p))
+              (format nil ", fill: '~a'" (%uplot-fill-color color))
+              "")
           (if single-p "" ", spanGaps: true")
           (if (eq chart-type :bar)
               ", paths: uPlot.paths.bars({size: [0.6, 100]})"
-              "")))
+              "")
+          (if right-p ", scale: 'y2', dash: [6, 4]" "")))
 
-(defun %uplot-init-js (plot-id chart-type series-defs tables height)
+(defun %uplot-right-axis-js (right-axis)
+  "The JS for a chart's right axis -- RIGHT-AXIS a plist (:range (min max)
+:color \"#rrggbb\"), both optional -- as (values scales-entry axis-entry) to
+splice into the uPlot options, or two empty strings without one.  The axis
+reads the `y2' scale the right-axis series are on; its grid stays off, since
+its ticks never line up with the left axis' and two grids make a mesh.  With
+COLOR the axis line and labels take it, which is what ties the axis to a lone
+series drawn in that colour."
+  (if (null right-axis)
+      (values "" "")
+      (let ((range (getf right-axis :range))
+            (color (getf right-axis :color)))
+        (values
+         (format nil "~%      scales: { y2: {~a} },"
+                 (if range
+                     (format nil " range: [~a, ~a] "
+                             (%js-number (first range)) (%js-number (second range)))
+                     ""))
+         (format nil ",~%        { scale: 'y2', side: 1, size: ySize, grid: { show: false }~a }"
+                 (if color (format nil ", stroke: '~a'" color) ""))))))
+
+(defun %uplot-init-js (plot-id chart-type series-defs tables height
+                       &optional right-axis)
   "The JS that instantiates the uPlot chart once the uPlot library is loaded.
 SERIES-DEFS are JS series objects, TABLES one [[timestamps],[values]] JS
 literal per series; several tables are timestamp-aligned via uPlot.join.
 HEIGHT is the plot height in CSS pixels; the width follows the container, both
-at init and afterwards via a `ResizeObserver'.
+at init and afterwards via a `ResizeObserver'.  RIGHT-AXIS, when given, adds
+a second y-axis at the right edge -- see `%uplot-right-axis-js'.
 
 The y axis is sized to its widest tick label instead of uPlot's fixed 50px.
 That default leaves ~35px for text once ticks and gap are subtracted, which
@@ -757,7 +787,8 @@ silently clips wider labels -- uPlot formats numbers with the *browser's*
 locale, so 20000 renders as \"20.000\" and -20000 as \"-20.000\", and a power
 chart in W lost its minus signs and leading digits."
   (declare (ignore chart-type))
-  (format nil "(function() {
+  (multiple-value-bind (scales-js right-axis-js) (%uplot-right-axis-js right-axis)
+    (format nil "(function() {
   function ySize(u, values, axisIdx, cycleNum) {
     var axis = u.axes[axisIdx];
     // uPlot re-runs sizing until it converges; bail out after the first pass
@@ -784,10 +815,10 @@ chart in W lost its minus signs and leading digits."
     var data = tables.length === 1 ? tables[0] : uPlot.join(tables);
     var opts = {
       width: el.clientWidth || 600,
-      height: ~a,
+      height: ~a,~a
       axes: [
         {},
-        { size: ySize }
+        { size: ySize }~a
       ],
       series: [
         {},
@@ -820,7 +851,7 @@ chart in W lost its minus signs and leading digits."
   }
   init();
 })();"
-          plot-id tables height series-defs plot-id))
+            plot-id tables height scales-js right-axis-js series-defs plot-id)))
 
 (defun %uplot-append-js (plot-id ts series-count series-idx y-literal)
   "The JS that appends one live value: the new row carries Y-LITERAL in
@@ -834,12 +865,21 @@ series SERIES-IDX (1-based) and null in every other series column."
           (loop :for i :from 1 :to series-count
                 :append (list i (if (= i series-idx) y-literal "null")))))
 
+(defun %right-axis-series-p (item-name right-ids)
+  "Whether the series of item ITEM-NAME reads against the right axis, i.e.
+its item id is among RIGHT-IDS.  An item's name is the `symbol-name' of its
+id (see `item:name'), which is what the ids are compared as."
+  (and (member item-name right-ids :key #'symbol-name :test #'string=) t))
+
 (defun %render-uplot (ctx w plot-div series-data)
   "Renders the uPlot chart for SERIES-DATA -- a list of
 (item-name series-label persisted-items) -- and registers a live-append
 callback per series item."
   (let* ((plot-id (html-id plot-div))
          (transform (page:chart-transform w))
+         (right-axis (page:chart-right-axis w))
+         (right-ids (getf right-axis :series))
+         (right-colors '())
          (single-p (= 1 (length series-data)))
          (fill-p (ecase (page:chart-fill w)
                    (:auto single-p)
@@ -850,19 +890,29 @@ callback per series item."
                        :for points = (%chart-points persisted-items transform)
                        :collect (format nil "[[~{~a~^,~}],[~{~a~^,~}]]"
                                         (first points) (second points))))
-         (series-defs (loop :for (nil label nil) :in series-data
+         (series-defs (loop :for (item-name label nil) :in series-data
                             :for idx :from 0
+                            :for color = (nth (mod idx (length *chart-series-colors*))
+                                              *chart-series-colors*)
+                            :for right-p = (%right-axis-series-p item-name right-ids)
+                            :do (when right-p (push color right-colors))
                             :collect (%uplot-series-def
                                       label
-                                      (nth (mod idx (length *chart-series-colors*))
-                                           *chart-series-colors*)
+                                      color
                                       (page:chart-line-width w)
                                       (page:chart-type w)
                                       single-p
-                                      fill-p))))
+                                      fill-p
+                                      right-p))))
     (js-execute plot-div
                 (%uplot-init-js plot-id (page:chart-type w) series-defs tables
-                                (page:chart-height w)))
+                                (page:chart-height w)
+                                (when right-axis
+                                  (list :range (getf right-axis :range)
+                                        ;; a lone right-axis series lends the
+                                        ;; axis its colour; several share none
+                                        :color (when (= 1 (length right-colors))
+                                                 (first right-colors))))))
     ;; live append on item change; timestamps in the update state are unix already
     (loop :with refresh = (page:chart-refresh w)
           :for (item-name nil nil) :in series-data
@@ -1094,15 +1144,36 @@ Shows child groups (as links or cards) above direct items."
         (let ((itemgroups-container (create-div container :class "itemgroups-container")))
           (%render-itemgroup ctx itemg itemgroups-container))))))
 
+(defun %ui-order (item)
+  "The item's `:ui-order' tag when it is a number, else `nil'."
+  (let ((tags (gethash "tags" item)))
+    (when (and tags (hash-table-p tags))
+      (let ((order (gethash :ui-order tags)))
+        (when (realp order) order)))))
+
+(defun %card-items (itemg)
+  "The itemgroup's items in the order a card lists them: ascending by their
+`:ui-order' tag, items without one after every ordered one, ties in the order
+the itemgroup gives them.  A room's items are of several kinds -- sockets,
+lights, window contacts, the heating -- and the tag lets an application list
+them by kind rather than in whatever order they were defined.  Returns a
+fresh list."
+  (stable-sort (map 'list #'identity (gethash "items" itemg))
+               (lambda (a b)
+                 (let ((oa (%ui-order a))
+                       (ob (%ui-order b)))
+                   (if (and oa ob)
+                       (< oa ob)
+                       (and oa t))))))
+
 (defun %render-itemgroup (ctx itemg parent)
   (let* ((col-div (create-div parent :class "itemgroup-column"))
          (card-div (create-div col-div :class "itemgroup-card")))
     (create-div card-div :class "itemgroup-header"
                          :content (gethash "label" itemg))
     (let ((items-container (create-div card-div :class "items-container")))
-      (map nil (lambda (item)
-                 (%render-item ctx item items-container))
-           (gethash "items" itemg)))))
+      (dolist (item (%card-items itemg))
+        (%render-item ctx item items-container)))))
 
 (defun %render-item (ctx item parent)
   (let* ((item-div (create-div parent :class "item-container"))

@@ -123,6 +123,67 @@ would have sent."
         (is-true (js~ "item-container"))))))
 
 ;; ----------------------------------------------------------------------------
+;; %render-itemgroup -- the :ui-order tag lists a card's items by kind.
+;; ----------------------------------------------------------------------------
+
+(defun %tagged-item (label name &rest tags)
+  "A mock boolean item whose tags hash-table holds TAGS (alternating key and
+value)."
+  (let ((ht (make-hash-table)))
+    (loop :for (k v) :on tags :by #'cddr
+          :do (setf (gethash k ht) v))
+    (make-item-ht :label label :name name :type-hint "BOOLEAN" :value nil :tags ht)))
+
+(defun %render-order (&rest item-names)
+  "The positions at which ITEM-NAMES were rendered, in the order given."
+  (let ((js (captured-js)))
+    (mapcar (lambda (name) (search name js)) item-names)))
+
+(test render-itemgroup--lists-items-by-ui-order-untagged-last
+  ;; a room card mixes sockets, lights, window contacts and the heating; the
+  ;; tag lists them kind by kind instead of in definition order, ties keeping
+  ;; the itemgroup's order and untagged items trailing
+  (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal)))
+    (with-captured-clog
+      (let ((body (make-body))
+            (group (make-hash-table :test #'equal)))
+        (setf (gethash "label" group) "Wohnzimmer"
+              (gethash "items" group)
+              (vector (%tagged-item "Fenster" "i.window" :ui-order 30)
+                      (%tagged-item "Unsortiert" "i.misc")
+                      (%tagged-item "Spots" "i.spots" :ui-order 20)
+                      (%tagged-item "Steckdose" "i.plug" :ui-order 10)
+                      (%tagged-item "Ambient" "i.ambient" :ui-order 20)))
+        (ui-renderer::%render-itemgroup +owner+ group body)
+        (is (apply #'< (%render-order "i.plug" "i.spots" "i.ambient"
+                                      "i.window" "i.misc")))))))
+
+(test render-itemgroup--non-numeric-ui-order-counts-as-untagged
+  (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal)))
+    (with-captured-clog
+      (let ((body (make-body))
+            (group (make-hash-table :test #'equal)))
+        (setf (gethash "label" group) "Wohnzimmer"
+              (gethash "items" group)
+              (vector (%tagged-item "A" "i.a" :ui-order "first")
+                      (%tagged-item "B" "i.b" :ui-order 5)))
+        (ui-renderer::%render-itemgroup +owner+ group body)
+        (is (apply #'< (%render-order "i.b" "i.a")))))))
+
+(test render-itemgroup--items-without-any-tags-keep-their-order
+  (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal)))
+    (with-captured-clog
+      (let ((body (make-body))
+            (group (make-hash-table :test #'equal)))
+        (setf (gethash "label" group) "Keller"
+              (gethash "items" group)
+              (vector (make-item-ht :label "A" :name "i.a")
+                      (make-item-ht :label "B" :name "i.b")
+                      (make-item-ht :label "C" :name "i.c")))
+        (ui-renderer::%render-itemgroup +owner+ group body)
+        (is (apply #'< (%render-order "i.a" "i.b" "i.c")))))))
+
+;; ----------------------------------------------------------------------------
 ;; %render-itemgroup-link -- a clickable link that binds a click handler.
 ;; ----------------------------------------------------------------------------
 

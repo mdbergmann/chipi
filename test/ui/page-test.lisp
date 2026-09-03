@@ -221,3 +221,30 @@
 (test chart--single-labeled-cons-makes-one-series
   (let ((c (chart '(temp . "Temperature"))))
     (is (equal '((temp . "Temperature")) (chart-series c)))))
+
+(test chart--right-axis-defaults-to-nil
+  (is (null (chart-right-axis (chart 'temp)))))
+
+(test chart--right-axis-stored-normalized
+  (let ((c (chart '((pv . "PV") (soc . "Batterie [%]"))
+                  :right-axis '(:series (soc) :range (0 100)))))
+    (is (equal '(:series (soc) :range (0 100)) (chart-right-axis c)))))
+
+(test chart--right-axis-range-is-optional
+  (let ((c (chart '(pv soc) :right-axis '(:series (soc)))))
+    (is (equal '(:series (soc) :range nil) (chart-right-axis c)))))
+
+(test chart--right-axis-rejects-a-series-not-in-the-chart
+  ;; a typo in the id would otherwise render a chart with a bare right axis
+  (signals error (chart '(pv soc) :right-axis '(:series (grid)))))
+
+(test chart--right-axis-needs-its-series
+  (signals error (chart '(pv soc) :right-axis '(:range (0 100)))))
+
+(test chart--right-axis-rejects-a-bad-range
+  (signals error (chart '(pv soc) :right-axis '(:series (soc) :range (100 0))))
+  (signals error (chart '(pv soc) :right-axis '(:series (soc) :range (0))))
+  (signals error (chart '(pv soc) :right-axis '(:series (soc) :range (0 "100")))))
+
+(test chart--right-axis-rejects-unknown-keys
+  (signals error (chart '(pv soc) :right-axis '(:series (soc) :label "%"))))

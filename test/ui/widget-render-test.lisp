@@ -627,6 +627,90 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
 (test chart--rejects-unknown-fill-mode
   (signals error (page:chart 'temp :fill :always)))
 
+;; ----------------------------------------------------------------------------
+;; chart -- :right-axis puts some series on a second y-axis at the right edge.
+;; The series item names below are the symbol-names of the item ids, which is
+;; how the renderer matches the :right-axis ids against the series data.
+;; ----------------------------------------------------------------------------
+
+(test widget--chart-without-right-axis-has-one-y-axis
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-uplot :owner (page:chart '(power soc))
+                                    (clog:create-div body)
+                                    (list (%series "POWER" "Netz" 300)
+                                          (%series "SOC" "Batterie" 80)))
+        (is-false (js~ "y2"))
+        (is-false (js~ "side: 1"))
+        (is-false (js~ "scales:"))))))
+
+(test widget--chart-right-axis-series-read-the-y2-scale-dashed
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart '(power soc)
+                           :right-axis '(:series (soc) :range (0 100)))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "POWER" "Netz" 300)
+                                          (%series "SOC" "Batterie" 80)))
+        (is-true (js~ "{ label: 'Batterie', stroke: '#dc3545', width: 2, spanGaps: true, scale: 'y2', dash: [6, 4] }"))
+        ;; the left-axis series is untouched
+        (is-true (js~ "{ label: 'Netz', stroke: '#0d6efd', width: 2, spanGaps: true }"))
+        ;; one series on the y2 scale (the axis entry names the scale too)
+        (is (= 1 (count-js "scale: 'y2', dash")))))))
+
+(test widget--chart-right-axis-is-drawn-at-the-right-edge-with-its-range
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart '(power soc)
+                           :right-axis '(:series (soc) :range (0 100)))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "POWER" "Netz" 300)
+                                          (%series "SOC" "Batterie" 80)))
+        (is-true (js~ "scales: { y2: { range: [0, 100] } },"))
+        ;; side 1 is uPlot's right edge; no second grid across the left one;
+        ;; a lone right-axis series lends the axis its colour
+        (is-true (js~ "{ scale: 'y2', side: 1, size: ySize, grid: { show: false }, stroke: '#dc3545' }"))))))
+
+(test widget--chart-right-axis-without-range-autoscales
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart '(power soc) :right-axis '(:series (soc)))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "POWER" "Netz" 300)
+                                          (%series "SOC" "Batterie" 80)))
+        (is-true (js~ "scales: { y2: {} },"))
+        (is-false (js~ "range:"))))))
+
+(test widget--chart-right-axis-with-several-series-takes-no-colour
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart '(power soc temp) :right-axis '(:series (soc temp)))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "POWER" "Netz" 300)
+                                          (%series "SOC" "Batterie" 80)
+                                          (%series "TEMP" "Temp" 21)))
+        (is (= 2 (count-js "scale: 'y2', dash")))
+        (is-true (js~ "{ scale: 'y2', side: 1, size: ySize, grid: { show: false } }"))))))
+
+(test widget--chart-right-axis-series-are-never-filled
+  ;; :fill t fills the left-axis series only: the fill is about the sign of
+  ;; the left-axis quantity, and a % series filled from 0 tints the whole plot
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart '(power soc) :fill t
+                           :right-axis '(:series (soc) :range (0 100)))))
+        (ui-renderer::%render-uplot :owner w (clog:create-div body)
+                                    (list (%series "POWER" "Netz" 300)
+                                          (%series "SOC" "Batterie" 80)))
+        (is (= 1 (count-js "fill:")))
+        (is-true (js~ "stroke: '#0d6efd', width: 2, fill: 'rgba(13,110,253,0.08)'"))))))
+
 (test widget--chart-height-sets-plot-div-min-height
   (with-fixture render-env ()
     (with-captured-clog
