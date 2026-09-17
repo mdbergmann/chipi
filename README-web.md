@@ -263,6 +263,12 @@ Semantics:
 * `page-link` navigation pushes browser history: back/forward work, a back
   button appears in the app header on navigated pages, and a reload stays on
   the current page.
+* Going back returns to the view as it was left — same scroll position,
+  charts not reloaded, values current: the views of the history entries next
+  to the current one (two in either direction) stay alive, hidden, and keep
+  receiving value updates. Entries further away, a page re-defined in the
+  meantime, and a reload render afresh, still at the scroll position they
+  were left at.
 * Every view carries an app header: back (once navigated), the app name, a
   home button and the settings gear. Installed as a web app there is no
   browser chrome, so this is the navigation the user gets. On a locked

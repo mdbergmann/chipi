@@ -4,7 +4,9 @@
   (:import-from #:ui-renderer
                 #:make-nav-context
                 #:nav-context-body
-                #:nav-context-depth
+                #:install-history-tracking
+                #:history-index
+                #:show-history-entry
                 #:render-page
                 #:render-home
                 #:render-settings
@@ -18,9 +20,10 @@
 (defun on-main (body)
   "Entry handler for every new connection.  Dispatches the requested URL path
 to a `page:defpage'd page, to the auto-generated itemgroup overview (root path
-when no page claims it), or to a not-found view.  Rendering is a pure function
-of the current URL path: in-app navigation pushes history entries and browser
-back/forward re-renders via the popstate handler."
+when no page claims it), or to a not-found view.  What a history entry
+renders is a function of its URL path: in-app navigation pushes entries, each
+with a view of its own, and browser back/forward shows the view kept for the
+entry or renders its path afresh, see `ui-renderer:show-history-entry'."
   (log:info "Rendering main, path: ~a" (path-name (location body)))
   (load-css (html-document body)
             "/custom-styles.css")
@@ -35,17 +38,21 @@ back/forward re-renders via the popstate handler."
   (load-script (html-document body)
                "/vendor/uPlot.iife.min.js")
 
+  (install-history-tracking body)
   (let* ((container (create-div body :class "container"))
-         (ctx (make-nav-context :body body :container container)))
-    ;; browser back/forward fires popstate with the URL already updated;
-    ;; re-render whatever the current path addresses
+         ;; not 0 after a reload on an entry the app had pushed
+         (ctx (make-nav-context :body body :container container
+                                :depth (history-index body))))
+    ;; browser back/forward fires popstate with the URL already updated: show
+    ;; the view kept for that entry, or render whatever its path addresses
     (set-on-pop-state (window body)
                       (lambda (obj)
                         (declare (ignore obj))
-                        (setf (nav-context-depth ctx)
-                              (max 0 (1- (nav-context-depth ctx))))
-                        (%dispatch-path ctx)))
-    (%dispatch-path ctx)))
+                        (show-history-entry ctx (history-index body)
+                                            #'%dispatch-path)))
+    (%dispatch-path ctx)
+    ;; a reload comes back to where the entry was left at
+    (js-execute body "chipiNav.restore()")))
 
 (defun %dispatch-path (ctx)
   "Renders the view matching the connection's current URL path.

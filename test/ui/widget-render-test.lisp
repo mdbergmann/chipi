@@ -17,9 +17,10 @@ on the DOM/JS commands CLOG would have sent."
          (progn (&body))
       (page:clear-pages))))
 
-(defun make-ctx (body)
+(defun make-ctx (body &optional (depth 0))
   (ui-renderer:make-nav-context :body body
-                                :container (clog:create-div body :class "container")))
+                                :container (clog:create-div body :class "container")
+                                :depth depth))
 
 (defmacro with-item ((&rest item-ht-args) &body body)
   "Runs BODY with item resolution mocked: any item symbol resolves to an item
@@ -824,12 +825,172 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
              (ctx (make-ctx body)))
         (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
         (is (= 1 (ui-renderer:nav-context-depth ctx)))
-        (is-true (js~ "history.pushState"))
-        (is-true (js~ "/cellar"))
+        (is-true (js~ "chipiNav.push(1,'/cellar')"))
         ;; navigated view carries a back button in the app header (depth > 0)
         (is-true (js~ "app-header"))
         (is-true (js~ "Back"))
         (is-true (js~ "The cellar"))))))
+
+;; ----------------------------------------------------------------------------
+;; history entries keep their views -- going back shows the view again
+;; instead of rendering the page anew.
+;; ----------------------------------------------------------------------------
+
+(defun %fail-render (ctx)
+  (declare (ignore ctx))
+  (fail "the entry was rendered anew instead of its view being shown"))
+
+(test navigate-to-page--hides-the-view-it-leaves-and-renders-into-a-new-one
+  (with-fixture render-env ()
+    (page:defpage 'cellar "Cellar" :path "/cellar" :title "The cellar")
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body))
+             (entry-view (ui-renderer:nav-context-container ctx)))
+        (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+        (is-false (eq entry-view (ui-renderer:nav-context-container ctx)))
+        (is-true (js~ (format nil "$(clog['~a']).css('display','none')"
+                              (clog:html-id entry-view))))
+        ;; the view left is not emptied
+        (is-false (js~ (format nil "$(clog['~a']).html(" (clog:html-id entry-view))))
+        ;; a new entry starts at the top
+        (is-true (js~ "chipiNav.restore()"))))))
+
+(test show-history-entry--back-shows-the-kept-view-without-rendering
+  (with-fixture render-env ()
+    (page:defpage 'cellar "Cellar" :path "/cellar" :title "The cellar")
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body))
+             (entry-view (ui-renderer:nav-context-container ctx)))
+        (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+        (let ((cellar-view (ui-renderer:nav-context-container ctx)))
+          (setf *captured* nil)
+          (ui-renderer:show-history-entry ctx 0 #'%fail-render)
+          (is (= 0 (ui-renderer:nav-context-depth ctx)))
+          (is (eq entry-view (ui-renderer:nav-context-container ctx)))
+          (is-true (js~ (format nil "$(clog['~a']).css('display','none')"
+                                (clog:html-id cellar-view))))
+          (is-true (js~ (format nil "$(clog['~a']).css('display','')"
+                                (clog:html-id entry-view))))
+          (is-true (js~ "chipiNav.restore()"))
+          ;; and forward again: the cellar view was kept as well
+          (ui-renderer:show-history-entry ctx 1 #'%fail-render)
+          (is (eq cellar-view (ui-renderer:nav-context-container ctx))))))))
+
+(test show-history-entry--kept-view-still-receives-value-updates
+  (with-fixture render-env ()
+    (page:defpage 'cellar "Cellar" :path "/cellar")
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body))
+             (called 0))
+        (ui-renderer:set-on-value-update ctx "item.x"
+                                         (lambda (state)
+                                           (declare (ignore state))
+                                           (incf called)))
+        ;; rendering the next view clears that view's callbacks only
+        (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+        (ui-renderer:call-item-value-update-fun "item.x" :state)
+        (is (= 1 called))))))
+
+(test show-history-entry--renders-anew-without-a-kept-view
+  ;; after a reload the connection starts on a pushed entry, with no views
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body 2))
+             (rendered nil))
+        (ui-renderer:show-history-entry ctx 1 (lambda (c)
+                                                (setf rendered c)))
+        (is (eq ctx rendered))
+        (is (= 1 (ui-renderer:nav-context-depth ctx)))))))
+
+(test show-history-entry--renders-anew-when-the-page-was-redefined
+  (with-fixture render-env ()
+    (page:defpage 'wall "Wall panel" :path "/wall")
+    (page:defpage 'cellar "Cellar" :path "/cellar")
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body))
+             (rendered nil))
+        (ui-renderer:render-page (page:get-page 'wall) ctx)
+        (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+        (page:defpage 'wall "Wall panel" :path "/wall" :title "New wall")
+        (ui-renderer:show-history-entry ctx 0 (lambda (c)
+                                                (declare (ignore c))
+                                                (setf rendered t)))
+        (is-true rendered)))))
+
+(test show-history-entry--same-entry-is-a-no-op
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (setf *captured* nil)
+        (ui-renderer:show-history-entry ctx 0 #'%fail-render)
+        (is (string= "" (captured-js)))))))
+
+(test navigate-to-page--drops-views-beyond-the-cache-distance
+  (with-fixture render-env ()
+    (page:defpage 'cellar "Cellar" :path "/cellar")
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body))
+             (ui-renderer::*view-cache-distance* 1)
+             (entry-view (ui-renderer:nav-context-container ctx))
+             (called 0))
+        (ui-renderer:set-on-value-update ctx "item.x"
+                                         (lambda (state)
+                                           (declare (ignore state))
+                                           (incf called)))
+        (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+        (is-false (js~ "dropCharts"))
+        (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+        ;; entry 0 is two away now: element, charts and callbacks are gone
+        (is-true (js~ (format nil "chipiNav.dropCharts('~a')"
+                              (clog:html-id entry-view))))
+        (is-true (js~ (format nil "$(clog['~a']).remove()" (clog:html-id entry-view))))
+        (ui-renderer:call-item-value-update-fun "item.x" :state)
+        (is (= 0 called))
+        ;; going back there renders it anew
+        (let ((rendered nil))
+          (ui-renderer:show-history-entry ctx 0 (lambda (c)
+                                                  (declare (ignore c))
+                                                  (setf rendered t)))
+          (is-true rendered))))))
+
+(test navigate-to-page--drops-the-entries-ahead
+  (with-fixture render-env ()
+    (page:defpage 'cellar "Cellar" :path "/cellar")
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+        (let ((ahead (ui-renderer:nav-context-container ctx)))
+          (ui-renderer:show-history-entry ctx 0 #'%fail-render)
+          (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+          (is-true (js~ (format nil "$(clog['~a']).remove()" (clog:html-id ahead))))
+          (is-false (eq ahead (ui-renderer:nav-context-container ctx))))))))
+
+(test invalidate-cached-views--keeps-only-the-current-view
+  (with-fixture render-env ()
+    (page:defpage 'cellar "Cellar" :path "/cellar")
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body))
+             (entry-view (ui-renderer:nav-context-container ctx)))
+        (ui-renderer:navigate-to-page (page:get-page 'cellar) ctx)
+        (ui-renderer:invalidate-cached-views ctx)
+        (is-true (js~ (format nil "$(clog['~a']).remove()" (clog:html-id entry-view))))
+        (is-false (js~ (format nil "$(clog['~a']).remove()"
+                               (clog:html-id
+                                (ui-renderer:nav-context-container ctx)))))))))
+
+(test history-index--defaults-to-the-entry-index-0
+  ;; the stubbed connection answers no query
+  (with-captured-clog
+    (is (= 0 (ui-renderer:history-index (make-body))))))
 
 ;; ----------------------------------------------------------------------------
 ;; render-page -- title, heading, no back button at depth 0.
@@ -949,6 +1110,47 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-false called)
         (let ((owners (gethash "item.x" ui-renderer:*item-value-form-update-funs*)))
           (is (zerop (hash-table-count owners))))))))
+
+(test value-update-registry--concurrent-access-is-thread-safe
+  ;; regression test: `call-item-value-update-fun' runs on the item-change-
+  ;; listener actor's own thread while `set-on-value-update' /
+  ;; `clear-value-update-funs' run on browser-event threads, all mutating the
+  ;; same per-item owner table.  Without `*item-value-form-update-funs-lock*'
+  ;; serializing them, concurrent `remhash'/`maphash' on that table is
+  ;; undefined per CLHS and corrupts it under load.
+  (with-fixture render-env ()
+    (let* ((item-name "item.concurrent")
+           (iterations 2000)
+           (errors nil)
+           (errors-lock (bt2:make-lock :name "test-errors")))
+      (flet ((record-error (c)
+               (bt2:with-lock-held (errors-lock)
+                 (push c errors))))
+        (let ((writers
+                (loop :for i :from 0 :below 4
+                      :collect (bt2:make-thread
+                                (lambda ()
+                                  (handler-case
+                                      (dotimes (n iterations)
+                                        (let ((owner (list 'owner i n)))
+                                          (ui-renderer:set-on-value-update
+                                           owner item-name
+                                           (lambda (state) (declare (ignore state))))
+                                          (ui-renderer:clear-value-update-funs owner)))
+                                    (error (c) (record-error c))))
+                                :name (format nil "writer-~a" i))))
+              (reader
+                (bt2:make-thread
+                 (lambda ()
+                   (handler-case
+                       (dotimes (n iterations)
+                         (declare (ignore n))
+                         (ui-renderer:call-item-value-update-fun item-name :state))
+                     (error (c) (record-error c))))
+                 :name "reader")))
+          (dolist (th writers) (bt2:join-thread th))
+          (bt2:join-thread reader)
+          (is (null errors) (format nil "expected no errors, got: ~a" errors)))))))
 
 ;; ----------------------------------------------------------------------------
 ;; URL dispatch in chipi-ui.main -- page, overview fallback, not-found.

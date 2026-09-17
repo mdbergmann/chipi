@@ -179,7 +179,7 @@ ANSWER, which is what the browser sends back for a `storage-element' read."
              (ctx (make-ctx body)))
         (ui-renderer::navigate-home ctx)
         (is (= 1 (ui-renderer:nav-context-depth ctx)))
-        (is-true (js~ "history.pushState({},'','/')"))
+        (is-true (js~ "chipiNav.push(1,'/')"))
         (is-true (js~ "Overview page"))))))
 
 (test navigate-to-settings--pushes-settings-path-and-renders-settings-view
@@ -189,7 +189,7 @@ ANSWER, which is what the browser sends back for a `storage-element' read."
              (ctx (make-ctx body)))
         (ui-renderer::navigate-to-settings ctx)
         (is (= 1 (ui-renderer:nav-context-depth ctx)))
-        (is-true (js~ (format nil "history.pushState({},'','~a')"
+        (is-true (js~ (format nil "chipiNav.push(1,'~a')"
                               ui-settings:+settings-path+)))
         (is-true (js~ "Home page"))))))
 
@@ -377,9 +377,9 @@ client-side as `e.key.charCodeAt(0)', which for \"Enter\" is 69 (the code of
              (ctx (make-ctx body))
              (brand (ui-renderer::%render-brand ctx body t)))
         (loop :repeat 4 :do (fire-click brand))
-        (is-false (js~ "history.pushState"))
+        (is-false (js~ "chipiNav.push"))
         (fire-click brand)
-        (is-true (js~ (format nil "history.pushState({},'','~a')"
+        (is-true (js~ (format nil "chipiNav.push(1,'~a')"
                               ui-settings:+settings-path+)))))))
 
 (test brand--is-inert-on-an-unlocked-device

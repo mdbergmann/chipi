@@ -21,6 +21,10 @@
            #:home-page
            #:render-widget
            #:navigate-to-page
+           #:install-history-tracking
+           #:history-index
+           #:show-history-entry
+           #:invalidate-cached-views
            #:set-on-value-update
            #:clear-value-update-funs
            #:call-item-value-update-fun
@@ -32,17 +36,32 @@
 ;; navigation context
 ;; ---------------------------------------------------------------------------
 
+;; A connection keeps the views of the history entries around it alive instead
+;; of re-rendering one container per navigation: drilling down hides the view
+;; being left, and going back shows it again -- at the scroll position it was
+;; left at, charts loaded, values current, since a hidden view keeps its
+;; value-update callbacks.  See `show-history-entry'.
+
+(defstruct view
+  "The rendered view of one history entry."
+  container     ; its top-level div; hidden while another entry is current
+  (page nil)    ; the `page:page' it shows, which tells a re-defined page
+  (title nil))  ; the document title it set
+
 (defstruct nav-context
   "Per-connection rendering/navigation state.  Every browser connection gets
-its own context; it owns the value-update callbacks of the currently rendered
-view and carries the navigation depth for the back button."
+its own context; it carries the history entry the connection is on and the
+views kept alive around it."
   body        ; the connection's clog body
-  container   ; the top-level container div views render into
-  (depth 0)   ; number of in-app pushState navigations
+  container   ; the div of the current view -- what views render into
+  (depth 0)   ; index of the current history entry: in-app pushState navigations
   ;; whether this connection may see the settings of a locked device: set by
   ;; a correct PIN, or by locking the device from the settings view.  Lives
   ;; for the connection only, so a reload asks for the PIN again.
-  (settings-unlocked nil))
+  (settings-unlocked nil)
+  (views nil)   ; alist of depth -> `view', the views kept alive
+  ;; navigation is driven by browser events, each on a thread of its own
+  (lock (bt2:make-lock :name "chipi-ui-nav")))
 
 ;; ---------------------------------------------------------------------------
 ;; item value-update registry
@@ -50,44 +69,86 @@ view and carries the navigation depth for the back button."
 
 (defvar *item-value-form-update-funs* (make-hash-table :test #'equal)
   "Maps an item name to a nested hash of owner -> list of value-update
-callbacks.  The owner is the `nav-context' of one browser connection: several
-connections render components for the same item concurrently, and re-rendering
-or closing one connection must only drop that connection's callbacks.")
+callbacks.  The owner is one view of one browser connection (see
+`%owner-key'): several connections render components for the same item
+concurrently, a connection keeps more than one view alive, and re-rendering or
+dropping one view must only drop that view's callbacks.
+
+Read and written from browser-event threads (`set-on-value-update',
+`clear-value-update-funs') and from the item-change-listener actor's thread
+(`call-item-value-update-fun'); all access must go through
+`*item-value-form-update-funs-lock*'.")
+
+(defvar *item-value-form-update-funs-lock*
+  (bt2:make-lock :name "chipi-ui-item-value-form-update-funs")
+  "Guards all access to `*item-value-form-update-funs*', which is mutated
+concurrently from browser-event threads and the item-change-listener actor's
+thread.  Held for the bookkeeping only, never while a callback runs.")
+
+(defun %owner-key (owner)
+  "What the registry files OWNER's callbacks under: for a `nav-context' the
+container of its current view, so that each of the views a connection keeps
+alive owns its callbacks; anything else stands for itself."
+  (if (nav-context-p owner)
+      (nav-context-container owner)
+      owner))
 
 (defun set-on-value-update (owner item-name fun)
   "Registers FUN as a value-update callback for ITEM-NAME on behalf of OWNER.
 Additive per owner: a single item renders several components that each react
 to a change (e.g. the value display and the timestamp display), so more than
 one callback is registered per item and all of them run on a change."
-  (let ((owner-funs (or (gethash item-name *item-value-form-update-funs*)
-                        (setf (gethash item-name *item-value-form-update-funs*)
-                              (make-hash-table :test #'eq)))))
-    (push fun (gethash owner owner-funs))))
+  (bt2:with-lock-held (*item-value-form-update-funs-lock*)
+    (let ((owner-funs (or (gethash item-name *item-value-form-update-funs*)
+                          (setf (gethash item-name *item-value-form-update-funs*)
+                                (make-hash-table :test #'eq)))))
+      (push fun (gethash (%owner-key owner) owner-funs)))))
 
 (defun clear-value-update-funs (owner)
   "Drops all callbacks registered by OWNER; called before OWNER re-renders."
-  (maphash (lambda (item-name owner-funs)
-             (declare (ignore item-name))
-             (remhash owner owner-funs))
-           *item-value-form-update-funs*))
+  (bt2:with-lock-held (*item-value-form-update-funs-lock*)
+    (let ((key (%owner-key owner)))
+      (maphash (lambda (item-name owner-funs)
+                 (declare (ignore item-name))
+                 (remhash key owner-funs))
+               *item-value-form-update-funs*))))
 
 (defun %owner-alive-p (owner)
   "Whether the owner's browser connection is still alive."
-  (if (nav-context-p owner)
-      (validp (nav-context-body owner))
+  (if (typep owner 'clog-obj)
+      (validp owner)
       t))
+
+(defun %live-value-update-funs (item-name)
+  "The callbacks registered for ITEM-NAME, as a fresh list.  The callbacks of
+owners whose connection has gone away are dropped from the registry instead.
+The second value tells whether ITEM-NAME has an entry at all."
+  (bt2:with-lock-held (*item-value-form-update-funs-lock*)
+    (let ((owners (gethash item-name *item-value-form-update-funs*))
+          (live '())
+          (dead '()))
+      (when owners
+        (maphash (lambda (owner funs)
+                   (if (%owner-alive-p owner)
+                       (setf live (append funs live))
+                       (push owner dead)))
+                 owners)
+        (dolist (owner dead)
+          (remhash owner owners)))
+      (values live (and owners t)))))
 
 (defun call-item-value-update-fun (item-name updated-item-state)
   "Runs all callbacks registered for ITEM-NAME across all owners.  Callbacks
-of owners whose connection has gone away are dropped instead of run."
-  (let ((owners (gethash item-name *item-value-form-update-funs*)))
-    (if owners
-        (maphash (lambda (owner funs)
-                   (if (%owner-alive-p owner)
-                       (dolist (fun funs)
-                         (funcall fun updated-item-state))
-                       (remhash owner owners)))
-                 owners)
+of owners whose connection has gone away are dropped instead of run.
+
+The callbacks run outside the registry's lock: they talk to a browser, and one
+slow connection must not hold up every other view's rendering -- nor may a
+callback that registers or clears callbacks itself run into the lock."
+  (multiple-value-bind (funs registered-p)
+      (%live-value-update-funs item-name)
+    (if registered-p
+        (dolist (fun funs)
+          (funcall fun updated-item-state))
         (log:debug "No update function registered for: ~a" item-name))))
 
 ;; ---------------------------------------------------------------------------
@@ -591,7 +652,11 @@ Unlike `%render-item-row' this resolves no item: buttons are not item-bound."
                             (page:item-widget-item-id w))
                   (create-div plot-div :class "chart-empty"
                                        :content "No history available"))
-                (%load-and-render-chart ctx w series plot-div persistence)))
+                ;; the history arrives on another thread, by when the
+                ;; connection may have moved on to another view: the live
+                ;; appends belong to the view this chart is rendered into
+                (%load-and-render-chart (%owner-key ctx) w series plot-div
+                                        persistence)))
           row))))
 
 (defun %chart-persistence (w)
@@ -644,16 +709,17 @@ ANY-OK is t when at least one fetch succeeded."
                             items)))
      any-ok)))
 
-(defun %load-and-render-chart (ctx w series plot-div persistence)
+(defun %load-and-render-chart (owner w series plot-div persistence)
   "Fetches the history of every chart series -- a list of (item label) -- in
 a background thread (so page rendering is not blocked), then renders the
-plot into PLOT-DIV."
+plot into PLOT-DIV.  OWNER is who the live-append callbacks are registered
+for, see `set-on-value-update'."
   (bt2:make-thread
    (lambda ()
      (multiple-value-bind (series-data any-ok)
          (%collect-chart-series-data w series persistence)
        (if any-ok
-           (%render-uplot ctx w plot-div series-data)
+           (%render-uplot owner w plot-div series-data)
            (create-div plot-div :class "chart-empty"
                                 :content "Failed to load history"))))
    :name "chipi-ui-chart-loader"))
@@ -871,10 +937,10 @@ its item id is among RIGHT-IDS.  An item's name is the `symbol-name' of its
 id (see `item:name'), which is what the ids are compared as."
   (and (member item-name right-ids :key #'symbol-name :test #'string=) t))
 
-(defun %render-uplot (ctx w plot-div series-data)
+(defun %render-uplot (owner w plot-div series-data)
   "Renders the uPlot chart for SERIES-DATA -- a list of
 (item-name series-label persisted-items) -- and registers a live-append
-callback per series item."
+callback per series item on behalf of OWNER."
   (let* ((plot-id (html-id plot-div))
          (transform (page:chart-transform w))
          (right-axis (page:chart-right-axis w))
@@ -920,7 +986,7 @@ callback per series item."
           :do (let ((idx series-idx)
                     (last-ts nil))
                 (set-on-value-update
-                 ctx item-name
+                 owner item-name
                  (lambda (updated-item-state)
                    (let ((ts (gethash "timestamp" updated-item-state)))
                      ;; :refresh drops updates inside the window Lisp-side, so
@@ -938,6 +1004,184 @@ callback per series item."
 ;; ---------------------------------------------------------------------------
 ;; page rendering / navigation
 ;; ---------------------------------------------------------------------------
+
+;; ---------------------------------------------------------------------------
+;; history entries and their views
+;; ---------------------------------------------------------------------------
+
+(defparameter *view-cache-distance* 2
+  "How many history entries away from the current one a view is kept alive.
+A hidden view still receives every value update of its items, and a wall
+tablet pushes entries for as long as it runs, so the views further away are
+dropped; going back that far renders the entry afresh.")
+
+(defparameter *history-tracking-js* "
+(function() {
+  if (window.chipiNav) return;
+  var KEY = 'chipi-nav-scroll';
+  var nav = { idx: (history.state && history.state.chipiIdx) || 0, scroll: {} };
+  // The positions outlive a reload -- the boot page reloads once its session
+  // is gone -- but must not leak into a fresh visit in the same tab.
+  try {
+    var entry = performance.getEntriesByType('navigation')[0];
+    if (entry && (entry.type === 'reload' || entry.type === 'back_forward'))
+      nav.scroll = JSON.parse(sessionStorage.getItem(KEY)) || {};
+  } catch (e) {}
+  // the views are swapped by the server, after the browser would have tried
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  function save() {
+    nav.scroll[nav.idx] = window.scrollY;
+    try { sessionStorage.setItem(KEY, JSON.stringify(nav.scroll)); } catch (e) {}
+  }
+  nav.push = function(idx, path) {
+    save();
+    for (var k in nav.scroll) if (Number(k) >= idx) delete nav.scroll[k];
+    nav.idx = idx;
+    history.pushState({chipiIdx: idx}, '', path);
+  };
+  nav.restore = function() { window.scrollTo(0, nav.scroll[nav.idx] || 0); };
+  // uPlot instances are held by window.chipiCharts, not by their element
+  nav.dropCharts = function(id) {
+    var el = document.getElementById(id);
+    if (!el || !window.chipiCharts) return;
+    var plots = el.querySelectorAll('.chart-plot');
+    for (var i = 0; i < plots.length; i++) {
+      var u = window.chipiCharts[plots[i].id];
+      if (u) { u.destroy(); delete window.chipiCharts[plots[i].id]; }
+    }
+  };
+  // runs before the server hears of the popstate, while the view being left
+  // is still the one on screen
+  window.addEventListener('popstate', function(e) {
+    save();
+    nav.idx = (e.state && e.state.chipiIdx) || 0;
+  });
+  window.addEventListener('pagehide', save);
+  window.chipiNav = nav;
+})();"
+  "The browser's side of the navigation: `window.chipiNav' numbers the history
+entries the app pushes (the number travels in `history.state', so it survives
+a reload) and remembers the scroll position each one was left at.")
+
+(defun install-history-tracking (body)
+  "Installs `*history-tracking-js*' in the connection's window."
+  (js-execute body *history-tracking-js*))
+
+(defun history-index (body)
+  "The index of the history entry the browser is on: 0 for the entry the app
+was entered through, counting up with every in-app navigation."
+  (or (ignore-errors
+       (parse-integer (js-query body "window.chipiNav ? chipiNav.idx : 0")
+                      :junk-allowed t))
+      0))
+
+(defun %current-view (ctx)
+  "The view of the current history entry.  The container CTX was made with is
+registered as that view on first use."
+  (let ((depth (nav-context-depth ctx)))
+    (or (cdr (assoc depth (nav-context-views ctx)))
+        (let ((view (make-view :container (nav-context-container ctx))))
+          (push (cons depth view) (nav-context-views ctx))
+          view))))
+
+(defun %set-view-title (ctx title)
+  "Sets the document title and notes it on the current view, which sets it
+again when it is shown the next time."
+  (setf (view-title (%current-view ctx)) title)
+  (setf (title (html-document (nav-context-body ctx))) title))
+
+(defun %drop-view (ctx depth)
+  "Drops the view kept for the history entry DEPTH, if any: its callbacks, its
+charts and its element."
+  (when-let ((entry (assoc depth (nav-context-views ctx))))
+    (let ((container (view-container (cdr entry))))
+      (setf (nav-context-views ctx) (remove entry (nav-context-views ctx)))
+      (clear-value-update-funs container)
+      (js-execute (nav-context-body ctx)
+                  (format nil "if (window.chipiNav) chipiNav.dropCharts('~a')"
+                          (html-id container)))
+      (destroy container))))
+
+(defun %drop-views-if (ctx predicate)
+  "Drops the views of all history entries whose depth satisfies PREDICATE."
+  (dolist (depth (remove-if-not predicate
+                                (mapcar #'car (nav-context-views ctx))))
+    (%drop-view ctx depth)))
+
+(defun %trim-views (ctx)
+  "Drops the views further than `*view-cache-distance*' from the current one."
+  (let ((current (nav-context-depth ctx)))
+    (%drop-views-if ctx (lambda (depth)
+                          (> (abs (- depth current)) *view-cache-distance*)))))
+
+(defun %hide-current-view (ctx)
+  (setf (style (view-container (%current-view ctx)) "display") "none"))
+
+(defun %open-view (ctx depth)
+  "Hides the current view and makes a new, empty one for the history entry
+DEPTH the current one."
+  (%hide-current-view ctx)
+  (%drop-view ctx depth)
+  (let ((container (create-div (nav-context-body ctx) :class "container")))
+    (push (cons depth (make-view :container container))
+          (nav-context-views ctx))
+    (setf (nav-context-container ctx) container
+          (nav-context-depth ctx) depth)))
+
+(defun %push-view (ctx path)
+  "Pushes PATH onto the browser history and opens the view for it.  As in the
+browser, the entries that were ahead of the current one are gone with that."
+  (let ((depth (1+ (nav-context-depth ctx))))
+    (js-execute (nav-context-body ctx)
+                (format nil "chipiNav.push(~a,'~a')" depth path))
+    (%drop-views-if ctx (lambda (d) (>= d depth)))
+    (%open-view ctx depth)
+    (%trim-views ctx)))
+
+(defun %restore-scroll (ctx)
+  "Scrolls to where the current history entry was left at -- the top for one
+that is new."
+  (js-execute (nav-context-body ctx) "if (window.chipiNav) chipiNav.restore()"))
+
+(defun %view-current-p (view)
+  "Whether VIEW still shows what its history entry addresses: a page that was
+re-defined since is a new object in the registry."
+  (let ((page (view-page view)))
+    (or (null page)
+        (eq page (page:find-page-by-path (page:page-path page))))))
+
+(defun show-history-entry (ctx depth render-fn)
+  "Makes the history entry DEPTH the current one, which is what browser
+back/forward asks for.  The view kept for it is simply shown again: as it was
+left, only with the values it received in the meantime.  Without one -- it
+was dropped, or the page was re-defined, or the browser came back here through
+a reload -- a new view is filled by calling RENDER-FN with CTX."
+  (bt2:with-lock-held ((nav-context-lock ctx))
+    (%current-view ctx)
+    (let ((view (cdr (assoc depth (nav-context-views ctx)))))
+      ;; two quick popstates can both read the index of the second
+      (unless (and view (= depth (nav-context-depth ctx)))
+        (cond
+          ((and view (%view-current-p view))
+           (%hide-current-view ctx)
+           (setf (nav-context-container ctx) (view-container view)
+                 (nav-context-depth ctx) depth)
+           (setf (style (view-container view) "display") "")
+           (when (view-title view)
+             (setf (title (html-document (nav-context-body ctx)))
+                   (view-title view))))
+          (t
+           (%open-view ctx depth)
+           (funcall render-fn ctx)))
+        (%restore-scroll ctx)
+        (%trim-views ctx)))))
+
+(defun invalidate-cached-views (ctx)
+  "Drops every view but the current one.  For changes that show in views
+already rendered: the home page setting, the device lock."
+  (bt2:with-lock-held ((nav-context-lock ctx))
+    (let ((current (nav-context-depth ctx)))
+      (%drop-views-if ctx (lambda (depth) (/= depth current))))))
 
 ;; ---------------------------------------------------------------------------
 ;; app header
@@ -1016,16 +1260,15 @@ settings button is left out; the brand takes over that role, see
 (defun render-page (page ctx)
   "Renders PAGE into the context's container, replacing previous content."
   (log:debug "Rendering page: ~a" (page:page-id page))
-  (let ((container (nav-context-container ctx))
-        (body (nav-context-body ctx)))
+  (let ((container (nav-context-container ctx)))
     (setf (inner-html container) "")
     (clear-value-update-funs ctx)
     (%render-app-header ctx container)
     (when (page:page-title page)
       (create-div container :class "header-line"
                             :content (page:page-title page)))
-    (setf (title (html-document body))
-          (or (page:page-title page) (page:page-label page)))
+    (setf (view-page (%current-view ctx)) page)
+    (%set-view-title ctx (or (page:page-title page) (page:page-label page)))
     (%render-page-widgets ctx container (page:page-children page))))
 
 (defun %render-page-widgets (ctx parent widgets)
@@ -1041,23 +1284,27 @@ itemgroups-container so their cards flow into the responsive grid columns
 
 (defun navigate-to-page (page ctx)
   "Navigates the connection to PAGE: pushes the page's path onto the browser
-history and renders it.  Browser back (or the rendered back button, which just
-calls history.back()) returns via the popstate handler in `chipi-ui.main'."
-  (incf (nav-context-depth ctx))
-  (url-push-state (window (nav-context-body ctx)) (page:page-path page))
-  (render-page page ctx))
+history and renders it into a view of its own.  Browser back (or the rendered
+back button, which just calls history.back()) returns via the popstate handler
+in `chipi-ui.main', see `show-history-entry'."
+  (bt2:with-lock-held ((nav-context-lock ctx))
+    (%push-view ctx (page:page-path page))
+    (render-page page ctx)
+    (%restore-scroll ctx)))
 
 (defun navigate-home (ctx)
   "Navigates the connection to the root path and renders its home view."
-  (incf (nav-context-depth ctx))
-  (url-push-state (window (nav-context-body ctx)) "/")
-  (render-home ctx))
+  (bt2:with-lock-held ((nav-context-lock ctx))
+    (%push-view ctx "/")
+    (render-home ctx)
+    (%restore-scroll ctx)))
 
 (defun navigate-to-settings (ctx)
   "Navigates the connection to the built-in settings view."
-  (incf (nav-context-depth ctx))
-  (url-push-state (window (nav-context-body ctx)) ui-settings:+settings-path+)
-  (render-settings ctx))
+  (bt2:with-lock-held ((nav-context-lock ctx))
+    (%push-view ctx ui-settings:+settings-path+)
+    (render-settings ctx)
+    (%restore-scroll ctx)))
 
 (defun render-not-found (ctx path)
   "Renders a 'no page defined' view with links to all defined pages."
@@ -1273,6 +1520,8 @@ the default option, which clears the setting again."
     (set-on-click row (lambda (obj)
                         (declare (ignore obj))
                         (ui-settings:set-home-path (nav-context-body ctx) path)
+                        ;; a view of the root path kept alive shows the old one
+                        (invalidate-cached-views ctx)
                         ;; re-render rather than just move the checkmark: the
                         ;; view is cheap and this shows what the browser
                         ;; actually stored
@@ -1334,6 +1583,8 @@ the PIN."
                           ;; for the next person picking the device up, not
                           ;; for the one setting it up
                           (setf (nav-context-settings-unlocked ctx) t)
+                          ;; the views kept alive carry the old header
+                          (invalidate-cached-views ctx)
                           (render-settings ctx)))
       row)))
 
@@ -1390,7 +1641,7 @@ address bar of a plain browser is no way around the lock."
     (clear-value-update-funs ctx)
     (%render-app-header ctx container locked)
     (create-div container :class "header-line" :content "Settings")
-    (setf (title (html-document body)) "Settings")
+    (%set-view-title ctx "Settings")
     (cond
       ((and locked (not (nav-context-settings-unlocked ctx)))
        (%render-pin-prompt ctx container))

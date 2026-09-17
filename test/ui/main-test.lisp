@@ -164,6 +164,26 @@ chipi-ui.page-renderer."
     (is (equal '(:b) calls))
     (is-false (%registered-funs :owner-a "item.one"))))
 
+(test value-update-registry--callback-may-touch-the-registry
+  ;; callbacks run outside the registry's lock: one that re-renders -- clears
+  ;; and registers -- while being dispatched must not deadlock on it
+  (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal))
+        (calls 0))
+    (ui-renderer:set-on-value-update
+     :owner-a "item.one"
+     (lambda (state)
+       (declare (ignore state))
+       (incf calls)
+       (ui-renderer:clear-value-update-funs :owner-a)
+       (ui-renderer:set-on-value-update :owner-a "item.one"
+                                        (lambda (state)
+                                          (declare (ignore state))
+                                          (incf calls 10)))))
+    (ui-renderer:call-item-value-update-fun "item.one" :state)
+    (is (= 1 calls))
+    (ui-renderer:call-item-value-update-fun "item.one" :state)
+    (is (= 11 calls))))
+
 ;; ----------------------------------------------------------------------------
 ;; chart helpers -- data conversion to uPlot input.
 ;; ----------------------------------------------------------------------------
