@@ -236,6 +236,15 @@ when given, else the type-hint based default formatting."
       (log:warn "Cannot parse ~s as ~a" str type-hint)
       nil)))
 
+(defun %selection-value (str type-hint)
+  "The item value a `selection' writes for the option value STR the browser
+reports.  A <select> hands over a string whatever its options were defined
+with, so for an integer or float item the string is parsed back (`nil' when
+that fails, like `%parse-number'); any other item takes the string as is."
+  (if (member type-hint '("INTEGER" "FLOAT") :test #'string=)
+      (%parse-number str type-hint)
+      str))
+
 ;; ---------------------------------------------------------------------------
 ;; value controls
 ;;
@@ -410,11 +419,15 @@ item change comes back from the server, so it always reflects the item state."
                                    (%format-value updated-value type-hint)))))
     wrapper))
 
-(defun %create-selection-control (owner parent item-name value choices)
-  "A dropdown writing the selected choice value to the item on change."
+(defun %create-selection-control (owner parent item-name value type-hint choices)
+  "A dropdown writing the selected choice value to the item on change.
+The choice values go into the options as strings, which is what the browser
+reports back and what the value-update below compares against, so the change
+handler converts the reported string by TYPE-HINT (`%selection-value'): an
+integer item gets an integer, not the \"1\" that a KNX push would reject."
   (let ((select (create-select parent :class "widget-selection")))
     (dolist (choice choices)
-      (add-select-option select (car choice) (cdr choice)))
+      (add-select-option select (format nil "~a" (car choice)) (cdr choice)))
     (when-let ((v (%ext-value value)))
       (setf (value select) (format nil "~a" v)))
     (set-on-value-update owner item-name
@@ -424,8 +437,8 @@ item change comes back from the server, so it always reflects the item state."
                                    (if updated-value (format nil "~a" updated-value) "")))))
     (set-on-change select
                    (lambda (obj)
-                     (update-item-value item-name
-                                        (item-ext:item-value-ext-to-internal (value obj)))))
+                     (when-let ((v (%selection-value (value obj) type-hint)))
+                       (update-item-value item-name v))))
     select))
 
 ;; ---------------------------------------------------------------------------
@@ -527,7 +540,7 @@ CONTROL-FN is called with the row container and the item hash-table."
   (%render-item-row w ctx parent "widget-selection-row"
                     (lambda (row item-ht)
                       (%with-item-state (item-ht name value type-hint)
-                        (%create-selection-control ctx row name value
+                        (%create-selection-control ctx row name value type-hint
                                                    (page:selection-choices w))))))
 
 (defun %run-button-action (w)

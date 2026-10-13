@@ -292,7 +292,7 @@ Semantics:
 | `(number-input item &key label min max step)` | integer/float | Number entry field |
 | `(slider item &key label min max step)` | integer/float | Slider with a live value label (defaults 0–100, step 1) |
 | `(setpoint item &key label min max step)` | integer/float | Stepper with −/+ buttons, e.g. for target temperatures |
-| `(selection item &key label choices)` | string | Dropdown; `choices` is an alist of `(value . label)` |
+| `(selection item &key label choices)` | string/integer/float | Dropdown; `choices` is an alist of `(value . label)`, the value written in the item's type |
 | `(chart item-or-items &key label type range persistence transform fill line-width height refresh right-axis)` | number/boolean | History chart, one series per item (see below) |
 | `(button caption action &key label)` | — | Push-button running `action` (see below) |
 | `(button-group label &rest buttons)` | — | Several buttons sharing one row and label |

@@ -288,6 +288,20 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (is-true (js~ "Off"))
           (is-true (js~ "on('change'")))))))
 
+;; integer choices (a KNX mode code, say) land in the options as their
+;; decimal strings -- CLOG escapes the quotes around an option value as \x27
+;; on the wire, hence the odd-looking substrings
+(test widget--selection-integer-choices-render-as-option-values
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Mode" :name "s.mode" :type-hint "INTEGER" :value 1)
+          (ui-renderer:render-widget
+           (page:selection 'mode :choices '((0 . "Auto") (1 . "Komfort")))
+           :owner body)
+          (is-true (js~ "value=\\x270\\x27>Auto"))
+          (is-true (js~ "value=\\x271\\x27>Komfort")))))))
+
 ;; ----------------------------------------------------------------------------
 ;; button -- the one widget that is not item-bound: it runs an action.
 ;; ----------------------------------------------------------------------------

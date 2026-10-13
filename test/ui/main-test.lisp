@@ -73,6 +73,26 @@ chipi-ui.page-renderer."
   (is-false (ui-renderer::%parse-number "abc" "FLOAT")))
 
 ;; ----------------------------------------------------------------------------
+;; %selection-value -- a <select>'s option string to the item value.
+;; ----------------------------------------------------------------------------
+
+(test %selection-value--integer-item-gets-an-integer
+  (let ((v (ui-renderer::%selection-value "1" "INTEGER")))
+    (is (eql 1 v))))
+
+(test %selection-value--float-item-gets-a-single-float
+  (let ((v (ui-renderer::%selection-value "0.5" "FLOAT")))
+    (is (= 0.5 v))
+    (is (typep v 'single-float))))
+
+(test %selection-value--string-item-keeps-the-string
+  (is (string= "auto" (ui-renderer::%selection-value "auto" "STRING"))))
+
+(test %selection-value--unparsable-number-is-nil
+  (is-false (ui-renderer::%selection-value "" "INTEGER"))
+  (is-false (ui-renderer::%selection-value "abc" "FLOAT")))
+
+;; ----------------------------------------------------------------------------
 ;; %itemgroup-link-p -- T when the itemgroup carries the :ui-link tag.
 ;; ----------------------------------------------------------------------------
 
