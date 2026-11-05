@@ -729,6 +729,33 @@ reconnect."
           ;; still recorded for the next reconnect
           (is (equal '(item:true) (binding-knx::pending-repush cut))))))))
 
+(test repush--off--write-failure-records-nothing
+  "With `:repush-on-reconnect nil' a permanent write failure is not recorded, so
+the reconnect sweep sends nothing -- a momentary command is not carried out
+late. `:verify-on-fail' is still called."
+  (with-fixture clean-knx-state ()
+    (with-fixture sync-verify ()
+      (with-mocks ()
+        (answer knxc:write-value
+          (make-condition 'knx-client:knx-response-timeout-error
+                          :format-control "no ack"))
+        (let ((failure nil))
+          (with-verify-binding (cut
+                                :repush-on-reconnect nil
+                                :verify-on-fail (lambda (info) (setf failure info)))
+            (binding:exec-push cut 'item:true)
+            (is (null (binding-knx::pending-repush cut)))
+            (is-true failure)
+            (binding-knx::%repush-pending-bindings)
+            ;; the failed push only, nothing re-sent
+            (is (= 1 (length (invocations 'knxc:write-value))))))))))
+
+(test repush--on-by-default
+  (with-fixture clean-knx-state ()
+    (with-mocks ()
+      (with-verify-binding (cut)
+        (is-true (binding-knx::repush-on-reconnect-p cut))))))
+
 ;; --- read re-pull after reconnect ---
 
 (test repull--reconnect-refetches-active-read-bindings

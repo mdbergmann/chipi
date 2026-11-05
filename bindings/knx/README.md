@@ -78,7 +78,15 @@ This creates a new item and attaches a `knx-binding`.
 It'a also possible to use `:delay` to periodically update the item value from the bus but this is actually not needed as the binding listens on bus changes for the specified GA and updates the item value asynchronously.  
 If some action should be performed upon a certain item value change it is possible to specify a Chipi rule via `defrule`.
 
-A value is written to the bus when the item *changes*; setting the value the item already holds sends no telegram. For a momentary GA — a shutter's stop, a door opener — that would send only the first of two equal commands. Send those with `(house:send-command 'my-item value)`, or `set-item-value` with `:push :always`: the telegram goes out every time. Such a GA usually has no read flag, so give the binding `:initial-delay nil` to skip the initial read request.
+A value is written to the bus when the item *changes*; setting the value the item already holds sends no telegram. For a momentary GA — a shutter's stop, a door opener — that would send only the first of two equal commands. Send those with `(house:send-command 'my-item value)`, or `set-item-value` with `:push :always`: the telegram goes out every time. Such a GA usually has no read flag, so give the binding `:initial-delay nil` to skip the initial read request. Give it `:repush-on-reconnect nil` as well: a command that could not be written is then dropped rather than re-sent when the tunnel is back (see *Reliable writes*).
+
+```lisp
+(defitem 'door-opener "Door opener" 'boolean
+  (knx-binding :ga "3/3/1"
+               :dpt "1.001"
+               :initial-delay nil
+               :repush-on-reconnect nil))
+```
 
 ##### Reliable writes
 
@@ -104,5 +112,7 @@ Verify keys (all optional):
 - `:verify-tolerance` — allowed absolute difference for numeric DPTs (floats); ignored for booleans.
 - `:verify-compare` — optional `(desired actual)` predicate overriding the default DPT-aware comparison.
 - `:verify-on-fail` — optional `(info-plist)` callback invoked when verification is exhausted or a write fails permanently. The plist holds `:binding`, `:write-ga`, `:desired` and `:actual`.
+
+A value that could not be written, or not be confirmed, is recorded on the binding and pushed again once the tunnel connection is re-established; a newer push supersedes it. That is right for a state — the light that should be on — and wrong for a momentary command, which would then be carried out whenever the tunnel comes back: a shutter moving hours later. `:repush-on-reconnect nil` switches the re-push off for a binding; `:verify-on-fail` is called all the same.
 
 Verify never blocks the shared timer thread or the item actors: the delay is honoured by the timer, and the read-back runs on a small dedicated worker pool whose size is set via `knx-init :verify-workers` (default 2).

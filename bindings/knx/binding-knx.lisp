@@ -94,7 +94,12 @@ The loop only stops when the gateway config is cleared (i.e. on shutdown).")
    ;; Consumed by `%repush-pending-bindings' once the tunnel is back so a value
    ;; the bus never (confirmably) received is re-sent instead of silently lost.
    ;; A new push always supersedes it (cleared at push start).
-   (pending-repush :initform nil :accessor pending-repush)))
+   (pending-repush :initform nil :accessor pending-repush)
+   ;; NIL for a binding whose values are momentary commands: one that could not
+   ;; be written is then dropped, not recorded in `pending-repush' -- it must
+   ;; not be carried out whenever the tunnel happens to come back.
+   (repush-on-reconnect-p :initarg :repush-on-reconnect
+                          :initform t :reader repush-on-reconnect-p)))
 
 (defun %dpt-1.x-p (dpt-type)
   "Returns T if DPT-TYPE is any boolean DPT-1.xxx type."
@@ -286,8 +291,9 @@ timeout/error."
 
 (defun %trigger-verify-fail (binding desired actual-or-error)
   ;; record the unconfirmed value so it is re-sent once the tunnel is back
-  ;; (see `%repush-pending-bindings')
-  (setf (pending-repush binding) (list desired))
+  ;; (see `%repush-pending-bindings') -- unless the binding opted out of that
+  (when (repush-on-reconnect-p binding)
+    (setf (pending-repush binding) (list desired)))
   (let ((on-fail (verify-on-fail binding)))
     (when on-fail
       (handler-case
@@ -461,6 +467,11 @@ On permanent failure the desired value is additionally recorded on the binding
 and automatically re-pushed (full push+verify cycle) once the tunnel connection
 is re-established, so a value the bus never confirmably received is not
 silently lost. A newer push supersedes the recorded value.
+- `:repush-on-reconnect' — `nil' switches that re-push off for this binding
+(default `t'). For a GA that takes momentary commands -- a shutter's move or
+stop, a door opener: a command that could not be written is then dropped,
+instead of being carried out whenever the tunnel comes back. `:verify-on-fail'
+is called all the same.
 
 Note: the read GA must have its read flag set so the status can be requested.
 Verify never blocks the shared timer thread or the item actors — the delay is
