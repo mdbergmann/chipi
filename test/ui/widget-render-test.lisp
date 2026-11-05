@@ -151,6 +151,72 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "Frostschutz"))
         (is-false (js~ ">ON</div>"))))))
 
+(defparameter +window-mapping+
+  (page:value-mapping t "offen" nil "zu"))
+
+(test render-item--readonly-boolean-mapping-keeps-the-state-colour
+  ;; the labels replace ON/OFF, not the colour that tells the states apart
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (ui-renderer::%render-item
+         :owner
+         (make-item-ht :label "Fenster" :name "s.window" :type-hint "BOOLEAN" :value t
+                       :tags (%tags :ui-readonly t :ui-mapping +window-mapping+))
+         body)
+        (is-true (js~ "offen</div>"))
+        (is-true (js~ "boolean-true"))
+        (is-false (js~ "boolean-false"))))))
+
+(test widget--value-boolean-mapping-shows-label-in-the-state-colour
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Fenster" :name "s.window" :type-hint "BOOLEAN" :value t
+                    :tags (%tags :ui-mapping +window-mapping+))
+          (ui-renderer:render-widget (page:value 'window) :owner body)
+          (is-true (js~ "offen</div>"))
+          (is-true (js~ "boolean-true"))
+          (is-false (js~ ">ON</div>")))))))
+
+(test widget--value-boolean-mapping-maps-false-as-well
+  ;; `nil' is a key like any other: a closed window reads "zu", not OFF
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Fenster" :name "s.window" :type-hint "BOOLEAN" :value nil
+                    :tags (%tags :ui-mapping +window-mapping+))
+          (ui-renderer:render-widget (page:value 'window) :owner body)
+          (is-true (js~ "zu</div>"))
+          (is-true (js~ "boolean-false"))
+          (is-false (js~ ">OFF</div>")))))))
+
+(test widget--value-boolean-mapping-follows-live-updates
+  ;; an update swaps the label and the colour class, as ON/OFF does
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Fenster" :name "s.window" :type-hint "BOOLEAN" :value nil
+                    :tags (%tags :ui-mapping +window-mapping+))
+          (ui-renderer:render-widget (page:value 'window) :owner body)
+          (is-false (js~ "offen"))
+          (let ((state (make-hash-table :test #'equal)))
+            (setf (gethash "value" state) t
+                  (gethash "timestamp" state) 0)
+            (ui-renderer:call-item-value-update-fun "s.window" state))
+          (is-true (js~ "offen"))
+          (is-true (js~ "boolean-true")))))))
+
+(test widget--value-boolean-partial-mapping-falls-back-to-on-off
+  ;; an unmapped state keeps its ON/OFF rather than showing nothing
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body)))
+        (with-item (:label "Frost" :name "s.frost" :type-hint "BOOLEAN" :value nil
+                    :tags (%tags :ui-mapping (page:value-mapping t "Frostschutz")))
+          (ui-renderer:render-widget (page:value 'frost) :owner body)
+          (is-true (js~ "OFF</div>")))))))
+
 (test render-item--non-hash-table-mapping-is-ignored-not-applied
   ;; an alist would render here but fail the items API, so it must not work
   (with-fixture render-env ()
