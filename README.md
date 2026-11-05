@@ -33,6 +33,7 @@ Licence: Apache 2.0.
   - [Persistences](#persistences)
   - [Rules](#rules)
   - [Commands](#commands)
+  - [House devices](#house-devices)
   - [Event log](#event-log)
   - [Changing a running system](#changing-a-running-system)
   - [Logging and shutdown](#logging-and-shutdown)
@@ -56,6 +57,11 @@ schedule or on an event, and pushes a new value back out when the item is set.
 Plain `pull`/`push` functions cover most devices; the
 [KNX binding](bindings/knx/README.md) speaks KNXnet/IP natively, with
 reconnect, retried writes and optional read-back verification.
+
+**Describe the house in its own terms.** The `house` package defines lights,
+plugs, window contacts, rollershutters, room heating and push buttons as what
+they are — the right items, types and commands — while you supply the
+bindings, so the same definitions work with KNX, HTTP or anything else.
 
 **Automate with rules.** A rule runs a function when an item changes, when an
 item makes a specific transition (off → on), or on a cron schedule. Rules are
@@ -327,7 +333,8 @@ translate them to and from JSON `true`/`false`.
 **Tags** are an alist that Chipi itself does not interpret; higher layers do.
 The UI understands `:ui-type`, `:ui-readonly` and `:ui-order`; the API
 convention `:ext-readonly` marks an item that external clients should not
-write. See [README-web.md](README-web.md) for all of them.
+write. See [README-web.md](README-web.md) for all of them. Items defined
+through the [house definers](#house-devices) carry `:house-kind`.
 
 At runtime an item's state is read with `item:get-item-stateq` (synchronous)
 or `item:get-value` (returns a future), and set with `item:set-value`; the
@@ -549,6 +556,122 @@ as always.
 
 Underneath it is `set-item-value` with `:push :always`, so a command is
 pushed by the item itself, in order with every other value set on it.
+
+What becomes of a command the binding could not deliver is up to the binding.
+One that makes up for a failed write later is right for a state and wrong for
+a command — the door would open whenever the connection returns. The KNX
+binding does re-send by default; give the binding of a command item
+`:repush-on-reconnect nil` (see its
+[documentation](bindings/knx/README.md)).
+
+`(house:pulse item &key duration on off)` is a press and release: it sends
+`on` (`item:true`) as a command and, `duration` seconds later (1), `off`
+(`item:false`).
+
+### House devices
+
+The `house` definers say what a thing *is* — its items, their types, start
+values and kind — and leave what it is *connected to* to you. Every item of a
+definer takes the body of a `defitem` form: bindings, `:group`, `:tags`,
+`:persistence`, and `:initial-value` to replace the start value. The name is
+not quoted.
+
+```lisp
+(house:deflight light-kitchen "Kitchen"
+  :group '(lights kitchen)
+  (knx-binding :ga "0/0/5" :dpt "1.001"))
+```
+
+| Definer | Item | Kind tag |
+|---|---|---|
+| `deflight` | boolean, `item:true` = on | `:light` |
+| `defplug` | boolean, `item:true` = powered | `:plug` |
+| `defcontact` | boolean, `item:true` = open | `:contact` |
+| `defmode` | integer, the number of an operating mode | `:mode` |
+| `defpulse` | boolean, plus the function `NAME-trigger` | `:pulse` |
+
+Each item gets the tag `(:house-kind . <kind>)` in front of its own tags, so
+a UI page, a rule or an API client can tell a light from a plug without a
+naming convention.
+
+`defpulse` is the push button — a bell, a door opener. Its function presses
+and releases the item; `:duration` in the body sets the seconds in between.
+The duration is kept on the item as the tag `:house-pulse-duration`, so
+`(house:press item)` does the same for whoever holds only the item — a rule,
+the UI:
+
+```lisp
+(house:defpulse door-opener "Door opener"
+  :duration 2
+  (knx-binding :ga "3/3/1" :dpt "1.001" :initial-delay nil))
+
+(door-opener-trigger)
+(house:press 'door-opener)   ; the same
+```
+
+**Devices of several items.** A rollershutter is driven through up to four
+channels and an item is bound to one, so `defrollershutter` defines an item
+per channel. Each part is the body of that item's `defitem`, in a list; a
+part left out is not defined.
+
+```lisp
+(house:defrollershutter blind-living "Blind living room"
+  :move     ((knx-binding :ga "4/0/31" :dpt "1.008" :initial-delay nil)
+             :group '(blinds))
+  :stop     ((knx-binding :ga "4/0/30" :dpt "1.007" :initial-delay nil)
+             :group '(blinds))
+  :position ((knx-binding :ga '(:read "4/0/33" :write "4/0/32") :dpt "5.001")
+             :group '(blinds living))
+  :slat     ((knx-binding :ga '(:read "4/0/35" :write "4/0/34") :dpt "5.001")
+             :group '(blinds living)))
+
+(blind-living-up) (blind-living-down) (blind-living-stop)
+```
+
+| Part | Item | Value | Kind tag |
+|---|---|---|---|
+| `:move` | `NAME` | boolean, `item:true` = down, `item:false` = up | `:shutter-move` |
+| `:stop` | `NAME-stop` | boolean, `item:true` = stop | `:shutter-stop` |
+| `:position` | `NAME-pos` | integer, position in %, 100 = closed | `:shutter-position` |
+| `:slat` | `NAME-slat` | integer, slat angle in % | `:shutter-slat` |
+
+Moving and stopping are momentary commands, so the functions `NAME-up`,
+`NAME-down` (with `:move`) and `NAME-stop` (with `:stop`) send them with
+`house:send-command`. Use those rather than setting the items: the move and
+stop items hold the last command, not the state of the shutter. Position and
+slat follow the shutter if their bindings report them.
+
+`defheating` defines the heating of one room the same way:
+
+```lisp
+(house:defheating living "Living room"
+  :temperature ((knx-binding :ga "0/4/17" :dpt "9.001")
+                :group '(living)
+                :persistence '(:id :influx :frequency :every-30m))
+  :setpoint    ((knx-binding :ga '(:read "0/5/19" :write "0/5/18") :dpt "9.001"))
+  :valve       ((knx-binding :ga "0/2/6" :dpt "5.001")
+                :group '(living)))
+```
+
+| Part | Item | Value | Kind tag |
+|---|---|---|---|
+| `:temperature` | `NAME-temp` | float, measured temperature | `:temperature` |
+| `:setpoint` | `NAME-setpoint` | float, temperature asked for | `:setpoint` |
+| `:valve` | `NAME-valve` | integer, valve opening in % | `:valve` |
+
+A part is labelled with the device label followed by "Stop", "Position",
+"Slat", "Temperature", "Setpoint" or "Valve". On top of the `defitem` body a
+part takes `:label` to replace that, and `:id` — an unquoted symbol — to
+replace its id.
+
+**Rules.** `def-any-true-rule` keeps one item at whether any of several
+others is true — the window that is open while any of its sashes is:
+
+```lisp
+(house:def-any-true-rule "window-bedroom"
+    (window-bedroom-left window-bedroom-right)
+  window-bedroom)
+```
 
 ### Event log
 
