@@ -267,7 +267,8 @@ Widgets are ordinary values, so they can be composed programmatically
   "A read-only display of the item's value.
 `format' is a CL format string applied to the value (e.g. \"~,1f °C\");
 without it the value is formatted according to the item's type-hint.
-Boolean items render as ON/OFF."
+Boolean items render as ON/OFF, or as the labels of their `:ui-mapping' tag
+(see `value-mapping')."
   (make-value-display :item-id item-id :label label :format format))
 
 (defun value-mapping (&rest value-label-pairs)
@@ -284,6 +285,11 @@ display of the item shows the label instead, both the `value' widget and the
 item's row in an `itemgroup-ref' card.  Values not listed keep showing
 themselves, so an unexpected code is visible rather than silently reading as
 one of the known ones.
+
+A read-only boolean takes a mapping too -- ON/OFF is itself a code.  Its keys
+are `t' and `nil', and the display keeps the state colour ON/OFF has:
+
+  (page:value-mapping t \"offen\" nil \"zu\")   ; a window contact
 
 The result is a hash-table on purpose: item tags are serialized to JSON by
 the items API, and `com.inuoe.jzon' renders a hash-table as an object but

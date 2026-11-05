@@ -253,16 +253,25 @@ that fails, like `%parse-number'); any other item takes the string as is."
 ;; item via `update-item-value' (input) and the value-update registry (output).
 ;; ---------------------------------------------------------------------------
 
-(defun %create-boolean-display (owner parent item-name value)
-  "A read-only ON/OFF display for a boolean item."
+(defun %boolean-text (value mapping)
+  "What a read-only boolean display shows for VALUE: the label MAPPING gives
+it, else ON/OFF."
+  (or (%mapped-label value mapping)
+      (if value "ON" "OFF")))
+
+(defun %create-boolean-display (owner parent item-name value &optional mapping)
+  "A read-only display for a boolean item: ON/OFF, or the labels of MAPPING
+(the item's `:ui-mapping' tag) when it has them -- \"offen\"/\"zu\" for a
+window contact.  Either way the display carries the boolean-true/-false class,
+so a mapped boolean keeps the state colour ON/OFF has."
   (let ((value-div (create-div parent :class (format nil "item-value-display ~a"
                                                      (if value "boolean-true" "boolean-false"))
-                                      :content (if value "ON" "OFF"))))
+                                      :content (%boolean-text value mapping))))
     (set-on-value-update owner item-name
                          (lambda (updated-item-state)
                            (let ((updated-value (gethash "value" updated-item-state)))
                              (setf (text value-div)
-                                   (if updated-value "ON" "OFF"))
+                                   (%boolean-text updated-value mapping))
                              (if updated-value
                                  (progn (remove-class value-div "boolean-false")
                                         (add-class value-div "boolean-true"))
@@ -489,10 +498,12 @@ CONTROL-FN is called with the row container and the item hash-table."
                     (lambda (row item-ht)
                       (%with-item-state (item-ht name value type-hint)
                         (let ((mapping (%ui-mapping (gethash "tags" item-ht))))
+                          ;; a boolean stays a boolean display with a mapping
+                          ;; too: the labels replace ON/OFF, the state colour
+                          ;; stays
                           (if (and (string= "BOOLEAN" type-hint)
-                                   (null (page:value-display-format w))
-                                   (null mapping))
-                              (%create-boolean-display ctx row name value)
+                                   (null (page:value-display-format w)))
+                              (%create-boolean-display ctx row name value mapping)
                               (%create-value-display ctx row name value type-hint
                                                      (page:value-display-format w)
                                                      mapping)))))))
@@ -1473,9 +1484,9 @@ fresh list."
       ((and (string= "BOOLEAN" type-hint) (not (%ui-readonly-p tags)))
        (%create-toggle-control ctx parent item-name item-value))
       ;; ON/OFF is itself a code, so a read-only boolean that carries a
-      ;; mapping shows its labels instead
-      ((and (string= "BOOLEAN" type-hint) (null mapping))
-       (%create-boolean-display ctx parent item-name item-value))
+      ;; mapping shows its labels instead -- in the same state colours
+      ((string= "BOOLEAN" type-hint)
+       (%create-boolean-display ctx parent item-name item-value mapping))
       (t
        (%create-value-display ctx parent item-name item-value type-hint
                               nil mapping)))))
