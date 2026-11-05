@@ -531,7 +531,7 @@ Items and itemgroups support special tags that control how they are rendered in 
 | Tag | Value | Description |
 |-----|-------|-------------|
 | `:ui-type` | string | Overrides the default type badge label (e.g. "Light" instead of "Switch") |
-| `:ui-readonly` | `t` | Boolean items render as plain "ON"/"OFF" text instead of an interactive toggle |
+| `:ui-readonly` | `t` | The item renders as a plain display instead of a control: a boolean as "ON"/"OFF" text instead of a toggle, an item of a [house kind](#house-kinds) as its value instead of the control of its kind |
 | `:ui-order` | number | Position of the item in its itemgroup's card: items are listed ascending by it, items without the tag after every ordered one, ties in definition order |
 
 ```lisp
@@ -549,6 +549,43 @@ lights, window contacts and its heating. Give every kind its own order in the
 macro that defines it (sockets 10, lights 20, windows 30, …) and each room
 card lists them kind by kind instead of in definition order, which is
 whatever the config file happened to interleave.
+
+### House kinds
+
+An item defined with one of the `house` definers (`house:deflight`,
+`house:defrollershutter`, …, see the chipi README) carries the tag
+`:house-kind`. The type of an item says how its value is stored; the kind says
+what it is, and an itemgroup card goes by it:
+
+| Kind | A card row shows |
+|------|------------------|
+| `:light`, `:plug` | a toggle |
+| `:contact` | "open" / "closed" in the state colours, never a toggle; a `:ui-mapping` replaces the two words |
+| `:pulse` | a "Press" button, which presses and releases the item (`house:press`) |
+| `:shutter-move` | ▲ and ▼ buttons |
+| `:shutter-stop` | a ■ button |
+| `:shutter-position`, `:shutter-slat` | a slider, 0–100 |
+| `:setpoint` | a −/+ stepper, in steps of 0.5 (1 for an integer item) |
+| `:mode` | a dropdown of the codes its `:ui-mapping` names; without a mapping, the value |
+| `:temperature`, `:valve` | the value |
+
+The buttons send *commands* (`house:send-command`): the same direction, or
+another stop, goes out as often as it is pressed, which a toggle on the same
+item could not do.
+
+The type badge names the kind ("Light", "Shutter position", …) unless the item
+has a `:ui-type`. `:ui-readonly` turns any of the controls back into a display
+— for a position that is reported but must not be set from a card. The `value`
+widget of a page reads a contact as "open" / "closed" as well.
+
+```lisp
+(defitemgroup 'living "Living room")
+
+(house:defrollershutter blind-living "Blind"
+  :move     ((knx-binding ...) :group '(living))    ; ▲ ▼
+  :stop     ((knx-binding ...) :group '(living))    ; ■
+  :position ((knx-binding ...) :group '(living)))   ; slider
+```
 
 ### Itemgroup tags
 

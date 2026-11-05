@@ -1,5 +1,5 @@
 (defsystem "chipi-ui"
-  :version "0.1.16"
+  :version "0.1.17"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("chipi-api"
@@ -31,6 +31,7 @@
                  (:file "main-test")
                  (:file "render-test")
                  (:file "widget-render-test")
+                 (:file "kind-render-test")
                  (:file "settings-test"))))
   :description "Test system for chipi-ui."
   :perform (test-op (op c) (symbol-call :fiveam :run!

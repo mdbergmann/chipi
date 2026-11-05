@@ -318,6 +318,22 @@ body {
     transform: translateY(1px);
 }
 
+/* --- controls of an itemgroup card row ----------------------------------- */
+
+/* A card gives an item of a house kind the control of the matching widget --
+   command buttons, a slider, a stepper, a selection.  In a card row they take
+   the place of the value, which is a block at the row's left. */
+.item-container .widget-buttons {
+    justify-content: flex-start;
+}
+
+.item-container .widget-buttons,
+.item-container .widget-slider-wrap,
+.item-container .widget-setpoint,
+.item-container .widget-selection {
+    margin-bottom: 0.5rem;
+}
+
 /* --- charts -------------------------------------------------------------- */
 
 .widget-chart {

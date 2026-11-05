@@ -81,7 +81,7 @@ Use the `/test` skill to run tests. Available options: core tests, API tests, or
 | File | Purpose |
 |------|---------|
 | `src/hab.lisp` | DSL macros, main entry point |
-| `src/house.lisp` | House abstractions on top of the primitives (`send-command`, `pulse`, `press`, device definers) |
+| `src/house.lisp` | House abstractions on top of the primitives (`send-command`, `pulse`, `press`, device definers). Each defined item carries a `:house-kind` tag; chipi-ui's itemgroup cards pick the control by it (`%create-kind-control` in `src/ui/page-renderer.lisp`) |
 | `src/item.lisp` | Item actor class and operations |
 | `src/itemgroup.lisp` | Itemgroup container |
 | `src/rule.lisp` | Rules engine |

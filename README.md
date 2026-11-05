@@ -592,7 +592,9 @@ not quoted.
 
 Each item gets the tag `(:house-kind . <kind>)` in front of its own tags, so
 a UI page, a rule or an API client can tell a light from a plug without a
-naming convention.
+naming convention. The web UI goes by it: an itemgroup card gives a shutter
+its up, down and stop buttons, a setpoint a stepper, a contact "open" /
+"closed" — see [House kinds](README-web.md#house-kinds).
 
 `defpulse` is the push button — a bell, a door opener. Its function presses
 and releases the item; `:duration` in the body sets the seconds in between.

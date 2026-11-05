@@ -217,6 +217,26 @@ when given, else the type-hint based default formatting."
   (when (and tags (hash-table-p tags))
     (gethash :ui-mapping tags)))
 
+(defun %house-kind (tags)
+  "The item's `:house-kind' tag -- the keyword the `chipi.house' definers give
+an item to say what it is (`:light', `:contact', `:shutter-move', ...) -- or
+`nil'."
+  (when (and tags (hash-table-p tags))
+    (gethash :house-kind tags)))
+
+(defparameter *contact-labels*
+  (page:value-mapping t "open"
+                      nil "closed")
+  "What a contact reads as when it has no `:ui-mapping' of its own.")
+
+(defun %display-mapping (tags)
+  "The mapping a display of the item's value goes by: its `:ui-mapping' tag,
+else what its kind says a value means -- a contact is open or closed, not ON or
+OFF."
+  (or (%ui-mapping tags)
+      (when (eq :contact (%house-kind tags))
+        *contact-labels*)))
+
 (defun %itemgroup-link-p (itemg)
   "Returns T if the itemgroup should render as a link (has :ui-link tag)."
   (let ((tags (gethash "tags" itemg)))
@@ -451,6 +471,124 @@ integer item gets an integer, not the \"1\" that a KNX push would reject."
     select))
 
 ;; ---------------------------------------------------------------------------
+;; house kinds
+;;
+;; An item defined with one of the `chipi.house' definers carries its kind in
+;; the `:house-kind' tag.  The type of an item says how its value is stored;
+;; the kind says what it is -- and so what an itemgroup card should offer for
+;; it, which the type alone gets wrong: a window contact is no switch, a
+;; shutter's move item is no state to toggle, a setpoint is a number one wants
+;; to change.
+;; ---------------------------------------------------------------------------
+
+(defparameter *kind-labels*
+  '((:light . "Light")
+    (:plug . "Plug")
+    (:contact . "Contact")
+    (:mode . "Mode")
+    (:pulse . "Push button")
+    (:shutter-move . "Shutter")
+    (:shutter-stop . "Shutter stop")
+    (:shutter-position . "Shutter position")
+    (:shutter-slat . "Shutter slat")
+    (:temperature . "Temperature")
+    (:setpoint . "Setpoint")
+    (:valve . "Valve"))
+  "What the type badge of a card row reads for an item of a kind.")
+
+(defun %kind-label (kind)
+  (cdr (assoc kind *kind-labels*)))
+
+(defun %item-named (item-name)
+  "The item whose name is ITEM-NAME, or `nil'.  A card row knows its item by
+name only."
+  (find item-name (hab:get-items) :key #'item:name :test #'string=))
+
+(defun %run-item-command (item-name what command)
+  "Calls COMMAND with the item named ITEM-NAME.  WHAT says what it does, for
+the log.  Like a button's action it runs on the thread CLOG gave the click, and
+an error in it is logged rather than left to CLOG's generic event handler."
+  (log:info "~a: ~a" what item-name)
+  (handler-case
+      (let ((item (%item-named item-name)))
+        (if item
+            (funcall command item)
+            (log:warn "~a: no item ~a" what item-name)))
+    (error (c)
+      (log:warn "~a failed on ~a: ~a" what item-name c))))
+
+(defun %create-command-buttons (parent item-name specs)
+  "A row of buttons that command the item named ITEM-NAME.  Each of SPECS is a
+list of the button's caption (HTML), what it does in a word -- its accessible
+name, a glyph has none -- and a function of the item that does it.  Returns the
+buttons."
+  (let ((buttons (create-div parent :class "widget-buttons")))
+    (mapcar (lambda (spec)
+              (destructuring-bind (caption what command) spec
+                (let ((btn (create-button buttons :class "widget-button"
+                                                  :content caption)))
+                  (setf (attribute btn "aria-label") what)
+                  (set-on-click btn
+                                (lambda (obj)
+                                  (declare (ignore obj))
+                                  (%run-item-command item-name what command)))
+                  btn)))
+            specs)))
+
+(defun %mapping-choices (mapping)
+  "The codes of MAPPING, an item's `:ui-mapping' tag, as the choices of a
+`selection': a list of (value . label), ascending by value when the values are
+numbers.  `nil' when there is no such mapping."
+  (when (hash-table-p mapping)
+    (let ((choices (loop :for value :being :the :hash-keys :of mapping
+                           :using (hash-value label)
+                         :collect (cons value label))))
+      (if (every (lambda (choice) (realp (car choice))) choices)
+          (sort choices #'< :key #'car)
+          choices))))
+
+(defun %create-kind-control (owner parent item-name value type-hint tags)
+  "The control an itemgroup card offers for an item because of its kind, or
+`nil' when the kind asks for none of its own and the item renders by its type.
+
+- `:shutter-move'   -- up and down buttons.  They send commands
+                       (`house:send-command'), so the same direction can be
+                       sent twice, which a toggle could not.
+- `:shutter-stop'   -- a stop button, likewise.
+- `:pulse'          -- a button that presses and releases (`house:press').
+- `:shutter-position', `:shutter-slat' -- a slider over 0..100 %.
+- `:setpoint'       -- a -/+ stepper: half a step for a float, 1 for an integer.
+- `:mode'           -- a selection of the codes its `:ui-mapping' names; a mode
+                       without a mapping has no choices to offer.
+
+An item tagged `:ui-readonly' gets none of them: it reports only."
+  (unless (%ui-readonly-p tags)
+    (case (%house-kind tags)
+      (:shutter-move
+       (%create-command-buttons
+        parent item-name
+        `(("&#9650;" "Up" ,(lambda (item) (house:send-command item 'item:false)))
+          ("&#9660;" "Down" ,(lambda (item) (house:send-command item 'item:true))))))
+      (:shutter-stop
+       (%create-command-buttons
+        parent item-name
+        `(("&#9632;" "Stop" ,(lambda (item) (house:send-command item 'item:true))))))
+      (:pulse
+       (%create-command-buttons
+        parent item-name
+        `(("Press" "Press" ,(lambda (item) (house:press item))))))
+      ((:shutter-position :shutter-slat)
+       (%create-slider-control owner parent item-name value type-hint
+                               :min 0 :max 100 :step 1))
+      (:setpoint
+       (%create-setpoint-control owner parent item-name value type-hint
+                                 :step (if (string= "INTEGER" type-hint) 1 0.5)))
+      (:mode
+       (when-let ((choices (%mapping-choices (%ui-mapping tags))))
+         (%create-selection-control owner parent item-name value type-hint
+                                    choices))))))
+
+;; ---------------------------------------------------------------------------
 ;; widget rendering
 ;; ---------------------------------------------------------------------------
 
@@ -497,7 +635,7 @@ CONTROL-FN is called with the row container and the item hash-table."
   (%render-item-row w ctx parent "widget-value"
                     (lambda (row item-ht)
                       (%with-item-state (item-ht name value type-hint)
-                        (let ((mapping (%ui-mapping (gethash "tags" item-ht))))
+                        (let ((mapping (%display-mapping (gethash "tags" item-ht))))
                           ;; a boolean stays a boolean display with a mapping
                           ;; too: the labels replace ON/OFF, the state colour
                           ;; stays
@@ -1454,13 +1592,15 @@ fresh list."
          (type-hint (gethash "type-hint" item))
          (tags (gethash "tags" item))
          (ui-type (when (and tags (hash-table-p tags))
-                    (gethash :ui-type tags))))
+                    (gethash :ui-type tags)))
+         (kind-label (%kind-label (%house-kind tags))))
 
     (create-div item-div :class "item-label"
                          :content item-label)
 
     (create-div item-div :class (format nil "item-type-badge ~a" (string-downcase type-hint))
-                         :content (or ui-type (%format-type-hint type-hint)))
+                         :content (or ui-type kind-label
+                                      (%format-type-hint type-hint)))
 
     (create-div item-div :class "item-name"
                          :content item-name)
@@ -1477,8 +1617,13 @@ fresh list."
                                     (gethash "timestamp" updated-item-state))))))))
 
 (defun %render-item-value (ctx item-name item-value type-hint tags parent)
-  (let ((mapping (%ui-mapping tags)))
+  (let ((mapping (%display-mapping tags)))
     (cond
+      ;; a contact reports and is never switched, tagged read-only or not
+      ((and (eq :contact (%house-kind tags)) (string= "BOOLEAN" type-hint))
+       (%create-boolean-display ctx parent item-name item-value mapping))
+      ;; what the item is decides before how its value is stored
+      ((%create-kind-control ctx parent item-name item-value type-hint tags))
       ;; a writable boolean keeps its toggle -- a switch has no text for a
       ;; mapping to replace
       ((and (string= "BOOLEAN" type-hint) (not (%ui-readonly-p tags)))
