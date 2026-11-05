@@ -131,16 +131,19 @@ Higher-level code is responsible for interpreting the tags.")
            (log:debug "Current state value: ~a, item: ~a" state-value id)
            (reply state-value)))
         (:set-state
-         (let ((old-val (item-state-value *state*))
-               (val (getf (cdr msg) :value))
-               (push (getf (cdr msg) :push-p))
-               (persist (getf (cdr msg) :persist-p t))
-               (timestamp (getf (cdr msg) :timestamp)))
-           (unless (equal old-val val)
+         (let* ((old-val (item-state-value *state*))
+                (val (getf (cdr msg) :value))
+                (push (getf (cdr msg) :push-p))
+                (persist (getf (cdr msg) :persist-p t))
+                (timestamp (getf (cdr msg) :timestamp))
+                (changed (not (equal old-val val))))
+           (when changed
              (log:debug "set-state: ~a on item: ~a" val id)
              (apply-new-value val timestamp old-val)
              (when persist
-               (apply-persistences))
+               (apply-persistences)))
+           ;; `:always' pushes a value the item already holds as well
+           (when (or changed (eq push :always))
              (push-to-bindings val push))))))))
 
 (defun make-item (id &key (label nil) (type-hint nil) (initial-value t) (tags '()))
@@ -188,6 +191,8 @@ Higher-level code is responsible for interpreting the tags.")
 
 (defun set-value (item value &key (push t) (timestamp nil) (persist t))
   "Updates item value with push to bindings.
+A `VALUE' that is `equal' to the current one changes nothing: no event, no persistence and, by default, no push.
+`PUSH': `T' pushes a changed value, `NIL' pushes nothing. `:always' pushes `VALUE' also when the item already holds it, the item itself staying untouched in that case -- for a value that is a command rather than a state.
 Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on whether the value is pushed or not.
 `TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
 `PERSIST': if non-nil, persistences will be applied."

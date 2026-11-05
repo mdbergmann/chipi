@@ -13,6 +13,8 @@ Chipi is a lightweight home automation framework in Common Lisp, an alternative 
 
 Key entry point: `hab.lisp` provides DSL macros (`defconfig`, `defitem`, `defitemgroup`, `defrule`, `defpersistence`, `binding`).
 
+**House layer** (`chipi.house`, `src/house.lisp`): house abstractions (commands, later devices) live in this separate package, on top of the primitives. It is binding-neutral: the caller supplies the bindings. The primitives (`item`, `binding`, `hab`) carry no house vocabulary; when the house layer needs something from them, extend the primitive in general terms (e.g. `item:set-value`'s `:push :always`, which `house:send-command` wraps) rather than working around it from outside.
+
 ## Code Style
 
 Write idiomatic Common Lisp:
@@ -79,6 +81,7 @@ Use the `/test` skill to run tests. Available options: core tests, API tests, or
 | File | Purpose |
 |------|---------|
 | `src/hab.lisp` | DSL macros, main entry point |
+| `src/house.lisp` | House abstractions on top of the primitives (`send-command`) |
 | `src/item.lisp` | Item actor class and operations |
 | `src/itemgroup.lisp` | Itemgroup container |
 | `src/rule.lisp` | Rules engine |

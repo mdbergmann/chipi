@@ -354,7 +354,9 @@ its time axis has.
 function. That is what **momentary commands** need — a door opener, a
 shutter's Auf/Stopp/Ab — because `item:set-value` is a no-op when the value
 does not change, so an item-bound control cannot send the same command twice
-in a row.
+in a row. The function is free to go through an item all the same:
+`house:send-command` pushes to the item's bindings every time, so the
+action stays independent of the binding behind the item.
 
 ```lisp
 (section "Jalousie Wohnzimmer"

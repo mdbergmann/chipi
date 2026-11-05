@@ -78,6 +78,8 @@ This creates a new item and attaches a `knx-binding`.
 It'a also possible to use `:delay` to periodically update the item value from the bus but this is actually not needed as the binding listens on bus changes for the specified GA and updates the item value asynchronously.  
 If some action should be performed upon a certain item value change it is possible to specify a Chipi rule via `defrule`.
 
+A value is written to the bus when the item *changes*; setting the value the item already holds sends no telegram. For a momentary GA — a shutter's stop, a door opener — that would send only the first of two equal commands. Send those with `(house:send-command 'my-item value)`, or `set-item-value` with `:push :always`: the telegram goes out every time. Such a GA usually has no read flag, so give the binding `:initial-delay nil` to skip the initial read request.
+
 ##### Reliable writes
 
 Every write goes out via `knxc:write-value` with a transport-level retry, so a write that comes back with a negative `L_Data.con` or an ACK/response timeout is resent instead of silently dropped (see `*write-retries*` / `*write-retry-backoff*`).

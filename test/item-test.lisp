@@ -127,6 +127,89 @@
       (sleep 0.3)
       (is-false (equal pushed-value "Foo")))))
 
+(test item--set-value-does-no-push-when-value-is-unchanged
+  "Tests that set-value on an unchanged value does not reach the binding."
+  (with-fixture init-destroy-env ()
+    (let* ((item (make-item 'my-item :initial-value "Foo"))
+           (pushed-values)
+           (binding (binding:make-function-binding
+                     :push (lambda (value) (push value pushed-values)))))
+      (add-binding item binding)
+      (set-value item "Foo")
+      (sleep 0.3)
+      (is-false pushed-values))))
+
+(test item--set-value-push-always--pushes-when-value-is-unchanged
+  "Tests that `:push :always' reaches the binding every time, also when the
+item already holds the value."
+  (with-fixture init-destroy-env ()
+    (let* ((item (make-item 'my-item :initial-value "Foo"))
+           (pushed-values)
+           (binding (binding:make-function-binding
+                     :push (lambda (value) (push value pushed-values)))))
+      (add-binding item binding)
+      (set-value item "Foo" :push :always)
+      (set-value item "Foo" :push :always)
+      (is-true (await-cond 0.5
+                 (equal pushed-values '("Foo" "Foo")))))))
+
+(test item--set-value-push-always--sets-value-when-changed
+  "Tests that `:push :always' with a new value is an ordinary set-value: the
+item is updated and the value pushed once."
+  (with-fixture init-destroy-env ()
+    (let* ((item (make-item 'my-item :initial-value "Foo"))
+           (pushed-values)
+           (binding (binding:make-function-binding
+                     :push (lambda (value) (push value pushed-values)))))
+      (add-binding item binding)
+      (set-value item "Bar" :push :always)
+      (is-true (await-cond 0.5
+                 (equal pushed-values '("Bar"))))
+      (is (equal "Bar" (item-state-value (get-item-stateq item))))
+      (sleep 0.3)
+      (is (equal pushed-values '("Bar"))))))
+
+(test item--set-value-push-always--keeps-state-and-raises-no-event-when-unchanged
+  "Tests that `:push :always' with an unchanged value only pushes: the item
+state, its timestamp and the subscribers are left alone."
+  (with-fixture init-destroy-env ()
+    (let* ((item (make-item 'my-item :initial-value "Foo"))
+           (timestamp (item-state-timestamp (get-item-stateq item)))
+           (pushed-values)
+           (events)
+           (binding (binding:make-function-binding
+                     :push (lambda (value) (push value pushed-values)))))
+      (ac:actor-of (isys:ensure-isys)
+                   :init (lambda (self)
+                           (ev:subscribe self self 'item-changed-event))
+                   :receive (lambda (msg)
+                              (when (typep msg 'item-changed-event)
+                                (push msg events))))
+      (add-binding item binding)
+      (sleep 1)
+      (set-value item "Foo" :push :always)
+      (is-true (await-cond 0.5
+                 (equal pushed-values '("Foo"))))
+      (sleep 0.3)
+      (is-false events)
+      (is (eql timestamp (item-state-timestamp (get-item-stateq item)))))))
+
+(test item--set-value-push-always--binding-call-push-p-has-precedence
+  "Tests that a binding without `call-push-p' is not pushed to by `:push :always'."
+  (with-fixture init-destroy-env ()
+    (let* ((item (make-item 'my-item :initial-value "Foo"))
+           (pushed-values)
+           (binding (binding:make-function-binding
+                     :call-push-p nil
+                     :push (lambda (value) (push value pushed-values)))))
+      (add-binding item binding)
+      (set-value item "Foo" :push :always)
+      (set-value item "Bar" :push :always)
+      (is-true (await-cond 0.5
+                 (equal "Bar" (item-state-value (get-item-stateq item)))))
+      (sleep 0.3)
+      (is-false pushed-values))))
+
 (test item-raises-changed-event-when-changed
   "When item value is changed it should raise event."
   (with-fixture init-destroy-env ()

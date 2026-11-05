@@ -1,5 +1,5 @@
 (defsystem "chipi"
-  :version "0.9.1"
+  :version "0.9.2"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
@@ -34,6 +34,7 @@
                   :components
                   ((:file "base-binding")))
                  (:file "hab")
+                 (:file "house")
                  (:file "event-log")
                  )))
   :in-order-to ((test-op (test-op "chipi/tests"))))
@@ -57,6 +58,7 @@
                  (:file "persistence-influx-test")
                  (:file "env-test")
                  (:file "hab-test")
+                 (:file "house-test")
                  (:file "event-log-test")
                  )))
   :description "Test system for chipi"

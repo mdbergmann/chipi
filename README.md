@@ -32,6 +32,7 @@ Licence: Apache 2.0.
   - [Bindings](#bindings)
   - [Persistences](#persistences)
   - [Rules](#rules)
+  - [Commands](#commands)
   - [Event log](#event-log)
   - [Changing a running system](#changing-a-running-system)
   - [Logging and shutdown](#logging-and-shutdown)
@@ -287,7 +288,7 @@ REPL:
 | `(get-item 'id)`, `(get-items)` | Look up items |
 | `(get-itemgroup 'id)`, `(get-items-on-group 'id)`, `(get-top-level-itemgroups)` | Look up groups |
 | `(get-item-valueq 'id)` | Current value and timestamp of an item, synchronously (returns two values) |
-| `(set-item-value 'id value &key push persist timestamp)` | Set an item; `:push nil` skips the bindings, `:persist nil` skips persistences |
+| `(set-item-value 'id value &key push persist timestamp)` | Set an item; `:push nil` skips the bindings, `:push :always` pushes also an unchanged value, `:persist nil` skips persistences |
 | `(get-persistence :id)`, `(get-rule "name")` | Look up persistences and rules |
 | `(add-to-shutdown fn)` | Register a function called by `shutdown` |
 | `(shutdown)` | Stop everything: hooks, actors, timers, cron |
@@ -333,6 +334,14 @@ or `item:get-value` (returns a future), and set with `item:set-value`; the
 `hab` wrappers `get-item-valueq` and `set-item-value` take the item id
 instead of the item object.
 
+Setting an item to the value it already holds does nothing: no event, no
+persistence, no push. That is right for a state and wrong for a **momentary
+command** — a second shutter "stop", another press of a door opener. For
+those, `:push :always` on `item:set-value` / `set-item-value` pushes the
+value through the bindings regardless, leaving the item itself untouched
+when the value is the one it holds. [Commands](#commands) below wraps that
+as `house:send-command`.
+
 ### Itemgroups
 
 ```lisp
@@ -371,7 +380,9 @@ binding* is created with `binding` inside a `defitem`:
 - **`:push`** is a 1-argument function called with the new value whenever the
   item is set — from a rule, the UI, the API, the REPL, or a pull — provided
   `:call-push-p` is true (the default). `set-item-value ... :push nil`
-  skips it for one call.
+  skips it for one call. A value equal to the item's current one is not
+  pushed, unless it is set with `:push :always` — which is what a
+  [command](#commands) does.
 - Errors in `pull` are caught and logged so that a failing device cannot take
   the timer down with it.
 
@@ -507,8 +518,37 @@ Trigger kinds, each of which may be given several times per rule:
 
 Rules run in their own actor, so a slow rule does not block item updates.
 Because `set-item-value` on an unchanged value is a no-op, a rule that needs
-to send the *same* command twice (a shutter "stop", a door opener) should call
-the device function directly rather than go through an item.
+to send the *same* command twice (a shutter "stop", a door opener) should use
+`house:send-command`, see [Commands](#commands).
+
+### Commands
+
+The `house` package (`chipi.house`) holds what a house needs on top of items,
+bindings and rules. The primitives know nothing about it, and it is not tied
+to any binding: what talks to a bus or a device is the binding the item was
+defined with.
+
+Its first member is the **command**:
+
+```lisp
+(defitem 'door-opener "Door opener" 'boolean
+  :initial-value 'item:false
+  (knx-binding :ga "3/3/1" :dpt "1.001" :initial-delay nil))
+
+(house:send-command 'door-opener 'item:true)   ; reaches the binding ...
+(house:send-command 'door-opener 'item:true)   ; ... and so does this one
+```
+
+`(house:send-command item value &key timestamp persist)` pushes `value`
+through the item's bindings *every time*, also when the item already holds
+it. `item` is an item or the id of one. Apart from that it behaves like
+`set-item-value`: a value that differs is set on the item, runs the rules and
+is persisted; a repeated one is only pushed and leaves state, timestamp and
+rules alone. A binding's `:call-push-p nil` keeps it from being pushed to,
+as always.
+
+Underneath it is `set-item-value` with `:push :always`, so a command is
+pushed by the item itself, in order with every other value set on it.
 
 ### Event log
 
@@ -686,7 +726,7 @@ state; the KNX binding is the reference implementation.
 ## Project layout and tests
 
 ```
-src/                core: item, itemgroup, binding-api, persistence-*, rule, cron, timer, env, event-log, hab (DSL)
+src/                core: item, itemgroup, binding-api, persistence-*, rule, cron, timer, env, event-log, hab (DSL), house
 src/api/            chipi-api: controllers, API-key store, SSE
 src/ui/             chipi-ui: defpage DSL, widgets, renderer, settings
 ui/static-files/    CSS, icons, vendored jQuery/Bootstrap/uPlot (no internet needed)
