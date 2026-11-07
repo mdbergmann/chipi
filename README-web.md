@@ -498,6 +498,161 @@ Dropping `:settings-pin` from the config again unlocks every device: without
 a PIN the stored flag is ignored, so no device is ever stranded without a way
 into its settings.
 
+## Access key
+
+Without further ado the UI is open to everyone who can reach the port. An
+access key puts a login page in front of all of it:
+
+```lisp
+(ui:start :host "0.0.0.0" :port 8080 :access-key "a-long-random-string")
+```
+
+A browser without a session then gets nothing — not the page, not the
+websocket, not a stylesheet — but a redirect to `/login`, which asks for the
+key. The right key answers with a session cookie and sends the browser on to
+the page it asked for. From then on the cookie is all the browser needs; an
+installed web app keeps it, so a wall tablet logs in once.
+
+How it is built, and what that means for you:
+
+* The cookie holds a signed token with an expiry, not the key. It is valid
+  for `chipi-ui.auth:*session-life-time*` seconds (default 30 days); after
+  that the next request lands on the login page again. The signing key is
+  derived from the access key, so sessions survive a restart of the server,
+  and changing the access key logs every device out.
+* Failed logins are throttled per client address: three attempts are free,
+  then each further failure doubles the wait before the next one, from 2
+  seconds up to 15 minutes. A blocked attempt is refused at once with a
+  *429 Too Many Requests* and the seconds to wait — the right key is not
+  even looked at. A successful login clears the address's record, and so
+  does a restart. Behind a reverse proxy every client shares the proxy's
+  address and so its record; forwarding headers are deliberately not
+  trusted. The knobs are `*free-attempts*`, `*base-delay*`, `*max-delay*`
+  and `*forget-after*` in `chipi-ui.auth`.
+* The manifest and the icons are served without a session: the browser
+  fetches them without credentials when the app is installed, and neither
+  is secret.
+* Without TLS the key and the cookie cross the network in clear text, so
+  on anything but a trusted LAN serve the UI over https, see [TLS](#tls).
+  The cookie is then marked Secure and sent over https only.
+* The key is compared in constant time, and logins are logged with the
+  client address — a success at info, a failure or a refused attempt at
+  warn.
+
+The access key and the settings PIN are independent: the key decides who
+gets in at all, the PIN decides who may change a locked device's settings.
+
+## TLS
+
+The UI is served over https when `ui:start` is given a certificate and its
+key, both PEM files:
+
+```lisp
+(ui:start :host "0.0.0.0" :port 8443
+          :access-key "a-long-random-string"
+          :ssl-cert-file "/etc/chipi/chipi.crt"
+          :ssl-key-file "/etc/chipi/chipi.key")
+```
+
+Both or neither: one without the other, or a file that is not there, is an
+error at start rather than a server that silently comes up without TLS. The
+websocket runs over the same connection (`wss://`), and the session cookie
+is marked Secure.
+
+TLS needs Hunchentoot built with `cl+ssl`, so the `:hunchentoot-no-ssl`
+feature must not be set when chipi-ui is loaded. On AmiLisp that is the
+default: its `cl+ssl` facade routes Hunchentoot's TLS through the native
+TLS layer (OpenSSL on the host, AmiSSL on AmigaOS), and the UI serves
+https there like anywhere else. Loading with the no-ssl feature, as some
+AmiLisp test scripts do, leaves a Hunchentoot without the SSL acceptor,
+and `ui:start` with the two files then fails at start.
+
+Chipi does not make certificates. That is the installation's job, together
+with getting the certificate's issuer trusted by the devices. For a home
+setup the issuer is a private root CA that is installed on each device
+once; what chipi needs from that is below.
+
+### What the certificate has to satisfy
+
+Browsers are strict about the server certificate even when they trust its
+issuer. Apple's devices in particular refuse one that misses any of these,
+and an installed web app shows no warning page to click through — it just
+stays dead.
+
+| Requirement | Why |
+|-------------|-----|
+| Issued by a CA the devices trust, not self-signed | A bare self-signed certificate cannot be trusted on iOS at all, and Safari refuses websockets to it. |
+| A `subjectAltName` with every name the UI is opened by — hostname, `.local` name, IP address | The Common Name alone is ignored by all current browsers. |
+| `extendedKeyUsage = serverAuth` | Required by Apple's and Chrome's policies. |
+| Validity of at most 825 days | Longer leaf certificates are rejected by Apple devices. |
+| RSA 2048 or longer, or an EC key, SHA-256 | SHA-1 and short keys are rejected. |
+
+The root CA itself should be long-lived (ten years is fine) with
+`basicConstraints = CA:TRUE`; the devices are told to trust it once and
+need not see it again when the leaf is reissued.
+
+As a reference for what the installation produces, this makes a root and a
+leaf that meet the list with plain `openssl` (`mkcert` does the same in two
+commands and also handles the local trust store):
+
+```sh
+# the root CA, once; keep rootCA.key out of reach, only rootCA.pem goes to the devices
+openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 3650 \
+  -subj "/CN=My Home CA" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -keyout rootCA.key -out rootCA.pem
+
+# the server certificate, reissued before it expires
+openssl req -new -newkey rsa:2048 -nodes -subj "/CN=chipi" \
+  -keyout chipi.key -out chipi.csr
+printf "subjectAltName=DNS:chipi.local,DNS:chipi,IP:192.168.1.10\n\
+extendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n" > leaf.ext
+openssl x509 -req -in chipi.csr -CA rootCA.pem -CAkey rootCA.key -CAcreateserial \
+  -days 825 -sha256 -extfile leaf.ext -out chipi.crt
+openssl verify -CAfile rootCA.pem chipi.crt
+```
+
+`chipi.crt` and `chipi.key` go to `ui:start`; the names in `subjectAltName`
+are the ones to type into the browser.
+
+### Trusting the root on the devices
+
+Only `rootCA.pem` is distributed, never `rootCA.key`.
+
+* **macOS**: double-click `rootCA.pem` to add it to the login keychain, open
+  it in *Keychain Access*, and under *Trust* set *When using this
+  certificate* to *Always Trust*. Safari and Chrome follow the keychain.
+* **iOS / iPadOS**: get `rootCA.pem` onto the device (AirDrop, mail, or a
+  download in Safari) and open it; iOS offers to install it as a profile,
+  which is finished under *Settings → General → VPN & Device Management*.
+  Then — this is the step that is easy to miss — enable it under
+  *Settings → General → About → Certificate Trust Settings*. Without the
+  second step the profile is installed but not trusted.
+* **Android**: *Settings → Security → More security settings → Install from
+  storage → CA certificate* (the exact path varies by vendor), pick the
+  file, and accept the warning that a private CA is being added.
+
+Once trusted, the UI opens at `https://chipi.local:8443/` without any
+warning, and *Add to Home Screen* installs an app that works. A device that
+shows a warning, or an installed app that stays empty, almost always means
+the root is installed but not yet marked trusted, or the certificate lacks
+the name the device used in its `subjectAltName`.
+
+### Checking from the command line
+
+```sh
+# the issuer chain and the names in the certificate
+openssl s_client -connect 192.168.1.10:8443 -servername chipi.local </dev/null 2>/dev/null \
+  | openssl x509 -noout -issuer -ext subjectAltName -enddate
+# the gate over https: expect a 302 to /login
+curl --cacert rootCA.pem -o /dev/null -w "%{http_code} -> %{redirect_url}\n" https://chipi.local:8443/
+```
+
+A leaf certificate expires; put its end date in the calendar. Reissuing is
+the second block above, followed by a restart of chipi. The root stays, so
+the devices need no attention.
+
 ## Installing as an app
 
 The UI is an installable web app: Safari's *Add to Home Screen* on an iPhone

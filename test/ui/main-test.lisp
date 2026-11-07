@@ -248,3 +248,107 @@ chipi-ui.page-renderer."
                  nil)))
     (is (null (first points)))
     (is (null (second points)))))
+
+;; ----------------------------------------------------------------------------
+;; %ssl-options -- what `ui:start's TLS files turn into for CLOG.
+;; ----------------------------------------------------------------------------
+
+(defun %touch (name)
+  (let ((path (merge-pathnames name (uiop:temporary-directory))))
+    (with-open-file (out path :direction :output :if-exists :supersede)
+      (write-string "pem" out))
+    path))
+
+(test %ssl-options--neither-file-means-plain-http
+  (is-false (ui-main::%ssl-options nil nil)))
+
+(test %ssl-options--both-files-turn-ssl-on
+  (let ((cert (%touch "chipi-test.crt"))
+        (key (%touch "chipi-test.key")))
+    (unwind-protect
+         (let ((options (ui-main::%ssl-options cert key)))
+           (is (eq t (getf options :ssl)))
+           (is (string= (namestring cert) (getf options :ssl-cert-file)))
+           (is (string= (namestring key) (getf options :ssl-key-file))))
+      (delete-file cert)
+      (delete-file key))))
+
+(test %ssl-options--one-file-alone-is-an-error
+  (let ((cert (%touch "chipi-test.crt")))
+    (unwind-protect
+         (progn
+           (signals error (ui-main::%ssl-options cert nil))
+           (signals error (ui-main::%ssl-options nil cert)))
+      (delete-file cert))))
+
+(test %ssl-options--missing-file-is-an-error
+  (let ((cert (%touch "chipi-test.crt")))
+    (unwind-protect
+         (progn
+           (signals error (ui-main::%ssl-options cert "/nonexistent/chipi.key"))
+           (signals error (ui-main::%ssl-options "/nonexistent/chipi.crt" cert)))
+      (delete-file cert))))
+
+;; ----------------------------------------------------------------------------
+;; ui:start -- hands the TLS files on and marks the session cookie Secure.
+;; ----------------------------------------------------------------------------
+
+(test ui-start--tls-files-reach-start-main-and-secure-the-cookie
+  (let ((ui-auth:*secure-cookie* nil))
+    (cl-mock:with-mocks ()
+      (cl-mock:answer ui-main:start-main nil)
+      (cl-mock:answer hab:add-to-shutdown nil)
+      (unwind-protect
+           (progn
+             (ui:start :host "0.0.0.0" :port 8443
+                       :ssl-cert-file "/etc/chipi/chipi.crt"
+                       :ssl-key-file "/etc/chipi/chipi.key")
+             (is-true ui-auth:*secure-cookie*)
+             (is (equal '("0.0.0.0" 8443
+                          :ssl-cert-file "/etc/chipi/chipi.crt"
+                          :ssl-key-file "/etc/chipi/chipi.key")
+                        (cdr (first (cl-mock:invocations 'ui-main:start-main)))))
+             (ui:start :host "0.0.0.0" :port 8080)
+             (is-false ui-auth:*secure-cookie*))
+        (ui-auth:configure nil)))))
+
+(test ui-start--failed-start-resets-gate-and-secure-cookie
+  (let ((ui-auth:*secure-cookie* nil))
+    (cl-mock:with-mocks ()
+      (cl-mock:answer ui-main:start-main (error "no such certificate"))
+      (cl-mock:answer hab:add-to-shutdown nil)
+      (unwind-protect
+           (progn
+             (signals error
+               (ui:start :access-key "secret"
+                         :ssl-cert-file "/etc/chipi/chipi.crt"
+                         :ssl-key-file "/etc/chipi/chipi.key"))
+             (is-false (ui-auth:enabled-p))
+             (is-false ui-auth:*secure-cookie*))
+        (ui-auth:configure nil)))))
+
+;; ----------------------------------------------------------------------------
+;; start-main -- wiring of the gate and the TLS options into CLOG.
+;; ----------------------------------------------------------------------------
+
+(test start-main--gate-comes-before-manifest-and-ssl-options-reach-clog
+  (let ((cert (%touch "chipi-test.crt"))
+        (key (%touch "chipi-test.key"))
+        (ui-main::*item-change-listener* :dummy)
+        (page:*page-registered-hook* nil))
+    (unwind-protect
+         (cl-mock:with-mocks ()
+           (cl-mock:answer clog:initialize nil)
+           (cl-mock:answer clog:set-on-new-window nil)
+           (ui-main:start-main "0.0.0.0" 8443
+                               :ssl-cert-file cert :ssl-key-file key)
+           (let* ((args (first (cl-mock:invocations 'clog:initialize)))
+                  (plist (cddr args)))
+             (is (equal (list #'ui-auth:gate-middleware
+                              #'ui-webapp:manifest-middleware)
+                        (getf plist :lack-middleware-list)))
+             (is (eq t (getf plist :ssl)))
+             (is (string= (namestring cert) (getf plist :ssl-cert-file)))
+             (is (string= (namestring key) (getf plist :ssl-key-file)))))
+      (delete-file cert)
+      (delete-file key))))

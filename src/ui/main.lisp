@@ -106,11 +106,32 @@ first.  Costs one parked thread per closed connection for the duration.")
         (item:name item)
         (gethash "item-state" (item-ext:item-to-ht item)))))))
 
-(defun start-main (host port)
-  "Starts the CLOG UI and sets up handlers for the pages."
+(defun %ssl-options (cert-file key-file)
+  "The `clog:initialize' arguments that serve the UI over TLS with CERT-FILE
+and KEY-FILE, or `nil' for plain http when neither is given.  One without
+the other, or a file that is not there, is a configuration error and says
+so rather than silently coming up without TLS."
+  (cond
+    ((and (null cert-file) (null key-file)) nil)
+    ((or (null cert-file) (null key-file))
+     (error "TLS takes both a certificate and a key file; got cert ~s, key ~s"
+            cert-file key-file))
+    ((not (probe-file cert-file))
+     (error "TLS certificate file not found: ~a" cert-file))
+    ((not (probe-file key-file))
+     (error "TLS key file not found: ~a" key-file))
+    (t (list :ssl t
+             :ssl-cert-file (namestring cert-file)
+             :ssl-key-file (namestring key-file)))))
+
+(defun start-main (host port &key ssl-cert-file ssl-key-file)
+  "Starts the CLOG UI and sets up handlers for the pages.  With SSL-CERT-FILE
+and SSL-KEY-FILE (PEM files) the UI is served over https."
   (let ((system-root (merge-pathnames "ui/static-files/"
-                                      (asdf:system-source-directory :chipi))))
+                                      (asdf:system-source-directory :chipi)))
+        (ssl-options (%ssl-options ssl-cert-file ssl-key-file)))
     (log:info "UI static root: ~a" system-root)
+    (log:info "UI TLS: ~:[off~;on~]" ssl-options)
 
     (unless *item-change-listener*
       (setf *item-change-listener*
@@ -123,12 +144,16 @@ first.  Costs one parked thread per closed connection for the duration.")
     (setf clog-connection:*reconnect-delay* *reconnect-delay*)
     (setf ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal))
 
-    (initialize 'on-main
-                :static-root system-root
-                :host host
-                :port port
-                :extended-routing t
-                :lack-middleware-list (list #'ui-webapp:manifest-middleware))
+    ;; the gate comes first: with an access key configured nothing below it
+    ;; -- boot page, websocket, static files -- is served without a session
+    (apply #'initialize 'on-main
+           :static-root system-root
+           :host host
+           :port port
+           :extended-routing t
+           :lack-middleware-list (list #'ui-auth:gate-middleware
+                                       #'ui-webapp:manifest-middleware)
+           ssl-options)
 
     ;; the settings view is built in rather than a `defpage', so its route is
     ;; registered here and not by the page hook below

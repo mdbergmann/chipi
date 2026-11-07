@@ -1,15 +1,20 @@
 (defsystem "chipi-ui"
-  :version "0.1.17"
+  :version "0.2.0"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("chipi-api"
-               "clog")
+               "clog"
+               "lack"
+               "quri"
+               "str"
+               "bordeaux-threads")
   :components ((:module "src/ui"
                 :serial t
                 :components
                 ((:file "page")
                  (:file "settings")
                  (:file "webapp")
+                 (:file "auth")
                  (:file "page-renderer")
                  (:file "main")
                  (:file "ui-env")
@@ -21,7 +26,8 @@
   :depends-on ("chipi-ui"
                "fiveam"
                "cl-mock"
-               )
+               "babel"
+               "flexi-streams")
   :components ((:module "test/ui"
                 :serial t
                 :components
@@ -32,7 +38,8 @@
                  (:file "render-test")
                  (:file "widget-render-test")
                  (:file "kind-render-test")
-                 (:file "settings-test"))))
+                 (:file "settings-test")
+                 (:file "auth-test"))))
   :description "Test system for chipi-ui."
   :perform (test-op (op c) (symbol-call :fiveam :run!
                                         (uiop:find-symbol* '#:test-suite

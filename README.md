@@ -734,7 +734,11 @@ API keys and no separate API server:
 
 ```lisp
 (defconfig "chipi"
-  (ui:start :host "0.0.0.0" :port 8080 :settings-pin "4711"))   ; PIN is optional
+  (ui:start :host "0.0.0.0" :port 8443
+            :access-key "a-long-random-string"   ; optional: login page in front of the UI
+            :ssl-cert-file "/etc/chipi/chipi.crt" ; optional: https, both files or neither
+            :ssl-key-file "/etc/chipi/chipi.key"
+            :settings-pin "4711"))               ; optional: lock a device's settings
 ```
 
 Two modes that can be combined:
