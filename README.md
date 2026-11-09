@@ -56,7 +56,9 @@ from somewhere (HTTP, a serial port, a Python library, the KNX bus) on a
 schedule or on an event, and pushes a new value back out when the item is set.
 Plain `pull`/`push` functions cover most devices; the
 [KNX binding](bindings/knx/README.md) speaks KNXnet/IP natively, with
-reconnect, retried writes and optional read-back verification.
+reconnect, retried writes and optional read-back verification. The
+[Matter binding](bindings/matter/README.md) makes Chipi a Matter bridge, so
+Apple Home or Google Home show its items as devices.
 
 **Describe the house in its own terms.** The `house` package defines lights,
 plugs, window contacts, rollershutters, room heating and push buttons as what

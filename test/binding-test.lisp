@@ -22,6 +22,20 @@
     (bind-item binding 'fake-item)
     (is (eq 'fake-item (car (binding::bound-items binding))))))
 
+(defclass noting-binding (binding)
+  ((noted :initform nil :accessor noted)))
+
+(defmethod bind-item :after ((binding noting-binding) item)
+  (push item (noted binding)))
+
+(test binding--bind-item-is-generic
+  "A binding class learns its item from `bind-item': an `:after' method sees
+the item, after it was added to the bound items."
+  (let ((binding (make-instance 'noting-binding)))
+    (bind-item binding 'fake-item)
+    (is (equal '(fake-item) (noted binding)))
+    (is (equal '(fake-item) (binding::bound-items binding)))))
+
 (test binding--pull-and-push
   "Test that binding can pull and push when both functions are given."
   (with-fixture init-destroy-timer ()

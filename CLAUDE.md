@@ -9,7 +9,7 @@ Chipi is a lightweight home automation framework in Common Lisp, an alternative 
 - **Core** (`chipi`): Items, itemgroups, bindings, persistence, rules, environment, timers/cron
 - **API** (`chipi-api`): REST/JSON via Hunchentoot + Snooze, SSE, scope-based auth with API keys
 - **UI** (`chipi-ui`): Web UI via CLOG (WebSockets)
-- **Bindings** (plugins): e.g. `binding-knx` for KNX bus protocol
+- **Bindings** (plugins): `binding-knx` for the KNX bus protocol; `binding-matter` (`bindings/matter/`) for Matter, on the sibling `cl-matter` checkout -- Chipi as a Matter bridge today, the controller role per `specs/binding-matter.md`
 
 Key entry point: `hab.lisp` provides DSL macros (`defconfig`, `defitem`, `defitemgroup`, `defrule`, `defpersistence`, `binding`).
 

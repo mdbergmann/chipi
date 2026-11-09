@@ -1,8 +1,8 @@
 # Matter Binding Plugin — Plan
 
-Status: plan, 2026-11-08. Nothing of this exists yet. cl-matter lives at
-`../cl-matter`; its state is the one its README describes as of commit
-`12a1f41` (controller examples: find, commission and control a real device).
+Status: plan, 2026-11-08; the bridge role is being built (B0 and B1 done,
+2026-11-09, `bindings/matter/`), the controller role not started.
+cl-matter lives at `../cl-matter`; its README describes its state.
 
 ## 1. Role and shape
 
@@ -597,7 +597,7 @@ single process. The plugin's integtest does the same with a real
 
 | Phase | Work | Done when |
 |---|---|---|
-| 0 | cl-matter: `UpdateFabricLabel` from the commissioner; Level Control, Boolean State, Temperature Measurement, Window Covering clusters (SBCL IPv6 + multicast + interfaces deferred, see section 8) | new clusters have tests in cl-matter |
+| 0 | cl-matter: `UpdateFabricLabel` from the commissioner; Level Control, Boolean State, Temperature Measurement, Window Covering clusters (SBCL IPv6 + multicast + interfaces deferred, see section 8). Boolean State and Temperature Measurement done with B1 (2026-11-09) | new clusters have tests in cl-matter |
 | 1 | `matter-actors`, `matter-registry`, controller core: commissioner state, CASE per node, read / invoke as futures | integtest: a `defitem` on an in-process lamp reads and switches it |
 | 2 | `matter-binding` with subscriptions, `matter-init` / `matter-shutdown`, README | the Eve plug is a `defplug` in a running Chipi; UI toggles it; Apple Home's change shows up |
 | 3 | `matter-discover`, the commissioning job with its states, `matter-commission`, `matter-decommission`, `matter-open-window`, labels, `matter-describe` | a new device goes from pairing code to item without leaving the REPL |
@@ -757,7 +757,13 @@ House kind to bridged device, the mirror of section 5:
 Keys of `matter-bridge`: `:device` (a symbol; the endpoint several items
 share), `:device-type` (overrides the kind), `:label` (the bridged device's
 NodeLabel, default the item's label or the device's), `:call-push-p` (as
-always; `nil` publishes a read-only value).
+always: `nil` keeps the item's changes from the bridge).
+
+The binding learns its item in `binding:bind-item`, which became a generic
+function for that (chipi 0.9.4): an `:after` method publishes the endpoint
+when the bridge runs, and `start-bridge` publishes the bindings bound before
+it. An item the bridge cannot publish is logged, not signalled: one item's
+mistake must not break the definition of the item or the start of the bridge.
 
 Every bridged endpoint carries Bridged Device Basic Information with
 `NodeLabel` (the label), `Reachable` (true; false when a KNX binding on the
@@ -765,9 +771,10 @@ item reports its tunnel down, through the `binding-reachable-p` generic of
 section 4.4) and `UniqueID` (a hash of the item or device name). Apple keeps
 room, name and automations per bridged device by endpoint id, so **endpoint
 ids must be stable across restarts**: a map from item or device name to
-endpoint id lives in the storage directory, new names get the next free id,
-and an id whose item vanished is kept reserved for a while rather than
-reused, so a removed and re-added light stays the same light.
+endpoint id lives in the storage directory (`endpoints`), new names get the
+next free id, and an entry is never dropped: an id whose item vanished stays
+reserved, so a removed and re-added light stays the same light and no other
+device inherits its room and automations.
 
 ### 9.4 Pairing Chipi into Apple Home
 
@@ -811,7 +818,7 @@ without re-pairing, as it does for a new Hue bulb.
 | Phase | Work | Done when |
 |---|---|---|
 | B0 | cl-matter: Aggregator and Bridged Device Basic Information, parts list per endpoint, endpoint removal with Descriptor change reports (done 2026-11-09, cl-matter d16ff19: `make-aggregator-endpoint`, `make-bridged-endpoint`, `remove-endpoint`, `examples/bridge-device.lisp`); the server-side clusters shared with phase 0 are still open | `test/data-model-test.lisp` and `test/interaction-test.lisp` cover it; chip-tool (now at `cl-matter/tools/chip-tool`) commissions the bridge, reads both lights' labels, toggles them and follows the PartsList of a light coming and going (2026-11-09) |
-| B1 | `matter-bridge` binding for the single-item kinds (light, plug, contact, temperature), the endpoint-id map, the bridge actor next to the controller actor | a KNX light switched from the Home app and the Home app following the wall switch |
+| B1 | `matter-bridge` binding for the single-item kinds (light, plug, contact, temperature), the endpoint-id map, the bridge actor next to the controller actor (done 2026-11-09: `bindings/matter/`, system `binding-matter`; `matter-init :bridge`, `matter-bridge`, `matter-bridge-pairing-code`; the pinned poll actor of section 3.2 as `make-matter-actor`) | a KNX light switched from the Home app and the Home app following the wall switch. So far: cl-matter's commissioner commissions the bridge over loopback UDP in `binding-matter-integtest.lisp`, switches the light and reads the item back; the Home app on the bench is still to do |
 | B2 | composed devices: `:device`, shutter and heating | the living-room blind and the bath heating in Apple Home |
 | B3 | UI card *Share with other apps*, QR image, admins; REPL functions | pairing from the wall tablet's QR |
 | B4 | reachability from the KNX tunnel state; pulse kind | lights grey out in Apple Home while the gateway is down |

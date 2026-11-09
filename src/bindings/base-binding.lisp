@@ -119,7 +119,11 @@ This is to have the higher-level module decide how to handle the error."
     (log:debug "Adding timer: " timer " of type: " timer-type " to: " binding)
     (setf (gethash timer-type timers) timer)))
 
-(defun bind-item (binding item)
+(defgeneric bind-item (binding item)
+  (:documentation "Binds `ITEM' to `BINDING': the item is added to the binding's bound items and the binding's pull timers are scheduled.
+`item:add-binding' calls this once the item holds the binding, so a binding that needs its item -- its name, its tags -- learns it here; a binding class does that with an `:after' method."))
+
+(defmethod bind-item ((binding binding) item)
   (with-slots (bound-items initial-delay delay) binding
     (log:info "Binding item: ~a, on: ~a" item binding)
     (setf bound-items (cons item bound-items))
