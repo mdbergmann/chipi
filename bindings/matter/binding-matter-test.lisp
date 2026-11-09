@@ -69,14 +69,20 @@
                                       cluster)
                  attribute))))
 
-(defun %invoke (endpoint-id cluster command)
-  "Invokes `COMMAND' (an id) of `CLUSTER' on the bridge's endpoint `ENDPOINT-ID' in actor context, as an administrator's Invoke would."
+(defun %cluster (endpoint-id cluster)
+  "Actor context. `CLUSTER' on the bridge's endpoint `ENDPOINT-ID'."
+  (matter:find-cluster (matter:find-endpoint (binding-matter::bridge-node binding-matter::*bridge*) endpoint-id)
+                       cluster))
+
+(defun %invoke (endpoint-id cluster command &optional fields)
+  "Invokes `COMMAND' (an id) of `CLUSTER' on the bridge's endpoint `ENDPOINT-ID' in actor context, as an administrator's Invoke would; `FIELDS' is the TLV structure of its fields."
   (%in-bridge (lambda ()
-                (matter:invoke-cluster-command
-                 (matter:find-cluster (matter:find-endpoint (binding-matter::bridge-node binding-matter::*bridge*)
-                                                             endpoint-id)
-                                      cluster)
-                 command nil))))
+                (nth-value 1 (matter:invoke-cluster-command (%cluster endpoint-id cluster) command fields)))))
+
+(defun %write (endpoint-id cluster attribute element)
+  "Writes the TLV `ELEMENT' to `ATTRIBUTE' (an id) of `CLUSTER' on the bridge's endpoint `ENDPOINT-ID' in actor context, as an administrator's Write would."
+  (%in-bridge (lambda ()
+                (matter:write-attribute (%cluster endpoint-id cluster) attribute element))))
 
 (defun %item-value (id)
   (hab:get-item-valueq id))
@@ -93,13 +99,21 @@ device type from the item unless told, and is known to the module."
       (is (typep cut 'matter-bridge-binding))
       (is-true (binding:call-push-p cut))
       (is (null (binding-matter::binding-device-type cut)))
+      (is (null (binding-matter::binding-device-name cut)))
       (is (null (binding-matter::binding-label cut)))
+      (is (null (binding-matter::binding-endpoint cut)))
       (is (equal (list cut) binding-matter::*bridge-bindings*)))
     (let ((explicit (matter-bridge :device-type :contact-sensor :label "Door" :call-push-p nil)))
       (is-false (binding:call-push-p explicit))
       (is (eq :contact-sensor (binding-matter::binding-device-type explicit)))
       (is (string= "Door" (binding-matter::binding-label explicit))))
-    (signals error (matter-bridge :device-type :dishwasher))))
+    ;; the device name is taken as written, or evaluated
+    (is (eq 'blind-living (binding-matter::binding-device-name (matter-bridge :device blind-living))))
+    (is (eq 'blind-living (binding-matter::binding-device-name (matter-bridge :device 'blind-living :label "Blind"))))
+    (let ((name 'blind-attic))
+      (is (eq 'blind-attic (binding-matter::binding-device-name (make-matter-bridge-binding :device name)))))
+    (signals error (matter-bridge :device-type :dishwasher))
+    (signals error (make-matter-bridge-binding :device "blind-living"))))
 
 (test matter-bridge--destroy-forgets-binding
   (let ((binding-matter::*bridge-bindings* '()))
@@ -126,7 +140,27 @@ device type from the item unless told, and is known to the module."
     (is (= matter:+device-type-temperature-sensor+ id))
     (is (= 2 revision))
     (is (eq :temperature-measurement cluster)))
-  (signals error (binding-matter::device-type-spec :dishwasher)))
+  (multiple-value-bind (id revision cluster) (binding-matter::device-type-spec :window-covering)
+    (is (= matter:+device-type-window-covering+ id))
+    (is (= 2 revision))
+    (is (eq :window-covering cluster)))
+  (multiple-value-bind (id revision cluster) (binding-matter::device-type-spec :thermostat)
+    (is (= matter:+device-type-thermostat+ id))
+    (is (= 2 revision))
+    (is (eq :thermostat cluster)))
+  (signals error (binding-matter::device-type-spec :dishwasher))
+  ;; the kinds of several items make a composed device
+  (is (eq :window-covering (binding-matter::device-type-of-kinds '(:shutter-move :shutter-stop :shutter-position :shutter-slat))))
+  (is (eq :window-covering (binding-matter::device-type-of-kinds '(:shutter-position))))
+  (is (eq :thermostat (binding-matter::device-type-of-kinds '(:temperature :setpoint))))
+  (is (eq :thermostat (binding-matter::device-type-of-kinds '(:setpoint))))
+  (is (eq :temperature-sensor (binding-matter::device-type-of-kinds '(:temperature))))
+  (is (eq :on-off-light (binding-matter::device-type-of-kinds '(:light))))
+  (is (null (binding-matter::device-type-of-kinds '(:light :plug))))
+  (is (null (binding-matter::device-type-of-kinds '(:valve))))
+  (is (null (binding-matter::device-type-of-kinds '())))
+  (is (equal '(:temperature :setpoint) (binding-matter::composed-device-kinds :thermostat)))
+  (is (null (binding-matter::composed-device-kinds :on-off-light))))
 
 (test convert--values
   (is (eq t (binding-matter::item-boolean->bool 'item:true)))
@@ -140,7 +174,28 @@ device type from the item unless told, and is known to the module."
   (is (= 2150 (binding-matter::item-temperature->measured-value 21.5)))
   (is (= -50 (binding-matter::item-temperature->measured-value -0.5)))
   (is (eq :null (binding-matter::item-temperature->measured-value nil)))
-  (is (eq :null (binding-matter::item-temperature->measured-value "n/a"))))
+  (is (eq :null (binding-matter::item-temperature->measured-value "n/a")))
+  ;; a shutter position is a percentage both sides, the wire in hundredths
+  (is (= 3700 (binding-matter::item-position->percent100ths 37)))
+  (is (= 10000 (binding-matter::item-position->percent100ths 100)))
+  (is (eq :null (binding-matter::item-position->percent100ths nil)))
+  (is (= 37 (binding-matter::percent100ths->item-position 3700)))
+  (is (= 38 (binding-matter::percent100ths->item-position 3750)))
+  ;; a heating setpoint stays within the limits the thermostat tells
+  (is (= 2150 (binding-matter::item-setpoint->heating-setpoint 21.5)))
+  (is (= 500 (binding-matter::item-setpoint->heating-setpoint 0.0)))
+  (is (= 3500 (binding-matter::item-setpoint->heating-setpoint 40)))
+  (is (= 500 (binding-matter::item-setpoint->heating-setpoint nil)))
+  (is (= 21.5 (binding-matter::heating-setpoint->item-setpoint 2150)))
+  (is (typep (binding-matter::heating-setpoint->item-setpoint 2150) 'float)))
+
+(test common-label--the-words-labels-share
+  (is (string= "Bath" (binding-matter::%common-label '("Bath Temperature" "Bath Setpoint"))))
+  (is (string= "Blind living room"
+               (binding-matter::%common-label '("Blind living room" "Blind living room Stop" "Blind living room Position"))))
+  (is (string= "Kitchen" (binding-matter::%common-label '("Kitchen"))))
+  ;; no common words: the first label
+  (is (string= "Bath Temperature" (binding-matter::%common-label '("Bath Temperature" "Bathroom Setpoint")))))
 
 ;; -----------------------------
 ;; the endpoint id map
@@ -387,6 +442,237 @@ the item live on."
     ;; and they still follow the items
     (hab:set-item-value 'door 'item:true)
     (is-true (await-cond 2 (eq nil (%attribute 3 'matter::boolean-state 'matter::state-value))))))
+
+;; -----------------------------
+;; composed devices
+;; -----------------------------
+
+(defun %lift (attribute)
+  (%attribute 2 'matter::window-covering attribute))
+
+(test bridge--rollershutter-is-one-window-covering
+  "The four channels of a `defrollershutter' naming one `:device' are one
+Window Covering with lift and tilt; its position follows the position
+item, the commands move the shutter through its items, and the target
+tells an administrator where it is going."
+  (with-fixture bridge-env ()
+    (let ((commands '())
+          (positions '()))
+      (house:defrollershutter blind-living "Blind living room"
+        :move ((binding:make-function-binding :push (lambda (value) (push (cons :move value) commands)))
+               (matter-bridge :device blind-living))
+        :stop ((binding:make-function-binding :push (lambda (value) (push (cons :stop value) commands)))
+               (matter-bridge :device blind-living))
+        :position ((binding:make-function-binding :push (lambda (value) (push value positions)))
+                   (matter-bridge :device blind-living))
+        :slat ((matter-bridge :device blind-living)))
+      ;; one endpoint for the four items
+      (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+      (let ((endpoint (%bridged-endpoint 2)))
+        (is (equal (list (cons matter:+device-type-window-covering+ 2)
+                         (cons matter:+device-type-bridged-node+ 2))
+                   (matter:endpoint-device-types endpoint))))
+      (is (string= "Blind living room" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
+      (is (string= (binding-matter::%unique-id "BLIND-LIVING")
+                   (%attribute 2 'matter::bridged-device-basic-information 'matter::unique-id)))
+      (is (= 23 (%lift 'matter::feature-map)))                 ; lift, tilt, both position aware
+      (is (= 0 (%lift 'matter::current-position-lift-percent100ths)))
+      (is (= 0 (%lift 'matter::target-position-lift-percent100ths)))
+      (is (= 0 (%lift 'matter::current-position-tilt-percent100ths)))
+      (is (equal '(("BLIND-LIVING" . 2)) (binding-matter::%read-endpoint-map storage)))
+      ;; the position item moves current and target
+      (hab:set-item-value 'blind-living-pos 37)
+      (is-true (await-cond 2 (eql 3700 (%lift 'matter::current-position-lift-percent100ths))))
+      (is (= 3700 (%lift 'matter::target-position-lift-percent100ths)))
+      ;; DownOrClose: the move item gets a down command, the target is closed
+      (%invoke 2 'matter::window-covering 1)
+      (is-true (await-cond 2 (equal '((:move . item:true)) commands)))
+      (is (= 10000 (%lift 'matter::target-position-lift-percent100ths)))
+      ;; on its way: the target stays
+      (hab:set-item-value 'blind-living-pos 60)
+      (is-true (await-cond 2 (eql 6000 (%lift 'matter::current-position-lift-percent100ths))))
+      (is (= 10000 (%lift 'matter::target-position-lift-percent100ths)))
+      ;; StopMotion: the stop item gets a stop command, the target is where it is
+      (%invoke 2 'matter::window-covering 2)
+      (is-true (await-cond 2 (equal '((:stop . item:true) (:move . item:true)) commands)))
+      (%in-bridge (lambda () t))
+      (is (= 6000 (%lift 'matter::target-position-lift-percent100ths)))
+      ;; GoToLiftPercentage: the position item is set -- with push, the other binding writes it
+      (%invoke 2 'matter::window-covering 5 (matter:tlv nil :structure (list (matter:tlv 0 :unsigned 2500))))
+      (is-true (await-cond 2 (eql 25 (%item-value 'blind-living-pos))))
+      (is-true (await-cond 2 (equal '(25 60 37) positions)))
+      (is (equal '((:stop . item:true) (:move . item:true)) commands))
+      (is-true (await-cond 2 (eql 2500 (%lift 'matter::current-position-lift-percent100ths))))
+      (is (= 2500 (%lift 'matter::target-position-lift-percent100ths)))
+      ;; GoToTiltPercentage: the slat item
+      (%invoke 2 'matter::window-covering 8 (matter:tlv nil :structure (list (matter:tlv 0 :unsigned 5000))))
+      (is-true (await-cond 2 (eql 50 (%item-value 'blind-living-slat))))
+      (is-true (await-cond 2 (eql 5000 (%lift 'matter::current-position-tilt-percent100ths))))
+      (is (= 5000 (%lift 'matter::target-position-tilt-percent100ths)))
+      ;; the wall switch: up, and the target is open while it moves that way
+      (blind-living-up)
+      (is-true (await-cond 2 (eql 0 (%lift 'matter::target-position-lift-percent100ths))))
+      (hab:set-item-value 'blind-living-pos 10)
+      (is-true (await-cond 2 (eql 1000 (%lift 'matter::current-position-lift-percent100ths))))
+      (is (= 0 (%lift 'matter::target-position-lift-percent100ths)))
+      ;; but a position away from the target is where it stopped
+      (hab:set-item-value 'blind-living-pos 20)
+      (is-true (await-cond 2 (eql 2000 (%lift 'matter::target-position-lift-percent100ths)))))))
+
+(test bridge--rollershutter-with-fewer-channels
+  "A shutter with a position item alone is driven through it; one with a
+move item alone has no position and takes no target."
+  (with-fixture bridge-env ()
+    (house:defrollershutter awning "Awning"
+      :position ((matter-bridge :device awning)))
+    (house:defrollershutter blind-attic "Attic"
+      :move ((matter-bridge :device blind-attic)))
+    (is (equal '(2 3) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (is (string= "Awning Position" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
+    (is (= 5 (%attribute 2 'matter::window-covering 'matter::feature-map)))
+    (%invoke 2 'matter::window-covering 1)
+    (is-true (await-cond 2 (eql 100 (%item-value 'awning-pos))))
+    (%invoke 2 'matter::window-covering 0)
+    (is-true (await-cond 2 (eql 0 (%item-value 'awning-pos))))
+    ;; a stop with no stop item is dropped, the bridge lives on
+    (%invoke 2 'matter::window-covering 2)
+    (is (eql 0 (%item-value 'awning-pos)))
+    ;; move alone
+    (is (= 1 (%attribute 3 'matter::window-covering 'matter::feature-map)))
+    (is-false (%in-bridge (lambda () (matter:attribute-present-p (%cluster 3 'matter::window-covering)
+                                                                 'matter::target-position-lift-percent100ths))))
+    (%invoke 3 'matter::window-covering 1)
+    (is-true (await-cond 2 (eq 'item:true (%item-value 'blind-attic))))
+    (%invoke 3 'matter::window-covering 0)
+    (is-true (await-cond 2 (eq 'item:false (%item-value 'blind-attic))))))
+
+(test bridge--heating-is-a-thermostat
+  "The temperature and setpoint of a `defheating' naming one `:device' are
+a heating-only Thermostat; its valve stays at home. The setpoint an
+administrator writes or steps reaches the setpoint item."
+  (with-fixture bridge-env ()
+    (let ((pushed '()))
+      (house:defheating bath "Bath"
+        :temperature ((matter-bridge :device bath))
+        :setpoint ((binding:make-function-binding :push (lambda (value) (push value pushed)))
+                   (matter-bridge :device bath))
+        :valve ())
+      (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+      (is (equal (list (cons matter:+device-type-thermostat+ 2)
+                       (cons matter:+device-type-bridged-node+ 2))
+                 (matter:endpoint-device-types (%bridged-endpoint 2))))
+      (is (string= "Bath" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
+      (is (= 1 (%attribute 2 'matter::thermostat 'matter::feature-map)))
+      (is (= 0 (%attribute 2 'matter::thermostat 'matter::local-temperature)))
+      (is (= 500 (%attribute 2 'matter::thermostat 'matter::occupied-heating-setpoint)))   ; 0.0 clamped to the lower limit
+      (is (= 500 (%attribute 2 'matter::thermostat 'matter::min-heat-setpoint-limit)))
+      (is (= 3500 (%attribute 2 'matter::thermostat 'matter::max-heat-setpoint-limit)))
+      ;; the items report
+      (hab:set-item-value 'bath-temp 21.5)
+      (is-true (await-cond 2 (eql 2150 (%attribute 2 'matter::thermostat 'matter::local-temperature))))
+      (hab:set-item-value 'bath-setpoint 22.0)
+      (is-true (await-cond 2 (eql 2200 (%attribute 2 'matter::thermostat 'matter::occupied-heating-setpoint))))
+      (is (equal '(22.0) pushed))
+      ;; an administrator writes the setpoint: the item follows, with push
+      (%write 2 'matter::thermostat #x12 (matter:tlv nil :signed 2350))
+      (is-true (await-cond 2 (eql 23.5 (%item-value 'bath-setpoint))))
+      (is-true (await-cond 2 (equal '(23.5 22.0) pushed)))
+      (%in-bridge (lambda () t))
+      (is (= 2350 (%attribute 2 'matter::thermostat 'matter::occupied-heating-setpoint)))
+      ;; and steps it by half a degree
+      (%invoke 2 'matter::thermostat 0 (matter:tlv nil :structure (list (matter:tlv 0 :unsigned 0) (matter:tlv 1 :signed 5))))
+      (is-true (await-cond 2 (eql 24.0 (%item-value 'bath-setpoint))))
+      ;; the mode is taken note of, nothing more
+      (%write 2 'matter::thermostat #x1C (matter:tlv nil :unsigned 0))
+      (is (= 0 (%attribute 2 'matter::thermostat 'matter::system-mode))))))
+
+(test bridge--device-items-join-and-leave
+  "A device is published afresh as items join and leave it: a temperature
+alone is a Temperature Sensor, with a setpoint a Thermostat, and the
+endpoint id stays through all of it."
+  (with-fixture bridge-env ()
+    (house:defheating bath "Bath"
+      :temperature ((matter-bridge :device bath)))
+    (is (equal (list (cons matter:+device-type-temperature-sensor+ 2)
+                     (cons matter:+device-type-bridged-node+ 2))
+               (matter:endpoint-device-types (%bridged-endpoint 2))))
+    (is (string= "Bath Temperature" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
+    ;; the setpoint joins: the same endpoint is a Thermostat now
+    (house:defheating bath "Bath"
+      :temperature ((matter-bridge :device bath))
+      :setpoint ((matter-bridge :device bath)))
+    (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (is (equal (list (cons matter:+device-type-thermostat+ 2)
+                     (cons matter:+device-type-bridged-node+ 2))
+               (matter:endpoint-device-types (%bridged-endpoint 2))))
+    (is (string= "Bath" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
+    (is (= 1 (length (binding-matter::bridge-devices binding-matter::*bridge*))))
+    (is (= 2 (length (binding-matter::bridged-device-bindings
+                      (first (binding-matter::bridge-devices binding-matter::*bridge*))))))
+    (hab:set-item-value 'bath-temp 19.0)
+    (is-true (await-cond 2 (eql 1900 (%attribute 2 'matter::thermostat 'matter::local-temperature))))
+    ;; the setpoint leaves: a Temperature Sensor again
+    (item:destroy (hab:get-item 'bath-setpoint))
+    (is (equal (list (cons matter:+device-type-temperature-sensor+ 2)
+                     (cons matter:+device-type-bridged-node+ 2))
+               (matter:endpoint-device-types (%bridged-endpoint 2))))
+    (is (= 1900 (%attribute 2 'matter::temperature-measurement 'matter::measured-value)))
+    ;; the last item leaves: the endpoint goes, its id stays reserved
+    (item:destroy (hab:get-item 'bath-temp))
+    (is (equal '() (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (is (null (binding-matter::bridge-devices binding-matter::*bridge*)))
+    (is (equal '(("BATH" . 2)) (binding-matter::%read-endpoint-map storage)))))
+
+(test bridge--device-of-unfit-items-is-not-published
+  "Items that make no device together, or a type naming one item given
+two, are logged and left out until an item that fits joins or the odd one
+leaves."
+  (with-fixture bridge-env ()
+    ;; a light and a plug are no device
+    (house:deflight light-desk "Desk" (matter-bridge :device desk))
+    (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (house:defplug plug-desk "Desk plug" (matter-bridge :device desk))
+    (is (equal '() (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (is-true (hab:get-item 'plug-desk))
+    ;; the plug leaves: the light is back
+    (item:destroy (hab:get-item 'plug-desk))
+    (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (is (string= "Desk" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
+    ;; a valve has no place in a thermostat
+    (house:defheating bath "Bath"
+      :setpoint ((matter-bridge :device bath))
+      :valve ((matter-bridge :device bath)))
+    (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    ;; two items of one kind
+    (house:defcontact door-a "Door A" (matter-bridge :device door))
+    (house:defcontact door-b "Door B" (matter-bridge :device door))
+    (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    ;; device types that disagree
+    (house:deflight lamp-a "Lamp A" (matter-bridge :device lamps :device-type :on-off-light))
+    (house:deflight lamp-b "Lamp B" (matter-bridge :device lamps :device-type :on-off-plug-in-unit))
+    (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    ;; a value on an unpublished part stays home
+    (hab:set-item-value 'bath-setpoint 21.0)
+    (is-true (await-cond 2 (eql 21.0 (%item-value 'bath-setpoint))))))
+
+(test bridge--devices-defined-before-the-bridge-are-published-once
+  "A shutter defined before the bridge starts is published once, whole."
+  (with-fixture bridge-env (:init nil)
+    (house:defrollershutter blind-living "Blind living room"
+      :move ((matter-bridge :device blind-living))
+      :stop ((matter-bridge :device blind-living))
+      :position ((matter-bridge :device blind-living)))
+    (house:deflight light-kitchen "Kitchen" (matter-bridge))
+    (matter-init :storage storage :bridge *test-bridge-args*)
+    (is (equal '(2 3) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (is (string= "Blind living room" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
+    (is (= 5 (%attribute 2 'matter::window-covering 'matter::feature-map)))
+    (is (string= "Kitchen" (%attribute 3 'matter::bridged-device-basic-information 'matter::node-label)))
+    (is (equal '(("BLIND-LIVING" . 2) ("LIGHT-KITCHEN" . 3)) (binding-matter::%read-endpoint-map storage)))
+    (%invoke 2 'matter::window-covering 0)
+    (is-true (await-cond 2 (eq 'item:false (%item-value 'blind-living))))
+    (hab:set-item-value 'blind-living-pos 50)
+    (is-true (await-cond 2 (eql 5000 (%attribute 2 'matter::window-covering 'matter::current-position-lift-percent100ths))))))
 
 ;; -----------------------------
 ;; advertising and startup failure

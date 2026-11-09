@@ -4,11 +4,13 @@
   (:local-nicknames (:matter :cl-matter))
   (:import-from #:alexandria
                 #:remove-from-plist
-                #:when-let)
+                #:when-let
+                #:when-let*)
   (:export #:matter-init
            #:matter-shutdown
            ;; the bridge role: items as bridged devices of Chipi's Matter bridge
            #:matter-bridge
+           #:make-matter-bridge-binding
            #:matter-bridge-binding
            #:start-bridge
            #:stop-bridge

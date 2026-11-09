@@ -69,5 +69,19 @@ change back."
              (house:defplug plug-garden "Garden" (matter-bridge))
              (is-true (await-cond 3 (equal '(2 3) (%read model session 1 +cluster-descriptor+ +attribute-parts-list+))))
              (is (string= "Garden" (%read model session 3 +cluster-bridged-device-basic-information+ 5)))
+             ;; a heating of two items is one Thermostat; the administrator writes
+             ;; its setpoint and the setpoint item follows
+             (house:defheating bath "Bath"
+               :temperature ((matter-bridge :device bath))
+               :setpoint ((matter-bridge :device bath)))
+             (is-true (await-cond 3 (equal '(2 3 4) (%read model session 1 +cluster-descriptor+ +attribute-parts-list+))))
+             (is (string= "Bath" (%read model session 4 +cluster-bridged-device-basic-information+ 5)))
+             (is (equal (list (list :device-type +device-type-thermostat+ :revision 2)
+                              (list :device-type +device-type-bridged-node+ :revision 2))
+                        (%read model session 4 +cluster-descriptor+ 0)))
+             (let ((statuses (write-attributes model session (list (attribute-write 4 +cluster-thermostat+ #x12 2250)))))
+               (is (im-status-success-p (attribute-status-status (first statuses)))))
+             (is-true (await-cond 3 (eql 22.5 (%item-value 'bath-setpoint))))
+             (is (= 2250 (%read model session 4 +cluster-thermostat+ #x12)))
              (close-session channel session))
         (exchange-manager-close manager)))))

@@ -100,13 +100,16 @@ The house kind the definer gives the item decides what the Home app shows:
 | `deflight` | `:light` | On/Off Light | On/Off |
 | `defplug` | `:plug` | On/Off Plug-in Unit | On/Off |
 | `defcontact` | `:contact` | Contact Sensor | Boolean State (true while closed) |
-| `defheating`'s `:temperature` | `:temperature` | Temperature Sensor | Temperature Measurement (hundredths of a degree) |
+| `defheating`'s `:temperature` alone | `:temperature` | Temperature Sensor | Temperature Measurement (hundredths of a degree) |
+| `defrollershutter`, channels on one `:device` | `:shutter-move`, `:shutter-stop`, `:shutter-position`, `:shutter-slat` | Window Covering | Window Covering |
+| `defheating`, temperature and setpoint on one `:device` | `:temperature`, `:setpoint` | Thermostat (heating only) | Thermostat |
 
 An item without one of these kinds says what it is with `:device-type`, one
 of `:on-off-light`, `:on-off-plug-in-unit`, `:contact-sensor`,
-`:temperature-sensor`; an item with neither is logged and not published.
-`:label` replaces the item's label as the name the app shows. The other keys
-go to the base binding; `:call-push-p` is `t` by default.
+`:temperature-sensor`, `:window-covering`, `:thermostat`; an item with
+neither is logged and not published. `:label` replaces the item's label as
+the name the app shows. The other keys go to the base binding;
+`:call-push-p` is `t` by default.
 
 ```lisp
 (defitem 'garden-pump "Garden pump" 'boolean
@@ -119,8 +122,56 @@ it at once. A command from the app -- On, Off, Toggle -- sets the item with
 push, so a KNX binding on the same item writes it to the bus, and the bridge
 binding itself finds the attribute already equal and does nothing.
 
+###### Devices of several items
+
+A shutter or a heating is several items in the house and one device in the
+app. The bindings of its items name the device they share with `:device`,
+a symbol taken as written, like the name in a definer:
+
+```lisp
+(defrollershutter blind-living "Blind living room"
+  :move     ((knx-binding :ga "4/0/31" :dpt "1.008") (matter-bridge :device blind-living))
+  :stop     ((knx-binding :ga "4/0/30" :dpt "1.007") (matter-bridge :device blind-living))
+  :position ((knx-binding :ga '(:read "4/0/33" :write "4/0/32") :dpt "5.001")
+             (matter-bridge :device blind-living)))
+
+(defheating bath "Bath"
+  :temperature ((knx-binding :ga "0/4/17" :dpt "9.001") (matter-bridge :device bath))
+  :setpoint    ((knx-binding :ga '(:read "0/5/19" :write "0/5/18") :dpt "9.001")
+                (matter-bridge :device bath))
+  :valve       ((knx-binding :ga "0/2/6" :dpt "5.001")))   ; stays at home
+```
+
+The house kinds of the items decide the device: shutter channels make a
+**Window Covering**, a setpoint (with or without a temperature) a
+**Thermostat**. The app's name for the device is what the items' labels
+begin with in common ("Blind living room", "Bath"), or the `:label` one of
+the bindings gives.
+
+A Window Covering has lift, and tilt when there is a slat item; it is
+position aware when there is a position item. Open, Close and Stop in the
+app send the shutter's move and stop commands through the move and stop
+items (a shutter without a move item is driven through its position item);
+a position the app asks for sets the position item. The position item
+reports the current position, 100 % closed on both sides. The app shows
+"opening" or "closing" while the current position is on its way to a target
+-- the one the app or a move command set -- and the target follows the
+position otherwise, so a shutter stopped at the wall shows where it stopped.
+
+A Thermostat has the local temperature from the temperature item and the
+heating setpoint from the setpoint item, 5 to 35 degrees; a setpoint
+written or stepped in the app sets the setpoint item with push, so the KNX
+binding writes it to the bus. The valve stays at home: Matter's Thermostat
+has none. The system mode (Off, Heat) is accepted and logged; a
+`defheating` has no item that takes it.
+
+A device is published afresh as its items join and leave it, so reloading a
+definer keeps the device whole, and a device whose items make no sense
+together -- two of a kind, kinds of different devices, device types that
+disagree -- is logged and left out until they do.
+
 Each bridged device carries Bridged Device Basic Information with its label,
-`Reachable` (true) and a `UniqueID` derived from the item's name. The app
+`Reachable` (true) and a `UniqueID` derived from the device's name. The app
 keeps room, name and automations of a device by its endpoint id, so endpoint
 ids are stable: a name gets the id it had before, a new name the next one,
 and an id is never given to another name, even after its item is gone.
@@ -128,8 +179,8 @@ Redefining an item (reloading the script) withdraws and republishes its
 endpoint under the same id; the app follows the Descriptor's PartsList
 without re-pairing.
 
-Composed devices -- a rollershutter, a heating with setpoint -- and
-reachability from the KNX tunnel state are the next phases of the plan.
+Reachability from the KNX tunnel state and the pulse kind are the next
+phases of the plan.
 
 ##### How it runs
 
@@ -150,5 +201,6 @@ advertisement and closes the socket.
 
 runs the unit tests (conversions, endpoint ids, the bridge on loopback
 without a network) and the integration test, in which cl-matter's own
-commissioner commissions the bridge over loopback UDP, switches a light and
-reads the item's change back. Both run on SBCL and on AmiLisp.
+commissioner commissions the bridge over loopback UDP, switches a light,
+reads the item's change back and writes a heating's setpoint. Both run on
+SBCL and on AmiLisp.

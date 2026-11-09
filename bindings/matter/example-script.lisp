@@ -39,8 +39,22 @@
   (matter-bridge))
 
 ;; a temperature: a sensor in degrees
-(defheating bath "Bath"
+(defheating guest "Guest room"
   :temperature ((matter-bridge)))
+
+;; a heating of two items is one thermostat: the setpoint turned in the Home
+;; app lands on the setpoint item (and on the bus, with a knx-binding there)
+(defheating bath "Bath"
+  :temperature ((matter-bridge :device bath))
+  :setpoint    ((matter-bridge :device bath))
+  :valve       ())
+
+;; a shutter of three channels is one window covering: Open, Close, Stop and
+;; the position slider in the app drive the three items
+(defrollershutter blind-living "Blind living room"
+  :move     ((matter-bridge :device blind-living))
+  :stop     ((matter-bridge :device blind-living))
+  :position ((matter-bridge :device blind-living)))
 
 ;; an item without a house kind says what it is
 (defitem 'garden-pump "Garden pump" 'boolean
@@ -57,6 +71,7 @@
 ;; the codes to type into the Home app, again
 ;; (matter-bridge-pairing-code)
 
-;; let the window close and the bath warm up
+;; let the window close, the bath warm up, the blind report half way
 ;; (set-item-value 'window-bath 'item:false)
 ;; (set-item-value 'bath-temp 21.5)
+;; (set-item-value 'blind-living-pos 50)
