@@ -190,8 +190,9 @@ survives a restart of the bridge."
 ;; -----------------------------
 
 (test storage-directory--default-and-tilde
-  (let* ((runtime (%temp-storage))
-         (envi:*rel-runtime-dir* (namestring runtime)))
+  ;; the runtime dir override is relative to the chipi system
+  (let* ((envi::*rel-runtime-dir* "test-runtime-matter/")
+         (runtime (asdf:system-relative-pathname "chipi" envi::*rel-runtime-dir*)))
     (unwind-protect
          (progn
            (envi:ensure-env "chipi")
@@ -199,7 +200,8 @@ survives a restart of the bridge."
              (is (uiop:directory-pathname-p dir))
              (is (string= "matter" (car (last (pathname-directory dir)))))
              (is (probe-file dir))
-             (is (uiop:subpathp dir (truename runtime)))))
+             (is (uiop:string-prefix-p (namestring (truename runtime))
+                                       (namestring (truename dir))))))
       (progn
         (envi:shutdown-env)
         (%delete-storage runtime))))
@@ -434,7 +436,7 @@ the item live on."
              (is-false (matter-bridge-running-p))
              (let ((closes (invocations 'matter:exchange-manager-close)))
                (is (= 1 (length closes)))
-               (setf manager (first (first closes)))))
+               (setf manager (second (first closes)))))
            ;; the mock only recorded the close; do it for real
            (when manager
              (matter:exchange-manager-close manager)))

@@ -10,6 +10,8 @@
            ;; the bridge role: items as bridged devices of Chipi's Matter bridge
            #:matter-bridge
            #:matter-bridge-binding
+           #:start-bridge
+           #:stop-bridge
            #:matter-bridge-running-p
            #:matter-bridge-pairing-code
            ;; the Matter actors: one per role, polling a cl-matter exchange manager
