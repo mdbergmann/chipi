@@ -16,6 +16,17 @@
            #:stop-bridge
            #:matter-bridge-running-p
            #:matter-bridge-pairing-code
+           ;; sharing the bridge: the pairing window, the apps that added it, its devices
+           #:matter-bridge-open-window
+           #:matter-bridge-close-window
+           #:matter-bridge-window-open-p
+           #:matter-bridge-admins
+           #:matter-bridge-remove-admin
+           #:matter-bridge-devices
+           ;; a QR code encoder (qr-code.lisp), for the pairing code
+           #:qr-encode
+           #:qr-svg
+           #:qr-string
            ;; the Matter actors: one per role, polling a cl-matter exchange manager
            #:make-matter-actor
            #:matter-actor-call

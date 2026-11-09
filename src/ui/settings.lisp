@@ -10,7 +10,22 @@
            #:lock-available-p
            #:locked-p
            #:set-locked
-           #:pin-matches-p))
+           #:pin-matches-p
+           ;; sections plugins add under /settings/<id>
+           #:settings-section
+           #:settings-section-p
+           #:settings-section-id
+           #:settings-section-label
+           #:settings-section-render
+           #:settings-section-summary
+           #:section-path
+           #:register-section
+           #:unregister-section
+           #:clear-sections
+           #:get-sections
+           #:find-section
+           #:find-section-by-path
+           #:*section-registered-hook*))
 
 (in-package :chipi-ui.settings)
 
@@ -111,3 +126,77 @@ lock is not in use."
        (stringp entered)
        (string= *settings-pin*
                 (string-trim '(#\Space #\Tab #\Newline #\Return) entered))))
+
+;; ---------------------------------------------------------------------------
+;; settings sections -- views plugins add under /settings/<id>
+;; ---------------------------------------------------------------------------
+
+;;; chipi-ui knows nothing of what a plugin has to show -- a Matter bridge's
+;;; pairing code, say -- and must not come to depend on it.  A plugin
+;;; registers a section instead: the settings view shows a card for it, and
+;;; `/settings/<id>' renders what the plugin renders, behind the same header,
+;;; back button and device lock as the settings themselves.
+
+(defstruct settings-section
+  "A view a plugin adds to the settings.  RENDER is called with the
+navigation context and the element to render into; SUMMARY, when given, is
+a function of no arguments returning the one line the section's card shows
+in the settings view (\"3 devices, 1 unreachable\")."
+  id label render summary)
+
+(defvar *sections* '()
+  "The registered sections, in the order they were registered.")
+
+(defvar *section-registered-hook* nil
+  "Called with each section as it is registered.  `chipi-ui.main' sets it to
+register the section's path as a route, so a deep link or a reload lands in
+the section.")
+
+(defun section-path (section)
+  "The URL path SECTION is served at: `+settings-path+' followed by its id, in
+lowercase."
+  (format nil "~a/~(~a~)" +settings-path+ (settings-section-id section)))
+
+(defun register-section (id &key label render summary)
+  "Registers the settings section ID, a keyword that also names its path
+(`/settings/<id>'), with LABEL (the heading of its card and of its view),
+RENDER (a function of the navigation context and the element to render into)
+and SUMMARY (a function of no arguments returning the line its card shows, or
+`nil').  A section registered under the same id before is replaced, keeping
+its place.  Returns the section."
+  (check-type id keyword)
+  (check-type label string)
+  (check-type render (or function (and symbol (not null))))
+  (check-type summary (or null function symbol))
+  (let ((section (make-settings-section :id id :label label
+                                        :render render :summary summary))
+        (existing (find id *sections* :key #'settings-section-id)))
+    (setf *sections*
+          (if existing
+              (substitute section existing *sections*)
+              (append *sections* (list section))))
+    (when *section-registered-hook*
+      (funcall *section-registered-hook* section))
+    section))
+
+(defun unregister-section (id)
+  "Removes the section ID; its card is gone with the next render.  Its CLOG
+route stays registered (routes cannot be unregistered), but the path no longer
+resolves to a section, so a visit to it shows the not-found view."
+  (setf *sections* (remove id *sections* :key #'settings-section-id)))
+
+(defun clear-sections ()
+  "Removes every section."
+  (setf *sections* '()))
+
+(defun get-sections ()
+  "The registered sections, in registration order."
+  *sections*)
+
+(defun find-section (id)
+  "The section registered as ID, or `nil'."
+  (find id *sections* :key #'settings-section-id))
+
+(defun find-section-by-path (path)
+  "The section served at PATH (as `page:normalize-path' leaves it), or `nil'."
+  (find path *sections* :key #'section-path :test #'string=))

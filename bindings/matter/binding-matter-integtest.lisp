@@ -47,6 +47,12 @@ change back."
                   (session (getf result :session)))
              (is (eq :case (session-type session)))
              (is (= 1 (length (device-fabrics (binding-matter::bridge-device binding-matter::*bridge*)))))
+             ;; the administrator shows up as such, and the window closed with the commissioning
+             (let ((admins (matter-bridge-admins)))
+               (is (= 1 (length admins)))
+               (is (= #x5A (getf (first admins) :fabric-id)))
+               (is (= 1 (getf (first admins) :fabric-index))))
+             (is-false (matter-bridge-window-open-p))
              ;; the state file was written
              (is-true (probe-file (merge-pathnames "bridge.state" binding-matter::*storage*)))
              ;; the root: a bridge named Chipi

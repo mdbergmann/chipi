@@ -9,7 +9,10 @@
     (when (probe-file cl-matter)
       (push cl-matter asdf:*central-registry*))
     (asdf:load-asd plugin-asd :name "binding-matter")
-    (asdf:load-system :binding-matter)))
+    (asdf:load-system :binding-matter)
+    ;; with chipi-ui: (asdf:load-system :binding-matter/ui) adds the "Share
+    ;; with other apps" card -- pairing QR, window, apps -- to the settings
+    ))
 
 (defpackage :my-hab
   (:use :cl :chipi.hab :chipi.house :binding-matter))
@@ -70,6 +73,9 @@
 
 ;; the codes to type into the Home app, again
 ;; (matter-bridge-pairing-code)
+;; a second app: open the window for 15 minutes, see who added the bridge
+;; (matter-bridge-open-window)
+;; (matter-bridge-admins)
 
 ;; let the window close, the bath warm up, the blind report half way
 ;; (set-item-value 'window-bath 'item:false)

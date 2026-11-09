@@ -755,3 +755,90 @@ closes its manager when stopped."
          (is-true stopped)
          (is-false (act-cell:running-p actor)))
     (envi:shutdown-env)))
+
+;; -----------------------------
+;; sharing the bridge: the window, the administrators, the devices
+;; -----------------------------
+
+(test sharing--window-open-from-the-start-closed-and-opened-again
+  (with-fixture bridge-env ()
+    ;; no app yet: open until closed
+    (is (eq t (matter-bridge-window-open-p)))
+    (is-true (matter-bridge-close-window))
+    (is-false (matter-bridge-window-open-p))
+    (multiple-value-bind (manual qr) (matter-bridge-open-window :timeout 600)
+      (is (= 11 (length manual)))
+      (is (string= "MT:" (subseq qr 0 3)))
+      (is (equal (multiple-value-list (matter-bridge-pairing-code)) (list manual qr))))
+    (let ((left (matter-bridge-window-open-p)))
+      (is (integerp left))
+      (is (<= 590 left 600)))
+    ;; the default is the 15 minutes Matter allows at most
+    (matter-bridge-open-window)
+    (is (<= 890 (matter-bridge-window-open-p) 900))
+    (signals error (matter-bridge-open-window :timeout -1))))
+
+(test sharing--functions-need-the-running-bridge
+  (with-fixture bridge-env (:init nil)
+    (signals error (matter-bridge-window-open-p))
+    (signals error (matter-bridge-open-window))
+    (signals error (matter-bridge-close-window))
+    (signals error (matter-bridge-admins))
+    (signals error (matter-bridge-remove-admin 1))
+    (signals error (matter-bridge-devices))))
+
+(test sharing--admins-listed-and-removed
+  (with-fixture bridge-env ()
+    (is (equal '() (matter-bridge-admins)))
+    ;; a fabric installed as commissioning leaves one, without the network
+    (let ((fabric (matter:make-test-fabric :fabric-id #x1D :node-id 7 :vendor-id #x1349)))
+      (setf (matter:fabric-label fabric) "Apple Home")
+      (%in-bridge (lambda ()
+                    (matter::%install-fabric (binding-matter::bridge-device binding-matter::*bridge*) fabric))))
+    (let ((admins (matter-bridge-admins)))
+      (is (= 1 (length admins)))
+      (let ((admin (first admins)))
+        (is (= 1 (getf admin :fabric-index)))
+        (is (string= "Apple Home" (getf admin :label)))
+        (is (= #x1349 (getf admin :vendor-id)))
+        (is (= #x1D (getf admin :fabric-id)))
+        (is (= 7 (getf admin :node-id)))
+        (is-false (matter-bridge-remove-admin 9))
+        (is (= 1 (length (matter-bridge-admins))))
+        (is-true (matter-bridge-remove-admin (getf admin :fabric-index)))
+        (is (equal '() (matter-bridge-admins)))
+        (signals error (matter-bridge-remove-admin "1"))))))
+
+(test sharing--devices-as-the-apps-see-them
+  (with-fixture bridge-env ()
+    (house:deflight light-hall "Hall" (matter-bridge))
+    (house:defheating bath "Bath"
+      :temperature ((matter-bridge :device bath))
+      :setpoint ((matter-bridge :device bath)))
+    ;; neither a kind nor a device type: not published, and it says why
+    (hab:defitem 'nothing "Nothing" 'boolean (matter-bridge))
+    (let ((devices (matter-bridge-devices)))
+      (is (equal '("LIGHT-HALL" "BATH" "NOTHING") (mapcar (lambda (d) (getf d :name)) devices)))
+      (let ((hall (first devices)))
+        (is (string= "Hall" (getf hall :label)))
+        (is (eq :on-off-light (getf hall :device-type)))
+        (is (= 2 (getf hall :endpoint)))
+        (is (equal '("LIGHT-HALL") (getf hall :items)))
+        (is-true (getf hall :reachable-p))
+        (is (null (getf hall :problem))))
+      (let ((bath (second devices)))
+        (is (string= "Bath" (getf bath :label)))
+        (is (eq :thermostat (getf bath :device-type)))
+        (is (= 3 (getf bath :endpoint)))
+        (is (equal '("BATH-TEMP" "BATH-SETPOINT") (getf bath :items))))
+      (let ((nothing (third devices)))
+        (is (null (getf nothing :device-type)))
+        (is (null (getf nothing :endpoint)))
+        (is-false (getf nothing :reachable-p))
+        (is-true (search "no house kind" (getf nothing :problem)))))
+    ;; the problem goes when the device is published after all
+    (hab:defitem 'nothing "Nothing" 'boolean (matter-bridge :device-type :on-off-plug-in-unit))
+    (let ((nothing (third (matter-bridge-devices))))
+      (is (eq :on-off-plug-in-unit (getf nothing :device-type)))
+      (is (= 4 (getf nothing :endpoint)))
+      (is (null (getf nothing :problem))))))

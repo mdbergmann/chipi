@@ -120,12 +120,15 @@ A new id is written to the map at once, and an entry is never dropped: a device 
 (defstruct (bridged-device (:constructor %make-bridged-device))
   "One bridged device: its NAME (the item's, or the `:device' several items
 share), the BINDINGS of the items that make it up, in the order they came,
-and -- while it is published -- its ENDPOINT, the CLUSTER carrying its
-values and that cluster's kind, VALUE-CLUSTER (:on-off, :boolean-state,
-:temperature-measurement, :window-covering or :thermostat)."
+and -- while it is published -- its ENDPOINT, the device TYPE it is
+published as, the CLUSTER carrying its values and that cluster's kind,
+VALUE-CLUSTER (:on-off, :boolean-state, :temperature-measurement,
+:window-covering or :thermostat).  PROBLEM is why it is not published, as
+text, while it is not."
   name
   (bindings '())
-  endpoint cluster value-cluster)
+  endpoint type cluster value-cluster
+  problem)
 
 (defmethod print-object ((device bridged-device) stream)
   (print-unreadable-object (device stream :type t)
@@ -335,7 +338,12 @@ values and that cluster's kind, VALUE-CLUSTER (:on-off, :boolean-state,
 
 (defun %publish-device (bridge device)
   "Actor context. Adds the bridged endpoint of `DEVICE' to the bridge's node and remembers it on the device.
-Returns the endpoint; a device the bridge cannot publish is an error."
+Returns the endpoint; a device the bridge cannot publish is an error, and the device keeps why as its problem."
+  (handler-bind ((error (lambda (c)
+                          (setf (bridged-device-problem device) (princ-to-string c)))))
+    (%publish-device-1 bridge device)))
+
+(defun %publish-device-1 (bridge device)
   (let* ((name (bridged-device-name device))
          (type (%resolve-device-type device)))
     (multiple-value-bind (type-id revision value-cluster) (device-type-spec type)
@@ -356,8 +364,10 @@ Returns the endpoint; a device the bridge cannot publish is an error."
                                         cluster))))
         (matter:add-endpoint (bridge-node bridge) endpoint)
         (setf (bridged-device-endpoint device) endpoint
+              (bridged-device-type device) type
               (bridged-device-cluster device) cluster
-              (bridged-device-value-cluster device) value-cluster)
+              (bridged-device-value-cluster device) value-cluster
+              (bridged-device-problem device) nil)
         (log:info "Matter bridge: published ~a as ~a on endpoint ~a (~{~a~^, ~})"
                   name type (matter:endpoint-id endpoint)
                   (mapcar (lambda (b) (item:name (binding-item b))) (bridged-device-bindings device)))
@@ -368,6 +378,7 @@ Returns the endpoint; a device the bridge cannot publish is an error."
   (when-let ((endpoint (bridged-device-endpoint device)))
     (matter:remove-endpoint (bridge-node bridge) endpoint)
     (setf (bridged-device-endpoint device) nil
+          (bridged-device-type device) nil
           (bridged-device-cluster device) nil
           (bridged-device-value-cluster device) nil)
     (log:info "Matter bridge: withdrew endpoint ~a (~a)" (matter:endpoint-id endpoint) (bridged-device-name device))
@@ -687,3 +698,79 @@ Type the code into Apple Home or Google Home while the bridge's commissioning wi
   (unless *bridge*
     (error "The Matter bridge is not running"))
   (%pairing-codes *bridge*))
+
+;; -----------------------------
+;; sharing the bridge: the window, the apps that added it, its devices
+;; -----------------------------
+
+;; What the UI's "Share with other apps" card and the REPL use.  Every one
+;; of these runs in the bridge actor's context, where the device lives.
+
+(defun %bridge-call (thunk)
+  "`THUNK' in the bridge actor's context, its value returned; an error when the bridge is not running."
+  (let ((bridge (or *bridge* (error "The Matter bridge is not running"))))
+    (matter-actor-call (bridge-actor bridge) thunk)))
+
+(defun matter-bridge-open-window (&key (timeout matter:+max-commissioning-timeout+))
+  "Opens the bridge's commissioning window for `TIMEOUT' seconds -- 15 minutes, the longest Matter lets an opened window stay; NIL keeps it open until `matter-bridge-close-window' -- so that another app, a second Apple Home or a Google Home, can add the bridge with its pairing code.
+Returns the manual pairing code and the text of the QR code, as `matter-bridge-pairing-code' does; they are the same as ever, the window takes the bridge's own passcode."
+  (%bridge-call (lambda ()
+                  (matter:open-commissioning-window (bridge-device *bridge*) :timeout timeout)
+                  (log:info "Matter bridge: pairing window open~@[ for ~a seconds~]" timeout)
+                  t))
+  (matter-bridge-pairing-code))
+
+(defun matter-bridge-close-window ()
+  "Closes the bridge's commissioning window: no app can add the bridge until it is opened again."
+  (%bridge-call (lambda ()
+                  (matter:close-commissioning-window (bridge-device *bridge*))
+                  (log:info "Matter bridge: pairing window closed")
+                  t)))
+
+(defun matter-bridge-window-open-p ()
+  "Whether the bridge's commissioning window is open: NIL when it is closed, the seconds until it closes by itself, or T when it stays open until it is closed -- as it does from the start until the first app has added the bridge."
+  (%bridge-call (lambda ()
+                  (let ((device (bridge-device *bridge*)))
+                    (cond
+                      ((not (matter:commissioning-window-open-p device)) nil)
+                      ((matter:device-window-expiry device)
+                       (max 0 (round (- (matter:device-window-expiry device)
+                                        (matter:device-now device)))))
+                      (t t))))))
+
+(defun matter-bridge-admins ()
+  "The apps that added the bridge -- its administrators, one plist per fabric: `:fabric-index' (what `matter-bridge-remove-admin' takes), `:label' (the name the app gave its fabric, or \"\"), `:vendor-id' (the app's vendor: Apple #x1349, Google #x6006, Amazon #x1217, Samsung #x10E1), `:fabric-id' and `:node-id' (the bridge's id in that fabric)."
+  (%bridge-call (lambda ()
+                  (mapcar (lambda (fabric)
+                            (list :fabric-index (matter:fabric-index fabric)
+                                  :label (matter:fabric-label fabric)
+                                  :vendor-id (matter:fabric-vendor-id fabric)
+                                  :fabric-id (matter:fabric-fabric-id fabric)
+                                  :node-id (matter:fabric-node-id fabric)))
+                          (matter:device-fabrics (bridge-device *bridge*))))))
+
+(defun matter-bridge-remove-admin (fabric-index)
+  "Removes the administrator with `FABRIC-INDEX' (from `matter-bridge-admins') from the bridge: its app loses the bridge and every bridged device, and has to add it again. Returns T, or NIL when there is no such administrator."
+  (check-type fabric-index integer)
+  (%bridge-call (lambda ()
+                  (and (matter:remove-device-fabric (bridge-device *bridge*) fabric-index) t))))
+
+(defun matter-bridge-devices ()
+  "The bridged devices as the apps see them, one plist each, in the order the devices came: `:name', `:label' (the name the apps show), `:device-type' (`:on-off-light' and the like, see `make-matter-bridge-binding'; NIL when it cannot be told), `:endpoint' (the endpoint id, NIL while the device is not published), `:items' (the names of its items), `:reachable-p' and `:problem' (why the device is not published, or NIL)."
+  (%bridge-call (lambda ()
+                  (mapcar (lambda (device)
+                            (let ((endpoint (bridged-device-endpoint device)))
+                              (list :name (bridged-device-name device)
+                                    :label (%device-label device)
+                                    :device-type (or (bridged-device-type device)
+                                                     (ignore-errors (%resolve-device-type device)))
+                                    :endpoint (and endpoint (matter:endpoint-id endpoint))
+                                    :items (mapcar (lambda (binding) (item:name (binding-item binding)))
+                                                   (bridged-device-bindings device))
+                                    :reachable-p (and endpoint
+                                                      (matter:attribute-value
+                                                       (matter:bridged-device-basic-information endpoint)
+                                                       'matter::reachable)
+                                                      t)
+                                    :problem (bridged-device-problem device))))
+                          (reverse (bridge-devices *bridge*))))))

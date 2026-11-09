@@ -567,3 +567,198 @@ client-side as `e.key.charCodeAt(0)', which for \"Enter\" is 69 (the code of
          (app (ui-webapp:manifest-middleware inner)))
     (is (eq :passed-through (funcall app (list :path-info "/rooms"))))
     (is (eq :passed-through (funcall app (list :path-info "/"))))))
+
+;; ----------------------------------------------------------------------------
+;; settings sections -- views plugins add under /settings/<id>.
+;; ----------------------------------------------------------------------------
+
+(def-fixture sections-env ()
+  ;; `settings-env' with a clean section registry; FiveAM fixtures do not nest
+  (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal))
+        (ui-settings::*sections* '())
+        (ui-settings:*section-registered-hook* nil))
+    (unwind-protect
+         (progn (&body))
+      (page:clear-pages))))
+
+(defun %noop-render (ctx container)
+  (declare (ignore ctx container)))
+
+(defun %hello-render (ctx container)
+  (declare (ignore ctx))
+  (clog:create-div container :content "Hello from demo"))
+
+(test register-section--registers-the-path-and-replaces-by-id
+  (with-fixture sections-env ()
+    (let ((section (ui-settings:register-section :demo :label "Demo"
+                                                       :render #'%noop-render)))
+      (is (string= "/settings/demo" (ui-settings:section-path section)))
+      (is (eq section (ui-settings:find-section :demo)))
+      (is (eq section (ui-settings:find-section-by-path "/settings/demo")))
+      (is-false (ui-settings:find-section-by-path "/settings/other"))
+      (ui-settings:register-section :other :label "Other" :render #'%noop-render)
+      ;; re-registering keeps the place, as re-defining a page does
+      (let ((replaced (ui-settings:register-section :demo :label "Demo 2"
+                                                          :render #'%noop-render)))
+        (is (equal '(:demo :other)
+                   (mapcar #'ui-settings:settings-section-id
+                           (ui-settings:get-sections))))
+        (is (eq replaced (ui-settings:find-section-by-path "/settings/demo")))
+        (is (string= "Demo 2" (ui-settings:settings-section-label replaced))))
+      (ui-settings:unregister-section :demo)
+      (is (equal '(:other)
+                 (mapcar #'ui-settings:settings-section-id
+                         (ui-settings:get-sections))))
+      (ui-settings:clear-sections)
+      (is-false (ui-settings:get-sections)))))
+
+(test register-section--checks-its-arguments
+  (with-fixture sections-env ()
+    (signals error (ui-settings:register-section "demo" :label "Demo"
+                                                        :render #'%noop-render))
+    (signals error (ui-settings:register-section :demo :label "Demo"))
+    (signals error (ui-settings:register-section :demo :label "Demo"
+                                                       :render #'%noop-render
+                                                       :summary "not a function"))))
+
+(test register-section--calls-the-registered-hook
+  (with-fixture sections-env ()
+    (let ((seen '()))
+      (setf ui-settings:*section-registered-hook*
+            (lambda (section) (push (ui-settings:settings-section-id section) seen)))
+      (ui-settings:register-section :demo :label "Demo" :render #'%noop-render)
+      (is (equal '(:demo) seen)))))
+
+(test render-settings--shows-a-card-per-section-with-its-summary
+  (with-fixture sections-env ()
+    (ui-settings:register-section :demo :label "Demo section"
+                                        :render #'%noop-render
+                                        :summary (lambda () "2 things <b>"))
+    (ui-settings:register-section :plain :label "Plain section"
+                                         :render #'%noop-render)
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (ui-renderer:render-settings ctx)
+        (is-true (js~ "Demo section"))
+        ;; the summary is text, whatever the plugin puts in it
+        (is-true (js~ "2 things &lt;b&gt;"))
+        (is-true (js~ "Plain section"))
+        (is (= 2 (count-js "settings-section-row")))))))
+
+(test render-settings--a-failing-summary-leaves-the-card-in-place
+  (with-fixture sections-env ()
+    (ui-settings:register-section :demo :label "Demo section"
+                                        :render #'%noop-render
+                                        :summary (lambda () (error "no bridge")))
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (ui-renderer:render-settings ctx)
+        (is-true (js~ "Demo section"))
+        (is (= 1 (count-js "settings-section-row")))))))
+
+(test section-card--click-navigates-to-the-section
+  (with-fixture sections-env ()
+    (let* ((rendered '())
+           (section (ui-settings:register-section
+                     :demo :label "Demo section"
+                     :render (lambda (ctx container)
+                               (push ctx rendered)
+                               (clog:create-div container :content "Hello from demo")))))
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body))
+               (row (ui-renderer::%render-section-card
+                     ctx (ui-renderer:nav-context-container ctx) section)))
+          (is-true (fire-click row))
+          (is (= 1 (ui-renderer:nav-context-depth ctx)))
+          (is-true (js~ "chipiNav.push(1,'/settings/demo')"))
+          (is (equal (list ctx) rendered))
+          (is-true (js~ "Hello from demo")))))))
+
+(test render-settings-section--renders-header-label-and-the-section
+  (with-fixture sections-env ()
+    (let ((section (ui-settings:register-section :demo :label "Demo section"
+                                                       :render #'%hello-render)))
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (ui-renderer:render-settings-section section ctx)
+          (is-true (js~ "app-header"))
+          (is-true (js~ "Demo section"))
+          (is-true (js~ "Hello from demo"))
+          (is (= 1 (count-js "settings-section"))))))))
+
+(test render-settings-section--a-failing-renderer-is-shown-not-signalled
+  (with-fixture sections-env ()
+    (let ((section (ui-settings:register-section
+                    :demo :label "Demo section"
+                    :render (lambda (ctx container)
+                              (declare (ignore ctx container))
+                              (error "bridge <down>")))))
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (finishes (ui-renderer:render-settings-section section ctx))
+          (is-true (js~ "could not be shown: bridge &lt;down&gt;")))))))
+
+(test render-settings-section--locked-device-asks-for-the-pin-first
+  (with-fixture sections-env ()
+    (let ((section (ui-settings:register-section :demo :label "Demo section"
+                                                       :render #'%hello-render)))
+      (with-pin ("4711")
+        (with-captured-clog
+          (let* ((body (make-body))
+                 (ctx (make-ctx body)))
+            (with-mocks ()
+              (answer ui-settings:locked-p t)
+              (multiple-value-bind (input button)
+                  (progn (ui-renderer:render-settings-section section ctx)
+                         ;; the prompt is what the view shows
+                         (is-true (js~ "Device locked"))
+                         (is-false (js~ "Hello from demo"))
+                         (ui-renderer::%render-pin-prompt
+                          ctx (ui-renderer:nav-context-container ctx)
+                          (lambda () (ui-renderer:render-settings-section section ctx))))
+                (with-mocks ()
+                  (answer ui-settings:locked-p t)
+                  (answer (clog:value input) "4711")
+                  (fire-click button)
+                  (is-true (ui-renderer:nav-context-settings-unlocked ctx))
+                  (is-true (js~ "Hello from demo")))))))))))
+
+(test navigate-to-settings-section--pushes-the-path-and-renders
+  (with-fixture sections-env ()
+    (let ((section (ui-settings:register-section :demo :label "Demo section"
+                                                       :render #'%hello-render)))
+      (with-captured-clog
+        (let* ((body (make-body))
+               (ctx (make-ctx body)))
+          (ui-renderer:navigate-to-settings-section section ctx)
+          (is (= 1 (ui-renderer:nav-context-depth ctx)))
+          (is-true (js~ "chipiNav.push(1,'/settings/demo')"))
+          (is-true (js~ "Hello from demo")))))))
+
+(test dispatch-path--unregistered-section-path-renders-not-found
+  (with-fixture sections-env ()
+    (ui-settings:register-section :demo :label "Demo section" :render #'%hello-render)
+    (ui-settings:unregister-section :demo)
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (with-mocks ()
+          (answer page:normalize-path "/settings/demo")
+          (ui-main::%dispatch-path ctx))
+        (is-false (js~ "Hello from demo"))))))
+
+(test dispatch-path--section-path-renders-the-section
+  (with-fixture sections-env ()
+    (ui-settings:register-section :demo :label "Demo section" :render #'%hello-render)
+    (with-captured-clog
+      (let* ((body (make-body))
+             (ctx (make-ctx body)))
+        (with-mocks ()
+          (answer page:normalize-path "/settings/demo")
+          (ui-main::%dispatch-path ctx))
+        (is-true (js~ "Hello from demo"))))))

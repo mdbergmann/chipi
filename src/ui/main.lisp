@@ -10,6 +10,7 @@
                 #:render-page
                 #:render-home
                 #:render-settings
+                #:render-settings-section
                 #:render-not-found
                 #:call-item-value-update-fun)
   (:export #:start-main
@@ -60,11 +61,13 @@ entry or renders its path afresh, see `ui-renderer:show-history-entry'."
 The root path is resolved before the page registry is consulted: it is the
 app's home slot, and which view fills it is the device's setting (see
 `chipi-ui.settings') rather than a property of a page."
-  (let ((path (page:normalize-path
-               (path-name (location (nav-context-body ctx))))))
+  (let* ((path (page:normalize-path
+                (path-name (location (nav-context-body ctx)))))
+         (section (ui-settings:find-section-by-path path)))
     (cond
       ((string= ui-settings:+settings-path+ path) (render-settings ctx))
       ((string= "/" path) (render-home ctx))
+      (section (render-settings-section section ctx))
       (t (let ((matching-page (page:find-page-by-path path)))
            (if matching-page
                (render-page matching-page ctx)
@@ -82,6 +85,16 @@ the page will not be reachable."
     (set-on-new-window 'on-main
                        :path (page:page-path page)
                        :boot-file "/boot.html")))
+
+(defun %register-section-route (section)
+  "Registers the path of a plugin's settings SECTION as a CLOG route, as
+`%register-page-route' does for a page, so a deep link or a reload lands in
+the section."
+  (log:debug "Registering settings section route: ~a"
+             (ui-settings:section-path section))
+  (set-on-new-window 'on-main
+                     :path (ui-settings:section-path section)
+                     :boot-file "/boot.html"))
 
 (defparameter *reconnect-delay* 120
   "Seconds the server keeps a closed connection's session alive so that the
@@ -160,6 +173,11 @@ and SSL-KEY-FILE (PEM files) the UI is served over https."
     (set-on-new-window 'on-main
                        :path ui-settings:+settings-path+
                        :boot-file "/boot.html")
+    ;; the sections plugins registered before the UI started, and those
+    ;; registered afterwards
+    (dolist (section (ui-settings:get-sections))
+      (%register-section-route section))
+    (setf ui-settings:*section-registered-hook* #'%register-section-route)
 
     ;; routes for pages defined before the UI started ...
     (dolist (p (page:get-pages))
@@ -169,7 +187,8 @@ and SSL-KEY-FILE (PEM files) the UI is served over https."
 
 (defun shutdown-main ()
   "Shuts down and cleans up resources."
-  (setf page:*page-registered-hook* nil)
+  (setf page:*page-registered-hook* nil
+        ui-settings:*section-registered-hook* nil)
   (shutdown)
   (when *item-change-listener*
     (ac:stop (isys:ensure-isys) *item-change-listener*)

@@ -1,6 +1,6 @@
 # Matter Binding Plugin — Plan
 
-Status: plan, 2026-11-08; the bridge role is being built (B0 and B1 done,
+Status: plan, 2026-11-08; the bridge role is being built (B0 to B3 done,
 2026-11-09, `bindings/matter/`), the controller role not started.
 cl-matter lives at `../cl-matter`; its README describes its state.
 
@@ -824,6 +824,23 @@ The REPL gets the same: `(matter-bridge-pairing-code)`,
 `(matter-bridge-open-window &key timeout)`, `(matter-bridge-admins)`,
 `(matter-bridge-remove-admin fabric-index)`.
 
+As built (B3): the extension point of section 4.4 went into chipi-ui as
+`ui-settings:register-section` (id, `:label`, `:render`, `:summary`); the
+settings view shows a card per section, `/settings/<id>` is dispatched and
+registered as a route, and the device lock covers the sections. The binding's
+system `binding-matter/ui` registers *Share with other apps* under
+`/settings/matter-bridge` with the three cards above, less the minutes
+ticking: the state of the window is read when the card renders. The QR image
+is drawn by an encoder of the binding's own (`qr-code.lisp`: byte mode,
+versions 1 to 10, all four levels, the mask by the penalty rules; its symbols
+are checked against node-qrcode's), so no library had to be added. The
+window the card and `matter-bridge-open-window` open is the basic one with
+the bridge's own passcode, so the codes stay the same; `Remove` wants a
+second tap instead of a browser dialog. Further REPL functions:
+`matter-bridge-close-window`, `matter-bridge-window-open-p` (NIL, the
+seconds left, or T while it stays open) and `matter-bridge-devices` (what the
+devices card shows, including why a device is not published).
+
 A change to the set of bridged items (a `defitem` added to the script and
 reloaded) adds or removes endpoints on the live node; Apple Home picks up
 the Descriptor change through its subscription and shows the new accessory
@@ -836,7 +853,7 @@ without re-pairing, as it does for a new Hue bulb.
 | B0 | cl-matter: Aggregator and Bridged Device Basic Information, parts list per endpoint, endpoint removal with Descriptor change reports (done 2026-11-09, cl-matter d16ff19: `make-aggregator-endpoint`, `make-bridged-endpoint`, `remove-endpoint`, `examples/bridge-device.lisp`); the server-side clusters shared with phase 0 are still open | `test/data-model-test.lisp` and `test/interaction-test.lisp` cover it; chip-tool (now at `cl-matter/tools/chip-tool`) commissions the bridge, reads both lights' labels, toggles them and follows the PartsList of a light coming and going (2026-11-09) |
 | B1 | `matter-bridge` binding for the single-item kinds (light, plug, contact, temperature), the endpoint-id map, the bridge actor next to the controller actor (done 2026-11-09: `bindings/matter/`, system `binding-matter`; `matter-init :bridge`, `matter-bridge`, `matter-bridge-pairing-code`; the pinned poll actor of section 3.2 as `make-matter-actor`) | a KNX light switched from the Home app and the Home app following the wall switch. So far: cl-matter's commissioner commissions the bridge over loopback UDP in `binding-matter-integtest.lisp`, switches the light and reads the item back; the Home app on the bench is still to do |
 | B2 | composed devices: `:device`, shutter and heating (done 2026-11-09: `matter-bridge :device`, a Window Covering from the shutter channels, a heating-only Thermostat from temperature and setpoint; cl-matter got the two clusters and `attribute-write-handler`, the hook a peer's write runs; the Dimmable Light row and the `:mode` item of the Thermostat are still open) | the living-room blind and the bath heating in Apple Home -- the tests stand in so far, the bench is still to do |
-| B3 | UI card *Share with other apps*, QR image, admins; REPL functions | pairing from the wall tablet's QR |
+| B3 | UI card *Share with other apps*, QR image, admins; REPL functions (done 2026-11-09: `ui-settings:register-section` in chipi-ui, `binding-matter/ui`, `qr-code.lisp`, `matter-bridge-open-window` and friends) | pairing from the wall tablet's QR -- the card renders in the tests, the tablet is the bench step still to do |
 | B4 | reachability from the KNX tunnel state; pulse kind | lights grey out in Apple Home while the gateway is down |
 
 B0 and B1 can run in parallel with phases 1–3 of the controller role; they

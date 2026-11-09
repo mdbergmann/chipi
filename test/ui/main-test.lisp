@@ -352,3 +352,31 @@ chipi-ui.page-renderer."
              (is (string= (namestring key) (getf plist :ssl-key-file)))))
       (delete-file cert)
       (delete-file key))))
+
+;; ----------------------------------------------------------------------------
+;; start-main -- the routes of the settings sections plugins register
+;; ----------------------------------------------------------------------------
+
+(test start-main--registers-section-routes-now-and-later
+  (let ((ui-main::*item-change-listener* :dummy)
+        (page:*page-registered-hook* nil)
+        (ui-settings::*sections* '())
+        (ui-settings:*section-registered-hook* nil))
+    (flet ((noop (ctx container) (declare (ignore ctx container))))
+      (ui-settings:register-section :before :label "Before" :render #'noop)
+      (cl-mock:with-mocks ()
+        (cl-mock:answer clog:initialize nil)
+        (cl-mock:answer clog:set-on-new-window nil)
+        (cl-mock:answer clog:shutdown nil)
+        (ui-main:start-main "0.0.0.0" 8080)
+        (flet ((routes ()
+                 ;; an invocation is the function's name followed by its arguments
+                 (loop :for args :in (cl-mock:invocations 'clog:set-on-new-window)
+                       :collect (getf (cddr args) :path))))
+          (is (member "/settings/before" (routes) :test #'equal))
+          (is-false (member "/settings/after" (routes) :test #'equal))
+          ;; a section registered while the UI runs gets its route at once
+          (ui-settings:register-section :after :label "After" :render #'noop)
+          (is (member "/settings/after" (routes) :test #'equal)))
+        (is (eq #'ui-main::%register-section-route
+                ui-settings:*section-registered-hook*))))))

@@ -498,6 +498,30 @@ Dropping `:settings-pin` from the config again unlocks every device: without
 a PIN the stored flag is ignored, so no device is ever stranded without a way
 into its settings.
 
+### Sections from plugins
+
+A plugin can add a view of its own under the settings -- the Matter binding
+adds *Share with other apps*, with the bridge's pairing QR code. It registers
+a section:
+
+```lisp
+(ui-settings:register-section :matter-bridge
+                              :label "Share with other apps"
+                              :render #'render-share-section   ; (ctx container) -> renders into container
+                              :summary #'summary)              ; () -> the card's line, or nil
+```
+
+The settings view then shows a card per section, with the summary as its
+line and a row that opens `/settings/<id>`; the view behind it carries the
+same header and back button, and the device lock covers it like the settings
+themselves. The path is registered as a route, so a reload or a typed URL
+lands in it. The renderer gets the navigation context and an element of its
+own to fill; whatever it renders may render itself afresh into that element,
+as the Matter card does after a button. An error in the renderer or the
+summary is logged and shown in the section's place, never signalled into the
+UI. chipi-ui itself stays free of the plugin: the registration is the only
+link. `ui-settings:unregister-section` takes a section away again.
+
 ## Access key
 
 Without further ado the UI is open to everyone who can reach the port. An

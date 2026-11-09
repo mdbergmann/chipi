@@ -5,6 +5,7 @@
                 #:when-let
                 #:if-let)
   (:export #:+login-path+
+           #:escape-html
            #:+cookie-name+
            #:*access-key*
            #:*session-life-time*
@@ -252,8 +253,11 @@ else \"/\".  Keeps a redirect from pointing off the site."
       +login-path+
       (format nil "~a?next=~a" +login-path+ (quri:url-encode next))))
 
-(defun %escape-html (string)
+(defun escape-html (string)
+  "STRING with the characters HTML gives meaning to as entities, for text
+that goes into a page as it is: a label a plugin hands over, a message."
   (with-output-to-string (out)
+    (setf string (princ-to-string string))
     (loop :for c :across string
           :do (case c
                 (#\< (write-string "&lt;" out))
@@ -308,8 +312,8 @@ button { padding: .5rem 1rem; font-size: 1rem; border: 0; border-radius: .375rem
                 (when retry-after
                   (list :retry-after (princ-to-string retry-after))))
         (list (format nil +login-page-template+
-                      (%escape-html (%login-url next))
-                      (%escape-html message)))))
+                      (escape-html (%login-url next))
+                      (escape-html message)))))
 
 (defun %redirect (location &key set-cookie)
   "A response sending the browser to LOCATION, setting a cookie when given."

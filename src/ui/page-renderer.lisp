@@ -1,6 +1,8 @@
 (defpackage :chipi-ui.page-renderer
   (:use :cl :clog)
   (:nicknames :ui-renderer)
+  (:import-from #:ui-auth
+                #:escape-html)
   (:import-from #:alexandria
                 #:when-let)
   (:import-from #:itemsc
@@ -18,6 +20,9 @@
            #:render-not-found
            #:render-home
            #:render-settings
+           #:render-settings-section
+           #:navigate-to-settings-section
+           #:escape-html
            #:home-page
            #:render-widget
            #:navigate-to-page
@@ -1757,10 +1762,12 @@ the PIN."
                           (render-settings ctx)))
       row)))
 
-(defun %render-pin-prompt (ctx container)
+(defun %render-pin-prompt (ctx container
+                           &optional (on-unlock (lambda () (render-settings ctx))))
   "What a locked device shows instead of its settings: a PIN field.  The
-right PIN marks the connection as unlocked and renders the settings; a wrong
-one says so and stays.  Returns the PIN field and the unlock button."
+right PIN marks the connection as unlocked and calls ON-UNLOCK, which renders
+the settings (or the settings section) that were asked for; a wrong PIN says
+so and stays.  Returns the PIN field and the unlock button."
   (let* ((card-body (%settings-card container "Device locked"))
          (form (progn
                  (create-div card-body
@@ -1781,7 +1788,7 @@ are locked. Enter the PIN to change them."))
              (cond
                ((ui-settings:pin-matches-p (value input))
                 (setf (nav-context-settings-unlocked ctx) t)
-                (render-settings ctx))
+                (funcall on-unlock))
                (t
                 (setf (text message) "Wrong PIN")
                 (setf (value input) "")))))
@@ -1817,4 +1824,72 @@ address bar of a plain browser is no way around the lock."
       (t
        (%render-home-section ctx container)
        (when (ui-settings:lock-available-p)
-         (%render-lock-section ctx container locked))))))
+         (%render-lock-section ctx container locked))
+       (dolist (section (ui-settings:get-sections))
+         (%render-section-card ctx container section))))))
+
+;; ---------------------------------------------------------------------------
+;; settings sections -- the views plugins register with `ui-settings'
+;; ---------------------------------------------------------------------------
+
+(defun %render-section-card (ctx container section)
+  "The card the settings view shows for a plugin's SECTION: its summary line,
+when it has one, on a row that opens the section.  Returns the row."
+  (let* ((card-body (%settings-card container
+                                    (ui-settings:settings-section-label section)))
+         (summary (when-let ((fn (ui-settings:settings-section-summary section)))
+                    ;; the summary asks the plugin, whose trouble must not
+                    ;; take the settings down with it
+                    (handler-case (funcall fn)
+                      (error (c)
+                        (log:warn "Settings section ~a: no summary: ~a"
+                                  (ui-settings:settings-section-id section) c)
+                        nil))))
+         (row (create-div card-body :class "settings-option settings-section-row")))
+    (create-div row :class "settings-option-label" :content "Open")
+    (create-div row :class "settings-option-detail"
+                    :content (if summary (escape-html summary) ""))
+    (create-div row :class "settings-option-check" :content "&rsaquo;")
+    (set-on-click row (lambda (obj)
+                        (declare (ignore obj))
+                        (navigate-to-settings-section section ctx)))
+    row))
+
+(defun render-settings-section (section ctx)
+  "Renders a plugin's settings SECTION: the app header and the section's label,
+then whatever the section renders into a container of its own.  A locked
+device this connection has not unlocked gets the PIN prompt instead, as for
+the settings; an error in the section's renderer is shown in its place, not
+signalled."
+  (let* ((container (nav-context-container ctx))
+         (body (nav-context-body ctx))
+         (locked (ui-settings:locked-p body))
+         (label (ui-settings:settings-section-label section)))
+    (setf (inner-html container) "")
+    (clear-value-update-funs ctx)
+    (%render-app-header ctx container locked)
+    (create-div container :class "header-line" :content label)
+    (%set-view-title ctx label)
+    (cond
+      ((and locked (not (nav-context-settings-unlocked ctx)))
+       (%render-pin-prompt ctx container
+                           (lambda () (render-settings-section section ctx))))
+      (t
+       (let ((section-container (create-div container :class "settings-section")))
+         (handler-case
+             (funcall (ui-settings:settings-section-render section)
+                      ctx section-container)
+           (error (c)
+             (log:error "Settings section ~a failed to render: ~a"
+                        (ui-settings:settings-section-id section) c)
+             (create-div section-container
+                         :class "settings-hint"
+                         :content (format nil "This section could not be shown: ~a"
+                                          (escape-html c))))))))))
+
+(defun navigate-to-settings-section (section ctx)
+  "Navigates the connection to the plugin's settings SECTION."
+  (bt2:with-lock-held ((nav-context-lock ctx))
+    (%push-view ctx (ui-settings:section-path section))
+    (render-settings-section section ctx)
+    (%restore-scroll ctx)))

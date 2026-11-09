@@ -319,6 +319,14 @@ FORM, an alist, is posted as a urlencoded body."
     (ui-auth:configure +key+)
     (is-false (ui-auth:blocked-for "a" +now+))))
 
+(test escape-html--entities-non-strings-and-empty
+  (is (string= "&lt;b&gt; &amp; &quot;x&quot;" (ui-auth:escape-html "<b> & \"x\"")))
+  (is (string= "42" (ui-auth:escape-html 42)))
+  (is (string= "boom &lt;1&gt;"
+               (ui-auth:escape-html (make-condition 'simple-error
+                                                    :format-control "boom <1>"))))
+  (is (string= "" (ui-auth:escape-html ""))))
+
 (test configure--empty-key-disables
   (with-fixture auth-env ()
     (is-false (ui-auth:configure ""))

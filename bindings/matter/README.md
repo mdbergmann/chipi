@@ -78,9 +78,40 @@ manual code. The bridge presents the Matter SDK's test attestation
 credentials, so Apple Home calls it an *Uncertified Accessory* and offers
 *Add Anyway*; fine for a private house, not for a product.
 
-Once commissioned, the window closes. Opening it again for a second
-administrator, and the list of administrators, come with the UI's *Share with
-other apps* card (phase B3 of the plan).
+Once commissioned, the window closes. To add the bridge to a second app --
+another home, Google Home next to Apple Home -- open it again:
+
+```lisp
+(matter-bridge-open-window)              ; 15 minutes, the most Matter allows; :timeout seconds
+(matter-bridge-window-open-p)            ; NIL, the seconds left, or T while it stays open
+(matter-bridge-close-window)
+(matter-bridge-admins)                   ; the apps that added the bridge, one plist per fabric
+(matter-bridge-remove-admin 1)           ; by :fabric-index; the app loses the bridge
+(matter-bridge-devices)                  ; the bridged devices as the apps see them
+```
+
+The window opened this way takes the bridge's own passcode, so the codes
+above stay what they were.
+
+##### The card in chipi-ui: Share with other apps
+
+With chipi-ui, the same comes as a card in the settings, for the wall tablet.
+Load the system `binding-matter/ui` next to `chipi-ui`:
+
+```lisp
+(asdf:load-system :binding-matter/ui)
+```
+
+The settings view then shows *Share with other apps*, with "2 apps, 5
+devices, pairing window open" as its line, and the view behind it
+(`/settings/matter-bridge`) has three cards: the pairing code as a QR image
+to scan and as the number to type, with the pairing window's state and a
+button to open it for 15 minutes or close it; the apps that added the bridge,
+each with a *Remove* that wants a second tap; and the bridged devices as the
+apps see them, with type, endpoint and items, or why one is not published.
+The device lock of the settings covers the card. The QR image is drawn by
+the binding's own encoder (`qr-encode`, `qr-svg`), so no library and no
+network is needed for it.
 
 ##### The binding
 
@@ -199,8 +230,10 @@ advertisement and closes the socket.
 (asdf:test-system :binding-matter)
 ```
 
-runs the unit tests (conversions, endpoint ids, the bridge on loopback
-without a network) and the integration test, in which cl-matter's own
-commissioner commissions the bridge over loopback UDP, switches a light,
-reads the item's change back and writes a heating's setpoint. Both run on
-SBCL and on AmiLisp.
+runs the unit tests (conversions, endpoint ids, the QR encoder against
+node-qrcode's symbols, the bridge on loopback without a network) and the
+integration test, in which cl-matter's own commissioner commissions the
+bridge over loopback UDP, switches a light, reads the item's change back and
+writes a heating's setpoint. `(asdf:test-system :binding-matter/ui-tests)`
+renders the settings card into a stubbed CLOG connection. All run on SBCL
+and on AmiLisp.
