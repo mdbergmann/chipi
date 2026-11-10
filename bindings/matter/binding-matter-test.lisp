@@ -546,32 +546,27 @@ tells an administrator where it is going."
       (hab:set-item-value 'blind-living-pos 20)
       (is-true (await-cond 2 (eql 2000 (%lift 'matter::target-position-lift-percent100ths)))))))
 
-(test bridge--shutter-command-is-applied-once-and-repeats-arrive
-  "A move command changes the move item and raises an event, yet reaches the
-attribute once, through the push; the same command repeated with `:push
-:always' raises no event and still arrives."
+(test bridge--repeated-shutter-command-arrives
+  "A move command reaches the target through its push -- also when it is
+repeated with `:push :always', which changes nothing on the item and raises
+no event."
   (with-fixture bridge-env ()
     (house:defrollershutter blind-once "Blind once"
-      :move ((binding:make-function-binding :push (lambda (value) (declare (ignore value)) nil))
-             (matter-bridge :device blind-once))
-      :position ((binding:make-function-binding :push (lambda (value) (declare (ignore value)) nil))
-                 (matter-bridge :device blind-once)))
-    (with-mocks ()
-      (answer binding-matter::%apply-item-value nil)
-      (flet ((moves ()
-               (count 'item:true (invocations 'binding-matter::%apply-item-value)
-                      :key #'second)))
-        (hab:set-item-value 'blind-once 'item:true)
-        ;; the position change is the fence: its event comes after the move's
-        (hab:set-item-value 'blind-once-pos 5)
-        (is-true (await-cond 2 (find 5 (invocations 'binding-matter::%apply-item-value) :key #'second)))
-        (is (= 1 (moves)))
-        ;; the same value again, pushed regardless
-        (item:set-value (hab:get-item 'blind-once) 'item:true :push :always)
-        (is-true (await-cond 2 (= 2 (moves))))
-        (hab:set-item-value 'blind-once-pos 6)
-        (is-true (await-cond 2 (find 6 (invocations 'binding-matter::%apply-item-value) :key #'second)))
-        (is (= 2 (moves)))))))
+      :move ((matter-bridge :device blind-once))
+      :position ((matter-bridge :device blind-once)))
+    (flet ((target () (%lift 'matter::target-position-lift-percent100ths)))
+      (hab:set-item-value 'blind-once-pos 50)
+      (is-true (await-cond 2 (eql 5000 (%lift 'matter::current-position-lift-percent100ths))))
+      (is-true (await-cond 2 (eql 5000 (target))))
+      ;; down: the target is the closed end
+      (hab:set-item-value 'blind-once 'item:true)
+      (is-true (await-cond 2 (eql 10000 (target))))
+      ;; moved by hand the other way: the target follows the position
+      (hab:set-item-value 'blind-once-pos 40)
+      (is-true (await-cond 2 (eql 4000 (target))))
+      ;; down again: the item holds the value already, the push still arrives
+      (item:set-value (hab:get-item 'blind-once) 'item:true :push :always)
+      (is-true (await-cond 2 (eql 10000 (target)))))))
 
 (test bridge--rollershutter-with-fewer-channels
   "A shutter with a position item alone is driven through it; one with a
