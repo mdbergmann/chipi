@@ -374,6 +374,33 @@ under the same id; destroying it withdraws the endpoint and keeps the id."
     (is (equal '(3) (%attribute 1 'matter::descriptor 'matter::parts-list)))
     (is (equal '(("LIGHT-KITCHEN" . 2) ("PLUG-GARDEN" . 3)) (binding-matter::%read-endpoint-map storage)))))
 
+(test bridge--follows-values-another-binding-brought-in
+  "A value set with `:push nil' -- how binding-knx sets a telegram's and a
+read's value -- is pushed to no binding and still reaches the attribute:
+the bridge follows the item's change event. Found on the bench of
+2026-11-10: contact and thermostat stood still in the Home app."
+  (with-fixture bridge-env ()
+    (house:deflight light-kitchen "Kitchen" (matter-bridge))
+    (house:defcontact window-bath "Bath window" (matter-bridge))
+    (house:defheating bath "Bath"
+      :temperature ((matter-bridge :device bath))
+      :setpoint ((matter-bridge :device bath)))
+    (item:set-value (hab:get-item 'light-kitchen) 'item:true :push nil)
+    (is-true (await-cond 2 (eq t (%attribute 2 'matter::on-off 'matter::on-off))))
+    (item:set-value (hab:get-item 'window-bath) 'item:true :push nil)
+    (is-true (await-cond 2 (eq nil (%attribute 3 'matter::boolean-state 'matter::state-value))))
+    (item:set-value (hab:get-item 'bath-temp) 20.1 :push nil)
+    (is-true (await-cond 2 (eql 2010 (%attribute 4 'matter::thermostat 'matter::local-temperature))))
+    (item:set-value (hab:get-item 'bath-setpoint) 19.0 :push nil)
+    (is-true (await-cond 2 (eql 1900 (%attribute 4 'matter::thermostat 'matter::occupied-heating-setpoint))))
+    ;; the listener goes with the bridge
+    (let ((listener (binding-matter::bridge-listener binding-matter::*bridge*)))
+      (is-true listener)
+      (matter-shutdown)
+      (is-false (binding-matter::matter-bridge-running-p))
+      (item:set-value (hab:get-item 'light-kitchen) 'item:false :push nil)
+      (is-true (await-cond 2 (eq 'item:false (%item-value 'light-kitchen)))))))
+
 (test bridge--contact-and-temperature
   "A contact is a Contact Sensor whose StateValue is true while closed; a
 heating's temperature is a Temperature Sensor in hundredths."
@@ -518,6 +545,33 @@ tells an administrator where it is going."
       ;; but a position away from the target is where it stopped
       (hab:set-item-value 'blind-living-pos 20)
       (is-true (await-cond 2 (eql 2000 (%lift 'matter::target-position-lift-percent100ths)))))))
+
+(test bridge--shutter-command-is-applied-once-and-repeats-arrive
+  "A move command changes the move item and raises an event, yet reaches the
+attribute once, through the push; the same command repeated with `:push
+:always' raises no event and still arrives."
+  (with-fixture bridge-env ()
+    (house:defrollershutter blind-once "Blind once"
+      :move ((binding:make-function-binding :push (lambda (value) (declare (ignore value)) nil))
+             (matter-bridge :device blind-once))
+      :position ((binding:make-function-binding :push (lambda (value) (declare (ignore value)) nil))
+                 (matter-bridge :device blind-once)))
+    (with-mocks ()
+      (answer binding-matter::%apply-item-value nil)
+      (flet ((moves ()
+               (count 'item:true (invocations 'binding-matter::%apply-item-value)
+                      :key #'second)))
+        (hab:set-item-value 'blind-once 'item:true)
+        ;; the position change is the fence: its event comes after the move's
+        (hab:set-item-value 'blind-once-pos 5)
+        (is-true (await-cond 2 (find 5 (invocations 'binding-matter::%apply-item-value) :key #'second)))
+        (is (= 1 (moves)))
+        ;; the same value again, pushed regardless
+        (item:set-value (hab:get-item 'blind-once) 'item:true :push :always)
+        (is-true (await-cond 2 (= 2 (moves))))
+        (hab:set-item-value 'blind-once-pos 6)
+        (is-true (await-cond 2 (find 6 (invocations 'binding-matter::%apply-item-value) :key #'second)))
+        (is (= 2 (moves)))))))
 
 (test bridge--rollershutter-with-fewer-channels
   "A shutter with a position item alone is driven through it; one with a

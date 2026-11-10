@@ -70,9 +70,10 @@
 the data model NODE with its AGGREGATOR endpoint, the cl-matter DEVICE, the
 STORAGE directory, the PASSCODE of the commissioning window, the
 ENDPOINT-MAP (an alist of bridged device name to endpoint id), the
-`bridged-device's -- DEVICES -- that the bindings make up, and whether it
-is ADVERTISING-P over mDNS."
-  actor manager node device aggregator
+`bridged-device's -- DEVICES -- that the bindings make up, whether it
+is ADVERTISING-P over mDNS, and the LISTENER, the actor that hears the
+items change."
+  actor listener manager node device aggregator
   storage
   passcode
   (endpoint-map '())
@@ -481,14 +482,59 @@ Returns the endpoint; a device the bridge cannot publish is an error, and the de
          (:temperature (%set-attribute cluster :local-temperature (item-temperature->measured-value value)))
          (:setpoint (%set-attribute cluster :occupied-heating-setpoint (item-setpoint->heating-setpoint value))))))))
 
+;; How an item's value gets to its attribute.  The bridge mirrors the items,
+;; whoever changed them: a value another binding brought in -- a KNX
+;; telegram, the answer to a read -- is set with `:push nil' and is pushed to
+;; no binding, this one included.  So the state comes with the item's
+;; `item:item-changed-event', which every change raises.  The push is left
+;; for what is no change: a move or stop command repeated with
+;; `:push :always' (`house:send-command'), which raises no event and still
+;; moves the target.
+(defparameter *command-kinds* '(:shutter-move :shutter-stop)
+  "The item kinds whose push the bridge takes: commands, which may repeat the value the item holds.")
+
 (defun %make-push-fun (binding)
-  "The push of a bridge binding: the item's value goes to the bridge actor, which puts it on the attribute. Nothing is waited for."
+  "The push of a bridge binding: a command item's value goes to the bridge actor, which puts it on the attribute; a state item's value comes with its change event (`%item-changed'). Nothing is waited for."
   (lambda (value)
     (let ((bridge *bridge*))
-      (if (and bridge (binding-device binding))
-          (matter-actor-run (bridge-actor bridge)
-                            (lambda () (%apply-item-value binding value)))
-          (log:debug "Matter bridge: ~a is not published, value ~a stays home" binding value)))))
+      (cond ((not (member (binding-kind binding) *command-kinds*))
+             nil)
+            ((and bridge (binding-device binding))
+             (matter-actor-run (bridge-actor bridge)
+                               (lambda () (%apply-item-value binding value))))
+            (t
+             (log:debug "Matter bridge: ~a is not published, value ~a stays home" binding value))))))
+
+(defun %item-changed (bridge item)
+  "`ITEM' changed, by whomever: its value goes to the bridge actor for every published state binding of it. Command kinds are left to their push (`%make-push-fun'), so a value is applied once. Nothing is waited for.
+
+The event does not carry the new value, so it is read from the item here, off the item's actor: a later change may be read in place of the one that raised the event. The end state converges, as the later event applies it again."
+  (dolist (binding (%bridge-bindings-snapshot))
+    (when (and (eq item (binding-item binding))
+               (binding-device binding)
+               (not (member (binding-kind binding) *command-kinds*)))
+      (let ((binding binding))
+        (matter-actor-run (bridge-actor bridge)
+                          (lambda () (%apply-item-value binding (%item-value item))))))))
+
+(defun %make-item-listener (bridge)
+  "The actor that hears every `item:item-changed-event' for `BRIDGE'."
+  (ac:actor-of (isys:ensure-isys)
+               :name "matter-bridge-items"
+               :init (lambda (self)
+                       (ev:subscribe self self 'item:item-changed-event))
+               :receive (lambda (msg)
+                          (when (typep msg 'item:item-changed-event)
+                            (handler-case (%item-changed bridge (item:item-changed-event-item msg))
+                              (error (c)
+                                (log:warn "Matter bridge: change of ~a not taken: ~a"
+                                          (item:item-changed-event-item msg) c)))))))
+
+(defun %stop-item-listener (bridge)
+  (when-let ((listener (bridge-listener bridge)))
+    (setf (bridge-listener bridge) nil)
+    (ignore-errors (ev:unsubscribe listener listener))
+    (ignore-errors (ac:stop (act:context listener) listener :wait t))))
 
 (defun %publish-safely (bridge binding)
   "Lets `BINDING's item join its device on `BRIDGE' from outside the actor; a device the bridge cannot publish is logged, not signalled -- one item's mistake must not break the definition of the item or the start of the bridge."
@@ -662,6 +708,7 @@ Items bound to a `matter-bridge' binding by now are published at once, later one
                                     :on-stop (lambda ()
                                                (when (bridge-advertising-p bridge)
                                                  (matter:stop-device-advertising device)))))
+           (setf (bridge-listener bridge) (%make-item-listener bridge))
            (setf *bridge* bridge
                  done t)
            (when advertise
@@ -684,6 +731,7 @@ Items bound to a `matter-bridge' binding by now are published at once, later one
     (dolist (binding (%bridge-bindings-snapshot))
       (setf (binding-device binding) nil))
     (setf (bridge-devices bridge) '())
+    (%stop-item-listener bridge)
     (matter-actor-stop (bridge-actor bridge))
     (log:info "Matter bridge stopped")
     t))
