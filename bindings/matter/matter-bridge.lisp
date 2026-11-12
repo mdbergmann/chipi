@@ -39,6 +39,9 @@
 
 (defparameter *bridge-pase-iterations* 1000)
 
+(defparameter *bridge-max-report-interval* 60
+  "Seconds: the longest an administrator's subscription goes without a report from the bridge, whatever longer interval it asks for (Apple Home asks for 600). A hub that misses the report knows the bridge was restarted and comes back with a new session and subscription; until then it shows what it last heard and its commands wait. Read when the bridge starts.")
+
 (defvar *bridge* nil
   "The running `bridge', or NIL.")
 
@@ -648,6 +651,37 @@ The other keys go to the base binding; `:call-push-p' is T by default."
   (or (ignore-errors (asdf:component-version (asdf:find-system "binding-matter")))
       "0"))
 
+(defun %peer-text (session)
+  "Who is at the other end of `SESSION', for the log: the node and fabric of an administrator's session, or the commissioner of a pairing."
+  (if (eq :case (matter:session-type session))
+      (format nil "node ~16,'0x of fabric ~16,'0x at ~a"
+              (matter:session-peer-node-id session)
+              (let ((fabric (matter:session-fabric session)))
+                (if fabric (matter:fabric-fabric-id fabric) 0))
+              (matter:session-peer-host session))
+      (format nil "a commissioner at ~a" (matter:session-peer-host session))))
+
+(defun %session-event-text (event session)
+  "The log line of `SESSION' opened (`EVENT' :opened) or gone (:closed)."
+  (if (eq :case (matter:session-type session))
+      (format nil "session ~:[closed:~;opened by~] ~a" (eq event :opened) (%peer-text session))
+      (format nil "pairing ~:[session closed:~;started by~] ~a" (eq event :opened) (%peer-text session))))
+
+(defun %handshake-failure-text (handshake error)
+  "The log line of a pairing (PASE) or session (CASE) attempt of a peer that failed with `ERROR'."
+  (format nil "~:[session~;pairing~] attempt failed: ~a"
+          (eq :pase (matter:handshake-kind handshake)) error))
+
+(defun %subscription-event-text (event subscription &optional reason)
+  "The log line of an administrator's `SUBSCRIPTION' that came (`EVENT' :subscribed) or went (:dropped, for `REASON')."
+  (let ((peer (%peer-text (matter:server-subscription-session subscription))))
+    (if (eq event :subscribed)
+        (format nil "~a subscribed to ~d path~:p, a report at least every ~d s"
+                peer
+                (length (matter:server-subscription-paths subscription))
+                (matter:server-subscription-max-interval subscription))
+        (format nil "subscription of ~a ended: ~a" peer reason))))
+
 (defun start-bridge (storage &key (name "Chipi") (passcode 20202021) (discriminator 3840)
                                (port 5540) interface (advertise t)
                                address (family :ipv6)
@@ -672,8 +706,26 @@ Items bound to a `matter-bridge' binding by now are published at once, later one
                                               :hardware-version-string (%node-label (lisp-implementation-type))
                                               :software-version-string (%software-version)
                                               :endpoints (list aggregator)))
-                (channel (matter:make-secure-channel manager))
-                (model (matter:make-interaction-model manager :node node))
+                ;; who comes and goes is logged: a hub's session and its
+                ;; subscription are what its display of the house hangs on
+                (channel (matter:make-secure-channel
+                          manager
+                          :on-session (lambda (channel session)
+                                        (declare (ignore channel))
+                                        (log:info "Matter bridge: ~a" (%session-event-text :opened session)))
+                          :on-session-closed (lambda (channel session)
+                                               (declare (ignore channel))
+                                               (log:info "Matter bridge: ~a" (%session-event-text :closed session)))
+                          :on-handshake-failed (lambda (channel handshake error)
+                                                 (declare (ignore channel))
+                                                 (log:warn "Matter bridge: ~a" (%handshake-failure-text handshake error)))))
+                (model (matter:make-interaction-model
+                        manager :node node
+                        :max-subscription-interval *bridge-max-report-interval*
+                        :on-subscription (lambda (model event subscription &rest reason)
+                                           (declare (ignore model))
+                                           (log:info "Matter bridge: ~a"
+                                                     (%subscription-event-text event subscription (first reason))))))
                 (device (matter:make-device
                          :node node :channel channel :model model
                          :credentials (matter:test-attestation-credentials)
