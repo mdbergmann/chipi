@@ -347,6 +347,26 @@ Returns the endpoint; a device the bridge cannot publish is an error, and the de
                           (setf (bridged-device-problem device) (princ-to-string c)))))
     (%publish-device-1 bridge device)))
 
+(defun %device-reachable-p (device)
+  "Whether `DEVICE' can be reached at home: every other binding of its items says so (`binding:binding-reachable-p'), e.g. a KNX binding while its tunnel is up. A device of items with no other binding is reachable: Chipi itself is where it lives."
+  (loop :for member :in (bridged-device-bindings device)
+        :for item := (binding-item member)
+        :always (or (null item)
+                    (loop :for other :in (item:bindings item)
+                          :always (or (typep other 'matter-bridge-binding)
+                                      (binding:binding-reachable-p other))))))
+
+(defun %refresh-reachability (bridge)
+  "Actor context. Sets Reachable of every published device to what `%device-reachable-p' says now; the apps grey a device out while it is false."
+  (dolist (device (bridge-devices bridge))
+    (when-let ((endpoint (bridged-device-endpoint device)))
+      (let ((info (matter:find-cluster endpoint 'matter::bridged-device-basic-information))
+            (reachable (and (%device-reachable-p device) t)))
+        (unless (eq reachable (and (matter:attribute-value info 'matter::reachable) t))
+          (setf (matter:attribute-value info 'matter::reachable) reachable)
+          (log:info "Matter bridge: ~a is ~:[unreachable~;reachable again~]"
+                    (bridged-device-name device) reachable))))))
+
 (defun %publish-device-1 (bridge device)
   (let* ((name (bridged-device-name device))
          (type (%resolve-device-type device)))
@@ -357,6 +377,7 @@ Returns the endpoint; a device the bridge cannot publish is an error, and the de
                         (%endpoint-id bridge name)
                         :parent +aggregator-endpoint+
                         :node-label (%device-label device)
+                        :reachable (%device-reachable-p device)
                         :unique-id (%unique-id name)
                         :vendor-name "Chipi"
                         :product-name (%node-label (string-capitalize (substitute #\Space #\- (symbol-name type))))
@@ -521,17 +542,24 @@ The event does not carry the new value, so it is read from the item here, off th
                           (lambda () (%apply-item-value binding (%item-value item))))))))
 
 (defun %make-item-listener (bridge)
-  "The actor that hears every `item:item-changed-event' for `BRIDGE'."
+  "The actor that hears every `item:item-changed-event' for `BRIDGE', and every `binding:reachability-changed-event'."
   (ac:actor-of (isys:ensure-isys)
                :name "matter-bridge-items"
                :init (lambda (self)
-                       (ev:subscribe self self 'item:item-changed-event))
+                       (ev:subscribe self self 'item:item-changed-event)
+                       (ev:subscribe self self 'binding:reachability-changed-event))
                :receive (lambda (msg)
-                          (when (typep msg 'item:item-changed-event)
-                            (handler-case (%item-changed bridge (item:item-changed-event-item msg))
-                              (error (c)
-                                (log:warn "Matter bridge: change of ~a not taken: ~a"
-                                          (item:item-changed-event-item msg) c)))))))
+                          (typecase msg
+                            (item:item-changed-event
+                             (handler-case (%item-changed bridge (item:item-changed-event-item msg))
+                               (error (c)
+                                 (log:warn "Matter bridge: change of ~a not taken: ~a"
+                                           (item:item-changed-event-item msg) c))))
+                            (binding:reachability-changed-event
+                             (handler-case (matter-actor-run (bridge-actor bridge)
+                                                             (lambda () (%refresh-reachability bridge)))
+                               (error (c)
+                                 (log:warn "Matter bridge: reachability not refreshed: ~a" c))))))))
 
 (defun %stop-item-listener (bridge)
   (when-let ((listener (bridge-listener bridge)))

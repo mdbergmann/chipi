@@ -447,6 +447,52 @@ is cleared — i.e. it never gives up on its own while still configured."
       ;; 5 attempts > backoff length (2) => it did not give up at list end
       (is (= 5 (length (invocations 'ip-client:ip-connect)))))))
 
+(test binding-reachable-p--follows-the-tunnel
+  "A KNX binding is reachable while the tunnel is established."
+  (with-fixture clean-knx-state ()
+    (let ((binding (with-mocks ()
+                     (answer knx-client:add-tunnelling-request-listener t)
+                     (knx-binding :ga "1/2/3" :dpt "1.001" :initial-delay nil))))
+      (with-mocks ()
+        (answer knx-client:tunnel-connection-established-p t)
+        (is (eq t (binding:binding-reachable-p binding))))
+      (with-mocks ()
+        (answer knx-client:tunnel-connection-established-p nil)
+        (is (eq nil (binding:binding-reachable-p binding)))))))
+
+(test tunnel-state--published-when-lost-and-when-back
+  "Losing the tunnel and getting it back both publish that reachability may
+have changed; a failing publish does not disturb the connection handling."
+  (with-fixture reconnect-state ()
+    (with-mocks ()
+      (answer binding:publish-reachability-changed t)
+      (answer binding-knx::%schedule-reconnect t)
+      (binding-knx::%on-disconnected :heartbeat-failure)
+      (is (= 1 (length (invocations 'binding:publish-reachability-changed))))
+      (is (= 1 (length (invocations 'binding-knx::%schedule-reconnect))))
+      (answer ip-client:ip-disconnect t)
+      (answer ip-client:ip-connect t)
+      (answer knx-client:start-async-receive t)
+      (answer knx-client:establish-tunnel-connection t)
+      (answer knx-client:tunnel-connection-established-p t)
+      (binding-knx::%do-reconnect)
+      (is (= 2 (length (invocations 'binding:publish-reachability-changed)))))
+    (with-mocks ()
+      (answer binding:publish-reachability-changed (error "no eventstream"))
+      (finishes (binding-knx::%tunnel-state-changed)))))
+
+(test knx-init--publishes-the-tunnel-state
+  (with-mocks ()
+    (answer knxc:knx-conn-init t)
+    (answer hab:add-to-shutdown t)
+    (answer binding:publish-reachability-changed t)
+    (knx-init :gw-host "foo.bar" :gw-port 3671)
+    (is (= 1 (length (invocations 'binding:publish-reachability-changed))))
+    ;; cleanup
+    (setf knx-client:*on-disconnected* nil)
+    (setf binding-knx::*gw-host* nil)
+    (setf binding-knx::*gw-port* nil)))
+
 (test on-disconnected--spawns-thread-and-flips-guard
   "Hook entry point sets the single-flight flag and returns a live thread."
   (with-fixture reconnect-state ()

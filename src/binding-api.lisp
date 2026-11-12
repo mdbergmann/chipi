@@ -7,4 +7,8 @@
            #:exec-pull
            #:exec-push
            #:call-push-p
-           #:destroy))
+           #:destroy
+           ;; reachability
+           #:binding-reachable-p
+           #:reachability-changed-event
+           #:publish-reachability-changed))

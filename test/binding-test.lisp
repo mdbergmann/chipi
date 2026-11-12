@@ -36,6 +36,47 @@ the item, after it was added to the bound items."
     (is (equal '(fake-item) (noted binding)))
     (is (equal '(fake-item) (binding::bound-items binding)))))
 
+(defclass down-binding (binding) ())
+
+(defmethod binding-reachable-p ((binding down-binding))
+  nil)
+
+(test binding-reachable-p--true-unless-the-class-knows-better
+  (is-true (binding-reachable-p (make-function-binding)))
+  (is-false (binding-reachable-p (make-instance 'down-binding))))
+
+(test publish-reachability-changed--reaches-subscribers
+  (with-fixture init-destroy-timer ()
+    (let* ((heard '())
+           (listener (ac:actor-of (isys:ensure-isys)
+                                  :init (lambda (self)
+                                          (ev:subscribe self self 'reachability-changed-event))
+                                  :receive (lambda (msg) (push msg heard)))))
+      (declare (ignorable listener))
+      (is-true (publish-reachability-changed))
+      (is-true (await-cond 2 (= 1 (length heard))))
+      (is (typep (first heard) 'reachability-changed-event)))))
+
+(test item-bindings--readable
+  "An item's bindings can be read, for those who ask them `binding-reachable-p'."
+  (with-fixture init-destroy-timer ()
+    (let ((item (item:make-item 'reach-item))
+          (binding (make-function-binding)))
+      (item:add-binding item binding)
+      (is-true (await-cond 2 (equal (list binding) (item:bindings item)))))))
+
+(test item-bindings--snapshot-is-not-modified-by-add-binding
+  "A list read from `item:bindings' stays as it was when another binding is added."
+  (with-fixture init-destroy-timer ()
+    (let ((item (item:make-item 'snapshot-item))
+          (b1 (make-function-binding))
+          (b2 (make-function-binding)))
+      (item:add-binding item b1)
+      (let ((snapshot (item:bindings item)))
+        (item:add-binding item b2)
+        (is (equal (list b1) snapshot))
+        (is (equal (list b2 b1) (item:bindings item)))))))
+
 (test binding--pull-and-push
   "Test that binding can pull and push when both functions are given."
   (with-fixture init-destroy-timer ()

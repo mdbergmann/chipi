@@ -19,6 +19,7 @@
            #:label
            #:tags
            #:add-binding
+           #:bindings
            #:add-persistence
            #:destroy
            #:make-item-state
@@ -56,7 +57,8 @@ A tag can exist without a value, e.g., (ui-readonly . nil), or with a value, e.g
 Higher-level code is responsible for interpreting the tags.")
    (bindings :initform '()
              :reader bindings
-             :documentation "The items bindings")
+             :documentation "The items bindings.
+Reading this from another thread yields a snapshot: the list is only ever replaced (by `add-binding'), never destructively modified, so the snapshot is consistent but may miss a binding added right after. Do not modify the returned list.")
    (persistences :initform '()
                  :reader persistences
                  :documentation "The items persistences")))
@@ -208,6 +210,8 @@ Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on 
 (defun add-binding (item binding)
   (log:info "Adding binding: ~a to item: ~a" binding item)
   (with-slots (bindings) item
+    ;; `pushnew' only conses onto the list, a published list is never modified:
+    ;; readers of `bindings' see an immutable snapshot
     (pushnew binding bindings)
     (binding:bind-item binding item))
   item)

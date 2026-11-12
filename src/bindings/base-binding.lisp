@@ -144,6 +144,21 @@ This is to have the higher-level module decide how to handle the error."
                       (timer:schedule-recurring delay timer-fun timer-sig)
                       :delay))))))
 
+(defgeneric binding-reachable-p (binding)
+  (:documentation "Whether what `BINDING' talks to can be reached right now: a gateway, a bus, a device. True by default; a binding class that knows better answers for itself, e.g. with the state of its connection.
+Who shows or forwards an item -- a UI, a bridge to another system -- asks the item's bindings (`item:bindings') to tell a value that is current from one that is only the last one heard. A binding whose answer changes says so with `publish-reachability-changed'."))
+
+(defmethod binding-reachable-p ((binding binding))
+  t)
+
+(defstruct reachability-changed-event
+  "Published on the eventstream when the answer of `binding-reachable-p' may have changed for some bindings. It names none: whoever cares asks again.")
+
+(defun publish-reachability-changed ()
+  "Publishes a `reachability-changed-event': to be called by a binding implementation when its connection came or went. Subscribe with `ev:subscribe' on the type."
+  (ev:publish (isys:ensure-isys) (make-reachability-changed-event))
+  t)
+
 (defgeneric destroy (binding)
   (:documentation "Destroys the binding and releases all resources."))
 

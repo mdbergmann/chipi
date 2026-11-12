@@ -561,6 +561,7 @@ giving up would leave the tunnel dead until the next process restart."
             (ignore-errors (ip-client:ip-disconnect))))
         (when established
           (log:info "KNX tunnel reconnected.")
+          (%tunnel-state-changed)
           ;; refresh reads first, then re-send writes so an intended
           ;; write wins over freshly-read bus state on a shared GA
           (%repull-read-bindings)
@@ -589,9 +590,20 @@ events fire in quick succession."
          (setf *reconnect-in-progress-p* nil))))
    :name (format nil "knx-binding-reconnect (~a)" reason)))
 
+(defmethod binding:binding-reachable-p ((binding knx-binding))
+  "A KNX binding reaches the bus while the tunnel to the gateway is established."
+  (and (knx-client:tunnel-connection-established-p) t))
+
+(defun %tunnel-state-changed ()
+  "The tunnel came or went: tell who asks the bindings `binding:binding-reachable-p'. Never signals; this runs in the connection's own threads."
+  (handler-case (binding:publish-reachability-changed)
+    (error (c)
+      (log:warn "KNX: tunnel state not published: ~a" c))))
+
 (defun %on-disconnected (reason)
   "Hook installed into `knx-client:*on-disconnected*' by `knx-init'."
   (log:warn "KNX connection lost (~a). Scheduling reconnect." reason)
+  (%tunnel-state-changed)
   (%schedule-reconnect reason))
 
 (defun knx-init (&key gw-host (gw-port 3671) (auto-reconnect t) (verify-workers 2)
@@ -630,8 +642,10 @@ reconnect loop to drive then."
   (when auto-reconnect
     (setf knx-client:*on-disconnected* #'%on-disconnected))
   (handler-case
-      (knxc:knx-conn-init gw-host
-                          :port gw-port)
+      (progn
+        (knxc:knx-conn-init gw-host
+                            :port gw-port)
+        (%tunnel-state-changed))
     (error (c)
       ;; a live async-handler means the failure was at the tunnel-establish
       ;; stage; ip/asys structures exist, so %do-reconnect can drive recovery

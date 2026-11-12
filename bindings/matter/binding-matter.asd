@@ -1,9 +1,9 @@
 (defsystem "binding-matter"
-  :version "0.3.2"
+  :version "0.3.3"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :description "Matter binding for Chipi. The bridge role: Chipi is a Matter bridge whose bridged devices are items, for Apple Home, Google Home and the like. The controller role follows."
-  :depends-on ("chipi"
+  :depends-on ((:version "chipi" "0.9.5")
                "cl-matter"
                "babel"
                "bordeaux-threads")

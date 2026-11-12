@@ -341,6 +341,52 @@ survives a restart of the bridge."
     ;; the endpoint map was written
     (is (equal '(("LIGHT-KITCHEN" . 2)) (binding-matter::%read-endpoint-map storage)))))
 
+(defvar *gateway-up* t
+  "What the `gateway-binding's of a test answer `binding:binding-reachable-p' with.")
+
+(defclass gateway-binding (binding:binding) ()
+  (:documentation "A binding behind a gateway that can be down, as a KNX binding is behind its tunnel."))
+
+(defmethod binding:binding-reachable-p ((binding gateway-binding))
+  *gateway-up*)
+
+(test bridge--device-is-unreachable-while-another-binding-is
+  "Reachable of a bridged device follows the other bindings of its items:
+false while one of them cannot reach its gateway, true again when it can.
+The bridge asks when it publishes and on every `reachability-changed-event'."
+  (with-fixture bridge-env ()
+    ;; set, not bound: the bridge asks from its own thread
+    (unwind-protect
+      (flet ((reachable (endpoint)
+               (%attribute endpoint 'matter::bridged-device-basic-information 'matter::reachable)))
+        (house:deflight light-kitchen "Kitchen"
+          (make-instance 'gateway-binding)
+          (matter-bridge))
+        ;; an item that lives in Chipi alone has nothing to lose
+        (house:deflight light-virtual "Virtual"
+          (matter-bridge))
+        (is (eq t (reachable 2)))
+        (is (eq t (reachable 3)))
+        ;; the gateway goes
+        (setf *gateway-up* nil)
+        (binding:publish-reachability-changed)
+        (is-true (await-cond 2 (eq nil (reachable 2))))
+        (is (eq t (reachable 3)))
+        (is-false (getf (find "LIGHT-KITCHEN" (matter-bridge-devices) :key (lambda (d) (getf d :name)) :test #'string=)
+                        :reachable-p))
+        ;; a device defined while it is down is published as unreachable; one
+        ;; unreachable item makes a device of several unreachable
+        (house:defheating bath "Bath"
+          :temperature ((make-instance 'gateway-binding) (matter-bridge :device bath))
+          :setpoint ((matter-bridge :device bath)))
+        (is (eq nil (reachable 4)))
+        ;; and comes back
+        (setf *gateway-up* t)
+        (binding:publish-reachability-changed)
+        (is-true (await-cond 2 (and (eq t (reachable 2)) (eq t (reachable 4)))))
+        (is (eq t (reachable 3))))
+      (setf *gateway-up* t))))
+
 (test bridge--command-reaches-the-items-other-bindings
   "A command from an administrator sets the item with push: a KNX binding on
 the same item would write it to the bus; the bridge binding itself sees
