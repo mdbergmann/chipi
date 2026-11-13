@@ -237,6 +237,49 @@
     (shutdown)
     (is-true called)))
 
+(test config-loaded--calls-startup-hooks-in-registration-order
+  (with-fixture clean-after ()
+    (let ((called '()))
+      (defconfig "chipi"
+        (add-to-startup (lambda () (push :first called)))
+        (add-to-startup (lambda () (push :second called))))
+      (is (null called))
+      (is-true (config-loaded))
+      (is (equal '(:first :second) (reverse called))))))
+
+(test config-loaded--continues-on-error
+  (with-fixture clean-after ()
+    (let ((called nil))
+      (defconfig "chipi"
+        (add-to-startup (lambda () (error "Foo err")))
+        (add-to-startup (lambda () (setf called t))))
+      (is-false (config-loaded))
+      (is-true called))))
+
+(test config-loaded--without-hooks
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    (is-true (config-loaded))))
+
+(test config-loaded--loading-the-configuration-again-registers-afresh
+  (with-fixture clean-after ()
+    (let ((count 0))
+      (flet ((load-config ()
+               (defconfig "chipi"
+                 (add-to-startup (lambda () (incf count))))
+               (config-loaded)))
+        (load-config)
+        (load-config)
+        ;; once per load, not once per registration so far
+        (is (= 2 count))))))
+
+(test shutdown--forgets-startup-hooks
+  (let ((called nil))
+    (add-to-startup (lambda () (setf called t)))
+    (shutdown)
+    (config-loaded)
+    (is-false called)))
+
 (test shutdown-calls-shutdown-hooks--and-continous-on-error
   (let ((called nil))
     (add-to-shutdown (lambda () (setf called t)))

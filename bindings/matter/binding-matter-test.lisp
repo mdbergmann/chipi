@@ -46,7 +46,8 @@
          (progn
            (hab:defconfig "chipi")
            (when init
-             (matter-init :storage storage :bridge *test-bridge-args*))
+             (matter-init :storage storage :bridge *test-bridge-args*)
+             (hab:config-loaded))
            (&body))
       (progn
         (hab:shutdown)
@@ -503,12 +504,48 @@ the item live on."
     (hab:set-item-value 'counter 5)
     (is-true (await-cond 2 (eql 5 (%item-value 'counter))))))
 
+(test matter-init--bridge-starts-when-the-configuration-is-loaded
+  "`matter-init' in the `defconfig' configures the bridge; `hab:config-loaded' starts it, with the items defined in between."
+  (with-fixture bridge-env (:init nil)
+    (matter-init :storage storage :bridge *test-bridge-args*)
+    (is-false (matter-bridge-running-p))
+    (house:deflight light-kitchen "Kitchen" (matter-bridge))
+    (is-false (matter-bridge-running-p))
+    (is-true (hab:config-loaded))
+    (is-true (matter-bridge-running-p))
+    (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))))
+
+(test matter-init--loading-the-configuration-again-keeps-the-bridge
+  "On a running system the configuration is loaded again: the bridge that runs stays, nothing is signalled."
+  (with-fixture bridge-env ()
+    (let ((bridge binding-matter::*bridge*))
+      (hab:defconfig "chipi"
+        (matter-init :storage storage :bridge *test-bridge-args*))
+      (is-true (hab:config-loaded))
+      (is (eq bridge binding-matter::*bridge*)))))
+
+(test matter-init--shutdown-before-the-configuration-is-loaded-starts-nothing
+  (with-fixture bridge-env (:init nil)
+    (matter-init :storage storage :bridge *test-bridge-args*)
+    (matter-shutdown)
+    (is-true (hab:config-loaded))
+    (is-false (matter-bridge-running-p))))
+
+(test matter-init--a-bridge-that-cannot-start-does-not-signal
+  "The startup hook's error is `hab:config-loaded's to log: the house runs without the bridge."
+  (with-fixture bridge-env (:init nil)
+    (matter-init :storage storage :bridge '(:port 0 :family :ipv4 :address "127.0.0.1" :advertise nil
+                                            :no-such-key t))
+    (is-false (hab:config-loaded))
+    (is-false (matter-bridge-running-p))))
+
 (test bridge--items-defined-before-the-bridge-are-published-at-start
   (with-fixture bridge-env (:init nil)
     (house:deflight light-kitchen "Kitchen" (matter-bridge))
     (house:defcontact door "Door" (matter-bridge))
     (is-false (matter-bridge-running-p))
     (matter-init :storage storage :bridge *test-bridge-args*)
+    (is-true (hab:config-loaded))
     (is (equal '(2 3) (%attribute 1 'matter::descriptor 'matter::parts-list)))
     (is (string= "Kitchen" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
     (is (string= "Door" (%attribute 3 'matter::bridged-device-basic-information 'matter::node-label)))
@@ -759,6 +796,7 @@ leaves."
       :position ((matter-bridge :device blind-living)))
     (house:deflight light-kitchen "Kitchen" (matter-bridge))
     (matter-init :storage storage :bridge *test-bridge-args*)
+    (is-true (hab:config-loaded))
     (is (equal '(2 3) (%attribute 1 'matter::descriptor 'matter::parts-list)))
     (is (string= "Blind living room" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
     (is (= 5 (%attribute 2 'matter::window-covering 'matter::feature-map)))

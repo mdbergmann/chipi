@@ -49,7 +49,17 @@ In the body of `defconfig`:
   (matter-init :storage "~/.chipi/matter/"
                :bridge '(:name "Chipi" :passcode 20202021 :discriminator 3840
                          :interface "en0")))
+
+;; ... every item, group, rule ...
+
+(config-loaded)     ; the last form of the file: the bridge starts here
 ```
+
+`matter-init` configures; the bridge starts at `hab:config-loaded`, when
+every item is defined (see *When the bridge starts* below). Without that
+form at the end of the configuration there is no bridge, and the log's last
+word on it is `Matter bridge: configured, starts when the configuration is
+loaded (hab:config-loaded)`.
 
 `:storage` is the directory of the state files, a string (`~/` understood)
 or a pathname, `matter/` in chipi's runtime directory by default; it is
@@ -64,7 +74,7 @@ Both are plain printed Lisp data. `bridge.state` holds private keys: keep the
 directory out of the repository and readable by the Chipi user only, and
 back it up with the rest of the runtime data.
 
-`:bridge` starts the bridge; `t` takes every default. Its keys: `:name` (the
+`:bridge` asks for the bridge; `t` takes every default. Its keys: `:name` (the
 bridge's own name, "Chipi"), `:passcode` (20202021) and `:discriminator`
 (3840) of its commissioning window, `:port` (5540), `:interface` (the one to
 advertise on; default every interface with a routable IPv6 address) and
@@ -81,33 +91,30 @@ so they are the same on every start.
 A shutdown hook calls `matter-shutdown`, which stops the bridge; the state
 files stay for the next start.
 
-###### Where to start the bridge
+###### When the bridge starts
 
-In the `defconfig` is right for a bridge no app has added yet. **Once the
-bridge is paired, start it after the last item definition**: `matter-init`
-needs the environment up, not the `defconfig` around it, so it can be a
-top-level form at the end of the file.
-
-```lisp
-(defconfig "my-home"
-  (knx-init :gw-host "192.168.1.23"))
-
-;; ... every item, group, rule ...
-
-(handler-case
-    (matter-init :storage (asdf:system-relative-pathname :my-home "runtime/matter/")
-                 :bridge (list :name "Chipi" :interface "eth0" :passcode (my-passcode)))
-  (error (c)
-    (log:error "Matter bridge not started: ~a" c)))
-```
+`matter-init` sits in the `defconfig` like `knx-init`, but the two are
+different things: the KNX tunnel is a connection the items need while they
+are defined, the bridge is a server that shows the items to the outside. So
+`matter-init` only registers the bridge's start with `hab:add-to-startup`,
+and `(config-loaded)`, the last form of the configuration, runs it.
 
 The reason: a paired hub is back within a second of the bridge answering,
 and what it then finds is the house as far as the file has loaded. A device
 that is not there yet is one the hub removes, room and automations with it,
 and adds as new a moment later. Started last, the bridge publishes every
-device in one go, each once with all its items. The `handler-case` keeps a
-bridge that cannot start (the port taken, no IPv6) from ending the load of
-the file: the house runs without it.
+device in one go, each once with all its items.
+
+A bridge that cannot start (the port taken, no IPv6) is logged by
+`config-loaded` as `Error on startup hook: ...` and does not end the load of
+the file: the house runs without it. Loading the configuration again on a
+running system leaves a running bridge as it is. `start-bridge` starts one
+at once, for a test or the REPL.
+
+Until binding-matter 0.4.0 `matter-init` started the bridge itself, and a
+paired bridge had to be initialised by hand after the last item. A
+configuration written that way has no bridge after the update until
+`matter-init` is followed by `(config-loaded)`.
 
 ##### Pairing
 
@@ -350,6 +357,9 @@ A start, in this order:
 
 ```
 Matter: state files in /home/chipi/my-home/runtime/matter/
+Matter bridge: configured, starts when the configuration is loaded (hab:config-loaded)
+...
+Configuration loaded, executing startup hooks (1)...
 Matter bridge: published LIGHT-KITCHEN as ON-OFF-LIGHT on endpoint 2 (LIGHT-KITCHEN)
 Matter bridge: published BATH as THERMOSTAT on endpoint 5 (BATH-TEMP, BATH-SETPOINT)
 Matter actor matter-bridge: polling
@@ -379,6 +389,8 @@ And the ones to stop at:
 | Line | Means |
 |---|---|
 | `not advertised over mDNS (...)` | the apps cannot find the bridge: the interface has no usable address or the responder failed (`:interface` wrong?); always so on SBCL |
+| no `Matter bridge Chipi on ...` line after `configured, starts when ...` | the configuration does not end with `(config-loaded)` |
+| `Error on startup hook: ...` (error) | the bridge could not start: the port is taken, the socket could not be opened, a key of `:bridge` is wrong |
 | `cannot publish ...` | a device's items make no sense together, or an item has neither a house kind the bridge knows nor a `:device-type`; `(matter-bridge-devices)` has the reason under `:problem`, and so has the card |
 | `pairing attempt failed: ...` / `session attempt failed: ...` (warn) | a handshake a peer began and did not finish: a wrong code, for one; an app that still holds the bridge after `bridge.state` was deleted would be another -- remove the bridge there and add it again |
 | `Matter actor matter-bridge: error in poll: ...` (warn) | one datagram cl-matter could not handle; the bridge goes on |

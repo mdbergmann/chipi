@@ -21,7 +21,8 @@
 (defconfig "chipi"
   ;; Chipi as a Matter bridge: Apple Home (or Google Home, Alexa) adds it
   ;; with the pairing code logged at start, as an "uncertified accessory",
-  ;; and shows the items below as its devices.
+  ;; and shows the items below as its devices.  This configures the bridge;
+  ;; it starts at `config-loaded', the last form of this file.
   (matter-init :storage "~/.chipi/matter/"
                :bridge '(:name "Chipi" :passcode 20202021 :discriminator 3840
                          :interface "en0")))
@@ -70,6 +71,10 @@
             (future:fcompleted (item:get-value item)
                 (value)
               (format t "Virtual light is now ~a~%" value)))))
+
+;; the configuration is complete: the bridge starts here, with every item
+;; above as its devices, and logs its pairing codes
+(config-loaded)
 
 ;; the codes to type into the Home app, again
 ;; (matter-bridge-pairing-code)

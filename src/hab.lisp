@@ -26,7 +26,9 @@
            #:defrule
            #:defpersistence
            #:shutdown
-           #:add-to-shutdown))
+           #:add-to-shutdown
+           #:config-loaded
+           #:add-to-startup))
 
 (in-package :chipi.hab)
 
@@ -35,6 +37,7 @@
 (defvar *rules* nil "All rules")
 (defvar *persistences* nil "All persistences")
 (defvar *shutdown-hooks* nil "Shutdown hooks for plugins")
+(defvar *startup-hooks* nil "Startup hooks for plugins, newest first; `config-loaded' runs them.")
 
 (defun get-itemgroup (id)
   "Returns the itemgroup with `id' if exists, `nil' otherwise."
@@ -115,7 +118,8 @@ It will start the environment if it is not already started.
 It is re-entrant, so it can be called multiple times.
 But if environment is already configured/started it does nothing.
 It also will setup items, rules and persistences storages.
-The parameter `system' defines the CL system root folder for runtime files."
+The parameter `system' defines the CL system root folder for runtime files.
+What a plugin registered with `add-to-startup' in `BODY' waits for `config-loaded', the form that closes the configuration."
   `(progn
      (log:info "Using system: ~a as root" ,system)
      (envi:ensure-env ,system)
@@ -128,6 +132,7 @@ The parameter `system' defines the CL system root folder for runtime files."
      (unless *persistences*
        (setf *persistences* (make-hash-table :test #'eq)))
      (setf *shutdown-hooks* nil)
+     (setf *startup-hooks* nil)
      (defitemgroup 'ch-default "Default")
      ,@body))
 
@@ -147,10 +152,30 @@ The parameter `system' defines the CL system root folder for runtime files."
   (when *rules* (clrhash *rules*))
   (when *persistences* (clrhash *persistences*))
   (when *shutdown-hooks* (setf *shutdown-hooks* nil))
+  (setf *startup-hooks* nil)
   :ok)
 
 (defun add-to-shutdown (fun)
   (push fun *shutdown-hooks*))
+
+(defun add-to-startup (fun)
+  "Registers `FUN', a function of no arguments, to be called by `config-loaded': when every item, group, rule and persistence of the configuration is defined.
+For what presents the house to the outside and must not present half of it -- a plugin's init function, called in `defconfig', registers here what has to wait. `FUN' may be called again, when the configuration is loaded again on a running system, and has to cope with that."
+  (push fun *startup-hooks*)
+  t)
+
+(defun config-loaded ()
+  "Says that the configuration is complete: to be the last form of a configuration file. Calls the startup hooks (`add-to-startup') in the order they were registered.
+A hook that signals an error is logged and the others still run: one plugin that cannot start does not end the load of the configuration. Returns T when every hook returned, NIL when one failed."
+  (let ((hooks (reverse *startup-hooks*))
+        (all-ok t))
+    (log:info "Configuration loaded, executing startup hooks (~a)..." (length hooks))
+    (dolist (hook hooks)
+      (handler-case (funcall hook)
+        (error (c)
+          (setf all-ok nil)
+          (log:error "Error on startup hook: ~a" c))))
+    all-ok))
 
 (defmacro defitemgroup (id label &rest body)
   "Defines an itemgroup.

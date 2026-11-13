@@ -286,8 +286,15 @@ system does nothing harmful.
 
 Anything that needs the environment up — `api-env:init`, `api:start`,
 `ui:start`, `knx-init`, `matter-init`, `event-log:ensure-event-log` — goes
-into its body.
-Items, persistences and rules follow after it as top-level forms.
+into its body. Items, persistences and rules follow after it as top-level
+forms.
+
+A configuration may end with `(config-loaded)`. It says that every item,
+group and rule is defined, and runs what plugins registered to wait for
+that with `add-to-startup` — things that present the house to the outside
+and must not present half of it. The Matter binding starts its bridge
+there; without a plugin that waits, the form does nothing and can be left
+out. A startup hook that fails is logged and the others still run.
 
 The `hab` package also offers a small runtime API for use in rules and at the
 REPL:
@@ -300,6 +307,8 @@ REPL:
 | `(set-item-value 'id value &key push persist timestamp)` | Set an item; `:push nil` skips the bindings, `:push :always` pushes also an unchanged value, `:persist nil` skips persistences |
 | `(get-persistence :id)`, `(get-rule "name")` | Look up persistences and rules |
 | `(add-to-shutdown fn)` | Register a function called by `shutdown` |
+| `(add-to-startup fn)` | Register a function called by `config-loaded`; for plugins |
+| `(config-loaded)` | The last form of a configuration: runs the startup hooks in the order they were registered |
 | `(shutdown)` | Stop everything: hooks, actors, timers, cron |
 
 ### Items
@@ -865,7 +874,14 @@ as a device — next to whatever binding connects it to the house:
   :temperature ((knx-binding :ga "0/4/17" :dpt "9.001") (matter-bridge :device bath))
   :setpoint    ((knx-binding :ga '(:read "0/5/19" :write "0/5/18") :dpt "9.001")
                 (matter-bridge :device bath)))
+
+(config-loaded)          ; the last form: the bridge starts here
 ```
+
+`matter-init` configures the bridge and `(config-loaded)` starts it, with
+every item defined: an app that has already added the bridge is back the
+moment it answers, and takes every device that is not defined yet for one
+that was removed — room, name and automations go with it.
 
 The [house kind](#house-devices) of an item decides what the app shows: a
 `deflight` is a light, a `defplug` a plug, a `defcontact` a contact sensor, a
@@ -892,7 +908,11 @@ For most devices a function binding with `:pull`/`:push` lambdas is all that
 is needed — HTTP via Drakma, a serial port, a shell command, py4cl. A reusable
 binding for a protocol is a subclass of `binding:binding` that creates a
 `binding` instance with its own pull/push functions and keeps its connection
-state; the KNX binding is the reference implementation.
+state; the KNX binding is the reference implementation. Its init function,
+called in the `defconfig`, registers its cleanup with `hab:add-to-shutdown`,
+and with `hab:add-to-startup` whatever must wait until the configuration is
+loaded (`config-loaded`); a startup function may be called again when the
+configuration is loaded again on a running system.
 
 Two generic functions are there for a binding class to specialize:
 

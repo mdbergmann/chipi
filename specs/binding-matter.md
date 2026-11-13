@@ -876,8 +876,12 @@ After the phases, the bench and the first days of production
   subscription: the bridge grants at most 60 s
   (`*bridge-max-report-interval*`, binding-matter 0.3.2), and logs
   sessions, subscriptions and failed handshakes.
-- In production the bridge starts after the last item definition, not in
-  the `defconfig`: a paired hub that finds half a house removes the rest.
+- The bridge starts when the configuration is loaded, not in the
+  `defconfig`: a paired hub that finds half a house removes the rest.
+  First by calling `matter-init` after the last item; since chipi 0.9.6 and
+  binding-matter 0.4.0 `matter-init` stays in the `defconfig` and registers
+  the start with `hab:add-to-startup`, which `(hab:config-loaded)` at the
+  end of the file runs.
 - Runs on AmiLisp only; the SBCL backend of cl-matter still lacks IPv6 and
   mDNS.
 
