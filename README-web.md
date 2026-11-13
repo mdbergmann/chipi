@@ -500,8 +500,10 @@ into its settings.
 
 ### Sections from plugins
 
-A plugin can add a view of its own under the settings -- the Matter binding
-adds *Share with other apps*, with the bridge's pairing QR code. It registers
+A plugin can add a view of its own under the settings -- the
+[Matter binding](bindings/matter/README.md) adds *Share with other apps*,
+with the bridge's pairing QR code, the apps that added the bridge and the
+bridged devices (load `binding-matter/ui` next to `chipi-ui`). It registers
 a section:
 
 ```lisp

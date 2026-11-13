@@ -1,7 +1,10 @@
 # Matter Binding Plugin — Plan
 
-Status: plan, 2026-11-08; the bridge role is being built (B0 to B3 done,
-2026-11-09, `bindings/matter/`), the controller role not started.
+Status: plan, 2026-11-08. The bridge role (section 9) is built and in
+production: B0 to B3 done 2026-11-09, proven against Apple Home on the bench
+2026-11-10, in the house since 2026-11-11, reachability (the first half of
+B4) since 2026-11-12. What it is now, as opposed to what was planned, is in
+`bindings/matter/README.md`. The controller role is not started.
 cl-matter lives at `../cl-matter`; its README describes its state.
 
 ## 1. Role and shape
@@ -854,7 +857,35 @@ without re-pairing, as it does for a new Hue bulb.
 | B1 | `matter-bridge` binding for the single-item kinds (light, plug, contact, temperature), the endpoint-id map, the bridge actor next to the controller actor (done 2026-11-09: `bindings/matter/`, system `binding-matter`; `matter-init :bridge`, `matter-bridge`, `matter-bridge-pairing-code`; the pinned poll actor of section 3.2 as `make-matter-actor`) | a KNX light switched from the Home app and the Home app following the wall switch. So far: cl-matter's commissioner commissions the bridge over loopback UDP in `binding-matter-integtest.lisp`, switches the light and reads the item back; the Home app on the bench is still to do |
 | B2 | composed devices: `:device`, shutter and heating (done 2026-11-09: `matter-bridge :device`, a Window Covering from the shutter channels, a heating-only Thermostat from temperature and setpoint; cl-matter got the two clusters and `attribute-write-handler`, the hook a peer's write runs; the Dimmable Light row and the `:mode` item of the Thermostat are still open) | the living-room blind and the bath heating in Apple Home -- the tests stand in so far, the bench is still to do |
 | B3 | UI card *Share with other apps*, QR image, admins; REPL functions (done 2026-11-09: `ui-settings:register-section` in chipi-ui, `binding-matter/ui`, `qr-code.lisp`, `matter-bridge-open-window` and friends) | pairing from the wall tablet's QR -- the card renders in the tests, the tablet is the bench step still to do |
-| B4 | reachability from the KNX tunnel state; pulse kind | lights grey out in Apple Home while the gateway is down |
+| B4 | reachability from the KNX tunnel state (done 2026-11-12, chipi 0.9.5, binding-knx 0.4.5, binding-matter 0.3.3: `binding:binding-reachable-p`, `binding:reachability-changed-event`, the bridge sets `Reachable` from the other bindings of a device's items); pulse kind (open) | lights grey out in Apple Home while the gateway is down |
+
+After the phases, the bench and the first days of production
+(2026-11-10 to 12; the bench protocol is cl-eta's `BENCH-MATTER.md`):
+
+- Apple Home pairs with the manual code and controls light, blind,
+  thermostat and contact. It sends AddNOC's ICAC empty instead of leaving
+  it out (fixed in cl-matter e3a6ec7) and adds two fabrics, vendors #x1349
+  and #x1384.
+- The bridge mirrors items by `item:item-changed-event`, not by push: a
+  value a KNX telegram brings in is set with `:push nil` and reached no
+  bridge binding (binding-matter 0.3.1). Section 9.3's "a push becomes an
+  attribute change" holds only for repeated move and stop commands.
+- A device published while a hub is subscribed did not appear in the app:
+  cl-matter now reports every attribute of a new endpoint (77a14c6).
+- A restarted bridge was stale in the app for ten minutes, Apple's 600 s
+  subscription: the bridge grants at most 60 s
+  (`*bridge-max-report-interval*`, binding-matter 0.3.2), and logs
+  sessions, subscriptions and failed handshakes.
+- In production the bridge starts after the last item definition, not in
+  the `defconfig`: a paired hub that finds half a house removes the rest.
+- Runs on AmiLisp only; the SBCL backend of cl-matter still lacks IPv6 and
+  mDNS.
+
+Still open in the bridge role: the pulse kind, the Dimmable Light row, the
+Thermostat's mode item, the pairing window after the last administrator is
+removed (closed until opened by hand or a restart), vendor #x1384 in the
+card's vendor names, the QR path from the tablet (paired with the manual
+code so far), a second app and its removal on the real network.
 
 B0 and B1 can run in parallel with phases 1–3 of the controller role; they
 touch different parts of cl-matter and share only the actor scaffolding and

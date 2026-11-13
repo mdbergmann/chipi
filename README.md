@@ -285,7 +285,8 @@ runtime data live there. It is re-entrant: evaluating it again on a running
 system does nothing harmful.
 
 Anything that needs the environment up — `api-env:init`, `api:start`,
-`ui:start`, `knx-init`, `event-log:ensure-event-log` — goes into its body.
+`ui:start`, `knx-init`, `matter-init`, `event-log:ensure-event-log` — goes
+into its body.
 Items, persistences and rules follow after it as top-level forms.
 
 The `hab` package also offers a small runtime API for use in rules and at the
@@ -844,6 +845,47 @@ writes, and can verify a write by reading the actuator's status back:
 The plugin lives in `bindings/knx/` and is loaded as its own ASDF system
 (`binding-knx`); see its README for setup, DPTs and the verify policy.
 
+### Matter
+
+The [Matter binding](bindings/matter/README.md) makes Chipi a Matter
+**bridge**: Apple Home, Google Home or Alexa add Chipi once, with a pairing
+code, and every item that carries a `matter-bridge` binding shows up there
+as a device — next to whatever binding connects it to the house:
+
+```lisp
+(defconfig "chipi"
+  (knx-init :gw-host "192.168.1.23")
+  (matter-init :bridge '(:name "Chipi" :interface "eth0")))
+
+(deflight light-kitchen "Kitchen"
+  (knx-binding :ga "1/2/3" :dpt "1.001")
+  (matter-bridge))
+
+(defheating bath "Bath"
+  :temperature ((knx-binding :ga "0/4/17" :dpt "9.001") (matter-bridge :device bath))
+  :setpoint    ((knx-binding :ga '(:read "0/5/19" :write "0/5/18") :dpt "9.001")
+                (matter-bridge :device bath)))
+```
+
+The [house kind](#house-devices) of an item decides what the app shows: a
+`deflight` is a light, a `defplug` a plug, a `defcontact` a contact sensor, a
+temperature a temperature sensor; the channels of a `defrollershutter` make
+one window covering and the temperature and setpoint of a `defheating` one
+thermostat. The app's switch sets the item, so the item's other bindings
+carry the command out, and the app follows the wall switch. A device is
+shown as unreachable while the connection behind its items is down (the KNX
+tunnel, say), and with chipi-ui a *Share with other apps* card in the
+settings shows the pairing QR code, the apps that added the bridge and the
+bridged devices.
+
+The plugin lives in `bindings/matter/` (systems `binding-matter` and
+`binding-matter/ui`) and builds on
+[cl-matter](https://github.com/mdbergmann/cl-matter), a Matter
+implementation in Common Lisp that is not on Quicklisp or OCICL yet. Matter
+needs IPv6 and mDNS, which cl-matter has on AmiLisp today and not yet on
+SBCL; see the plugin's README for setup, pairing, where in the configuration
+to start the bridge, its log and its limits.
+
 ### Writing your own
 
 For most devices a function binding with `:pull`/`:push` lambdas is all that
@@ -851,6 +893,22 @@ is needed — HTTP via Drakma, a serial port, a shell command, py4cl. A reusable
 binding for a protocol is a subclass of `binding:binding` that creates a
 `binding` instance with its own pull/push functions and keeps its connection
 state; the KNX binding is the reference implementation.
+
+Two generic functions are there for a binding class to specialize:
+
+- **`binding:bind-item`** `(binding item)` is called once the item holds the
+  binding. A binding that needs its item — its name, its tags — learns it in
+  an `:after` method; the Matter binding reads the item's house kind there.
+- **`binding:binding-reachable-p`** `(binding)` says whether what the binding
+  talks to — a gateway, a bus, a device — can be reached right now. The
+  default is true; the KNX binding answers with the state of its tunnel. A
+  binding whose answer changes calls `(binding:publish-reachability-changed)`
+  when its connection came or went, which publishes a
+  `binding:reachability-changed-event` on the event stream. The event names
+  no binding: whoever shows or forwards items subscribes to it
+  (`ev:subscribe`) and asks the bindings of the items it cares about again,
+  `(item:bindings item)`. That is how the Matter bridge tells a value that is
+  current from one that is only the last one heard.
 
 ---
 
@@ -862,6 +920,7 @@ src/api/            chipi-api: controllers, API-key store, SSE
 src/ui/             chipi-ui: defpage DSL, widgets, renderer, settings
 ui/static-files/    CSS, icons, vendored jQuery/Bootstrap/uPlot (no internet needed)
 bindings/knx/       KNX binding plugin with its own README and tests
+bindings/matter/    Matter binding plugin (Chipi as a Matter bridge) with its own README and tests
 test/, test/api/, test/ui/   FiveAM test suites
 example-web.lisp    runnable demo configuration (UI + API)
 chipi-api.yaml      OpenAPI 3.0 spec of the REST API

@@ -56,6 +56,10 @@ Optionally specify a port via `:gw-port` which defaults to 3671 (the default KNX
 
 To shutdown the KNX environment it is possible to call `knx-destroy` (i.e. for testing stuff).
 
+##### Reachability
+
+A `knx-binding` answers `binding:binding-reachable-p` with the state of the tunnel to the gateway: true while it is established. The plugin publishes a `binding:reachability-changed-event` when the tunnel comes up at `knx-init`, when the connection is lost and when it is re-established. Whoever shows or forwards the items can follow that; the [Matter binding](../matter/README.md) does, and marks the bridged devices of KNX-bound items as unreachable in Apple Home or Google Home while the gateway is down.
+
 ##### The binding
 
 To connect items to KNX bus GAs (group-addresses) you do like this:
