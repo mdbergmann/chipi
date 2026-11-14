@@ -886,10 +886,11 @@ After the phases, the bench and the first days of production
   mDNS.
 
 Still open in the bridge role: the pulse kind, the Dimmable Light row, the
-Thermostat's mode item, the pairing window after the last administrator is
-removed (closed until opened by hand or a restart), vendor #x1384 in the
-card's vendor names, the QR path from the tablet (paired with the manual
-code so far), a second app and its removal on the real network.
+Thermostat's mode item, the QR path from the tablet (paired with the manual
+code so far), a second app and its removal on the real network. (The
+pairing window now opens again when the last administrator is removed --
+cl-matter -- and the card names vendor #x1384 "Apple Keychain"; both
+since binding-matter 0.4.1, not yet seen on the real network.)
 
 B0 and B1 can run in parallel with phases 1–3 of the controller role; they
 touch different parts of cl-matter and share only the actor scaffolding and

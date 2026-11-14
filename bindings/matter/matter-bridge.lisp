@@ -867,7 +867,7 @@ Returns the manual pairing code and the text of the QR code, as `matter-bridge-p
                       (t t))))))
 
 (defun matter-bridge-admins ()
-  "The apps that added the bridge -- its administrators, one plist per fabric: `:fabric-index' (what `matter-bridge-remove-admin' takes), `:label' (the name the app gave its fabric, or \"\"), `:vendor-id' (the app's vendor: Apple #x1349, Google #x6006, Amazon #x1217, Samsung #x10E1), `:fabric-id' and `:node-id' (the bridge's id in that fabric)."
+  "The apps that added the bridge -- its administrators, one plist per fabric: `:fabric-index' (what `matter-bridge-remove-admin' takes), `:label' (the name the app gave its fabric, or \"\"), `:vendor-id' (the app's vendor: Apple #x1349 and #x1384, Google #x6006, Amazon #x1217, Samsung #x10E1), `:fabric-id' and `:node-id' (the bridge's id in that fabric)."
   (%bridge-call (lambda ()
                   (mapcar (lambda (fabric)
                             (list :fabric-index (matter:fabric-index fabric)

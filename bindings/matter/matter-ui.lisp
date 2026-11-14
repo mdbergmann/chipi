@@ -27,8 +27,9 @@
   "How long the pairing window stays open when opened from the card: the most Matter allows.")
 
 (defparameter *vendor-names*
-  '((#x1349 . "Apple") (#x6006 . "Google") (#x1217 . "Amazon") (#x10E1 . "Samsung SmartThings"))
-  "The apps one meets, by the vendor id their fabric carries.")
+  '((#x1349 . "Apple") (#x1384 . "Apple Keychain") (#x6006 . "Google") (#x1217 . "Amazon")
+    (#x10E1 . "Samsung SmartThings"))
+  "The apps one meets, by the vendor id their fabric carries. Apple Home comes as two: its own fabric and the one of the iCloud keychain, #x1384.")
 
 (defparameter *device-type-names*
   '((:on-off-light . "On/Off Light") (:on-off-plug-in-unit . "On/Off Plug-in Unit")

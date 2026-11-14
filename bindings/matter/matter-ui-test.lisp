@@ -50,6 +50,7 @@
   (is (string= "123" (ui::%format-manual-code "123")))
   (is (string= "Apple Home" (ui::%admin-name '(:label "Apple Home" :vendor-id #x1349))))
   (is (string= "Apple" (ui::%admin-name '(:label "" :vendor-id #x1349))))
+  (is (string= "Apple Keychain" (ui::%admin-name '(:label "" :vendor-id #x1384))))
   (is (string= "Google" (ui::%admin-name '(:label "" :vendor-id #x6006))))
   (is (string= "App with vendor id 0xBEEF" (ui::%admin-name '(:label "" :vendor-id #xBEEF))))
   (is (string= "On/Off Light" (ui::%device-type-name :on-off-light)))

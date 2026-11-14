@@ -938,8 +938,12 @@ closes its manager when stopped."
         (is (= 7 (getf admin :node-id)))
         (is-false (matter-bridge-remove-admin 9))
         (is (= 1 (length (matter-bridge-admins))))
+        ;; commissioned, the window is closed; with the last administrator gone it opens again
+        (matter-bridge-close-window)
+        (is-false (matter-bridge-window-open-p))
         (is-true (matter-bridge-remove-admin (getf admin :fabric-index)))
         (is (equal '() (matter-bridge-admins)))
+        (is-true (matter-bridge-window-open-p))
         (signals error (matter-bridge-remove-admin "1"))))))
 
 (test sharing--devices-as-the-apps-see-them

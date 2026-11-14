@@ -134,7 +134,8 @@ credentials, so Apple Home calls it an *Uncertified Accessory* and offers
 
 The log then says `Matter bridge: commissioned into fabric ... as node ...
 (index 1)`. Apple Home adds itself twice, as two fabrics: one of vendor id
-`#x1349` labelled "Home" and one of vendor id `#x1384`. Both belong to the
+`#x1349` labelled "Home" and one of vendor id `#x1384`, the iCloud
+keychain's ("Apple Keychain" on the card). Both belong to the
 one home, and `matter-bridge-admins` and the card list both.
 
 Once commissioned, the window closes. To add the bridge to a second app --
@@ -152,10 +153,10 @@ another home, Google Home next to Apple Home -- open it again:
 The window opened this way takes the bridge's own passcode, so the codes
 above stay what they were.
 
-The window opens by itself only at a start that finds no administrator.
-After the last one was removed -- with `matter-bridge-remove-admin`, or by
-removing the bridge in the app -- it stays closed until
-`matter-bridge-open-window` or the next start.
+The window opens by itself whenever the bridge has no administrator: at a
+start that finds none, and when the last one is removed -- with
+`matter-bridge-remove-admin`, or by removing the bridge in the app. It then
+stays open until an app adds the bridge.
 
 ##### The card in chipi-ui: Share with other apps
 
@@ -406,8 +407,6 @@ the TXT; `_matter._tcp` shows one instance per fabric once it is paired.
 - **Thermostat mode.** Off and Heat are accepted and logged; a `defheating`
   has no item that takes them, so nothing happens in the house and the app
   may show the mode snapping back.
-- **The pairing window after the last app is gone** stays closed until it
-  is opened by hand or Chipi restarts (above).
 - **Dimmable lights and the pulse kind**: only the device types of the
   table are published.
 - **Certification.** The bridge presents the SDK's test attestation
