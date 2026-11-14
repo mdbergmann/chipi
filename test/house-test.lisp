@@ -422,7 +422,8 @@ are errors when the form is expanded."
               :temperature ((hab:binding :pull (lambda () 21.5) :initial-delay 0.1)
                             :group '(living))
               :setpoint ()
-              :valve (:group '(living)))))
+              :valve (:group '(living))
+              :mode ())))
     (flet ((check (id label type-hint value kind)
              (let ((item (hab:get-item id)))
                (is-true item)
@@ -432,7 +433,8 @@ are errors when the form is expanded."
                (is (eq kind (%kind id))))))
       (check 'heat-a-temp "Living Temperature" 'float 0.0 :temperature)
       (check 'heat-a-setpoint "Living Setpoint" 'float 0.0 :setpoint)
-      (check 'heat-a-valve "Living Valve" 'integer 0 :valve))
+      (check 'heat-a-valve "Living Valve" 'integer 0 :valve)
+      (check 'heat-a-mode "Living Mode" 'integer 0 :mode))
     (let ((in-living (hab:get-items-on-group 'living)))
       (is-true (member (hab:get-item 'heat-a-temp) in-living))
       (is-true (member (hab:get-item 'heat-a-valve) in-living))
@@ -451,7 +453,8 @@ are errors when the form is expanded."
     (is (eq :temperature (%kind 'temp-heat-b)))
     (is-false (hab:get-item 'heat-b-temp))
     (is-false (hab:get-item 'heat-b-setpoint))
-    (is-false (hab:get-item 'heat-b-valve))))
+    (is-false (hab:get-item 'heat-b-valve))
+    (is-false (hab:get-item 'heat-b-mode))))
 
 ;; -----------------------------
 ;; rules

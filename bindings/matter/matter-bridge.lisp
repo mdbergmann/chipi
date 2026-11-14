@@ -158,6 +158,10 @@ text, while it is not."
           :initform nil
           :reader binding-label
           :documentation "The NodeLabel administrators show for the device, or NIL for the items' label.")
+   (modes :initarg :modes
+          :initform nil
+          :reader binding-modes
+          :documentation "For the mode item of a thermostat: the plist (:off <n> :heat <m>) of the item's numbers for the two system modes, or NIL for `*heating-modes*'.")
    (item :initform nil
          :accessor binding-item
          :documentation "The item, once `bind-item' gave it.")
@@ -273,6 +277,12 @@ text, while it is not."
     (item:set-value (binding-item binding) value :push push)
     t))
 
+(defun %device-modes (device)
+  "The numbers `DEVICE's mode item holds for Off and Heat: its binding's `:modes', else `*heating-modes*'."
+  (or (when-let ((binding (%member device :mode)))
+        (binding-modes binding))
+      *heating-modes*))
+
 (defun %move-shutter (device direction)
   "Actor context, from a Window Covering command: moves the shutter `DEVICE' in `DIRECTION' (:open, :close, :stop) through its move and stop items, or through its position item when it has no move item."
   (log:info "Matter bridge: ~a ~a" direction (bridged-device-name device))
@@ -335,10 +345,19 @@ text, while it is not."
                                 (declare (ignore cluster))
                                 (log:info "Matter bridge: ~a setpoint ~a" name (heating-setpoint->item-setpoint hundredths))
                                 (%set-member device :setpoint (heating-setpoint->item-setpoint hundredths)))
+          ;; with a mode item the heating can be switched off; without one it
+          ;; heats, and the cluster refuses Off
+          :system-mode (if (%member device :mode)
+                           (item-mode->system-mode (%member-value device :mode) (%device-modes device))
+                           +system-mode-heat+)
+          :system-modes (if (%member device :mode)
+                            (list +system-mode-off+ +system-mode-heat+)
+                            (list +system-mode-heat+))
           :on-system-mode-change (lambda (cluster mode)
                                    (declare (ignore cluster))
-                                   ;; a `house:defheating' has no mode item: noted, not acted on
-                                   (log:info "Matter bridge: ~a system mode ~a (no item takes it)" name mode))))))))
+                                   (let ((value (system-mode->item-mode mode (%device-modes device))))
+                                     (log:info "Matter bridge: ~a system mode ~a, mode ~a" name mode value)
+                                     (%set-member device :mode value)))))))))
 
 (defun %publish-device (bridge device)
   "Actor context. Adds the bridged endpoint of `DEVICE' to the bridge's node and remembers it on the device.
@@ -504,7 +523,8 @@ Returns the endpoint; a device the bridge cannot publish is an error, and the de
       (:thermostat
        (ecase (binding-kind binding)
          (:temperature (%set-attribute cluster :local-temperature (item-temperature->measured-value value)))
-         (:setpoint (%set-attribute cluster :occupied-heating-setpoint (item-setpoint->heating-setpoint value))))))))
+         (:setpoint (%set-attribute cluster :occupied-heating-setpoint (item-setpoint->heating-setpoint value)))
+         (:mode (%set-attribute cluster :system-mode (item-mode->system-mode value (%device-modes device)))))))))
 
 ;; How an item's value gets to its attribute.  The bridge mirrors the items,
 ;; whoever changed them: a value another binding brought in -- a KNX
@@ -610,23 +630,27 @@ The event does not carry the new value, so it is read from the item here, off th
         `(make-matter-bridge-binding ,@(subseq args 0 position) :device ',device ,@(subseq args (+ 2 position))))
       `(make-matter-bridge-binding ,@args)))
 
-(defun make-matter-bridge-binding (&rest other-args &key device device-type label &allow-other-keys)
+(defun make-matter-bridge-binding (&rest other-args &key device device-type label modes &allow-other-keys)
   "Creates a `matter-bridge-binding', as `matter-bridge' does, `DEVICE' evaluated.
 
-`DEVICE': a symbol naming the device several items make up; the items whose bindings name it are one bridged device, by their house kinds: the channels of a `house:defrollershutter' a Window Covering, the temperature and setpoint of a `house:defheating' a Thermostat. Without it the item is a device by itself.
+`DEVICE': a symbol naming the device several items make up; the items whose bindings name it are one bridged device, by their house kinds: the channels of a `house:defrollershutter' a Window Covering, the temperature, setpoint and mode of a `house:defheating' a Thermostat. Without it the item is a device by itself.
 `DEVICE-TYPE': what the device is published as, one of `:on-off-light', `:on-off-plug-in-unit', `:contact-sensor', `:temperature-sensor', `:window-covering', `:thermostat'. Without it the house kinds decide: `house:deflight' is an On/Off Light, `defplug' an On/Off Plug-in Unit, `defcontact' a Contact Sensor and a temperature on its own a Temperature Sensor. A device with neither is logged and not published.
 `LABEL': the name administrators show for the device; default the item's label, or what the labels of a device's items begin with in common.
+`MODES': on the mode item of a Thermostat, the item's numbers for the app's two modes, a plist (:off <n> :heat <m>); default `*heating-modes*', KNX's building protection and comfort. Off in the app sets the item to the one, Heat to the other; the item reads as Off while it holds the `:off' number and as Heat otherwise. A Thermostat without a mode item heats and refuses Off.
 The item's value goes to the device's attribute on every change, and a command from an administrator sets the item -- with push, so a KNX binding on the same item writes it to the bus.
 The other keys go to the base binding; `:call-push-p' is T by default."
   (check-type device symbol)
   (when device-type
     (device-type-spec device-type))
+  (when modes
+    (check-heating-modes modes))
   (let ((binding (apply #'make-instance 'matter-bridge-binding
                         :device device
                         :device-type device-type
                         :label label
+                        :modes modes
                         :call-push-p (getf other-args :call-push-p t)
-                        (remove-from-plist other-args :device :device-type :label :call-push-p))))
+                        (remove-from-plist other-args :device :device-type :label :modes :call-push-p))))
     (setf (slot-value binding 'binding::push-fun) (%make-push-fun binding))
     (%register-bridge-binding binding)
     binding))

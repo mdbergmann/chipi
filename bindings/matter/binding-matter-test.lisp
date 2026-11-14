@@ -160,7 +160,8 @@ device type from the item unless told, and is known to the module."
   (is (null (binding-matter::device-type-of-kinds '(:light :plug))))
   (is (null (binding-matter::device-type-of-kinds '(:valve))))
   (is (null (binding-matter::device-type-of-kinds '())))
-  (is (equal '(:temperature :setpoint) (binding-matter::composed-device-kinds :thermostat)))
+  (is (eq :thermostat (binding-matter::device-type-of-kinds '(:temperature :setpoint :mode))))
+  (is (equal '(:temperature :setpoint :mode) (binding-matter::composed-device-kinds :thermostat)))
   (is (null (binding-matter::composed-device-kinds :on-off-light))))
 
 (test convert--values
@@ -714,9 +715,65 @@ administrator writes or steps reaches the setpoint item."
       ;; and steps it by half a degree
       (%invoke 2 'matter::thermostat 0 (matter:tlv nil :structure (list (matter:tlv 0 :unsigned 0) (matter:tlv 1 :signed 5))))
       (is-true (await-cond 2 (eql 24.0 (%item-value 'bath-setpoint))))
-      ;; the mode is taken note of, nothing more
+      ;; no mode item: the heating heats, and Off is refused
+      (is (= 4 (%attribute 2 'matter::thermostat 'matter::system-mode)))
+      (signals matter:interaction-error
+        (%write 2 'matter::thermostat #x1C (matter:tlv nil :unsigned 0)))
+      (is (= 4 (%attribute 2 'matter::thermostat 'matter::system-mode))))))
+
+(test convert--heating-modes
+  (let ((modes '(:off 4 :heat 1)))
+    (is (= 0 (binding-matter::item-mode->system-mode 4 modes)))
+    (is (= 4 (binding-matter::item-mode->system-mode 1 modes)))
+    (is (= 4 (binding-matter::item-mode->system-mode 3 modes)))   ; night still heats
+    (is (= 4 (binding-matter::item-mode->system-mode nil modes)))
+    (is (= 4 (binding-matter::system-mode->item-mode 0 modes)))
+    (is (= 1 (binding-matter::system-mode->item-mode 4 modes))))
+  (is (equal '(:off 0 :heat 7) (binding-matter::check-heating-modes '(:off 0 :heat 7))))
+  (signals error (binding-matter::check-heating-modes '(:off 1)))
+  (signals error (binding-matter::check-heating-modes '(:off 1 :heat 1)))
+  (signals error (make-matter-bridge-binding :modes '(:off "a" :heat 1))))
+
+(test bridge--heating-mode-is-the-system-mode
+  "The mode item of a `defheating' is the Thermostat's system mode: Off
+and Heat in the app set the item to its numbers for them, with push, and
+the item reads as Off while it holds the off number."
+  (with-fixture bridge-env ()
+    (let ((pushed '()))
+      (house:defheating bath "Bath"
+        :setpoint ((matter-bridge :device bath))
+        :mode ((binding:make-function-binding :push (lambda (value) (push value pushed)))
+               (matter-bridge :device bath)))
+      (house:defheating hall "Hall"
+        :setpoint ((matter-bridge :device hall))
+        :mode ((matter-bridge :device hall :modes '(:off 0 :heat 2))
+               :initial-value 0))
+      ;; KNX's numbers by default: 4 building protection is Off, the others heat
+      (is (= 4 (%attribute 2 'matter::thermostat 'matter::system-mode)))
       (%write 2 'matter::thermostat #x1C (matter:tlv nil :unsigned 0))
-      (is (= 0 (%attribute 2 'matter::thermostat 'matter::system-mode))))))
+      (is-true (await-cond 2 (eql 4 (%item-value 'bath-mode))))
+      (is-true (await-cond 2 (equal '(4) pushed)))
+      (%in-bridge (lambda () t))
+      (is (= 0 (%attribute 2 'matter::thermostat 'matter::system-mode)))
+      (%write 2 'matter::thermostat #x1C (matter:tlv nil :unsigned 4))
+      (is-true (await-cond 2 (eql 1 (%item-value 'bath-mode))))
+      (is-true (await-cond 2 (equal '(1 4) pushed)))
+      ;; Cool is nothing a heating does
+      (signals matter:interaction-error
+        (%write 2 'matter::thermostat #x1C (matter:tlv nil :unsigned 3)))
+      ;; the item reports: night heats, building protection is Off
+      (hab:set-item-value 'bath-mode 3)
+      (is-true (await-cond 2 (eql 3 (%item-value 'bath-mode))))
+      (%in-bridge (lambda () t))
+      (is (= 4 (%attribute 2 'matter::thermostat 'matter::system-mode)))
+      (hab:set-item-value 'bath-mode 4)
+      (is-true (await-cond 2 (eql 0 (%attribute 2 'matter::thermostat 'matter::system-mode))))
+      ;; the binding's own numbers
+      (is (= 0 (%attribute 3 'matter::thermostat 'matter::system-mode)))
+      (%write 3 'matter::thermostat #x1C (matter:tlv nil :unsigned 4))
+      (is-true (await-cond 2 (eql 2 (%item-value 'hall-mode))))
+      (%write 3 'matter::thermostat #x1C (matter:tlv nil :unsigned 0))
+      (is-true (await-cond 2 (eql 0 (%item-value 'hall-mode)))))))
 
 (test bridge--device-items-join-and-leave
   "A device is published afresh as items join and leave it: a temperature

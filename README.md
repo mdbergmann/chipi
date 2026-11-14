@@ -672,9 +672,10 @@ slat follow the shutter if their bindings report them.
 | `:temperature` | `NAME-temp` | float, measured temperature | `:temperature` |
 | `:setpoint` | `NAME-setpoint` | float, temperature asked for | `:setpoint` |
 | `:valve` | `NAME-valve` | integer, valve opening in % | `:valve` |
+| `:mode` | `NAME-mode` | integer, the controller's operating mode, as `defmode` | `:mode` |
 
 A part is labelled with the device label followed by "Stop", "Position",
-"Slat", "Temperature", "Setpoint" or "Valve". On top of the `defitem` body a
+"Slat", "Temperature", "Setpoint", "Valve" or "Mode". On top of the `defitem` body a
 part takes `:label` to replace that, and `:id` — an unquoted symbol — to
 replace its id.
 

@@ -265,8 +265,25 @@ A Thermostat has the local temperature from the temperature item and the
 heating setpoint from the setpoint item, 5 to 35 degrees; a setpoint
 written or stepped in the app sets the setpoint item with push, so the KNX
 binding writes it to the bus. The valve stays at home: Matter's Thermostat
-has none. The system mode (Off, Heat) is accepted and logged; a
-`defheating` has no item that takes it.
+has none.
+
+The system mode -- Off and Heat in the app -- is the mode item of the
+`defheating`, if it has one in the device:
+
+```lisp
+(defheating bath "Bath"
+  :setpoint ((knx-binding ...) (matter-bridge :device bath))
+  :mode     ((knx-binding :ga "0/6/2" :dpt "20.102")
+             (matter-bridge :device bath)))          ; :modes '(:off 4 :heat 1) by default
+```
+
+Off sets the item to its `:off` number and Heat to its `:heat` number, with
+push; the item reads as Off while it holds the `:off` number and as Heat
+with any other, so standby and night still show as heating. The defaults
+are KNX's HVAC mode (DPT 20.102): 4, building protection, and 1, comfort;
+`:modes` on the mode item's `matter-bridge` gives others. A Thermostat
+without a mode item heats: the app's Off is refused and the tile stays on
+Heat.
 
 A device is published afresh as its items join and leave it, so reloading a
 definer keeps the device whole, and a device whose items make no sense
@@ -376,7 +393,7 @@ Endpoint 1 is the aggregator, the devices start at 2. In operation:
 | Line | Means |
 |---|---|
 | `<device> switched on`, `down <device>`, `stop <device>`, `<device> to 50 %`, `<device> slats to 30 %`, `<device> setpoint 21.5` | a command from an app, about to be set on the item |
-| `<device> system mode ... (no item takes it)` | the app's Off/Heat, accepted and not acted on |
+| `<device> system mode 0, mode 4` | the app's Off (0) or Heat (4), and the number about to be set on the mode item |
 | `identify <device> for N seconds` | the app's "identify" while adding a device |
 | `<device> is unreachable` / `is reachable again` | another binding of its items lost or regained its connection |
 | `session opened by ...` / `session closed: ...` | an administrator's CASE session |
@@ -404,9 +421,6 @@ the TXT; `_matter._tcp` shows one instance per fabric once it is paired.
 
 ##### What is not there yet
 
-- **Thermostat mode.** Off and Heat are accepted and logged; a `defheating`
-  has no item that takes them, so nothing happens in the house and the app
-  may show the mode snapping back.
 - **Dimmable lights and the pulse kind**: only the device types of the
   table are published.
 - **Certification.** The bridge presents the SDK's test attestation

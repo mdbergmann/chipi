@@ -285,16 +285,20 @@ The values of the move and stop items are thus the last command, not the state o
 (defmacro defheating (name label
                       &key (temperature nil temperature-p)
                         (setpoint nil setpoint-p)
-                        (valve nil valve-p))
+                        (valve nil valve-p)
+                        (mode nil mode-p))
   "Defines the items of the heating of one room.
 
-Each of `TEMPERATURE', `SETPOINT' and `VALVE' is the body of the `hab:defitem' form of one item -- its bindings, `:group', `:tags', `:persistence' -- or left out if the room has no such value:
+Each of `TEMPERATURE', `SETPOINT', `VALVE' and `MODE' is the body of the `hab:defitem' form of one item -- its bindings, `:group', `:tags', `:persistence' -- or left out if the room has no such value:
 
 - `TEMPERATURE'  -- item `NAME-TEMP', float: the measured temperature.        kind `:temperature'
 - `SETPOINT'     -- item `NAME-SETPOINT', float: the temperature asked for.   kind `:setpoint'
 - `VALVE'        -- item `NAME-VALVE', integer: how far the valve is open, %. kind `:valve'
+- `MODE'         -- item `NAME-MODE', integer: the controller's operating mode. kind `:mode'
 
-`NAME' is not evaluated, `LABEL' is. A part is labelled `LABEL' followed by \"Temperature\", \"Setpoint\" or \"Valve\". On top of a `hab:defitem' body a part takes `:label', to replace that label, and `:id', an unevaluated symbol to replace its id.
+What the numbers of the mode mean is up to the controller, as for `defmode'.
+
+`NAME' is not evaluated, `LABEL' is. A part is labelled `LABEL' followed by \"Temperature\", \"Setpoint\", \"Valve\" or \"Mode\". On top of a `hab:defitem' body a part takes `:label', to replace that label, and `:id', an unevaluated symbol to replace its id.
 
   (defheating living \"Living room\"
     :temperature ((knx-binding :ga \"0/4/17\" :dpt \"9.001\")
@@ -317,6 +321,10 @@ Each of `TEMPERATURE', `SETPOINT' and `VALVE' is the body of the `hab:defitem' f
     (when valve-p
       (push (%part-form name "VALVE" label-var "Valve"
                         'integer 0 :valve valve)
+            forms))
+    (when mode-p
+      (push (%part-form name "MODE" label-var "Mode"
+                        'integer 0 :mode mode)
             forms))
     `(let ((,label-var ,label))
        (declare (ignorable ,label-var))

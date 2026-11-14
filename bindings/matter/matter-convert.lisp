@@ -24,9 +24,35 @@ VALUE-CLUSTER names the cluster that carries the device's values. The revisions 
 
 (defparameter *composed-device-kinds*
   '((:window-covering :shutter-move :shutter-stop :shutter-position :shutter-slat)
-    (:thermostat :temperature :setpoint))
+    (:thermostat :temperature :setpoint :mode))
   "The device types several items make up together, each with the house kinds of its parts: (type kind...).
 A `house:defrollershutter' is a Window Covering, a `house:defheating' a Thermostat (its valve stays at home: Matter's Thermostat has none).")
+
+(defparameter *heating-modes* '(:off 4 :heat 1)
+  "What a heating's mode item holds for the Thermostat's two system modes, unless the item's `matter-bridge' gives its own `:modes': the number that switches the heating off and the one that lets it heat. The default is KNX's HVAC mode (DPT 20.102): 4 building protection, 1 comfort.")
+
+(defconstant +system-mode-off+ 0)
+(defconstant +system-mode-heat+ 4)
+
+(defun check-heating-modes (modes)
+  "`MODES' if it is a plist of the integers `:off' and `:heat', two different ones; an error otherwise."
+  (let ((off (getf modes :off))
+        (heat (getf modes :heat)))
+    (unless (and (integerp off) (integerp heat) (/= off heat))
+      (error ":modes must be a plist of two different integers, (:off <n> :heat <m>), not: ~s" modes))
+    modes))
+
+(defun item-mode->system-mode (value modes)
+  "The Thermostat SystemMode of a mode item: Off while the item holds the `:off' number of `MODES', Heat for any other value -- the modes in between (standby, night) still heat."
+  (if (eql value (getf modes :off))
+      +system-mode-off+
+      +system-mode-heat+))
+
+(defun system-mode->item-mode (mode modes)
+  "The mode item value for the Thermostat SystemMode `MODE': the `:off' or the `:heat' number of `MODES'."
+  (if (eql mode +system-mode-off+)
+      (getf modes :off)
+      (getf modes :heat)))
 
 (defun device-type-of-kind (kind)
   "The bridged device type name of an item of house `KIND' on its own, or NIL for one the bridge does not publish."
