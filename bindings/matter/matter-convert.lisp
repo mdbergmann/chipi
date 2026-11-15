@@ -19,9 +19,10 @@ VALUE-CLUSTER names the cluster that carries the device's values (a Dimmable Lig
 (defparameter *kind-device-types*
   '((:light . :on-off-light)
     (:plug . :on-off-plug-in-unit)
+    (:pulse . :on-off-plug-in-unit)
     (:contact . :contact-sensor)
     (:temperature . :temperature-sensor))
-  "House kind -- the `:house-kind' tag the house definers give an item -- to the device type that publishes an item of that kind on its own.")
+  "House kind -- the `:house-kind' tag the house definers give an item -- to the device type that publishes an item of that kind on its own. A push button (`house:defpulse') is a plug that springs back: Matter's own button, the Generic Switch, only reports presses and cannot be pressed from an app.")
 
 (defparameter *composed-device-kinds*
   '((:dimmable-light :light :brightness)

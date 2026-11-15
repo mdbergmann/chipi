@@ -196,6 +196,7 @@ The house kind the definer gives the item decides what the Home app shows:
 | `deflight` | `:light` | On/Off Light | On/Off |
 | `defdimmablelight`, switch and brightness on one `:device` | `:light`, `:brightness` | Dimmable Light | On/Off, Level Control |
 | `defplug` | `:plug` | On/Off Plug-in Unit | On/Off |
+| `defpulse` | `:pulse` | On/Off Plug-in Unit that springs back | On/Off |
 | `defcontact` | `:contact` | Contact Sensor | Boolean State (true while closed) |
 | `defheating`'s `:temperature` alone | `:temperature` | Temperature Sensor | Temperature Measurement (hundredths of a degree) |
 | `defrollershutter`, channels on one `:device` | `:shutter-move`, `:shutter-stop`, `:shutter-position`, `:shutter-slat` | Window Covering | Window Covering |
@@ -225,6 +226,13 @@ the attribute already equal and does nothing. The binding's own push is
 used for one thing only: a shutter's move and stop commands, which may
 repeat the value the item holds (`house:send-command`, `:push :always`) and
 then raise no change event.
+
+A `defpulse` -- a door opener, a bell -- is a switch that springs back:
+On in the app presses the button (`house:press`, with the duration the
+`defpulse` gave), and the release switches the app's tile off again. An Off
+in between does nothing, the release comes by itself. A press at home shows
+in the app the same way. Matter's own button, the Generic Switch, only
+reports presses and cannot be pressed from an app.
 
 ###### Devices of several items
 
@@ -440,8 +448,7 @@ the TXT; `_matter._tcp` shows one instance per fabric once it is paired.
 
 ##### What is not there yet
 
-- **The pulse kind** and coloured lights: only the device types of the
-  table are published.
+- **Coloured lights**: only the device types of the table are published.
 - **Certification.** The bridge presents the SDK's test attestation
   credentials and the test vendor id #xFFF1; "Uncertified Accessory" stays.
 - **OTA.** Apple Home writes to an OTA requestor cluster the bridge does not

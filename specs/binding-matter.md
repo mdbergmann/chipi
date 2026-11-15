@@ -857,7 +857,7 @@ without re-pairing, as it does for a new Hue bulb.
 | B1 | `matter-bridge` binding for the single-item kinds (light, plug, contact, temperature), the endpoint-id map, the bridge actor next to the controller actor (done 2026-11-09: `bindings/matter/`, system `binding-matter`; `matter-init :bridge`, `matter-bridge`, `matter-bridge-pairing-code`; the pinned poll actor of section 3.2 as `make-matter-actor`) | a KNX light switched from the Home app and the Home app following the wall switch. So far: cl-matter's commissioner commissions the bridge over loopback UDP in `binding-matter-integtest.lisp`, switches the light and reads the item back; the Home app on the bench is still to do |
 | B2 | composed devices: `:device`, shutter and heating (done 2026-11-09: `matter-bridge :device`, a Window Covering from the shutter channels, a heating-only Thermostat from temperature and setpoint; cl-matter got the two clusters and `attribute-write-handler`, the hook a peer's write runs; the `:mode` item of the Thermostat followed 2026-11-14, the Dimmable Light row 2026-11-15 with `house:defdimmablelight` and cl-matter's Level Control) | the living-room blind and the bath heating in Apple Home -- the tests stand in so far, the bench is still to do |
 | B3 | UI card *Share with other apps*, QR image, admins; REPL functions (done 2026-11-09: `ui-settings:register-section` in chipi-ui, `binding-matter/ui`, `qr-code.lisp`, `matter-bridge-open-window` and friends) | pairing from the wall tablet's QR -- the card renders in the tests, the tablet is the bench step still to do |
-| B4 | reachability from the KNX tunnel state (done 2026-11-12, chipi 0.9.5, binding-knx 0.4.5, binding-matter 0.3.3: `binding:binding-reachable-p`, `binding:reachability-changed-event`, the bridge sets `Reachable` from the other bindings of a device's items); pulse kind (open) | lights grey out in Apple Home while the gateway is down |
+| B4 | reachability from the KNX tunnel state (done 2026-11-12, chipi 0.9.5, binding-knx 0.4.5, binding-matter 0.3.3: `binding:binding-reachable-p`, `binding:reachability-changed-event`, the bridge sets `Reachable` from the other bindings of a device's items); pulse kind (done 2026-11-15, binding-matter 0.6.1: On presses with `house:press`, the release switches off again) | lights grey out in Apple Home while the gateway is down |
 
 After the phases, the bench and the first days of production
 (2026-11-10 to 12; the bench protocol is cl-eta's `BENCH-MATTER.md`):
@@ -885,7 +885,7 @@ After the phases, the bench and the first days of production
 - Runs on AmiLisp only; the SBCL backend of cl-matter still lacks IPv6 and
   mDNS.
 
-Still open in the bridge role: the pulse kind, the
+Still open in the bridge role: the
 QR path from the tablet (paired with the manual
 code so far), a second app and its removal on the real network. (The
 pairing window now opens again when the last administrator is removed --
@@ -896,7 +896,9 @@ without one Off is refused. A `house:defdimmablelight` is a Dimmable
 Light since binding-matter 0.6.0: On/Off from its switch item, Level
 Control from its brightness item, 0..100 % as the levels 1..254; a level
 from an app switches on first, then sets the brightness as a command.
-Tested against cl-matter's cluster only, not yet seen in Apple Home.)
+Tested against cl-matter's cluster only, not yet seen in Apple Home. A
+`house:defpulse` is an On/Off Plug-in Unit that springs back since 0.6.1,
+likewise not yet seen in Apple Home.)
 
 B0 and B1 can run in parallel with phases 1–3 of the controller role; they
 touch different parts of cl-matter and share only the actor scaffolding and

@@ -902,7 +902,8 @@ moment it answers, and takes every device that is not defined yet for one
 that was removed — room, name and automations go with it.
 
 The [house kind](#house-devices) of an item decides what the app shows: a
-`deflight` is a light, a `defplug` a plug, a `defcontact` a contact sensor, a
+`deflight` is a light, a `defplug` a plug, a `defpulse` a switch that springs
+back, a `defcontact` a contact sensor, a
 temperature a temperature sensor; the switch and brightness of a
 `defdimmablelight` make one dimmable light, the channels of a
 `defrollershutter` one window covering and the temperature and setpoint of a `defheating` one

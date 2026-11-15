@@ -129,6 +129,7 @@ device type from the item unless told, and is known to the module."
 (test convert--kinds-to-device-types
   (is (eq :on-off-light (binding-matter::device-type-of-kind :light)))
   (is (eq :on-off-plug-in-unit (binding-matter::device-type-of-kind :plug)))
+  (is (eq :on-off-plug-in-unit (binding-matter::device-type-of-kind :pulse)))
   (is (eq :contact-sensor (binding-matter::device-type-of-kind :contact)))
   (is (eq :temperature-sensor (binding-matter::device-type-of-kind :temperature)))
   (is (null (binding-matter::device-type-of-kind :shutter-move)))
@@ -490,6 +491,39 @@ heating's temperature is a Temperature Sensor in hundredths."
     (is (= 0 (%attribute 3 'matter::temperature-measurement 'matter::measured-value)))
     (hab:set-item-value 'bath-temp 21.5)
     (is-true (await-cond 2 (eql 2150 (%attribute 3 'matter::temperature-measurement 'matter::measured-value))))))
+
+(test bridge--pulse-is-a-plug-that-springs-back
+  "A `defpulse' is an On/Off Plug-in Unit: On from an administrator presses
+the button -- pressed and released as commands -- and the release switches
+the attribute off again; a press at home shows the same way."
+  (with-fixture bridge-env ()
+    (let ((pushed '()))
+      (house:defpulse door-opener "Door opener"
+        :duration 0.3
+        (binding:make-function-binding :push (lambda (value) (push value pushed)))
+        (matter-bridge))
+      (is (equal (list (cons matter:+device-type-on-off-plug-in-unit+ 3)
+                       (cons matter:+device-type-bridged-node+ 2))
+                 (matter:endpoint-device-types (%bridged-endpoint 2))))
+      (is (eq nil (%attribute 2 'matter::on-off 'matter::on-off)))
+      ;; On presses ...
+      (%invoke 2 'matter::on-off 1)
+      (is (eq t (%attribute 2 'matter::on-off 'matter::on-off)))
+      (is-true (await-cond 2 (equal '(item:true) pushed)))
+      ;; ... and the release switches off again
+      (is-true (await-cond 2 (equal '(item:false item:true) pushed)))
+      (is-true (await-cond 2 (eq nil (%attribute 2 'matter::on-off 'matter::on-off))))
+      ;; an Off while pressed sends nothing of its own: the release comes once
+      (%invoke 2 'matter::on-off 1)
+      (%invoke 2 'matter::on-off 0)
+      (is-true (await-cond 2 (equal '(item:false item:true item:false item:true) pushed)))
+      (sleep 0.3)
+      (is (= 4 (length pushed)))
+      (is (eq nil (%attribute 2 'matter::on-off 'matter::on-off)))
+      ;; a press at home shows in the app and springs back
+      (door-opener-trigger)
+      (is-true (await-cond 2 (eq t (%attribute 2 'matter::on-off 'matter::on-off))))
+      (is-true (await-cond 2 (eq nil (%attribute 2 'matter::on-off 'matter::on-off)))))))
 
 (test bridge--device-type-override-and-label
   (with-fixture bridge-env ()

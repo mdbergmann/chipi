@@ -337,9 +337,18 @@ it is not published, as text, while it is not."
           :on-off (item-boolean->bool (only-value))
           :on-change (lambda (cluster on)
                        (declare (ignore cluster))
-                       (log:info "Matter bridge: ~a switched ~a" name (if on "on" "off"))
-                       (item:set-value (binding-item (first (bridged-device-bindings device)))
-                                       (bool->item-boolean on)))))
+                       (let* ((binding (first (bridged-device-bindings device)))
+                              (item (binding-item binding)))
+                         (cond
+                           ((not (eq :pulse (binding-kind binding)))
+                            (log:info "Matter bridge: ~a switched ~a" name (if on "on" "off"))
+                            (item:set-value item (bool->item-boolean on)))
+                           ;; a push button: On presses it, and the release
+                           ;; `house:press' sends switches the app back off;
+                           ;; an Off in between has nothing to do
+                           (on
+                            (log:info "Matter bridge: ~a pressed" name)
+                            (house:press item)))))))
         (:boolean-state
          (matter:make-boolean-state-cluster
           :state-value (item-contact->state-value (only-value))))
@@ -681,7 +690,7 @@ The event does not carry the new value, so it is read from the item here, off th
   "Creates a `matter-bridge-binding', as `matter-bridge' does, `DEVICE' evaluated.
 
 `DEVICE': a symbol naming the device several items make up; the items whose bindings name it are one bridged device, by their house kinds: the switch and brightness of a `house:defdimmablelight' a Dimmable Light, the channels of a `house:defrollershutter' a Window Covering, the temperature, setpoint and mode of a `house:defheating' a Thermostat. Without it the item is a device by itself.
-`DEVICE-TYPE': what the device is published as, one of `:on-off-light', `:dimmable-light', `:on-off-plug-in-unit', `:contact-sensor', `:temperature-sensor', `:window-covering', `:thermostat'. Without it the house kinds decide: `house:deflight' is an On/Off Light, `defplug' an On/Off Plug-in Unit, `defcontact' a Contact Sensor and a temperature on its own a Temperature Sensor. A device with neither is logged and not published.
+`DEVICE-TYPE': what the device is published as, one of `:on-off-light', `:dimmable-light', `:on-off-plug-in-unit', `:contact-sensor', `:temperature-sensor', `:window-covering', `:thermostat'. Without it the house kinds decide: `house:deflight' is an On/Off Light, `defplug' an On/Off Plug-in Unit, `defpulse' one that springs back (On in the app presses the button, with `house:press', and its release switches the app off again), `defcontact' a Contact Sensor and a temperature on its own a Temperature Sensor. A device with neither is logged and not published.
 `LABEL': the name administrators show for the device; default the item's label, or what the labels of a device's items begin with in common.
 `MODES': on the mode item of a Thermostat, the item's numbers for the app's two modes, a plist (:off <n> :heat <m>); default `*heating-modes*', KNX's building protection and comfort. Off in the app sets the item to the one, Heat to the other; the item reads as Off while it holds the `:off' number and as Heat otherwise. A Thermostat without a mode item heats and refuses Off.
 A Dimmable Light takes its brightness from the brightness item, 0..100 %, as the levels 1..254; a brightness set in the app switches the switch item on first when the light is off, and then sets the brightness item, to 1 % at least. It needs the switch item.
