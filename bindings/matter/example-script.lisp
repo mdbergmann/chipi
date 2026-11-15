@@ -37,6 +37,12 @@
 ;;     (matter-bridge))
 ;; the Home app's switch writes to the bus, the wall switch shows in the app
 
+;; a dimmable light of two items is one light with a brightness slider: the
+;; app's brightness switches the light on and sets the brightness item
+(defdimmablelight light-dimmed "Dimmed light"
+  :switch     ((matter-bridge :device light-dimmed))
+  :brightness ((matter-bridge :device light-dimmed)))
+
 ;; a contact: the Home app shows a sensor, open or closed
 (defcontact window-bath "Bath window"
   :tags '((:ui-readonly . t))

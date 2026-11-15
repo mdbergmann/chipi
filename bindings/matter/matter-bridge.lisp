@@ -8,9 +8,10 @@
 ;; or the items whose bindings name the same `:device' (the channels of a
 ;; shutter, the temperature and setpoint of a heating).  Each bridged
 ;; endpoint has the device type of the items' house kinds (a light, a plug,
-;; a contact, a temperature, a window covering, a thermostat), Identify,
-;; Bridged Device Basic Information naming it, and the one cluster that
-;; carries the device's values.
+;; a dimmable light, a contact, a temperature, a window covering, a
+;; thermostat), Identify, Bridged Device Basic Information naming it, and
+;; the one cluster that carries the device's values -- two for a dimmable
+;; light, On/Off next to Level Control.
 ;;
 ;; The two directions: a push from the item becomes an attribute change,
 ;; which cl-matter reports to subscribers (Apple Home) by itself; a command
@@ -126,9 +127,9 @@ A new id is written to the map at once, and an entry is never dropped: a device 
 share), the BINDINGS of the items that make it up, in the order they came,
 and -- while it is published -- its ENDPOINT, the device TYPE it is
 published as, the CLUSTER carrying its values and that cluster's kind,
-VALUE-CLUSTER (:on-off, :boolean-state, :temperature-measurement,
-:window-covering or :thermostat).  PROBLEM is why it is not published, as
-text, while it is not."
+VALUE-CLUSTER (:on-off, :level-control, :boolean-state,
+:temperature-measurement, :window-covering or :thermostat).  PROBLEM is why
+it is not published, as text, while it is not."
   name
   (bindings '())
   endpoint type cluster value-cluster
@@ -256,6 +257,9 @@ text, while it is not."
                           (bridged-device-name device) type kinds))
                  (when (find (binding-kind binding) others :key #'binding-kind)
                    (error "Device ~a has two items of kind ~s" (bridged-device-name device) (binding-kind binding))))
+       (when (and (eq value-cluster :level-control)
+                  (not (%member device :light)))
+         (error "Device ~a, a dimmable light, has no switch item" (bridged-device-name device)))
        (when (and (eq value-cluster :window-covering)
                   (not (or (%member device :shutter-move) (%member device :shutter-position))))
          (error "Device ~a, a window covering, has neither a move nor a position item" (bridged-device-name device)))
@@ -294,8 +298,37 @@ text, while it is not."
     (:stop (or (%set-member device :shutter-stop 'item:true :push :always)
                (log:warn "Matter bridge: ~a has no stop item, the stop is dropped" (bridged-device-name device))))))
 
+(defun %make-dimmable-light-clusters (device)
+  "The Level Control and the On/Off cluster of the dimmable light `DEVICE', from its switch and its brightness item. A level from an administrator sets the brightness item as a command, so it is pushed also when the item holds it already -- the light may have come on at another brightness than the item last heard of."
+  (let* ((name (bridged-device-name device))
+         (on-off (matter:make-on-off-cluster
+                  :on-off (item-boolean->bool (%member-value device :light))
+                  :on-change (lambda (cluster on)
+                               (declare (ignore cluster))
+                               (log:info "Matter bridge: ~a switched ~a" name (if on "on" "off"))
+                               (%set-member device :light (bool->item-boolean on))))))
+    (list (matter:make-level-control-cluster
+           :current-level (if (%member device :brightness)
+                              (item-brightness->level (%member-value device :brightness))
+                              :null)
+           :min-level +min-level+
+           :max-level +max-level+
+           :on-off on-off
+           :on-level (lambda (cluster level)
+                       (declare (ignore cluster))
+                       (log:info "Matter bridge: ~a to ~d %" name (level->item-brightness level))
+                       (%set-member device :brightness (level->item-brightness level)
+                                    :push :always)))
+          on-off)))
+
+(defun %make-value-clusters (device value-cluster)
+  "The clusters carrying `DEVICE's values, initialised from its items: the one of kind `VALUE-CLUSTER' first, then what goes with it (the On/Off of a dimmable light). A command on them sets an item -- with push, so the item's other bindings carry it out."
+  (if (eq value-cluster :level-control)
+      (%make-dimmable-light-clusters device)
+      (list (%make-value-cluster device value-cluster))))
+
 (defun %make-value-cluster (device value-cluster)
-  "The cluster of kind `VALUE-CLUSTER' carrying `DEVICE's values, initialised from its items. A command on it sets an item -- with push, so the item's other bindings carry it out."
+  "The cluster of kind `VALUE-CLUSTER' carrying `DEVICE's values, for a device of one such cluster."
   (let ((name (bridged-device-name device)))
     (flet ((only-value () (%item-value (binding-item (first (bridged-device-bindings device))))))
       (ecase value-cluster
@@ -391,7 +424,8 @@ Returns the endpoint; a device the bridge cannot publish is an error, and the de
          (type (%resolve-device-type device)))
     (multiple-value-bind (type-id revision value-cluster) (device-type-spec type)
       (%check-members device type value-cluster)
-      (let* ((cluster (%make-value-cluster device value-cluster))
+      (let* ((clusters (%make-value-clusters device value-cluster))
+             (cluster (first clusters))
              (endpoint (matter:make-bridged-endpoint
                         (%endpoint-id bridge name)
                         :parent +aggregator-endpoint+
@@ -401,11 +435,11 @@ Returns the endpoint; a device the bridge cannot publish is an error, and the de
                         :vendor-name "Chipi"
                         :product-name (%node-label (string-capitalize (substitute #\Space #\- (symbol-name type))))
                         :device-types (list (cons type-id revision))
-                        :clusters (list (matter:make-identify-cluster
-                                         :on-identify (lambda (cluster seconds)
-                                                        (declare (ignore cluster))
-                                                        (log:info "Matter bridge: identify ~a for ~a seconds" name seconds)))
-                                        cluster))))
+                        :clusters (list* (matter:make-identify-cluster
+                                          :on-identify (lambda (cluster seconds)
+                                                         (declare (ignore cluster))
+                                                         (log:info "Matter bridge: identify ~a for ~a seconds" name seconds)))
+                                         clusters))))
         (matter:add-endpoint (bridge-node bridge) endpoint)
         (setf (bridged-device-endpoint device) endpoint
               (bridged-device-type device) type
@@ -511,12 +545,25 @@ Returns the endpoint; a device the bridge cannot publish is an error, and the de
          (%set-attribute cluster :target-position-lift-percent100ths
                          (matter:attribute-value cluster :current-position-lift-percent100ths)))))))
 
+(defun %apply-light-value (device cluster kind value)
+  "Actor context. An item of the dimmable light `DEVICE' changed to `VALUE': the switch is the OnOff of the On/Off cluster next to the Level Control `CLUSTER', the brightness its CurrentLevel -- left alone while it stands for the same percentage, so a level an administrator set is not rounded under its hands."
+  (ecase kind
+    (:light
+     (%set-attribute (matter:find-cluster (bridged-device-endpoint device) 'matter::on-off)
+                     :on-off (item-boolean->bool value)))
+    (:brightness
+     (let ((current (matter:attribute-value cluster :current-level)))
+       (unless (and (integerp current)
+                    (eql value (level->item-brightness current)))
+         (%set-attribute cluster :current-level (item-brightness->level value)))))))
+
 (defun %apply-item-value (binding value)
   "Actor context. Puts the new `VALUE' of `BINDING's item on its device's cluster -- which attribute depends on the cluster and, in a composed device, on the item's kind."
   (when-let* ((device (binding-device binding))
               (cluster (bridged-device-cluster device)))
     (ecase (bridged-device-value-cluster device)
       (:on-off (%set-attribute cluster :on-off (item-boolean->bool value)))
+      (:level-control (%apply-light-value device cluster (binding-kind binding) value))
       (:boolean-state (%set-attribute cluster :state-value (item-contact->state-value value)))
       (:temperature-measurement (%set-attribute cluster :measured-value (item-temperature->measured-value value)))
       (:window-covering (%apply-shutter-value cluster (binding-kind binding) value))
@@ -633,10 +680,11 @@ The event does not carry the new value, so it is read from the item here, off th
 (defun make-matter-bridge-binding (&rest other-args &key device device-type label modes &allow-other-keys)
   "Creates a `matter-bridge-binding', as `matter-bridge' does, `DEVICE' evaluated.
 
-`DEVICE': a symbol naming the device several items make up; the items whose bindings name it are one bridged device, by their house kinds: the channels of a `house:defrollershutter' a Window Covering, the temperature, setpoint and mode of a `house:defheating' a Thermostat. Without it the item is a device by itself.
-`DEVICE-TYPE': what the device is published as, one of `:on-off-light', `:on-off-plug-in-unit', `:contact-sensor', `:temperature-sensor', `:window-covering', `:thermostat'. Without it the house kinds decide: `house:deflight' is an On/Off Light, `defplug' an On/Off Plug-in Unit, `defcontact' a Contact Sensor and a temperature on its own a Temperature Sensor. A device with neither is logged and not published.
+`DEVICE': a symbol naming the device several items make up; the items whose bindings name it are one bridged device, by their house kinds: the switch and brightness of a `house:defdimmablelight' a Dimmable Light, the channels of a `house:defrollershutter' a Window Covering, the temperature, setpoint and mode of a `house:defheating' a Thermostat. Without it the item is a device by itself.
+`DEVICE-TYPE': what the device is published as, one of `:on-off-light', `:dimmable-light', `:on-off-plug-in-unit', `:contact-sensor', `:temperature-sensor', `:window-covering', `:thermostat'. Without it the house kinds decide: `house:deflight' is an On/Off Light, `defplug' an On/Off Plug-in Unit, `defcontact' a Contact Sensor and a temperature on its own a Temperature Sensor. A device with neither is logged and not published.
 `LABEL': the name administrators show for the device; default the item's label, or what the labels of a device's items begin with in common.
 `MODES': on the mode item of a Thermostat, the item's numbers for the app's two modes, a plist (:off <n> :heat <m>); default `*heating-modes*', KNX's building protection and comfort. Off in the app sets the item to the one, Heat to the other; the item reads as Off while it holds the `:off' number and as Heat otherwise. A Thermostat without a mode item heats and refuses Off.
+A Dimmable Light takes its brightness from the brightness item, 0..100 %, as the levels 1..254; a brightness set in the app switches the switch item on first when the light is off, and then sets the brightness item, to 1 % at least. It needs the switch item.
 The item's value goes to the device's attribute on every change, and a command from an administrator sets the item -- with push, so a KNX binding on the same item writes it to the bus.
 The other keys go to the base binding; `:call-push-p' is T by default."
   (check-type device symbol)

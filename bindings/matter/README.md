@@ -194,6 +194,7 @@ The house kind the definer gives the item decides what the Home app shows:
 | Definer | House kind | Bridged device | Cluster |
 |---|---|---|---|
 | `deflight` | `:light` | On/Off Light | On/Off |
+| `defdimmablelight`, switch and brightness on one `:device` | `:light`, `:brightness` | Dimmable Light | On/Off, Level Control |
 | `defplug` | `:plug` | On/Off Plug-in Unit | On/Off |
 | `defcontact` | `:contact` | Contact Sensor | Boolean State (true while closed) |
 | `defheating`'s `:temperature` alone | `:temperature` | Temperature Sensor | Temperature Measurement (hundredths of a degree) |
@@ -201,7 +202,7 @@ The house kind the definer gives the item decides what the Home app shows:
 | `defheating`, temperature and setpoint on one `:device` | `:temperature`, `:setpoint` | Thermostat (heating only) | Thermostat |
 
 An item without one of these kinds says what it is with `:device-type`, one
-of `:on-off-light`, `:on-off-plug-in-unit`, `:contact-sensor`,
+of `:on-off-light`, `:dimmable-light`, `:on-off-plug-in-unit`, `:contact-sensor`,
 `:temperature-sensor`, `:window-covering`, `:thermostat`; an item with
 neither is logged and not published. `:label` replaces the item's label as
 the name the app shows. The other keys go to the base binding;
@@ -227,11 +228,17 @@ then raise no change event.
 
 ###### Devices of several items
 
-A shutter or a heating is several items in the house and one device in the
+A dimmable light, a shutter or a heating is several items in the house and one device in the
 app. The bindings of its items name the device they share with `:device`,
 a symbol taken as written, like the name in a definer:
 
 ```lisp
+(defdimmablelight light-living "Living room"
+  :switch     ((knx-binding :ga '(:read "1/1/2" :write "1/1/1") :dpt "1.001")
+               (matter-bridge :device light-living))
+  :brightness ((knx-binding :ga '(:read "1/1/5" :write "1/1/4") :dpt "5.001")
+               (matter-bridge :device light-living)))
+
 (defrollershutter blind-living "Blind living room"
   :move     ((knx-binding :ga "4/0/31" :dpt "1.008") (matter-bridge :device blind-living))
   :stop     ((knx-binding :ga "4/0/30" :dpt "1.007") (matter-bridge :device blind-living))
@@ -245,11 +252,23 @@ a symbol taken as written, like the name in a definer:
   :valve       ((knx-binding :ga "0/2/6" :dpt "5.001")))   ; stays at home
 ```
 
-The house kinds of the items decide the device: shutter channels make a
+The house kinds of the items decide the device: a light with a brightness
+is a **Dimmable Light**, shutter channels make a
 **Window Covering**, a setpoint (with or without a temperature) a
 **Thermostat**. The app's name for the device is what the items' labels
 begin with in common ("Blind living room", "Bath"), or the `:label` one of
 the bindings gives.
+
+A Dimmable Light has On/Off from the switch item and its level from the
+brightness item: 0 to 100 % in the house, the levels 1 to 254 in Matter,
+which has no level 0 -- off is the switch. A brightness set in the app
+switches the switch item on first when the light is off and then sets the
+brightness item, as a command (`:push :always`), so the dimmer hears it
+also when the item holds that value already; the lowest level sets 1 % and
+then switches off. The app's On and Off set the switch item only, and the
+brightness the dimmer comes on with reaches the app when the brightness
+item reports it. Transition times are ignored, the dimmer has its own. The
+device needs the switch item: a brightness item alone is not published.
 
 A Window Covering has lift, and tilt when there is a slat item; it is
 position aware when there is a position item. Open, Close and Stop in the
@@ -421,7 +440,7 @@ the TXT; `_matter._tcp` shows one instance per fabric once it is paired.
 
 ##### What is not there yet
 
-- **Dimmable lights and the pulse kind**: only the device types of the
+- **The pulse kind** and coloured lights: only the device types of the
   table are published.
 - **Certification.** The bridge presents the SDK's test attestation
   credentials and the test vendor id #xFFF1; "Uncertified Accessory" stays.

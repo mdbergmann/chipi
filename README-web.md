@@ -745,7 +745,7 @@ what it is, and an itemgroup card goes by it:
 | `:pulse` | a "Press" button, which presses and releases the item (`house:press`) |
 | `:shutter-move` | ▲ and ▼ buttons |
 | `:shutter-stop` | a ■ button |
-| `:shutter-position`, `:shutter-slat` | a slider, 0–100 |
+| `:shutter-position`, `:shutter-slat`, `:brightness` | a slider, 0–100 |
 | `:setpoint` | a −/+ stepper, in steps of 0.5 (1 for an integer item) |
 | `:mode` | a dropdown of the codes its `:ui-mapping` names; without a mapping, the value |
 | `:temperature`, `:valve` | the value |

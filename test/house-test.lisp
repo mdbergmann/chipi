@@ -410,6 +410,52 @@ are errors when the form is expanded."
                      :position (:group)))))
 
 ;; -----------------------------
+;; dimmable light
+;; -----------------------------
+
+(test defdimmablelight--defines-switch-and-brightness
+  (with-fixture clean-after ()
+    (hab:defconfig "chipi")
+    (hab:defitemgroup 'lights "Lights")
+    (let ((pushed '()))
+      (is (eq 'dimmer-a
+              (defdimmablelight dimmer-a "Dimmer A"
+                :switch (:group '(lights))
+                :brightness ((hab:binding :push (lambda (value) (push value pushed)))
+                             :tags '((:ui-order . 40))))))
+      (let ((switch (hab:get-item 'dimmer-a))
+            (brightness (hab:get-item 'dimmer-a-brightness)))
+        (is-true switch)
+        (is (equal "Dimmer A" (item:label switch)))
+        (is (eq 'boolean (item:value-type-hint switch)))
+        (is (eq 'item:false (hab:get-item-valueq 'dimmer-a)))
+        ;; the switch is a light like any other
+        (is (eq :light (%kind 'dimmer-a)))
+        (is-true (member switch (hab:get-items-on-group 'lights)))
+        (is-true brightness)
+        (is (equal "Dimmer A Brightness" (item:label brightness)))
+        (is (eq 'integer (item:value-type-hint brightness)))
+        (is (eql 0 (hab:get-item-valueq 'dimmer-a-brightness)))
+        (is (equal '((:house-kind . :brightness) (:ui-order . 40))
+                   (item:tags brightness)))
+        ;; the part's binding is live
+        (hab:set-item-value 'dimmer-a-brightness 60)
+        (is-true (await-cond 1 (equal pushed '(60))))))))
+
+(test defdimmablelight--only-given-parts--with-own-id-and-label
+  (with-fixture clean-after ()
+    (hab:defconfig "chipi")
+    (defdimmablelight dimmer-b "Dimmer B"
+      :brightness (:id dimmer-b-value
+                   :label "Helligkeit B"
+                   :initial-value 30))
+    (is (equal "Helligkeit B" (item:label (hab:get-item 'dimmer-b-value))))
+    (is (eq :brightness (%kind 'dimmer-b-value)))
+    (is (eql 30 (hab:get-item-valueq 'dimmer-b-value)))
+    (is-false (hab:get-item 'dimmer-b))
+    (is-false (hab:get-item 'dimmer-b-brightness))))
+
+;; -----------------------------
 ;; heating
 ;; -----------------------------
 

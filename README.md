@@ -623,7 +623,24 @@ the UI:
 (house:press 'door-opener)   ; the same
 ```
 
-**Devices of several items.** A rollershutter is driven through up to four
+**Devices of several items.** A dimmer has a switch and a brightness, and
+an item is bound to one, so `defdimmablelight` defines an item for each.
+The switch item is a light like one of `deflight`.
+
+```lisp
+(house:defdimmablelight light-living "Living room"
+  :switch     ((knx-binding :ga '(:read "1/1/2" :write "1/1/1") :dpt "1.001")
+               :group '(lights living))
+  :brightness ((knx-binding :ga '(:read "1/1/5" :write "1/1/4") :dpt "5.001")
+               :group '(lights living)))
+```
+
+| Part | Item | Value | Kind tag |
+|---|---|---|---|
+| `:switch` | `NAME` | boolean, `item:true` = on | `:light` |
+| `:brightness` | `NAME-brightness` | integer, brightness in % | `:brightness` |
+
+A rollershutter is driven through up to four
 channels and an item is bound to one, so `defrollershutter` defines an item
 per channel. Each part is the body of that item's `defitem`, in a list; a
 part left out is not defined.
@@ -886,8 +903,9 @@ that was removed — room, name and automations go with it.
 
 The [house kind](#house-devices) of an item decides what the app shows: a
 `deflight` is a light, a `defplug` a plug, a `defcontact` a contact sensor, a
-temperature a temperature sensor; the channels of a `defrollershutter` make
-one window covering and the temperature and setpoint of a `defheating` one
+temperature a temperature sensor; the switch and brightness of a
+`defdimmablelight` make one dimmable light, the channels of a
+`defrollershutter` one window covering and the temperature and setpoint of a `defheating` one
 thermostat. The app's switch sets the item, so the item's other bindings
 carry the command out, and the app follows the wall switch. A device is
 shown as unreachable while the connection behind its items is down (the KNX

@@ -13,7 +13,7 @@ Chipi is a lightweight home automation framework in Common Lisp, an alternative 
 
 Key entry point: `hab.lisp` provides DSL macros (`defconfig`, `defitem`, `defitemgroup`, `defrule`, `defpersistence`, `binding`). A configuration may end with `(hab:config-loaded)`, which runs what plugins registered with `hab:add-to-startup` -- servers that present the house (the Matter bridge) start there, not in the `defconfig`.
 
-**House layer** (`chipi.house`, `src/house.lisp`): house abstractions (commands, device definers such as `deflight` and `defrollershutter`) live in this separate package, on top of the primitives. It is binding-neutral: the caller supplies the bindings. The primitives (`item`, `binding`, `hab`) carry no house vocabulary; when the house layer needs something from them, extend the primitive in general terms (e.g. `item:set-value`'s `:push :always`, which `house:send-command` wraps) rather than working around it from outside.
+**House layer** (`chipi.house`, `src/house.lisp`): house abstractions (commands, device definers such as `deflight`, `defdimmablelight` and `defrollershutter`) live in this separate package, on top of the primitives. It is binding-neutral: the caller supplies the bindings. The primitives (`item`, `binding`, `hab`) carry no house vocabulary; when the house layer needs something from them, extend the primitive in general terms (e.g. `item:set-value`'s `:push :always`, which `house:send-command` wraps) rather than working around it from outside.
 
 ## Code Style
 

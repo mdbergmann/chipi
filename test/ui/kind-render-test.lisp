@@ -180,8 +180,8 @@ direction goes out as often as it is pressed."
 ;; numbers a card can now set
 ;; ----------------------------------------------------------------------------
 
-(test kind--shutter-position-and-slat-render-a-percent-slider
-  (dolist (kind '(:shutter-position :shutter-slat))
+(test kind--shutter-position-slat-and-brightness-render-a-percent-slider
+  (dolist (kind '(:shutter-position :shutter-slat :brightness))
     (with-fixture render-env ()
       (%render "INTEGER" 40 :house-kind kind)
       (is-true (js~ "widget-slider"))

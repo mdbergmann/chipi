@@ -600,7 +600,7 @@ single process. The plugin's integtest does the same with a real
 
 | Phase | Work | Done when |
 |---|---|---|
-| 0 | cl-matter: `UpdateFabricLabel` from the commissioner; Level Control, Boolean State, Temperature Measurement, Window Covering clusters (SBCL IPv6 + multicast + interfaces deferred, see section 8). Boolean State and Temperature Measurement done with B1, Window Covering and Thermostat (heating only) with B2 (2026-11-09) | new clusters have tests in cl-matter |
+| 0 | cl-matter: `UpdateFabricLabel` from the commissioner; Level Control, Boolean State, Temperature Measurement, Window Covering clusters (SBCL IPv6 + multicast + interfaces deferred, see section 8). Boolean State and Temperature Measurement done with B1, Window Covering and Thermostat (heating only) with B2 (2026-11-09), Level Control with the bridge's Dimmable Light (2026-11-15) | new clusters have tests in cl-matter |
 | 1 | `matter-actors`, `matter-registry`, controller core: commissioner state, CASE per node, read / invoke as futures | integtest: a `defitem` on an in-process lamp reads and switches it |
 | 2 | `matter-binding` with subscriptions, `matter-init` / `matter-shutdown`, README | the Eve plug is a `defplug` in a running Chipi; UI toggles it; Apple Home's change shows up |
 | 3 | `matter-discover`, the commissioning job with its states, `matter-commission`, `matter-decommission`, `matter-open-window`, labels, `matter-describe` | a new device goes from pairing code to item without leaving the REPL |
@@ -748,7 +748,7 @@ House kind to bridged device, the mirror of section 5:
 | House kind(s) | Bridged device type | Clusters served |
 |---|---|---|
 | `:light` | On/Off Light 0x0100 | On/Off |
-| `:light` + a `:level` item on the same `:device` | Dimmable Light 0x0101 | On/Off, Level Control |
+| `:light` + a `:brightness` item on the same `:device` (`defdimmablelight`) | Dimmable Light 0x0101 | On/Off, Level Control |
 | `:plug` | On/Off Plug-in Unit 0x010A | On/Off |
 | `:contact` | Contact Sensor 0x0015 | Boolean State |
 | `:temperature` alone | Temperature Sensor 0x0302 | Temperature Measurement (× 100) |
@@ -855,7 +855,7 @@ without re-pairing, as it does for a new Hue bulb.
 |---|---|---|
 | B0 | cl-matter: Aggregator and Bridged Device Basic Information, parts list per endpoint, endpoint removal with Descriptor change reports (done 2026-11-09, cl-matter d16ff19: `make-aggregator-endpoint`, `make-bridged-endpoint`, `remove-endpoint`, `examples/bridge-device.lisp`); the server-side clusters shared with phase 0 are still open | `test/data-model-test.lisp` and `test/interaction-test.lisp` cover it; chip-tool (now at `cl-matter/tools/chip-tool`) commissions the bridge, reads both lights' labels, toggles them and follows the PartsList of a light coming and going (2026-11-09) |
 | B1 | `matter-bridge` binding for the single-item kinds (light, plug, contact, temperature), the endpoint-id map, the bridge actor next to the controller actor (done 2026-11-09: `bindings/matter/`, system `binding-matter`; `matter-init :bridge`, `matter-bridge`, `matter-bridge-pairing-code`; the pinned poll actor of section 3.2 as `make-matter-actor`) | a KNX light switched from the Home app and the Home app following the wall switch. So far: cl-matter's commissioner commissions the bridge over loopback UDP in `binding-matter-integtest.lisp`, switches the light and reads the item back; the Home app on the bench is still to do |
-| B2 | composed devices: `:device`, shutter and heating (done 2026-11-09: `matter-bridge :device`, a Window Covering from the shutter channels, a heating-only Thermostat from temperature and setpoint; cl-matter got the two clusters and `attribute-write-handler`, the hook a peer's write runs; the Dimmable Light row and the `:mode` item of the Thermostat are still open) | the living-room blind and the bath heating in Apple Home -- the tests stand in so far, the bench is still to do |
+| B2 | composed devices: `:device`, shutter and heating (done 2026-11-09: `matter-bridge :device`, a Window Covering from the shutter channels, a heating-only Thermostat from temperature and setpoint; cl-matter got the two clusters and `attribute-write-handler`, the hook a peer's write runs; the `:mode` item of the Thermostat followed 2026-11-14, the Dimmable Light row 2026-11-15 with `house:defdimmablelight` and cl-matter's Level Control) | the living-room blind and the bath heating in Apple Home -- the tests stand in so far, the bench is still to do |
 | B3 | UI card *Share with other apps*, QR image, admins; REPL functions (done 2026-11-09: `ui-settings:register-section` in chipi-ui, `binding-matter/ui`, `qr-code.lisp`, `matter-bridge-open-window` and friends) | pairing from the wall tablet's QR -- the card renders in the tests, the tablet is the bench step still to do |
 | B4 | reachability from the KNX tunnel state (done 2026-11-12, chipi 0.9.5, binding-knx 0.4.5, binding-matter 0.3.3: `binding:binding-reachable-p`, `binding:reachability-changed-event`, the bridge sets `Reachable` from the other bindings of a device's items); pulse kind (open) | lights grey out in Apple Home while the gateway is down |
 
@@ -885,14 +885,18 @@ After the phases, the bench and the first days of production
 - Runs on AmiLisp only; the SBCL backend of cl-matter still lacks IPv6 and
   mDNS.
 
-Still open in the bridge role: the pulse kind, the Dimmable Light row, the
+Still open in the bridge role: the pulse kind, the
 QR path from the tablet (paired with the manual
 code so far), a second app and its removal on the real network. (The
 pairing window now opens again when the last administrator is removed --
 cl-matter -- and the card names vendor #x1384 "Apple Keychain"; both
 since binding-matter 0.4.1, not yet seen on the real network. The
 Thermostat's system mode is the mode item of a `defheating` since 0.5.0;
-without one Off is refused.)
+without one Off is refused. A `house:defdimmablelight` is a Dimmable
+Light since binding-matter 0.6.0: On/Off from its switch item, Level
+Control from its brightness item, 0..100 % as the levels 1..254; a level
+from an app switches on first, then sets the brightness as a command.
+Tested against cl-matter's cluster only, not yet seen in Apple Home.)
 
 B0 and B1 can run in parallel with phases 1–3 of the controller role; they
 touch different parts of cl-matter and share only the actor scaffolding and

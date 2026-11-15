@@ -157,7 +157,14 @@ device type from the item unless told, and is known to the module."
   (is (eq :thermostat (binding-matter::device-type-of-kinds '(:setpoint))))
   (is (eq :temperature-sensor (binding-matter::device-type-of-kinds '(:temperature))))
   (is (eq :on-off-light (binding-matter::device-type-of-kinds '(:light))))
-  (is (null (binding-matter::device-type-of-kinds '(:light :plug))))
+  (is (null (binding-matter::device-type-of-kinds '(:contact :plug))))
+  (is (eq :dimmable-light (binding-matter::device-type-of-kinds '(:light :brightness))))
+  (is (eq :dimmable-light (binding-matter::device-type-of-kinds '(:brightness))))
+  (is (equal '(:light :brightness) (binding-matter::composed-device-kinds :dimmable-light)))
+  (multiple-value-bind (id revision cluster) (binding-matter::device-type-spec :dimmable-light)
+    (is (= matter:+device-type-dimmable-light+ id))
+    (is (= 3 revision))
+    (is (eq :level-control cluster)))
   (is (null (binding-matter::device-type-of-kinds '(:valve))))
   (is (null (binding-matter::device-type-of-kinds '())))
   (is (eq :thermostat (binding-matter::device-type-of-kinds '(:temperature :setpoint :mode))))
@@ -183,6 +190,16 @@ device type from the item unless told, and is known to the module."
   (is (eq :null (binding-matter::item-position->percent100ths nil)))
   (is (= 37 (binding-matter::percent100ths->item-position 3700)))
   (is (= 38 (binding-matter::percent100ths->item-position 3750)))
+  ;; a brightness is a level of 1..254, and a level a brightness of 1..100 %
+  (is (= 254 (binding-matter::item-brightness->level 100)))
+  (is (= 127 (binding-matter::item-brightness->level 50)))
+  (is (= 1 (binding-matter::item-brightness->level 0)))
+  (is (= 254 (binding-matter::item-brightness->level 150)))
+  (is (eq :null (binding-matter::item-brightness->level nil)))
+  (is (= 100 (binding-matter::level->item-brightness 254)))
+  (is (= 50 (binding-matter::level->item-brightness 127)))
+  (is (= 50 (binding-matter::level->item-brightness 128)))
+  (is (= 1 (binding-matter::level->item-brightness 1)))
   ;; a heating setpoint stays within the limits the thermostat tells
   (is (= 2150 (binding-matter::item-setpoint->heating-setpoint 21.5)))
   (is (= 500 (binding-matter::item-setpoint->heating-setpoint 0.0)))
@@ -678,6 +695,92 @@ move item alone has no position and takes no target."
     (is-true (await-cond 2 (eq 'item:true (%item-value 'blind-attic))))
     (%invoke 3 'matter::window-covering 0)
     (is-true (await-cond 2 (eq 'item:false (%item-value 'blind-attic))))))
+
+(defun %level-fields (level)
+  "The fields of MoveToLevel and MoveToLevelWithOnOff: `LEVEL', no transition time, no options."
+  (matter:tlv nil :structure (list (matter:tlv 0 :unsigned level) (matter:tlv 1 :null)
+                                   (matter:tlv 2 :unsigned 0) (matter:tlv 3 :unsigned 0))))
+
+(test bridge--dimmable-light-is-a-dimmable-light
+  "The switch and brightness of a `defdimmablelight' naming one `:device'
+are a Dimmable Light: On/Off from the switch item, Level Control from the
+brightness item. A brightness an administrator sets switches the light on
+first and is pushed as a command."
+  (with-fixture bridge-env ()
+    (let ((switched '())
+          (dimmed '()))
+      (house:defdimmablelight dimmer "Living"
+        :switch ((binding:make-function-binding :push (lambda (value) (push value switched)))
+                 (matter-bridge :device dimmer))
+        :brightness ((binding:make-function-binding :push (lambda (value) (push value dimmed)))
+                     (matter-bridge :device dimmer)
+                     :initial-value 50))
+      (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+      (is (equal (list (cons matter:+device-type-dimmable-light+ 3)
+                       (cons matter:+device-type-bridged-node+ 2))
+                 (matter:endpoint-device-types (%bridged-endpoint 2))))
+      (is (string= "Living" (%attribute 2 'matter::bridged-device-basic-information 'matter::node-label)))
+      (is (= 3 (%attribute 2 'matter::level-control 'matter::feature-map)))
+      (is (= 127 (%attribute 2 'matter::level-control 'matter::current-level)))
+      (is (= 1 (%attribute 2 'matter::level-control 'matter::min-level)))
+      (is (= 254 (%attribute 2 'matter::level-control 'matter::max-level)))
+      (is (eq nil (%attribute 2 'matter::on-off 'matter::on-off)))
+      (is (eq :dimmable-light (getf (first (matter-bridge-devices)) :device-type)))
+      ;; the items reach the attributes
+      (hab:set-item-value 'dimmer 'item:true :push nil)
+      (is-true (await-cond 2 (eq t (%attribute 2 'matter::on-off 'matter::on-off))))
+      (hab:set-item-value 'dimmer-brightness 80 :push nil)
+      (is-true (await-cond 2 (eql 203 (%attribute 2 'matter::level-control 'matter::current-level))))
+      (hab:set-item-value 'dimmer 'item:false :push nil)
+      (is-true (await-cond 2 (eq nil (%attribute 2 'matter::on-off 'matter::on-off))))
+      (is (null switched))
+      (is (null dimmed))
+      ;; a brightness from the app: on first, then the level
+      (%invoke 2 'matter::level-control 4 (%level-fields 128))
+      (is-true (await-cond 2 (and (eq 'item:true (%item-value 'dimmer))
+                                  (eql 50 (%item-value 'dimmer-brightness)))))
+      (is-true (await-cond 2 (and (equal '(item:true) switched) (equal '(50) dimmed))))
+      ;; the item's 50 % stands for the level the app set: it stays
+      (sleep 0.3)
+      (is (= 128 (%attribute 2 'matter::level-control 'matter::current-level)))
+      (is (eq t (%attribute 2 'matter::on-off 'matter::on-off)))
+      ;; the same brightness again is pushed again, the switch is left alone
+      (%invoke 2 'matter::level-control 4 (%level-fields 128))
+      (is-true (await-cond 2 (equal '(50 50) dimmed)))
+      (is (equal '(item:true) switched))
+      ;; the lowest level with on/off: 1 %, then off
+      (%invoke 2 'matter::level-control 4 (%level-fields 1))
+      (is-true (await-cond 2 (and (eq 'item:false (%item-value 'dimmer))
+                                  (eql 1 (%item-value 'dimmer-brightness)))))
+      (is-true (await-cond 2 (equal '(item:false item:true) switched)))
+      ;; off: a level without on/off is dropped, On switches the item
+      (%invoke 2 'matter::level-control 0 (%level-fields 200))
+      (sleep 0.3)
+      (is (eql 1 (%item-value 'dimmer-brightness)))
+      (%invoke 2 'matter::on-off 1)
+      (is-true (await-cond 2 (eq 'item:true (%item-value 'dimmer)))))))
+
+(test bridge--dimmable-light-needs-its-switch
+  "A brightness item alone is no device; with the switch it is a Dimmable
+Light, and a `deflight' on its own stays an On/Off Light."
+  (with-fixture bridge-env ()
+    (house:defdimmablelight dimmer "Living"
+      :brightness ((matter-bridge :device dimmer)))
+    (is (equal '() (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (let ((device (first (matter-bridge-devices))))
+      (is (null (getf device :endpoint)))
+      (is-true (search "no switch item" (getf device :problem))))
+    (house:deflight dimmer-switch "Living"
+      (matter-bridge :device dimmer))
+    (is (equal '(2) (%attribute 1 'matter::descriptor 'matter::parts-list)))
+    (is (equal (list (cons matter:+device-type-dimmable-light+ 3)
+                     (cons matter:+device-type-bridged-node+ 2))
+               (matter:endpoint-device-types (%bridged-endpoint 2))))
+    (is (= 1 (%attribute 2 'matter::level-control 'matter::current-level)))
+    (house:deflight light-hall "Hall" (matter-bridge))
+    (is (equal (list (cons matter:+device-type-on-off-light+ 3)
+                     (cons matter:+device-type-bridged-node+ 2))
+               (matter:endpoint-device-types (%bridged-endpoint 3))))))
 
 (test bridge--heating-is-a-thermostat
   "The temperature and setpoint of a `defheating' naming one `:device' are

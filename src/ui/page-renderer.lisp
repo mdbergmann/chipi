@@ -488,6 +488,7 @@ integer item gets an integer, not the \"1\" that a KNX push would reject."
 
 (defparameter *kind-labels*
   '((:light . "Light")
+    (:brightness . "Brightness")
     (:plug . "Plug")
     (:contact . "Contact")
     (:mode . "Mode")
@@ -561,7 +562,7 @@ numbers.  `nil' when there is no such mapping."
                        sent twice, which a toggle could not.
 - `:shutter-stop'   -- a stop button, likewise.
 - `:pulse'          -- a button that presses and releases (`house:press').
-- `:shutter-position', `:shutter-slat' -- a slider over 0..100 %.
+- `:shutter-position', `:shutter-slat', `:brightness' -- a slider over 0..100 %.
 - `:setpoint'       -- a -/+ stepper: half a step for a float, 1 for an integer.
 - `:mode'           -- a selection of the codes its `:ui-mapping' names; a mode
                        without a mapping has no choices to offer.
@@ -582,7 +583,7 @@ An item tagged `:ui-readonly' gets none of them: it reports only."
        (%create-command-buttons
         parent item-name
         `(("Press" "Press" ,(lambda (item) (house:press item))))))
-      ((:shutter-position :shutter-slat)
+      ((:shutter-position :shutter-slat :brightness)
        (%create-slider-control owner parent item-name value type-hint
                                :min 0 :max 100 :step 1))
       (:setpoint

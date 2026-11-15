@@ -11,6 +11,7 @@
            #:defmode
            #:defpulse
            ;; devices of several items
+           #:defdimmablelight
            #:defrollershutter
            #:defheating
            ;; rules
@@ -209,6 +210,40 @@ What the numbers mean is up to the device; give the item a value mapping in its 
 ;; -----------------------------
 ;; devices of several items
 ;; -----------------------------
+
+(defmacro defdimmablelight (name label
+                            &key (switch nil switch-p) (brightness nil brightness-p))
+  "Defines the items of one dimmable light.
+
+A dimmer is driven through two channels, and an item is bound to one. So each channel given is an item of its own, and each of `SWITCH' and `BRIGHTNESS' is the body of the `hab:defitem' form of that item -- its bindings, `:group', `:tags', `:persistence' -- or left out if the light has no such channel:
+
+- `SWITCH'      -- item `NAME', boolean: `item:true' while the light is on.   kind `:light'
+- `BRIGHTNESS'  -- item `NAME-BRIGHTNESS', integer: the brightness in %.      kind `:brightness'
+
+The switch item is what `deflight' defines, so whatever handles a light handles the switch of a dimmable one. The two items are set like any other; whether a brightness switches the light on, and what brightness the light comes on with, is the dimmer's business, and the items follow it if their bindings report it.
+
+`NAME' is not evaluated, `LABEL' is. The switch item is labelled `LABEL', the brightness item `LABEL' followed by \"Brightness\". On top of a `hab:defitem' body a part takes `:label', to replace that label, and `:id', an unevaluated symbol to replace its id.
+
+  (defdimmablelight light-living \"Living room\"
+    :switch     ((knx-binding :ga '(:read \"1/1/2\" :write \"1/1/1\") :dpt \"1.001\")
+                 :group '(lights living))
+    :brightness ((knx-binding :ga '(:read \"1/1/5\" :write \"1/1/4\") :dpt \"5.001\")
+                 :group '(lights living)))"
+  (check-type name symbol)
+  (let ((label-var (gensym "LABEL"))
+        (forms '()))
+    (when switch-p
+      (push (%part-form name nil label-var nil
+                        'boolean ''item:false :light switch)
+            forms))
+    (when brightness-p
+      (push (%part-form name "BRIGHTNESS" label-var "Brightness"
+                        'integer 0 :brightness brightness)
+            forms))
+    `(let ((,label-var ,label))
+       (declare (ignorable ,label-var))
+       ,@(nreverse forms)
+       ',name)))
 
 (defmacro defrollershutter (name label
                             &key (move nil move-p) (stop nil stop-p)
