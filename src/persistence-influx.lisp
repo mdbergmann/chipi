@@ -69,6 +69,39 @@ Specify those types as 'type-hint' in the item definition."))
             ((floatp item-value)
              (format nil "~a,item=~a value=~f ~a"
                      item-name item-name item-value item-timestamp))
+            ((hash-table-p item-value)
+             (when (zerop (hash-table-count item-value))
+               (log:warn "Skipping persistance for ~A because value is an empty hash-table"
+                         item-name)
+               (return-from %make-write-request))
+             
+             (with-output-to-string (s)
+               (format s "~a,item=~a "
+                       item-name item-name)
+               (loop with num-items = (hash-table-count item-value)
+                     for idx upfrom 0
+                     for field-name being the hash-key of item-value
+                       using (hash-value field-value)
+                     for last-value-p = (= idx
+                                           (1- num-items))
+                     do (typecase field-value
+                          (float
+                             ;; For floats in some circumstances
+                             ;; printer may output it with a f0 or d0 suffix
+                             ;; if you use just ~S
+                             (format s "~A=~F"
+                                     (string-downcase field-name)
+                                     field-value))
+                          (t
+                             ;; For other types ~S should be enough
+                             (format s "~A=~S"
+                                     (string-downcase field-name)
+                                     field-value)))
+                     unless last-value-p
+                       do (write-char #\, s))
+               
+               (format s " ~a"
+                       item-timestamp)))
             ((or (eq item-value 'item:true)
                  (eq item-value 'item:false))
              (format nil "~a,item=~a value=~a ~a"
