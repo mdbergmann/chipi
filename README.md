@@ -997,25 +997,27 @@ OCICL.
 
 ### Reproducible InfluxDB tests
 
-The integration tests use a disposable `influxdb:2.7.11` container. SBCL and
-Quicklisp must be installed, and the Docker daemon must be running:
+With OCICL configured and Docker running, start an isolated InfluxDB instance
+from the repository root and run the normal ASDF tests:
 
 ```sh
-scripts/test-influx                  # InfluxDB integration tests
-scripts/test-influx --suite all      # full core, API and UI suites
-scripts/test-unit                    # no InfluxDB or Docker required
+(
+  set -e
+  export COMPOSE_FILE=test/influx/compose.yaml
+  export COMPOSE_PROJECT_NAME="chipi-test-$(openssl rand -hex 8)"
+  export CHIPI_TEST_PASSWORD="$(openssl rand -hex 24)"
+  export CHIPI_TEST_INFLUX_TOKEN="$(openssl rand -hex 32)"
+  export CHIPI_TEST_INFLUX_ORG=chipi-tests CHIPI_TEST_INFLUX_BUCKET=chipi-tests
+  trap 'docker compose down --volumes --remove-orphans' EXIT
+  docker compose up -d --wait --wait-timeout 120
+  export CHIPI_TEST_INFLUX_URL="http://$(docker compose port influxdb 8086)"
+  sbcl --non-interactive --eval '(require :asdf)' --eval '(asdf:test-system :chipi)'
+)
 ```
 
-On a Mac with Colima, prefix the commands with `DOCKER_CONTEXT=colima`.
-The scripts load `~/quicklisp/setup.lisp` by default. Set `CHIPI_LISP_SETUP` to
-another setup file, such as an existing Qlot `setup.lisp`, when needed. They
-verify that Chipi itself loads from this checkout.
-
-The runner creates a unique Compose project, publishes a random loopback port,
-initializes an isolated org/bucket/token, waits for readiness and verifies bucket
-access before starting Lisp. It preserves the test exit status, prints database
-logs on failure, and removes the container and its volumes after the run. It
-never uses the smart-home stand's database or fixed port 8086.
+Compose publishes a random loopback port. The exit trap removes the test
+container and its volumes. On a Mac with Colima, first export `DOCKER_CONTEXT=colima`.
+Without the four `CHIPI_TEST_INFLUX_*` settings, the integration tests skip.
 
 For an independently managed test server, set `CHIPI_TEST_INFLUX_URL`,
 `CHIPI_TEST_INFLUX_ORG`, `CHIPI_TEST_INFLUX_BUCKET`, and
