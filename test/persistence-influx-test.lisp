@@ -1,5 +1,5 @@
 (defpackage :chipi.influx-persistence-test
-  (:use :cl :fiveam :chipi.persistence :chipi.influx-persistence)
+  (:use :cl :fiveam :cl-mock :chipi.persistence :chipi.influx-persistence)
   (:import-from #:chipi.persistence-test
                 #:assert-fetch-error)
   (:export #:run!
@@ -13,12 +13,60 @@
 
 (in-suite influx-persistence-tests)
 
+(defparameter *influx-test-settings*
+  '("CHIPI_TEST_INFLUX_URL" "CHIPI_TEST_INFLUX_TOKEN"
+    "CHIPI_TEST_INFLUX_ORG" "CHIPI_TEST_INFLUX_BUCKET"))
+
+(defun test-setting (name)
+  (let ((value (uiop:getenv name)))
+    (when (and value (plusp (length value)))
+      value)))
+
 (def-fixture init-destroy-env ()
-  (unwind-protect
-       (progn 
-         (&body))
-    (progn
-      (envi:shutdown-env))))
+  (let ((missing (remove-if #'test-setting *influx-test-settings*)))
+    (if missing
+        (skip "Missing Influx test settings: ~{~a~^, ~}" missing)
+        (unwind-protect
+             (progn (&body))
+          (envi:shutdown-env)))))
+
+;; This suite is run only by the configuration regression tests below.
+(def-suite influx-configuration-probe-tests)
+
+(test (influx-configuration-probe :suite influx-configuration-probe-tests)
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-cut))
+          (item (make-test-item 'configuration-probe :type-hint 'integer)))
+      (is (null (persp:retrieve-range cut item (persp:make-relative-range :seconds 20)))))))
+
+(test init-destroy-env--missing-settings-skip-before-http
+  (dolist (missing '("CHIPI_TEST_INFLUX_URL" "CHIPI_TEST_INFLUX_TOKEN"
+                     "CHIPI_TEST_INFLUX_ORG" "CHIPI_TEST_INFLUX_BUCKET"))
+    (dolist (missing-value '(nil ""))
+      (with-mocks ()
+        (answer (uiop:getenv name)
+          (if (string= name missing) missing-value "configured"))
+        (answer (drakma:http-request)
+          (error "Unexpected HTTP request without ~a" missing))
+        (multiple-value-bind (passed failures skipped)
+            (results-status (run 'influx-configuration-probe))
+          (is-true passed)
+          (is (null failures))
+          (is (= 1 (length skipped))))
+        (is (null (invocations 'drakma:http-request)))))))
+
+(test init-destroy-env--configured-http-failure-is-not-skipped
+  (with-mocks ()
+    (answer (uiop:getenv name)
+      (if (string= name "CHIPI_TEST_INFLUX_URL") "http://localhost:8086" "configured"))
+    (answer (drakma:http-request)
+      (error "Configured Influx request failed: ~a" :unavailable))
+    (multiple-value-bind (passed failures skipped)
+        (results-status (run 'influx-configuration-probe))
+      (is-false passed)
+      (is (= 1 (length failures)))
+      (is (null skipped)))
+    (is (= 1 (length (invocations 'drakma:http-request))))))
 
 (test make-persistence--influx
   "Make a `influx' persistence."
@@ -36,10 +84,6 @@
 ;; --------------------------------------
 ;; !!! tests below require a running influxdb instance
 ;; --------------------------------------
-
-(defun test-setting (name)
-  (or (uiop:getenv name)
-      (error "Missing ~a; run scripts/test-influx" name)))
 
 (defun make-cut ()
   (make-influx-persistence
