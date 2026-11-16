@@ -9,6 +9,21 @@
 (defun table (&rest fields)
   (alexandria:plist-hash-table fields :test 'equal))
 
+(test make-single-query-string--selects-latest-table-time-on-server
+  (let* ((persistence (influx:make-influx-persistence
+                       :query-test :base-url "http://localhost" :token ""
+                       :org "test" :bucket "test"))
+         (base (influx::%make-range-query-string persistence "sensor" nil))
+         (query (influx::%make-single-query-string persistence "sensor" t)))
+    (is (search "|> keep(columns: [\"_time\"])" query))
+    (is (search "|> group(columns: [])" query))
+    (is (search "|> sort(columns: [\"_time\"], desc: true)" query))
+    (is (search "|> limit(n: 1)" query))
+    (is (search "|> findColumn(fn: (key) => true, column: \"_time\")" query))
+    (is (search "contains(value: r._time, set: latestTimes)" query))
+    (is (string= (format nil "~a~%|> last()" base)
+                 (influx::%make-single-query-string persistence "sensor")))))
+
 (test serialize-point--typed-and-escaped-fields
   (let ((line (influx::%serialize-point
                "Room, A=B" (table "Temp" 30 "temp" 30.5 "On" 'item:true

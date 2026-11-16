@@ -292,6 +292,18 @@ instead of an error (influx responds with an empty body)."
                                       special-key special-value "Label" "second"
                                       "Empty" "" "On" 'item:false "Off" 'item:true)
                          second-time)
+      ;; Inspect the HTTP response itself: Lisp must not receive old snapshots.
+      (multiple-value-bind (body status)
+          (chipi.influx-persistence::%make-query-request
+           cut (act-cell:name item) nil nil t)
+        (is (= 200 status))
+        (let ((rows (chipi.influx-persistence::%parse-csv-rows body)))
+          (is (= 7 (length rows)))
+          (dolist (row rows)
+            (is (= second-time
+                   (chipi.influx-persistence::%parse-timestamp
+                    (chipi.influx-persistence::influx-row-timestamp row))))
+            (is (not (string= "Removed" (chipi.influx-persistence::influx-row-field row)))))))
       (let* ((latest (persp:retrieve cut item))
              (value (persisted-item-value latest)))
         (is (= second-time (persisted-item-timestamp latest)))
@@ -333,6 +345,11 @@ instead of an error (influx responds with an empty body)."
           (item (make-test-item 'table-no-data :type-hint 'table
                                  :initial-value (table-value "Initial" 7))))
       (is (eq :error (car (persp:retrieve cut item))))
+      (multiple-value-bind (body status)
+          (chipi.influx-persistence::%make-query-request
+           cut (act-cell:name item) nil nil t)
+        (is (= 200 status))
+        (is (null (chipi.influx-persistence::%parse-csv-rows body))))
       (is (null (persp:retrieve-range cut item (persp:make-relative-range :seconds 60))))
       (is (null (persp:retrieve-range cut item (persp:make-relative-range :seconds 60) :avg)))
       (is (= 7 (gethash "Initial" (item:item-state-value (item:get-item-stateq item))))))))

@@ -217,10 +217,20 @@ Specify those types as 'type-hint' in the item definition."))
   (com.inuoe.jzon:stringify value))
 
 (defun %make-single-query-string (persistence item-name &optional table-p)
-  ;; Per-field last() merges stale fields into newer snapshots. Read observations
-  ;; intact and select the latest timestamp only after grouping their fields.
   (let ((query (%make-range-query-string persistence item-name nil)))
-    (if table-p query (format nil "~a~%|> last()" query))))
+    (if table-p
+        ;; Group timestamps alone to avoid merging heterogeneous _value columns.
+        ;; Keep the original typed tables and omit fields absent at the newest time.
+        (format nil "observations = ~a~%
+latestTimes = observations
+|> keep(columns: [\"_time\"])
+|> group(columns: [])
+|> sort(columns: [\"_time\"], desc: true)
+|> limit(n: 1)
+|> findColumn(fn: (key) => true, column: \"_time\")~%
+observations
+|> filter(fn: (r) => contains(value: r._time, set: latestTimes))" query)
+        (format nil "~a~%|> last()" query))))
 
 (defun %make-range-query-string (persistence item-name range &optional aggregate table-p)
   (let ((base-pipe
