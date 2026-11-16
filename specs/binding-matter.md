@@ -4,7 +4,8 @@ Status: plan, 2026-11-08. The bridge role (section 9) is built and in
 production: B0 to B3 done 2026-11-09, proven against Apple Home on the bench
 2026-11-10, in the house since 2026-11-11, reachability (the first half of
 B4) since 2026-11-12. What it is now, as opposed to what was planned, is in
-`bindings/matter/README.md`. The controller role is not started.
+`bindings/matter/README.md`. The controller role: phase 1 done 2026-11-16
+(binding-matter 0.7.0), the rest of section 7 open.
 cl-matter lives at `../cl-matter`; its README describes its state.
 
 ## 1. Role and shape
@@ -600,14 +601,33 @@ single process. The plugin's integtest does the same with a real
 
 | Phase | Work | Done when |
 |---|---|---|
-| 0 | cl-matter: `UpdateFabricLabel` from the commissioner; Level Control, Boolean State, Temperature Measurement, Window Covering clusters (SBCL IPv6 + multicast + interfaces deferred, see section 8). Boolean State and Temperature Measurement done with B1, Window Covering and Thermostat (heating only) with B2 (2026-11-09), Level Control with the bridge's Dimmable Light (2026-11-15) | new clusters have tests in cl-matter |
-| 1 | `matter-actors`, `matter-registry`, controller core: commissioner state, CASE per node, read / invoke as futures | integtest: a `defitem` on an in-process lamp reads and switches it |
+| 0 | cl-matter: `UpdateFabricLabel` from the commissioner (done 2026-11-16: `start-fabric-label-update`, `update-fabric-label`); Level Control, Boolean State, Temperature Measurement, Window Covering clusters (SBCL IPv6 + multicast + interfaces deferred, see section 8). Boolean State and Temperature Measurement done with B1, Window Covering and Thermostat (heating only) with B2 (2026-11-09), Level Control with the bridge's Dimmable Light (2026-11-15) | new clusters have tests in cl-matter |
+| 1 | `matter-actors`, `matter-registry`, controller core: commissioner state, CASE per node, read / invoke as futures (done 2026-11-16, binding-matter 0.7.0: `matter-init :controller`, `start-controller`, `matter-nodes`, `matter-read`, `matter-invoke`, `matter-actor-future`; commissioning at a known address as the internal `%commission-at`, which describes the node into the registry and sends the fabric label) | integtest: a `defitem` on an in-process lamp reads and switches it -- `matter-controller-integtest.lisp`, on SBCL too: loopback IPv4 needs neither IPv6 nor multicast |
 | 2 | `matter-binding` with subscriptions, `matter-init` / `matter-shutdown`, README | the Eve plug is a `defplug` in a running Chipi; UI toggles it; Apple Home's change shows up |
 | 3 | `matter-discover`, the commissioning job with its states, `matter-commission`, `matter-decommission`, `matter-open-window`, labels, `matter-describe` | a new device goes from pairing code to item without leaving the REPL |
 | 3b | chipi-ui: settings section registry and `/settings/<id>` routing; `binding-matter/ui`: devices view and pairing wizard over the phase-3 functions | a device is paired from the wall tablet, and its suggested definer copied from the node view |
 | 4 | resilience: re-resolve, re-establish with backoff, re-subscribe, unreachable flag, repush policy | pull the plug's power, plug it back: Chipi follows without a restart |
 | 5 | remaining clusters and conversions; `defrollershutter`, `defheating`, sensors end to end | one device per house kind on the bench |
 | 6 | item-card badges and the unreachable mark (the two binding generics); API routes and SSE for clients outside the process | a phone app or script can pair a device too |
+
+What phase 1 built differently from sections 3.2 to 3.5:
+
+- **Messages are thunks.** The controller actor has no message vocabulary
+  of its own (`(:read node paths)` ...): it is the same `make-matter-actor`
+  as the bridge's, and a request is a function run in its context that
+  holds the resolve function of a future (`matter-actor-future`). The
+  future is not `act:?`'s: an ask has a timeout and one reply, and the
+  answer of a node comes from a later poll turn.
+- **A failed request is a failed future**, not a value: `future:error-p`,
+  `future:frecover`. `binding:exec-pull` logs it and leaves the item alone.
+- **`matter-init :controller '(...)`** takes the controller's keys as a
+  plist, next to `:bridge`, in place of the top-level `:fabric-id`,
+  `:vendor-id`, `:attestation` of 3.5. The controller starts in the
+  `defconfig`, at once.
+- **The address of a node** is the one it was commissioned at; operational
+  discovery (re-resolve) is phase 4, and what a real network needs first.
+- **State files are written in the actor**, not on the `:tasks` pool: they
+  are small, and cl-matter's device side does the same.
 
 ## 8. Decisions to take
 

@@ -1,0 +1,492 @@
+(in-package :chipi.binding.matter)
+
+;; The controller role: Chipi is the commissioner and administrator of a
+;; Matter fabric of its own, and the nodes of that fabric -- lamps, plugs,
+;; sensors -- are what items read and switch.
+;;
+;; One controller per process.  Its actor ("matter-controller", on a thread
+;; of its own, matter-actors.lisp) owns the exchange manager and with it the
+;; commissioner, the node registry (matter-registry.lisp) and one CASE
+;; session per node.  Everything below that is not a `matter-...' function
+;; runs in that actor's context: the `matter-...' functions send it there.
+;;
+;; A request to a node is answered by a datagram that a later poll turn
+;; receives, so nothing here waits: `matter-read' and `matter-invoke' return
+;; futures (`matter-actor-future'), which is what a binding's pull hands to
+;; `binding:exec-pull', and what a push simply drops.
+;;
+;; What this is not yet: no discovery (a node is reached at the address it
+;; was commissioned at), no subscriptions, no reconnect backoff.  A session
+;; whose request timed out is dropped, and the next request opens a new one.
+
+(defvar *controller* nil
+  "The running Matter controller of this process, a `controller', or NIL.")
+
+(defparameter *commissioning-country-code* nil
+  "The two-letter country code the controller sets as a node's regulatory location when it commissions it, or NIL to leave the node's own.")
+
+(defstruct (connection (:constructor %make-connection))
+  "What the controller holds per node at run time: the CASE SESSION or NIL,
+whether one is being opened (OPENING-P), and the WAITERS for it, conses of
+a function of the session and a function of the condition that says why
+there is none."
+  session
+  opening-p
+  (waiters '()))
+
+(defstruct (controller (:constructor %make-controller))
+  "Chipi's Matter controller: its ACTOR, the exchange MANAGER the actor
+polls, the Secure CHANNEL and Interaction MODEL on it, the cl-matter
+COMMISSIONER with Chipi's fabric, the STORAGE directory, the node entries
+of the registry (NODES, oldest first), the CONNECTIONS by node id, how a
+device's ATTESTATION is checked at commissioning, and the FABRIC-LABEL the
+nodes are told to list Chipi's fabric under."
+  actor manager channel model commissioner
+  storage
+  (nodes '())
+  (connections (make-hash-table))
+  (attestation :ignore)
+  fabric-label
+  ;; the resolve functions of futures not settled yet; actor context only
+  (pending (make-hash-table :test 'eq)))
+
+(defmethod print-object ((controller controller) stream)
+  (print-unreadable-object (controller stream :type t)
+    (format stream "fabric ~16,'0x, ~d node~:p"
+            (matter:fabric-fabric-id (matter:commissioner-fabric (controller-commissioner controller)))
+            (length (controller-nodes controller)))))
+
+;; -----------------------------
+;; the state files
+;; -----------------------------
+
+(defun %commissioner-state-file (storage)
+  (merge-pathnames "commissioner.state" storage))
+
+(defun %write-commissioner-state (controller)
+  "Writes the commissioner's state -- the fabric with its keys, the next node id, the resumption records -- to its file."
+  (matter:write-state-file (matter:commissioner-state (controller-commissioner controller))
+                           (%commissioner-state-file (controller-storage controller))))
+
+(defun %write-registry (controller)
+  (write-registry (controller-storage controller) (controller-nodes controller)))
+
+;; -----------------------------
+;; sessions
+;; -----------------------------
+
+(defun %connection (controller node-id)
+  "The `connection' of node `NODE-ID', made when there is none yet."
+  (or (gethash node-id (controller-connections controller))
+      (setf (gethash node-id (controller-connections controller)) (%make-connection))))
+
+(defun %call-waiter (waiter session)
+  "Hands `SESSION' to `WAITER'; an error it signals goes to its own error function."
+  (handler-case (funcall (car waiter) session)
+    (error (c) (funcall (cdr waiter) c))))
+
+(defun %session-opened (controller entry connection session)
+  (log:info "Matter controller: session with ~a opened" entry)
+  (setf (node-entry-last-seen entry) (get-universal-time))
+  (let ((waiters (reverse (connection-waiters connection))))
+    (setf (connection-session connection) session
+          (connection-opening-p connection) nil
+          (connection-waiters connection) '())
+    (dolist (waiter waiters)
+      (%call-waiter waiter session)))
+  (ignore-errors (%write-commissioner-state controller)))
+
+(defun %session-failed (entry connection condition)
+  (log:warn "Matter controller: no session with ~a: ~a" entry condition)
+  (let ((waiters (reverse (connection-waiters connection))))
+    (setf (connection-opening-p connection) nil
+          (connection-waiters connection) '())
+    (dolist (waiter waiters)
+      (funcall (cdr waiter) condition))))
+
+(defun %open-session (controller entry connection)
+  "Starts the CASE handshake with the node of `ENTRY' at the address it was last reached at; the waiters of `CONNECTION' hear how it ended."
+  (setf (connection-opening-p connection) t)
+  (handler-case
+      (let ((host (first (node-entry-addresses entry)))
+            (port (node-entry-port entry)))
+        (unless (and host port)
+          (error "No address is known for ~a" entry))
+        (matter:start-case (controller-channel controller) host port
+                           :fabric (matter:commissioner-fabric (controller-commissioner controller))
+                           :peer-node-id (node-entry-node-id entry)
+                           :on-complete (lambda (handshake)
+                                          (if (matter:handshake-complete-p handshake)
+                                              (%session-opened controller entry connection
+                                                               (matter:handshake-session handshake))
+                                              (%session-failed entry connection
+                                                               (matter:handshake-error handshake))))))
+    (error (c)
+      (%session-failed entry connection c))))
+
+(defun %with-session (controller entry on-session on-error)
+  "Calls `ON-SESSION' with the CASE session to the node of `ENTRY': at once when there is one, else when the handshake this starts -- or one that is under way -- is through. `ON-ERROR' is called with the condition when no session can be had, or when `ON-SESSION' signals one."
+  (let* ((connection (%connection controller (node-entry-node-id entry)))
+         (session (connection-session connection))
+         (waiter (cons on-session on-error)))
+    (cond ((and session (matter:session-active-p session))
+           (%call-waiter waiter session))
+          (t
+           (setf (connection-session connection) nil)
+           (push waiter (connection-waiters connection))
+           (unless (connection-opening-p connection)
+             (%open-session controller entry connection))))))
+
+(defun %drop-session (controller entry session)
+  "Forgets `SESSION' to the node of `ENTRY', telling the node if it still listens: the next request opens a new one."
+  (let ((connection (%connection controller (node-entry-node-id entry))))
+    (when (eq session (connection-session connection))
+      (setf (connection-session connection) nil)))
+  (ignore-errors (matter:close-session (controller-channel controller) session)))
+
+(defun %session-closed (controller session)
+  "The channel's word that `SESSION' is gone, by whichever side: no connection keeps it."
+  (loop :for connection :being :the :hash-values :of (controller-connections controller)
+        :when (eq session (connection-session connection))
+          :do (setf (connection-session connection) nil)))
+
+;; -----------------------------
+;; requests
+;; -----------------------------
+
+(defun %require-node (controller designator)
+  "The entry of the node `DESIGNATOR' names -- a label or a node id --, or an error."
+  (or (find-node-entry (controller-nodes controller) designator)
+      (error "No Matter node ~s is commissioned" designator)))
+
+(defun %cluster-id (cluster)
+  "The id of `CLUSTER', an id or the name of a cluster cl-matter defines (`:on-off')."
+  (if (integerp cluster)
+      cluster
+      (matter:cluster-definition-id (matter:find-cluster-definition cluster))))
+
+(defun %attribute-id (cluster attribute)
+  "The id of `ATTRIBUTE' of `CLUSTER': an id, or the name the cluster's definition has for it."
+  (if (integerp attribute)
+      attribute
+      (let* ((definition (matter:find-cluster-definition cluster))
+             (found (matter:find-attribute-definition definition attribute)))
+        (unless found
+          (error "~a has no attribute ~s" definition attribute))
+        (matter:attribute-definition-id found))))
+
+(defun %command-id (cluster command)
+  "The id of `COMMAND' of `CLUSTER': an id, or the name the cluster's definition has for it."
+  (if (integerp command)
+      command
+      (let* ((definition (matter:find-cluster-definition cluster))
+             (found (matter:find-command-definition definition command)))
+        (unless found
+          (error "~a has no command ~s" definition command))
+        (matter:command-definition-id found))))
+
+(defun %command-fields (cluster command fields)
+  "`FIELDS' as the TLV structure of `COMMAND': NIL and a TLV element as they are, a plist through the definition of a command cl-matter knows."
+  (if (or (null fields) (matter:tlv-element-p fields))
+      fields
+      (matter:command-fields cluster command fields)))
+
+(defun %interaction-outcome (controller entry session interaction)
+  "The result of the finished `INTERACTION' with the node of `ENTRY' over `SESSION', or the condition it failed with as second value. A request that got no answer costs the session: the node may have restarted."
+  (cond ((matter:interaction-failed-p interaction)
+         (let ((condition (matter:interaction-condition interaction)))
+           (when (and (typep condition 'matter:interaction-error)
+                      (eql matter:+im-status-timeout+ (matter:interaction-error-status condition)))
+             (log:warn "Matter controller: ~a does not answer, session dropped" entry)
+             (%drop-session controller entry session))
+           (values nil condition)))
+        (t
+         (setf (node-entry-last-seen entry) (get-universal-time))
+         (values (matter:interaction-result interaction) nil))))
+
+(defun %report-value (report what)
+  "The value of the attribute `REPORT': a Lisp value for an attribute cl-matter defines, else the TLV element. An error when the node sent a status in its place, or nothing."
+  (unless report
+    (error "~a: the node reported nothing" what))
+  (multiple-value-bind (value kind) (matter:attribute-report-value report)
+    (when (eq kind :status)
+      (error "~a: the node answered ~a" what (matter:im-status-name (matter:im-status-status value))))
+    value))
+
+(defun %response-value (response what)
+  "What the invoke `RESPONSE' carries: T for a plain success, the response command's fields as a plist (or its TLV element when cl-matter does not define it). An error when the node refused."
+  (unless response
+    (error "~a: the node answered nothing" what))
+  (multiple-value-bind (value kind) (matter:invoke-response-value response)
+    (cond ((not (eq kind :status)) value)
+          ((matter:im-status-success-p value) t)
+          (t (error "~a: the node answered ~a~@[, cluster status ~a~]" what
+                    (matter:im-status-name (matter:im-status-status value))
+                    (matter:im-status-cluster-status value))))))
+
+(defun %start-request (controller entry start finish resolve)
+  "One request to the node of `ENTRY': `START', called with the session and a completion function, starts a cl-matter interaction; `FINISH' makes the value from its result. `RESOLVE' gets that value, or the condition that says why there is none."
+  (%with-session controller entry
+                 (lambda (session)
+                   (funcall start session
+                            (lambda (interaction)
+                              (multiple-value-bind (result condition)
+                                  (%interaction-outcome controller entry session interaction)
+                                (funcall resolve
+                                         (or condition
+                                             (handler-case (funcall finish result)
+                                               (error (c) c))))))))
+                 resolve))
+
+(defun %controller-future (fun)
+  "A future of what `FUN' resolves in the controller actor's context: `FUN' is called there with the controller and the resolve function of `matter-actor-future'. An error when the controller is not running."
+  (let ((controller (or *controller* (error "The Matter controller is not running"))))
+    (matter-actor-future (controller-actor controller)
+                         (lambda (resolve)
+                           ;; the resolve function is kept until it is called, so that
+                           ;; stopping the controller can settle what is still open
+                           (let ((pending (controller-pending controller))
+                                 (wrapped nil))
+                             (setf wrapped (lambda (value)
+                                             (when (remhash wrapped pending)
+                                               (funcall resolve value))))
+                             (setf (gethash wrapped pending) t)
+                             (handler-case (funcall fun controller wrapped)
+                               (error (c) (funcall wrapped c))))))))
+
+(defun %controller-call (thunk)
+  "`THUNK' in the controller actor's context, its value returned; an error when the controller is not running."
+  (let ((controller (or *controller* (error "The Matter controller is not running"))))
+    (matter-actor-call (controller-actor controller) thunk)))
+
+(defun matter-read (node endpoint cluster attribute)
+  "Reads `ATTRIBUTE' of `CLUSTER' on `ENDPOINT' of the commissioned `NODE' and returns a future of its value.
+`NODE' is the label the node was commissioned under, or its node id. `CLUSTER' and `ATTRIBUTE' are ids, or the names cl-matter's cluster definitions have for them, as keywords: `(matter-read \"lamp\" 1 :on-off :on-off)'.
+The value is a Lisp value for an attribute cl-matter defines -- T and NIL for a boolean, `:null' for a null --, else the TLV element as it came.
+The future fails (`future:frecover') with the condition that says why there is no value: no such node, no session to be had, no answer, a status in place of the value. A session to the node is opened when there is none.
+As a binding's pull: `(binding :pull (lambda () (matter-read \"lamp\" 1 :on-off :on-off)) :transform ...)'."
+  (%controller-future
+   (lambda (controller resolve)
+     (let* ((entry (%require-node controller node))
+            (path (matter:attribute-path endpoint (%cluster-id cluster) (%attribute-id cluster attribute)))
+            (what (format nil "read of ~a/~a/~a on ~s" endpoint cluster attribute node)))
+       (%start-request controller entry
+                       (lambda (session on-complete)
+                         (matter:start-read (controller-model controller) session (list path)
+                                            :on-complete on-complete))
+                       (lambda (reports) (%report-value (first reports) what))
+                       resolve)))))
+
+(defun matter-invoke (node endpoint cluster command &optional fields)
+  "Invokes `COMMAND' of `CLUSTER' on `ENDPOINT' of the commissioned `NODE' and returns a future of the answer: T for a plain success, the fields of a response command as a plist.
+`NODE', `CLUSTER' and `COMMAND' as in `matter-read': `(matter-invoke \"lamp\" 1 :on-off :on)'. `FIELDS' is a plist of the command's fields for a command cl-matter defines -- `(matter-invoke \"lamp\" 1 :level-control :move-to-level '(:level 128 :transition-time 0 :options-mask 0 :options-override 0))' --, or a TLV element.
+The future fails with the condition that says why not, as `matter-read's does. Who does not care for the answer drops the future: nothing waits on it, which is what a binding's push wants."
+  (%controller-future
+   (lambda (controller resolve)
+     (let* ((entry (%require-node controller node))
+            (path (matter:command-path endpoint (%cluster-id cluster) (%command-id cluster command)))
+            (tlv (%command-fields cluster command fields))
+            (what (format nil "~a/~a/~a on ~s" endpoint cluster command node)))
+       (%start-request controller entry
+                       (lambda (session on-complete)
+                         (matter:start-invoke (controller-model controller) session path tlv
+                                              :on-complete on-complete))
+                       (lambda (responses) (%response-value (first responses) what))
+                       resolve)))))
+
+(defun matter-nodes ()
+  "The nodes commissioned into Chipi's fabric, oldest first, each a plist: `:node-id', `:label', `:vendor-id', `:product-id', `:vendor-name', `:product-name', `:serial-number', `:unique-id', `:endpoints' -- plists of `:id', `:device-types' as (id . revision) and `:server-clusters' --, `:addresses', `:port', `:commissioned-at' and `:last-seen'."
+  (%controller-call
+   (lambda ()
+     (mapcar #'node-entry-plist (controller-nodes *controller*)))))
+
+;; -----------------------------
+;; commissioning, at a known address
+;; -----------------------------
+
+;; The whole ceremony -- finding the device from its pairing code, the
+;; steps a wizard shows -- comes with discovery.  This is its core: a
+;; device whose address and passcode are known becomes a node of the
+;; fabric and an entry of the registry.
+
+(defun %describe-paths ()
+  "What a node is asked about itself: its Basic Information and the Descriptor of every endpoint."
+  (list (matter:attribute-path 0 matter:+cluster-basic-information+ nil)
+        (matter:attribute-path nil matter:+cluster-descriptor+ nil)))
+
+(defun %label-fabric (controller entry session done)
+  "Tells the node of `ENTRY' the name of Chipi's fabric, then calls `DONE'. A node that does not take it is no failure of the commissioning: it is logged."
+  (let ((label (controller-fabric-label controller)))
+    (if (and label (plusp (length label)))
+        (matter:start-fabric-label-update
+         (controller-commissioner controller) session label
+         :on-complete (lambda (interaction error)
+                        (declare (ignore interaction))
+                        (when error
+                          (log:warn "Matter controller: ~a did not take the fabric label ~s: ~a" entry label error))
+                        (funcall done)))
+        (funcall done))))
+
+(defun %describe-node (controller entry session done)
+  "Reads what the node of `ENTRY' says about itself into the entry and the registry file, then calls `DONE'. A node that does not say is logged and stays registered by its id and label."
+  (matter:start-read (controller-model controller) session (%describe-paths)
+                     :on-complete (lambda (interaction)
+                                    ;; whatever the answer is made of, DONE is called
+                                    (handler-case
+                                        (multiple-value-bind (reports condition)
+                                            (%interaction-outcome controller entry session interaction)
+                                          (when condition (error condition))
+                                          (describe-node-entry entry reports)
+                                          (%write-registry controller))
+                                      (error (c)
+                                        (log:warn "Matter controller: ~a does not describe itself: ~a" entry c)))
+                                    (funcall done))))
+
+(defun %commissioned (controller commissioning label host port resolve)
+  "The end of a commissioning flow: a failed one resolves with its condition; a node that joined is registered under `LABEL' at once -- it is on the fabric whatever happens next --, then described and told the fabric's name, and `RESOLVE' gets its plist."
+  (if (not (matter:commissioning-complete-p commissioning))
+      (funcall resolve (matter:commissioning-condition commissioning))
+      (let* ((result (matter:commissioning-result commissioning))
+             (session (getf result :session))
+             (now (get-universal-time))
+             (entry (make-node-entry :node-id (getf result :node-id)
+                                     :label (unique-node-label (controller-nodes controller) label)
+                                     :addresses (list host) :port port
+                                     :commissioned-at now :last-seen now)))
+        (setf (controller-nodes controller) (append (controller-nodes controller) (list entry))
+              (connection-session (%connection controller (node-entry-node-id entry))) session)
+        (%write-commissioner-state controller)
+        (%write-registry controller)
+        (log:info "Matter controller: commissioned ~a at [~a]:~d" entry host port)
+        (flet ((finish ()
+                 (funcall resolve (node-entry-plist entry))))
+          (handler-case
+              (%describe-node controller entry session
+                              (lambda ()
+                                (handler-case (%label-fabric controller entry session #'finish)
+                                  (error (c)
+                                    (log:warn "Matter controller: fabric label for ~a: ~a" entry c)
+                                    (finish)))))
+            (error (c)
+              (log:warn "Matter controller: ~a does not describe itself: ~a" entry c)
+              (finish)))))))
+
+(defun %commission-at (host port &key passcode label (country-code *commissioning-country-code*))
+  "Commissions the device at `HOST':`PORT', whose commissioning window is open for `PASSCODE', into Chipi's fabric and registers it under `LABEL'. Returns a future of the new node's plist, as `matter-nodes' lists it; it fails with the condition that says why the device did not join.
+The device's attestation is checked as the controller was configured (`:attestation'). The pure-Lisp handshakes take their seconds: wait on the future with a generous timeout."
+  (unless (and (stringp label) (plusp (length label)))
+    (error "A node needs a label, a string that is not empty, not: ~s" label))
+  (%controller-future
+   (lambda (controller resolve)
+     (when (find-node-entry (controller-nodes controller) label)
+       (error "A Matter node ~s is commissioned already" label))
+     (matter:start-commissioning
+      (controller-commissioner controller) host port
+      :passcode passcode :country-code country-code
+      :attestation (controller-attestation controller)
+      :on-complete (lambda (commissioning)
+                     (handler-case (%commissioned controller commissioning label host port resolve)
+                       (error (c) (funcall resolve c))))))))
+
+;; -----------------------------
+;; start and stop
+;; -----------------------------
+
+(defun %make-commissioner (channel model storage fabric-id vendor-id)
+  "The commissioner of the fabric kept in `STORAGE', or of a new fabric `FABRIC-ID' when nothing is kept there yet; as second value whether it is a new one."
+  (let ((state (matter:read-state-file (%commissioner-state-file storage))))
+    (if state
+        (let* ((commissioner (matter:make-commissioner channel model :state state))
+               (kept (matter:fabric-fabric-id (matter:commissioner-fabric commissioner))))
+          (unless (= kept fabric-id)
+            (log:warn "Matter controller: the fabric kept in ~a is ~16,'0x, not the configured ~16,'0x; the kept one stays"
+                      storage kept fabric-id))
+          (values commissioner nil))
+        (values (matter:make-commissioner channel model :fabric-id fabric-id :vendor-id vendor-id)
+                t))))
+
+(defun %settle-pending (controller)
+  "Fails what is still waiting -- the waiters for a session, the futures of requests in flight -- with a `stopped' error: no answer comes once the manager is closed."
+  (let ((condition (make-condition 'simple-error
+                                   :format-control "The Matter controller was stopped"))
+        (waiters '())
+        (pending (loop :for resolve :being :the :hash-keys :of (controller-pending controller)
+                       :collect resolve)))
+    (loop :for connection :being :the :hash-values :of (controller-connections controller)
+          :do (setf waiters (append waiters (reverse (connection-waiters connection)))
+                    (connection-waiters connection) '()
+                    (connection-opening-p connection) nil))
+    (dolist (waiter waiters)
+      (ignore-errors (funcall (cdr waiter) condition)))
+    (dolist (resolve pending)
+      (ignore-errors (funcall resolve condition)))))
+
+(defun %controller-stopping (controller)
+  "In actor context, before the manager is closed: what waits is failed, the nodes are told their sessions end, and the state files are written -- a write that fails is logged and does not keep the manager from closing."
+  (%settle-pending controller)
+  (loop :for connection :being :the :hash-values :of (controller-connections controller)
+        :for session := (connection-session connection)
+        :when (and session (matter:session-active-p session))
+          :do (ignore-errors (matter:close-session (controller-channel controller) session)))
+  (clrhash (controller-connections controller))
+  (handler-case (%write-commissioner-state controller)
+    (error (c) (log:warn "Matter controller: the commissioner state was not written: ~a" c)))
+  (handler-case (%write-registry controller)
+    (error (c) (log:warn "Matter controller: the registry was not written: ~a" c))))
+
+(defun start-controller (storage &key (fabric-id 1) (vendor-id #xFFF1) (attestation :ignore) (label "Chipi")
+                                   (port 0) address (family :ipv6))
+  "Starts Chipi's Matter controller; `matter-init' does this with its `:controller' keys.
+`STORAGE' is the directory of `commissioner.state' (the fabric with its keys, the node ids handed out, resumption records) and `nodes' (the node registry). A fabric kept there is the one that is used: `FABRIC-ID' and `VENDOR-ID' (the test vendor, fine for a private fabric) make a new one only when there is none.
+`ATTESTATION' is how a device is checked when it is commissioned: `:ignore', the default, accepts any device that holds the key of its device attestation certificate -- cl-matter's trust store has the SDK's test authorities only --, `:verify' checks the chain against the trust store.
+`LABEL' is the name the nodes list Chipi's fabric under for their other administrators; NIL leaves it unnamed.
+`PORT' is the UDP port, 0 for any; `FAMILY' and `ADDRESS' bind it elsewhere (tests: `:family :ipv4 :address \"127.0.0.1\"')."
+  (when *controller*
+    (error "The Matter controller is already running; `matter-shutdown' first"))
+  (unless (member attestation '(:ignore :verify))
+    (error ":attestation is :ignore or :verify, not: ~s" attestation))
+  (let* ((transport (matter:make-udp-transport :family family :port port :address address))
+         (manager (matter:make-exchange-manager :transport transport))
+         (done nil))
+    (unwind-protect
+         (let* ((controller (%make-controller :manager manager :storage storage
+                                              :attestation attestation :fabric-label label
+                                              :nodes (read-registry storage)))
+                (channel (matter:make-secure-channel
+                          manager
+                          :on-session-closed (lambda (channel session)
+                                               (declare (ignore channel))
+                                               (%session-closed controller session))))
+                (model (matter:make-interaction-model manager)))
+           (multiple-value-bind (commissioner new-p)
+               (%make-commissioner channel model storage fabric-id vendor-id)
+             (setf (controller-channel controller) channel
+                   (controller-model controller) model
+                   (controller-commissioner controller) commissioner)
+             (when new-p
+               (%write-commissioner-state controller)))
+           (setf (controller-actor controller)
+                 (make-matter-actor "matter-controller" manager
+                                    :on-stop (lambda () (%controller-stopping controller))))
+           (setf *controller* controller
+                 done t)
+           (multiple-value-bind (host local-port) (matter:transport-local-endpoint transport)
+             (log:info "Matter controller on [~a]:~d, fabric ~16,'0x, ~d node~:p"
+                       host local-port
+                       (matter:fabric-fabric-id (matter:commissioner-fabric (controller-commissioner controller)))
+                       (length (controller-nodes controller))))
+           controller)
+      (unless done
+        (ignore-errors (matter:exchange-manager-close manager))))))
+
+(defun stop-controller ()
+  "Stops the controller: its sessions are closed, its state files written, its socket closed. The nodes stay commissioned; the next start finds them in the registry."
+  (when-let ((controller *controller*))
+    (setf *controller* nil)
+    (matter-actor-stop (controller-actor controller))
+    (log:info "Matter controller stopped")
+    t))
+
+(defun matter-controller-running-p ()
+  "Whether Chipi's Matter controller is running."
+  (and *controller* t))

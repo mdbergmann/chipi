@@ -1,8 +1,8 @@
 (defsystem "binding-matter"
-  :version "0.6.1"
+  :version "0.7.0"
   :author "Manfred Bergmann"
   :license "Apache-2"
-  :description "Matter binding for Chipi. The bridge role: Chipi is a Matter bridge whose bridged devices are items, for Apple Home, Google Home and the like. The controller role follows."
+  :description "Matter binding for Chipi. The bridge role: Chipi is a Matter bridge whose bridged devices are items, for Apple Home, Google Home and the like. The controller role: Chipi commissions Matter devices into a fabric of its own and reads and switches them; its core so far, discovery and the binding follow."
   :depends-on ((:version "chipi" "0.9.8")
                "cl-matter"
                "babel"
@@ -12,6 +12,8 @@
                (:file "matter-convert")
                (:file "qr-code")
                (:file "matter-bridge")
+               (:file "matter-registry")
+               (:file "matter-controller")
                (:file "binding-matter"))
   :in-order-to ((test-op (test-op "binding-matter/tests"))))
 
@@ -32,7 +34,9 @@
                (:file "binding-matter-test-suite")
                (:file "binding-matter-test")
                (:file "qr-code-test")
-               (:file "binding-matter-integtest"))
+               (:file "binding-matter-integtest")
+               (:file "matter-controller-test")
+               (:file "matter-controller-integtest"))
   :description "Test system for the Matter binding"
   :perform (test-op (op c)
                     (symbol-call

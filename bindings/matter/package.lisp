@@ -23,6 +23,13 @@
            #:matter-bridge-admins
            #:matter-bridge-remove-admin
            #:matter-bridge-devices
+           ;; the controller role: Matter devices as nodes of Chipi's own fabric
+           #:start-controller
+           #:stop-controller
+           #:matter-controller-running-p
+           #:matter-nodes
+           #:matter-read
+           #:matter-invoke
            ;; a QR code encoder (qr-code.lisp), for the pairing code
            #:qr-encode
            #:qr-svg
@@ -31,6 +38,7 @@
            #:make-matter-actor
            #:matter-actor-call
            #:matter-actor-run
+           #:matter-actor-future
            #:matter-actor-stop))
 
 (in-package :chipi.binding.matter)
@@ -40,8 +48,9 @@
 ;; - as a *bridge* (matter-bridge.lisp) Chipi is a Matter device that Apple
 ;;   Home, Google Home or Alexa commission, and items -- KNX-bound or
 ;;   virtual -- are its bridged devices;
-;; - as a *controller* (to come) Chipi commissions Matter devices into a
-;;   fabric of its own, and they become items.
+;; - as a *controller* (matter-controller.lisp, its core so far) Chipi
+;;   commissions Matter devices into a fabric of its own, and they become
+;;   items.
 ;;
 ;; Both roles sit on cl-matter, which is single-threaded and polled; each
 ;; role owns one Sento actor on a thread of its own that polls its exchange

@@ -31,7 +31,7 @@
   (when (and *pending-bridge* *storage* (not (matter-bridge-running-p)))
     (apply #'start-bridge *storage* (first *pending-bridge*))))
 
-(defun matter-init (&key storage bridge)
+(defun matter-init (&key storage bridge controller)
   "Configures the Matter binding; to be called in `hab:defconfig'. A shutdown hook that calls `matter-shutdown' is added with `hab:add-to-shutdown'.
 The bridge does not start here but when the configuration is loaded: `hab:config-loaded', the last form of the configuration file, starts it (through `hab:add-to-startup'), with every item defined. An app that added the bridge before is back the moment the bridge answers, and takes a device that is not defined yet for one that was removed -- room, name and automations go with it.
 
@@ -44,7 +44,12 @@ The bridge does not start here but when the configuration is loaded: `hab:config
   ;; ... items ...
   (config-loaded)
 
-The bridge's pairing codes are logged at start and `matter-bridge-pairing-code' returns them. `start-bridge' starts a bridge at once, for who needs that."
+The bridge's pairing codes are logged at start and `matter-bridge-pairing-code' returns them. `start-bridge' starts a bridge at once, for who needs that.
+
+`CONTROLLER': NIL, or T or a plist to run Chipi as a Matter controller, the administrator of a fabric of its own whose nodes `matter-read' reads and `matter-invoke' switches. The plist's keys are those of `start-controller': `:fabric-id' (1), `:vendor-id' (#xFFF1), `:attestation' (`:ignore'), `:label' (\"Chipi\"). Unlike the bridge the controller starts here, at once: the items defined after it pull from it. One that runs already -- the configuration was loaded again -- stays as it is.
+
+  (matter-init :storage \"~/.chipi/matter/\"
+               :controller '(:fabric-id #xC1 :attestation :ignore))"
   (hab:add-to-shutdown #'matter-shutdown)
   (setf *storage* (%storage-directory storage))
   (log:info "Matter: state files in ~a" *storage*)
@@ -53,11 +58,14 @@ The bridge's pairing codes are logged at start and `matter-bridge-pairing-code' 
     (hab:add-to-startup #'%start-pending-bridge)
     (unless (matter-bridge-running-p)
       (log:info "Matter bridge: configured, starts when the configuration is loaded (hab:config-loaded)")))
+  (when (and controller (not (matter-controller-running-p)))
+    (apply #'start-controller *storage* (if (eq controller t) '() controller)))
   t)
 
 (defun matter-shutdown ()
-  "Stops the Matter binding: the bridge, if it runs. `hab:shutdown' calls this through the hook `matter-init' registered."
+  "Stops the Matter binding: the bridge and the controller, whichever runs. `hab:shutdown' calls this through the hook `matter-init' registered."
   (stop-bridge)
+  (stop-controller)
   (%clear-bridge-bindings)
   (setf *pending-bridge* nil)
   (setf *storage* nil)

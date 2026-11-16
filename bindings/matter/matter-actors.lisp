@@ -19,7 +19,8 @@
 ;;   (:call . thunk)  run THUNK in actor context; the reply is its value, or
 ;;                    the condition it signalled -- `matter-actor-call'
 ;;   (:run . thunk)   run THUNK in actor context, nothing comes back --
-;;                    `matter-actor-run'
+;;                    `matter-actor-run'; with a function that resolves a
+;;                    future in its hands, `matter-actor-future'
 ;;   (:stop)          end the loop, run the on-stop function, close the
 ;;                    manager -- `matter-actor-stop'
 
@@ -62,9 +63,10 @@ context before the manager is closed."
       (:stop
        (setf (actor-state-running state) nil)
        (handler-case
-           (progn
-             (when (actor-state-on-stop state)
-               (funcall (actor-state-on-stop state)))
+           (unwind-protect
+                (when (actor-state-on-stop state)
+                  (funcall (actor-state-on-stop state)))
+             ;; the socket is closed whatever the hook did
              (matter:exchange-manager-close (actor-state-manager state)))
          (error (c)
            (log:warn "Matter actor ~a: error on stop: ~a" (%actor-name) c)))
@@ -101,6 +103,22 @@ Never call this from the actor's own context: the actor would wait for itself."
   "Runs `THUNK', a function of no arguments, in `ACTOR's context without waiting; an error it signals is logged."
   (act:! actor (cons :run thunk))
   t)
+
+(defun matter-actor-future (actor fun)
+  "Runs `FUN' in `ACTOR's context without waiting and returns a future of what comes of it.
+`FUN' takes one argument, a function RESOLVE of one argument: `FUN', or a callback cl-matter runs later in the same context, calls it with the result. Called with a condition -- or when `FUN' signals an error -- the future fails with it: `future:error-p' is true, `future:frecover' handles it, and a `future:fmap' or `future:fcompleted' on it does not run.
+The future's completion handlers run on the actor's thread: they must not block, and must not `matter-actor-call' the same actor. A tell, as `item:set-value' is one, is fine.
+This is what a request to a Matter node is made of: the answer is a datagram a later poll turn receives."
+  (future:fmap
+      (future:make-future
+       (lambda (resolve)
+         (act:! actor (cons :run (lambda ()
+                                   (handler-case (funcall fun resolve)
+                                     (error (c) (funcall resolve c))))))))
+      (result)
+    (if (typep result 'condition)
+        (error result)
+        result)))
 
 (defun matter-actor-stop (actor &key (timeout *call-timeout*))
   "Ends `ACTOR's poll loop, runs its on-stop function and closes its manager -- all in actor context -- then stops the actor and waits for it."

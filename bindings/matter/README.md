@@ -7,7 +7,10 @@ Chipi plays two Matter roles with this plugin:
   devices. This is what the plugin does today; it runs a KNX house in Apple
   Home (lights, window contacts, thermostats; since 2026-11-11, on AmiLisp).
 - as a **controller**, Chipi commissions Matter devices into a fabric of its
-  own, and they become items. This follows (`specs/binding-matter.md`).
+  own, and they become items. Its core is there -- the fabric, the node
+  registry, reading and switching a node -- and runs against an in-process
+  device in the tests; discovery, the binding and subscriptions follow
+  (`specs/binding-matter.md`, and *The controller, so far* below).
 
 The protocol is [cl-matter](../../../cl-matter), a Matter implementation in
 Common Lisp with a device and a controller side.
@@ -454,12 +457,91 @@ the TXT; `_matter._tcp` shows one instance per fabric once it is paired.
 - **OTA.** Apple Home writes to an OTA requestor cluster the bridge does not
   have and takes the refusal; harmless.
 - **SBCL.** No IPv6 and no mDNS in cl-matter's SBCL backend: tests only.
-- **The controller role** -- Matter devices as items -- is planned in
-  `specs/binding-matter.md` and not started.
+- **The controller role** -- Matter devices as items -- has its core only;
+  see the next section.
+
+##### The controller, so far
+
+Phase 1 of `specs/binding-matter.md`: what the binding and the pairing
+wizard will stand on. Nothing here finds a device on the network yet.
+
+```lisp
+(defconfig "my-home"
+  (matter-init :storage "~/.chipi/matter/"
+               :controller '(:fabric-id #xC1 :attestation :ignore)))
+```
+
+`:controller` -- `t` or a plist -- starts the controller at once, in the
+`defconfig`, unlike the bridge: the items defined after it pull from it.
+Both roles can run in one Chipi; they share the storage directory and
+nothing else. The keys:
+
+| Key | Default | |
+|---|---|---|
+| `:fabric-id` | 1 | the id of Chipi's fabric, used when the fabric is made: the first start. A fabric on file is the one that stays, a different id here is logged and ignored |
+| `:vendor-id` | `#xFFF1` | the test vendor, fine for a private fabric |
+| `:attestation` | `:ignore` | how a device is checked when it is commissioned: `:ignore` accepts any device that holds the key of its attestation certificate, `:verify` checks the chain against cl-matter's trust store, which has the SDK's test authorities only |
+| `:label` | `"Chipi"` | the name the nodes list Chipi's fabric under for their other administrators (`UpdateFabricLabel` after commissioning) |
+
+Two files in the storage directory: `commissioner.state` -- the fabric with
+its root key, the node ids handed out, the resumption records; whoever has
+this file administers every node of the fabric, and without it the nodes
+have to be reset and commissioned again -- and `nodes`, the registry: per
+node its id, the label it was given, what its Basic Information and the
+Descriptor of each endpoint said (vendor, product, serial number, device
+types, server clusters), the address it was reached at.
+
+```lisp
+(matter-nodes)                                  ; => plists, oldest first
+(matter-read "lamp" 1 :on-off :on-off)          ; => a future of T or NIL
+(matter-invoke "lamp" 1 :on-off :toggle)        ; => a future of T
+(matter-invoke "lamp" 1 :level-control :move-to-level
+               '(:level 128 :transition-time 0 :options-mask 0 :options-override 0))
+```
+
+A node is named by its label or its node id, cluster, attribute and command
+by the names cl-matter's definitions have for them (as keywords) or by
+their ids -- a cluster cl-matter does not define is addressed by ids, and
+its values come as TLV elements. Both functions return a Sento future at
+once; the answer is a datagram a later turn of the controller actor
+receives. A future fails with the condition that says why not (no such
+node, no session, no answer, a status from the node): `future:frecover`
+handles it, `future:error-p` tells. That is the shape a binding wants -- a
+pull hands the future to chipi, a push drops it:
+
+```lisp
+(defitem 'lamp "Lamp" 'boolean
+  (binding :pull (lambda ()
+                   ;; what the lamp says is not sent back to it
+                   (values (matter-read "lamp" 1 :on-off :on-off) '(:push nil)))
+           :transform (lambda (on) (if on 'item:true 'item:false))
+           :push (lambda (value)
+                   (matter-invoke "lamp" 1 :on-off (if (eq value 'item:true) :on :off)))
+           :initial-delay 2 :delay 60
+           :call-push-p t))
+```
+
+The `matter-binding` form that does this by itself, with subscriptions in
+place of the polling, is the next phase.
+
+One CASE session per node, opened by the first request and kept; requests
+that arrive while it is being opened wait for it together. A request that
+gets no answer costs the session, and the next one opens a new one. The
+node is reached at the address it was commissioned at: no operational
+discovery yet, so a node whose address changed is lost until then.
+
+Commissioning is there as the internal `%commission-at` -- address, port,
+passcode and label given -- which the integration test uses: PASE,
+attestation, the NOC, CommissioningComplete, then the read of what the node
+is and the fabric label. `matter-commission`, which finds the device from
+its pairing code, comes with discovery (phase 3).
 
 ##### How it runs
 
-cl-matter is single-threaded and polled. The bridge owns one Sento actor on
+cl-matter is single-threaded and polled. Each role owns one Sento actor
+(`matter-bridge`, `matter-controller`) of the kind described here for the
+bridge; the controller's requests are `matter-actor-future`s, resolved by
+the actor when the answer came. The bridge owns one Sento actor on
 a thread of its own (`make-matter-actor`, pinned) that polls the exchange
 manager, a turn of at most 50 ms; every change to the data model and every
 command handler runs in that actor. A second, ordinary actor
@@ -475,7 +557,9 @@ The files: `matter-bridge.lisp` (the bridge, the binding, the functions
 above), `matter-actors.lisp` (the polling actor), `matter-convert.lisp`
 (house kinds to device types, item values to attribute values),
 `qr-code.lisp` (the QR encoder), `matter-ui.lisp` (the settings card, system
-`binding-matter/ui`), `binding-matter.lisp` (`matter-init`,
+`binding-matter/ui`), `matter-registry.lisp` (the controller's node
+registry), `matter-controller.lisp` (the controller: fabric, sessions,
+`matter-read`, `matter-invoke`), `binding-matter.lisp` (`matter-init`,
 `matter-shutdown`).
 
 #### Tests
@@ -490,7 +574,10 @@ runs the unit tests (conversions, endpoint ids, the QR encoder against
 node-qrcode's symbols, the bridge on loopback without a network) and the
 integration test, in which cl-matter's own commissioner commissions the
 bridge over loopback UDP, switches a light, reads the item's change back and
-writes a heating's setpoint. `(asdf:test-system :binding-matter/ui-tests)`
+writes a heating's setpoint. The controller has the same two: unit tests
+(registry, futures, start and stop) and an integration test in which it
+commissions an in-process cl-matter lamp over loopback UDP, and a `defitem`
+reads and switches it. `(asdf:test-system :binding-matter/ui-tests)`
 renders the settings card into a stubbed CLOG connection. All run on SBCL
 and on AmiLisp. From the shell, `scripts/review/run-tests.sh matter` runs
 both suites on SBCL and exits non-zero when a check fails (`CL_MATTER_DIR`
