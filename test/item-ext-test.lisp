@@ -112,3 +112,19 @@
          (tags-ht (gethash "tags" ht)))
     (is-true (gethash :ui-type tags-ht))
     (is (equal "Light" (gethash :ui-type tags-ht)))))
+
+(test table-value--json-roundtrip
+  (let* ((external (com.inuoe.jzon:parse "{\"A\":1,\"a\":2.5,\"yes\":true,\"no\":false,\"text\":\"ok\"}"))
+         (internal (item-value-ext-to-internal external))
+         (decoded (com.inuoe.jzon:parse
+                   (com.inuoe.jzon:stringify (item-value-internal-to-ext internal)))))
+    (is (= 1 (gethash "A" internal)))
+    (is (typep (gethash "a" internal) 'single-float))
+    (is (eq 'item:true (gethash "yes" internal)))
+    (is (eq 'item:false (gethash "no" internal)))
+    (is (equalp external decoded))
+    (dolist (json '("{\"x\":null}" "{\"x\":[]}" "{\"x\":{}}"))
+      (signals item:invalid-table-value
+        (item-value-ext-to-internal (com.inuoe.jzon:parse json)))))
+  (is (= 0 (hash-table-count
+            (item-value-ext-to-internal (com.inuoe.jzon:parse "{}"))))))

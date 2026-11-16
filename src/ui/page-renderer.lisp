@@ -176,6 +176,7 @@ callback that registers or clears callbacks itself run into the lock."
     ((string= "FLOAT" type-hint) "Decimal Number")
     ((string= "INTEGER" type-hint) "Whole Number")
     ((string= "STRING" type-hint) "Text")
+    ((string= "TABLE" type-hint) "Fields")
     (t "Undefined type")))
 
 (defun %mapped-label (value mapping)
@@ -332,9 +333,41 @@ interacted with the checkbox; the property reflects the state reliably."
                                           (item-ext:item-value-ext-to-internal current-state)))))
     toggle-input))
 
+(defun %render-table-fields (parent value)
+  "Replaces all displayed fields with VALUE's complete snapshot.
+Keys and values use text setters, so item data never becomes HTML."
+  (setf (inner-html parent) "")
+  (if (and (hash-table-p value) (plusp (hash-table-count value)))
+      (dolist (key (sort (loop :for key :being :the :hash-keys :of value
+                              :collect key)
+                        #'string<))
+        (let* ((row (create-div parent :class "item-field"))
+               (name (create-div row :class "item-field-name"))
+               (display (create-div row :class "item-field-value"))
+               (field-value (gethash key value)))
+          (setf (text name) key
+                (text display) (cond
+                                 ((eq field-value t) "true")
+                                 ((null field-value) "false")
+                                 ((floatp field-value) (format nil "~f" field-value))
+                                 (t (princ-to-string field-value))))))
+      (create-div parent :class "item-fields-empty" :content "No fields")))
+
+(defun %create-table-display (owner parent item-name value)
+  "A read-only field list that follows the item's full snapshots."
+  (let ((display (create-div parent :class "item-value-display item-fields")))
+    (%render-table-fields display value)
+    (set-on-value-update owner item-name
+                         (lambda (state)
+                           (%render-table-fields display (gethash "value" state))))
+    display))
+
 (defun %create-value-display (owner parent item-name value type-hint
                               &optional format mapping)
   "A read-only formatted display of the item's value."
+  (when (string= "TABLE" type-hint)
+    (return-from %create-value-display
+      (%create-table-display owner parent item-name value)))
   (let ((value-div (create-div parent :class "item-value-display"
                                       :content (%format-widget-value value type-hint
                                                                      format mapping))))
@@ -813,17 +846,26 @@ Unlike `%render-item-row' this resolves no item: buttons are not item-bound."
                                           :style (format nil "min-height:~apx"
                                                          (page:chart-height w))))
                 (persistence (%chart-persistence w)))
-            (if (null persistence)
+            (cond
+              ((and (null (page:chart-field w))
+                    (some (lambda (entry)
+                            (and (typep (first entry) 'item:item)
+                                 (item:table-type-hint-p (item:value-type-hint (first entry)))))
+                          series))
+               (create-div plot-div :class "chart-empty"
+                                    :content "Select a numeric field with :field"))
+              ((null persistence)
                 (progn
                   (log:warn "No historic persistence for chart on item: ~a"
                             (page:item-widget-item-id w))
                   (create-div plot-div :class "chart-empty"
-                                       :content "No history available"))
+                                       :content "No history available")))
+              (t
                 ;; the history arrives on another thread, by when the
                 ;; connection may have moved on to another view: the live
                 ;; appends belong to the view this chart is rendered into
                 (%load-and-render-chart (%owner-key ctx) w series plot-div
-                                        persistence)))
+                                        persistence))))
           row))))
 
 (defun %chart-persistence (w)
@@ -903,10 +945,20 @@ booleans chart as 1/0, anything else as a gap (null)."
     ((null ext-value) 0)
     (t "null")))
 
-(defun %chart-transformed-y (transform ext-value)
+(defun %chart-selected-y (ext-value field)
+  "Selects FIELD before numeric conversion. Missing/non-numeric fields are gaps.
+Without FIELD the existing scalar boolean conversion remains unchanged."
+  (if field
+      (if (hash-table-p ext-value)
+          (multiple-value-bind (value present-p) (gethash field ext-value)
+            (if (and present-p (realp value)) value "null"))
+          "null")
+      (%chart-y-value ext-value)))
+
+(defun %chart-transformed-y (transform ext-value &optional field)
   "The uPlot y-value for EXT-VALUE with the chart's TRANSFORM applied.
 A failing transform charts the point as a gap instead of breaking the page."
-  (let ((y (%chart-y-value ext-value)))
+  (let ((y (%chart-selected-y ext-value field)))
     (if (and transform (numberp y))
         (handler-case (funcall transform y)
           (error (c)
@@ -934,7 +986,7 @@ assigned such a string."
                   (write-char #\\ out))
                 (write-char ch out)))))
 
-(defun %chart-points (persisted-items transform)
+(defun %chart-points (persisted-items transform &optional field)
   "Extracts (timestamps values) as two lists of JS literals from the persisted
 items, skipping entries without a proper timestamp (e.g. aggregates)."
   (let ((timestamps '())
@@ -947,7 +999,8 @@ items, skipping entries without a proper timestamp (e.g. aggregates)."
                  (%chart-transformed-y
                   transform
                   (item-ext:item-value-internal-to-ext
-                   (%ext-value (persp:persisted-item-value p)))))
+                   (%ext-value (persp:persisted-item-value p)))
+                  field))
                 values))))
     (list (nreverse timestamps) (nreverse values))))
 
@@ -1086,9 +1139,12 @@ chart in W lost its minus signs and leading digits."
 })();"
             plot-id tables height scales-js right-axis-js series-defs plot-id)))
 
-(defun %uplot-append-js (plot-id ts series-count series-idx y-literal)
-  "The JS that appends one live value: the new row carries Y-LITERAL in
-series SERIES-IDX (1-based) and null in every other series column."
+(defun %uplot-append-js (plot-id ts series-count series-idx y-literal
+                          &optional field)
+  "Appends Y-LITERAL to SERIES-IDX (1-based).
+For field charts other series receive undefined alignment cells, matching
+uPlot.join. Explicit missing observations remain null and break the line.
+Scalar charts retain their existing null alignment cells."
   (format nil "if (window.chipiCharts && window.chipiCharts['~a']) {
   var c = window.chipiCharts['~a'];
   c.data[0].push(~a);~{ c.data[~a].push(~a);~}
@@ -1096,7 +1152,9 @@ series SERIES-IDX (1-based) and null in every other series column."
 }"
           plot-id plot-id ts
           (loop :for i :from 1 :to series-count
-                :append (list i (if (= i series-idx) y-literal "null")))))
+                :append (list i (if (= i series-idx)
+                                    y-literal
+                                    (if field "undefined" "null"))))))
 
 (defun %right-axis-series-p (item-name right-ids)
   "Whether the series of item ITEM-NAME reads against the right axis, i.e.
@@ -1108,8 +1166,18 @@ id (see `item:name'), which is what the ids are compared as."
   "Renders the uPlot chart for SERIES-DATA -- a list of
 (item-name series-label persisted-items) -- and registers a live-append
 callback per series item on behalf of OWNER."
+  (when (and (null (page:chart-field w))
+             (some (lambda (entry)
+                     (some (lambda (point)
+                             (hash-table-p (persp:persisted-item-value point)))
+                           (third entry)))
+                   series-data))
+    (return-from %render-uplot
+      (create-div plot-div :class "chart-empty"
+                           :content "Select a numeric field with :field")))
   (let* ((plot-id (html-id plot-div))
          (transform (page:chart-transform w))
+         (field (page:chart-field w))
          (right-axis (page:chart-right-axis w))
          (right-ids (getf right-axis :series))
          (right-colors '())
@@ -1120,7 +1188,7 @@ callback per series item on behalf of OWNER."
                    ((nil) nil)))
          (series-count (length series-data))
          (tables (loop :for (nil nil persisted-items) :in series-data
-                       :for points = (%chart-points persisted-items transform)
+                       :for points = (%chart-points persisted-items transform field)
                        :collect (format nil "[[~{~a~^,~}],[~{~a~^,~}]]"
                                         (first points) (second points))))
          (series-defs (loop :for (item-name label nil) :in series-data
@@ -1134,7 +1202,7 @@ callback per series item on behalf of OWNER."
                                       color
                                       (page:chart-line-width w)
                                       (page:chart-type w)
-                                      single-p
+                                      (or single-p field)
                                       fill-p
                                       right-p))))
     (js-execute plot-div
@@ -1163,10 +1231,11 @@ callback per series item on behalf of OWNER."
                        (when ts (setf last-ts ts))
                        (let ((y (%chart-transformed-y
                                  transform
-                                 (%ext-value (gethash "value" updated-item-state)))))
+                                 (%ext-value (gethash "value" updated-item-state))
+                                 field)))
                          (js-execute plot-div
                                      (%uplot-append-js plot-id ts series-count
-                                                       idx (%js-number y))))))))))))
+                                                       idx (%js-number y) field)))))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; page rendering / navigation
@@ -1624,6 +1693,8 @@ fresh list."
 (defun %render-item-value (ctx item-name item-value type-hint tags parent)
   (let ((mapping (%display-mapping tags)))
     (cond
+      ((string= "TABLE" type-hint)
+       (%create-table-display ctx parent item-name item-value))
       ;; a contact reports and is never switched, tagged read-only or not
       ((and (eq :contact (%house-kind tags)) (string= "BOOLEAN" type-hint))
        (%create-boolean-display ctx parent item-name item-value mapping))

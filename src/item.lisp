@@ -12,8 +12,11 @@
   (:export #:make-item
            #:item
            #:value-type-hint
+           #:table-type-hint-p
            #:get-value
            #:set-value
+           #:copy-table-value
+           #:invalid-table-value
            #:get-item-stateq
            #:name
            #:label
@@ -85,6 +88,58 @@ Reading this from another thread yields a snapshot: the list is only ever replac
 (deftype false ()
   `(satisfies false-p))
 
+(defun table-type-hint-p (hint)
+  "Return true when HINT names TABLE, independently of its symbol package."
+  (and (symbolp hint) (string= (symbol-name hint) "TABLE")))
+
+(define-condition invalid-table-value (error)
+  ((value :initarg :value :reader invalid-table-value-value))
+  (:report (lambda (condition stream)
+             (format stream "Invalid flat table value: ~S"
+                     (invalid-table-value-value condition)))))
+
+(defun %finite-real-p (value)
+  (and (realp value)
+       (or (not (floatp value))
+           (handler-case
+               (let ((limit (etypecase value
+                              (short-float most-positive-short-float)
+                              (single-float most-positive-single-float)
+                              (double-float most-positive-double-float)
+                              (long-float most-positive-long-float))))
+                 (<= (- limit) value limit))
+             (arithmetic-error () nil)))))
+
+(defun copy-table-value (value)
+  "Validate a flat STRING-keyed snapshot and copy its mutable keys and values.
+Fields accept finite reals, strings, ITEM:TRUE and ITEM:FALSE.
+Signal INVALID-TABLE-VALUE for any other value."
+  (unless (hash-table-p value)
+    (error 'invalid-table-value :value value))
+  (let ((copy (make-hash-table :test #'equal)))
+    (maphash (lambda (key field)
+               (unless (and (stringp key)
+                            (or (%finite-real-p field) (stringp field)
+                                (member field '(item:true item:false))))
+                 (error 'invalid-table-value :value value))
+               (when (nth-value 1 (gethash key copy))
+                 (error 'invalid-table-value :value value))
+               (setf (gethash (copy-seq key) copy)
+                     (if (stringp field) (copy-seq field) field)))
+             value)
+    copy))
+
+(defun %copy-value (value)
+  (if (hash-table-p value) (copy-table-value value) value))
+
+(defun %value-equal-p (left right)
+  (if (and (hash-table-p left) (hash-table-p right))
+      (and (= (hash-table-count left) (hash-table-count right))
+           (loop :for key :being :the :hash-keys :of left :using (hash-value value)
+                 :always (multiple-value-bind (other present) (gethash key right)
+                           (and present (equal value other)))))
+      (equal left right)))
+
 (defstruct item-persistence
   (persp nil :type (or null persp:persistence))
   (frequency :every-change)
@@ -100,14 +155,23 @@ Reading this from another thread yields a snapshot: the list is only ever replac
 (defun %item-receive (msg id)
   (log:debug "Received msg: ~a, item: ~a" msg id)
   (let ((self *self*))
-    (flet ((apply-new-value (new-value timestamp old-value)
+    (flet ((apply-new-value (new-value timestamp old-value publish-p)
              (let ((timestamp (or timestamp (get-universal-time))))
                (prog1
-                   (setf (item-state-value *state*) new-value
-                         (item-state-timestamp *state*) timestamp)
-                 (ev:publish self (make-item-changed-event
-                                   :item self
-                                   :old-value old-value)))))
+                   (if (table-type-hint-p (value-type-hint self))
+                       (let ((state (make-item-state :value new-value :timestamp timestamp)))
+                         ;; Publish the complete observation before notifying other actors.
+                         ;; Sento's STATE accessor is read-only; its wrapper commits *STATE*
+                         ;; after this receive function returns.
+                         (setf *state* state
+                               (slot-value self 'act-cell:state) state)
+                         new-value)
+                       (setf (item-state-value *state*) new-value
+                             (item-state-timestamp *state*) timestamp))
+                 (when publish-p
+                   (ev:publish self (make-item-changed-event
+                                     :item self
+                                     :old-value (%copy-value old-value)))))))
            (push-to-bindings (new-value push)
              (with-slots (bindings) self
                (log:debug "Processing ~a binding(s)." (length bindings))
@@ -117,7 +181,7 @@ Reading this from another thread yields a snapshot: the list is only ever replac
                                                (binding:call-push-p binding)
                                                nil)))
                        (when effective-push
-                         (binding:exec-push binding new-value)))
+                         (binding:exec-push binding (%copy-value new-value))))
                    (error (c) (log:warn "Error in binding: ~a, error: ~a" binding c))))))
            (apply-persistences ()
              (with-slots (persistences) self
@@ -131,24 +195,27 @@ Reading this from another thread yields a snapshot: the list is only ever replac
         (:get-state
          (let ((state-value (item-state-value *state*)))
            (log:debug "Current state value: ~a, item: ~a" state-value id)
-           (reply state-value)))
+           (reply (%copy-value state-value))))
         (:set-state
          (let* ((old-val (item-state-value *state*))
                 (val (getf (cdr msg) :value))
                 (push (getf (cdr msg) :push-p))
                 (persist (getf (cdr msg) :persist-p t))
                 (timestamp (getf (cdr msg) :timestamp))
-                (changed (not (equal old-val val))))
-           (when changed
+                (changed (not (%value-equal-p old-val val))))
+           (when (or changed (not (getf (cdr msg) :publish-p t)))
              (log:debug "set-state: ~a on item: ~a" val id)
-             (apply-new-value val timestamp old-val)
+             (apply-new-value val timestamp old-val (getf (cdr msg) :publish-p t))
              (when persist
                (apply-persistences)))
            ;; `:always' pushes a value the item already holds as well
            (when (or changed (eq push :always))
              (push-to-bindings val push))))))))
 
-(defun make-item (id &key (label nil) (type-hint nil) (initial-value t) (tags '()))
+(defun make-item (id &key (label nil) (type-hint nil) (initial-value t initial-value-p) (tags '()))
+  (when (table-type-hint-p type-hint)
+    (setf initial-value (copy-table-value
+                         (if initial-value-p initial-value (make-hash-table :test #'equal)))))
   (log:info "Creating item: ~a, label: ~a, type-hint: ~a, value: ~a, tags: ~a"
             id label type-hint initial-value tags)
   (let* ((isys (ensure-isys))
@@ -193,11 +260,14 @@ Reading this from another thread yields a snapshot: the list is only ever replac
 
 (defun set-value (item value &key (push t) (timestamp nil) (persist t))
   "Updates item value with push to bindings.
-A `VALUE' that is `equal' to the current one changes nothing: no event, no persistence and, by default, no push.
+A `VALUE' equal to the current one (by field contents for tables) changes nothing: no event, no persistence and, by default, no push.
 `PUSH': `T' pushes a changed value, `NIL' pushes nothing. `:always' pushes `VALUE' also when the item already holds it, the item itself staying untouched in that case -- for a value that is a command rather than a state.
 Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on whether the value is pushed or not.
 `TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
 `PERSIST': if non-nil, persistences will be applied."
+  (setf value (if (table-type-hint-p (value-type-hint item))
+                  (copy-table-value value)
+                  (%copy-value value)))
   (! item `(:set-state . (:value ,value
                           :push-p ,push
                           :timestamp ,timestamp
@@ -205,7 +275,11 @@ Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on 
 
 (defun get-item-stateq (item)
   "Returns the item state `item-state'."
-  (act-cell:state item))
+  (let ((state (act-cell:state item)))
+    (if (hash-table-p (item-state-value state))
+        (make-item-state :value (copy-table-value (item-state-value state))
+                         :timestamp (item-state-timestamp state))
+        state)))
 
 (defun add-binding (item binding)
   (log:info "Adding binding: ~a to item: ~a" binding item)
@@ -261,11 +335,15 @@ Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on 
       (t
        (progn
          (log:debug "Setting loaded value to item: ~a" item)
-         (set-value item (persp:persisted-item-value result)
-                    :push nil
-                    :timestamp (persp:persisted-item-timestamp result)
-                    :persist nil ; loaded values should not be persisted
-                    ))))))
+         (if (table-type-hint-p (value-type-hint item))
+             (! item (list :set-state
+                           :value (copy-table-value (persp:persisted-item-value result))
+                           :timestamp (persp:persisted-item-timestamp result)
+                           :push-p nil :persist-p nil :publish-p nil))
+             (set-value item (persp:persisted-item-value result)
+                        :push nil
+                        :timestamp (persp:persisted-item-timestamp result)
+                        :persist nil)))))))
 
 (defun %parse-frequency (freq)
   (let* ((freq-str (symbol-name freq))

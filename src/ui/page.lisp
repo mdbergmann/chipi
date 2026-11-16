@@ -37,6 +37,7 @@
            #:chart-type
            #:chart-range
            #:chart-persistence
+           #:chart-field
            #:chart-transform
            #:chart-series
            #:chart-height
@@ -119,6 +120,7 @@
   (type :line)  ; :line or :bar
   range         ; persp:range
   persistence   ; persistence id; nil => first defined historic persistence
+  field         ; nil, or string key selected from a compound item value
   transform     ; nil, or 1-arg function applied to every charted value
   series        ; list of (item-id . label-or-nil), one entry per series
   (height 220)  ; plot height in CSS pixels
@@ -346,7 +348,7 @@ chart with a silently ignored axis."
                  range)))
       (list :series ids :range range))))
 
-(defun chart (item-ids &key label (type :line) range persistence transform
+(defun chart (item-ids &key label (type :line) range persistence transform field
                             (height 220) (line-width 2) refresh (fill :auto)
                             right-axis)
   "A history chart of one or more items' persisted values.
@@ -359,6 +361,9 @@ chart with a silently ignored axis."
 the last day.
 `persistence' names the persistence to load from; without it the first
 defined historic persistence is used.
+`field', when given, is the string key of a numeric field in a hash-table
+value. Missing or non-numeric fields chart as gaps. Every series selects the
+same key. Compound items require a field; scalar charts omit it.
 `transform', when given, is a one-argument function applied to every charted
 value of every series, historic and live alike -- e.g. converting a raw
 sensor reading to a display unit.  It is called with a number (booleans
@@ -403,6 +408,7 @@ drawn dashed and never filled -- the fill is about the left-axis quantity's
 sign, and a dashed line tells the two axes' series apart without consulting
 the legend.  With exactly one right-axis series the axis takes that series'
 colour."
+  (check-type field (or null string))
   (let ((series (cond
                   ((symbolp item-ids) (list (cons item-ids nil)))
                   ;; a single (item-id . "label") cons
@@ -414,6 +420,7 @@ colour."
     (make-chart :item-id (car (first series))
                 :label label :type type
                 :persistence persistence
+                :field field
                 :transform transform
                 :series series
                 :height height

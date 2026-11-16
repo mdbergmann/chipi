@@ -160,7 +160,7 @@ Event format follows the SSE standard with `data:` fields containing JSON payloa
 | `event.type` | string | Always `"item-change"` |
 | `event.item.name` | string | Item identifier |
 | `event.item.label` | string | Human-readable item name |
-| `event.item.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`) |
+| `event.item.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`, `table`) |
 | `event.item.tags` | object | Item metadata (including `:ext-readonly` flag) |
 | `event.item.item-state.value` | any | Current item value |
 | `event.item.item-state.timestamp` | number | Common Lisp universal-time timestamp (seconds since 1900-01-01) |
@@ -794,3 +794,28 @@ supports charts of item history:
 ![Page with widgets and chart](docs/ui/UI2.png)
 
 The UI is under active development.
+
+### Compound item display and charts
+
+An item with the `'table` hint displays its current fields as a read-only
+key/value list, both in the overview and in a `value` widget. Live updates
+replace the field list, including additions and removals. Empty tables show an
+empty state. Keys and string values are displayed as text, not markup.
+
+Select a single numeric field for a history chart:
+
+```lisp
+(chart 'weather :field "temperature" :range '(:hours 6))
+(chart 'weather :field "humidity" :label "Humidity [%]")
+```
+
+`:field` is a case-sensitive string key. With multiple items in one chart, the
+same field is selected from every item. History and live updates select the
+field before applying `:transform`. Missing fields, strings and booleans produce
+gaps rather than zero readings. A table chart without `:field` displays an
+instruction to select one. Existing scalar charts remain unchanged.
+
+The items API accepts a complete table in a POST body such as
+`{"value":{"temperature":21.5,"online":true}}`. A successful update replaces
+the whole table. Invalid field types produce HTTP 400 without mutating the
+item. GET responses and item-change SSE events use the same JSON object shape.

@@ -78,3 +78,66 @@
           (item (item:make-item 'foo)))
       (let ((fetched (persp:fetch cut item)))
         (assert-fetch-error fetched)))))
+
+(test simple-persistence--table-roundtrip-and-restart
+  (with-fixture init-destroy-env ()
+    (let* ((cut (make-simple-persistence :table-files
+                                        :storage-root-path #P"/tmp/chipi/table-files/"))
+           (value (alexandria:plist-hash-table
+                   '("Count" 12 "count" 2.5 "text" "ok" "yes" item:true "no" item:false)
+                   :test #'equal))
+           (item (item:make-item 'table-file :type-hint 'table :initial-value value)))
+      (is-true (miscutils:await-cond 1 (uiop:directory-exists-p #P"/tmp/chipi/table-files/")))
+      (persp:persist cut item)
+      (let ((fetched (persp:retrieve cut item)))
+        (is (equalp value (persp:persisted-item-value fetched)))
+        (is (integerp (gethash "Count" (persp:persisted-item-value fetched)))))
+      (let* ((timestamp (item:item-state-timestamp (item:get-item-stateq item)))
+             (path #P"/tmp/chipi/table-files/TABLE-FILE.store")
+             (file-text (uiop:read-file-string path))
+             (pushes 0))
+        (item:destroy item)
+        (setf item (item:make-item 'table-file :type-hint 'table))
+        (item:add-binding item (binding:make-function-binding
+                               :push (lambda (value) (declare (ignore value)) (incf pushes))))
+        (item:add-persistence item cut :load-on-start t)
+        (is-true (miscutils:await-cond 1
+                   (equalp value (item:item-state-value (item:get-item-stateq item)))))
+        (is (= timestamp (item:item-state-timestamp (item:get-item-stateq item))))
+        (is (= 0 pushes))
+        (is (string= file-text (uiop:read-file-string path))))
+      (item:set-value item (make-hash-table :test #'equal) :persist nil)
+      (is-true (miscutils:await-cond 1
+                 (= 0 (hash-table-count (item:item-state-value (item:get-item-stateq item))))))
+      (persp:persist cut item)
+      (is (= 0 (hash-table-count (persp:persisted-item-value (persp:retrieve cut item))))))))
+
+(test simple-persistence--empty-table-restores-timestamp-without-event
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-simple-persistence :empty-table-files
+                                        :storage-root-path #P"/tmp/chipi/empty-table/"))
+           (item (item:make-item 'empty-file :type-hint 'table))
+           (events nil)
+           (subscribed nil)
+           (timestamp 3900000000))
+      (is-true (miscutils:await-cond 1 (uiop:directory-exists-p #P"/tmp/chipi/empty-table/")))
+      (with-open-file (stream #P"/tmp/chipi/empty-table/EMPTY-FILE.store"
+                              :direction :output :if-exists :supersede)
+        (com.inuoe.jzon:stringify
+         (item-ext:item-state-to-ht
+          (item:make-item-state :value (make-hash-table :test #'equal) :timestamp timestamp))
+         :stream stream))
+      (ac:actor-of (isys:ensure-isys)
+                   :init (lambda (self)
+                           (ev:subscribe self self 'item:item-changed-event)
+                           (setf subscribed t))
+                   :receive (lambda (msg)
+                              (when (typep msg 'item:item-changed-event)
+                                (push msg events))))
+      (is-true (miscutils:await-cond 1 subscribed))
+      (item:add-persistence item cut :load-on-start t)
+      (is-true (miscutils:await-cond 1
+                 (= timestamp (item:item-state-timestamp (item:get-item-stateq item)))))
+      (is (= 0 (hash-table-count (item:item-state-value (item:get-item-stateq item)))))
+      (sleep 0.1)
+      (is-false events))))

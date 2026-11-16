@@ -203,3 +203,16 @@
               (is (search "item-change" output) "Should contain item-change event type")
               (is (search "200" output) "Should contain the new item value")
               (is (search "BROADCAST-TEST-ITEM" output) "Should contain the item name")))))))))
+
+(test serialize-item--table-json-object
+  (with-fixture with-isys ()
+    (let* ((value (alexandria:plist-hash-table '("MixedCase" 4 "off" item:false) :test #'equal))
+           (item (item:make-item 'table-sse :type-hint 'table :initial-value value))
+           (data (sse-manager::%serialize-item-for-sse item))
+           (decoded (com.inuoe.jzon:parse (com.inuoe.jzon:stringify data)))
+           (item-data (gethash "item" decoded))
+           (fields (gethash "value" (gethash "item-state" item-data))))
+      (is (equal "TABLE" (gethash "type-hint" item-data)))
+      (is (= 4 (gethash "MixedCase" fields)))
+      (is-false (gethash "off" fields))
+      (is (= 2 (hash-table-count fields))))))

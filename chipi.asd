@@ -11,6 +11,7 @@
                "local-time"
                "binding-arrows"
                "parse-float"
+               "cl-csv"
                "babel")
   :components ((:module "src"
                 :serial t
@@ -56,6 +57,7 @@
                  (:file "rule-test")
                  (:file "persistence-test")
                  (:file "persistence-influx-test")
+                 (:file "persistence-influx-unit-test")
                  (:file "env-test")
                  (:file "hab-test")
                  (:file "house-test")

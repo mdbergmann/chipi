@@ -417,3 +417,118 @@ This also tests the error handling in item calling `exec-push' of the binding."
       (set-value item 1)
       (is-true (await-cond 2 (equalp
                               pushed-value (list 2 1)))))))
+
+(test table-value--validation-and-snapshots
+  (with-fixture init-destroy-env ()
+    (let* ((key (copy-seq "MixedCase"))
+           (text (copy-seq "original"))
+           (table (alexandria:plist-hash-table (list key text) :test #'equal))
+           (item (make-item 'table-item :type-hint 'table :initial-value table)))
+      (setf (char key 0) #\x (char text 0) #\x)
+      (is (equal "original" (gethash "MixedCase" (item-state-value (get-item-stateq item)))))
+      (let ((snapshot (item-state-value (get-item-stateq item))))
+        (setf (char (gethash "MixedCase" snapshot) 0) #\z)
+        (is (equal "original" (gethash "MixedCase" (item-state-value (get-item-stateq item))))))
+      (dolist (bad (list nil t (vector 1) (list 1)))
+        (signals invalid-table-value (set-value item bad)))
+      (dolist (bad (list nil t 'cl:null (list 1) #(1) (make-hash-table)))
+        (signals invalid-table-value
+          (set-value item (alexandria:plist-hash-table (list "bad" bad)))))
+      (signals invalid-table-value
+        (set-value item (alexandria:plist-hash-table (list :bad 1))))
+      (is (equal "original" (gethash "MixedCase" (item-state-value (get-item-stateq item))))))))
+
+(test table-value--default-and-explicit-nil
+  (with-fixture init-destroy-env ()
+    (let ((item (make-item 'empty-table :type-hint 'table)))
+      (is (= 0 (hash-table-count (item-state-value (get-item-stateq item))))))
+    (signals invalid-table-value
+      (make-item 'invalid-table :type-hint 'table :initial-value nil))))
+
+(test table-value--equal-snapshots-and-always-push
+  (with-fixture init-destroy-env ()
+    (let* ((table (alexandria:plist-hash-table '("A" 1 "a" item:false) :test #'equal))
+           (item (make-item 'equal-table :type-hint 'table :initial-value table))
+           (events nil)
+           (subscribed nil)
+           (pushes 0)
+           (binding (binding:make-function-binding :pull (lambda ())
+                       :push (lambda (value) (declare (ignore value)) (incf pushes))))
+           (timestamp (item-state-timestamp (get-item-stateq item))))
+      (ac:actor-of (isys:ensure-isys)
+                   :init (lambda (self)
+                           (ev:subscribe self self 'item-changed-event)
+                           (setf subscribed t))
+                   :receive (lambda (msg)
+                              (when (typep msg 'item-changed-event)
+                                (push msg events))))
+      (is-true (await-cond 1 subscribed))
+      (add-binding item binding)
+      (set-value item (copy-table-value table) :timestamp (1+ timestamp))
+      (let ((barrier (get-value item)))
+        (is-true (await-cond 1 (hash-table-p (future:fresult barrier)))))
+      (is (= 0 pushes))
+      (is (= timestamp (item-state-timestamp (get-item-stateq item))))
+      (set-value item table :push :always :timestamp (1+ timestamp))
+      (is-true (await-cond 1 (= 1 pushes)))
+      (sleep 0.1)
+      (is-false events)
+      (is (= timestamp (item-state-timestamp (get-item-stateq item)))))))
+
+(test table-value--enqueue-and-future-isolation
+  (with-fixture init-destroy-env ()
+    (let* ((item (make-item 'queued-table :type-hint 'table))
+           (key (copy-seq "Field"))
+           (value (copy-seq "text"))
+           (table (alexandria:plist-hash-table (list key value) :test #'equal)))
+      (set-value item table)
+      (setf (char key 0) #\x (char value 0) #\x)
+      (clrhash table)
+      (let ((future (get-value item))
+            (snapshot nil))
+        (is-true (await-cond 1
+                   (hash-table-p (setf snapshot (future:fresult future)))))
+        (is (equal "text" (gethash "Field" snapshot)))
+        (setf (char (gethash "Field" snapshot) 0) #\x)
+        (is (equal "text" (gethash "Field" (item-state-value (get-item-stateq item)))))))))
+
+(test table-value--finite-real-fields
+  (dolist (value (list 12 1/3 2.5 3.5d0 "text" 'item:true 'item:false))
+    (let ((table (alexandria:plist-hash-table (list "value" value))))
+      (is (equal value (gethash "value" (copy-table-value table))))))
+  (dolist (value (list #C(1 2)
+                      #+sbcl sb-ext:double-float-positive-infinity
+                      #+sbcl sb-ext:double-float-negative-infinity))
+    (signals invalid-table-value
+      (copy-table-value (alexandria:plist-hash-table (list "value" value))))))
+
+(test table-value--publishes-complete-state-before-notification
+  (with-fixture init-destroy-env ()
+    (let* ((value (alexandria:plist-hash-table '("field" 1) :test #'equal))
+           (item (make-item 'atomic-table :type-hint 'table :initial-value value))
+           (old-state (act-cell:state item))
+           (old-timestamp (item-state-timestamp old-state))
+           (new-timestamp (1+ old-timestamp))
+           (observed nil))
+      (with-mocks ()
+        (answer ev:publish
+          (setf observed (get-item-stateq item)))
+        (set-value item (alexandria:plist-hash-table '("field" 2) :test #'equal)
+                   :timestamp new-timestamp)
+        (is-true (await-cond 1 observed))
+        (is (= 2 (gethash "field" (item-state-value observed))))
+        (is (= new-timestamp (item-state-timestamp observed)))
+        (is (= 1 (gethash "field" (item-state-value old-state))))
+        (is (= old-timestamp (item-state-timestamp old-state)))
+        (is (not (eq old-state (act-cell:state item))))))))
+
+(test table-type-hint--package-independent
+  (is-true (table-type-hint-p 'table))
+  (is-true (table-type-hint-p (make-symbol "TABLE")))
+  (is-false (table-type-hint-p nil))
+  (is-false (table-type-hint-p "TABLE"))
+  (is-false (table-type-hint-p 'cl:hash-table))
+  (with-fixture init-destroy-env ()
+    (let ((item (make-item 'foreign-table-hint :type-hint (make-symbol "TABLE"))))
+      (is (= 0 (hash-table-count (item-state-value (get-item-stateq item)))))
+      (signals invalid-table-value (set-value item nil)))))

@@ -1254,3 +1254,150 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (chipi-ui.main::%dispatch-path ctx)
         (is-true (js~ "My home"))
         (is-false (js~ "Chipi Home Automation Dashboard"))))))
+
+(defun %table (&rest pairs)
+  (let ((table (make-hash-table :test #'equal)))
+    (loop :for (key value) :on pairs :by #'cddr
+          :do (setf (gethash key table) value))
+    table))
+
+(test widget--table-value-is-readonly-and-empty-state-updates
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-item (:name "weather" :type-hint "TABLE" :value (%table))
+        (ui-renderer:render-widget (page:value 'weather) :owner (make-body))
+        (is-true (js~ "No fields"))
+        (is-false (js~ "<input"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "temperature" 12))
+        (is-true (js~ "html('')"))
+        (is-true (js~ "text('temperature')"))
+        (is-true (js~ "text('12')"))))))
+
+(test widget--table-chart-selects-number-before-transform-history-and-live
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((w (page:chart 'weather :field "Temperature"
+                                   :transform (lambda (v) (* v 10)))))
+        (ui-renderer::%render-uplot
+         :owner w (clog:create-div (make-body))
+         (list (%series "weather" "Weather" (%table "Temperature" 2.5 "other" 99))))
+        (is-true (js~ "[25.0]]"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "Temperature" 3.5))
+        (is-true (js~ "push(35.0)"))))))
+
+(test widget--table-chart-missing-and-nonnumeric-fields-are-gaps
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let* ((calls 0)
+             (w (page:chart 'weather :field "temperature"
+                                    :transform (lambda (v) (incf calls) (* v 2))))
+             (gaps (list (%table) (%table "Temperature" 10)
+                         (%table "temperature" "12") (%table "temperature" nil)
+                         (%table "temperature" t) 12 nil)))
+        (ui-renderer::%render-uplot
+         :owner w (clog:create-div (make-body))
+         (list (apply #'%series "weather" "Weather"
+                      (mapcar #'item-ext:item-value-ext-to-internal gaps))))
+        (is-true (js~ "[null,null,null,null,null,null,null]]"))
+        (is (zerop calls))
+        (dolist (value gaps)
+          (setf *captured* nil)
+          (%chart-live-update "weather" value)
+          (is-true (js~ "push(null)")))
+        (is (zerop calls))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "temperature" 0))
+        (is-true (js~ "push(0)"))
+        (is (= 1 calls))))))
+
+(test widget--table-chart-transform-failures-are-gaps
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((w (page:chart 'weather :field "temperature"
+                                   :transform (lambda (v) (error "Bad value: ~a" v)))))
+        (ui-renderer::%render-uplot
+         :owner w (clog:create-div (make-body))
+         (list (%series "weather" "Weather" (%table "temperature" 3))))
+        (is-true (js~ "[null]]"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "temperature" 4))
+        (is-true (js~ "push(null)"))))))
+
+(test widget--table-chart-without-field-explains-selection
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((item (make-instance 'item:item :receive t :name "weather")))
+        (setf (slot-value item 'item::value-type-hint) 'table)
+        (with-mocks ()
+          (answer hab:get-item item)
+          (answer item:label "Weather")
+          (ui-renderer:render-widget (page:chart 'weather) :owner (make-body))
+          (is-true (js~ "Select a numeric field with :field"))
+          (is-false (js~ "new uPlot")))))))
+
+(test widget--table-chart-multiple-series-preserve-explicit-gaps
+  (with-fixture render-env ()
+    (with-captured-clog
+      (ui-renderer::%render-uplot
+       :owner (page:chart '(inside outside) :field "temperature")
+       (clog:create-div (make-body))
+       (list (%series "inside" "Inside" (%table "temperature" 3) (%table))
+             (%series "outside" "Outside" (%table "temperature" 4))))
+      (is-true (js~ "[3,null]]"))
+      (is-true (js~ "[4]]"))
+      (is-false (js~ "spanGaps: true"))
+      (setf *captured* nil)
+      (%chart-live-update "outside" (%table "temperature" 5))
+      (is-true (js~ "push(5)")))))
+
+(test widget--scalar-booleans-retain-number-conversion-and-transform
+  (with-fixture render-env ()
+    (with-captured-clog
+      (ui-renderer::%render-uplot
+       :owner (page:chart 'switch :transform (lambda (v) (* 2 v)))
+       (clog:create-div (make-body))
+       (list (%series "switch" "Switch" 'item:true 'item:false)))
+      (is-true (js~ "[2,0]]"))
+      (setf *captured* nil)
+      (%chart-live-update "switch" nil)
+      (is-true (js~ "push(0)"))
+      (setf *captured* nil)
+      (%chart-live-update "switch" t)
+      (is-true (js~ "push(2)")))))
+
+(test widget--compound-live-series-distinguish-alignment-from-missing-fields
+  (with-fixture render-env ()
+    (with-captured-clog
+      (ui-renderer::%render-uplot
+       :owner (page:chart '(inside outside) :field "temperature")
+       (clog:create-div (make-body))
+       (list (%series "inside" "Inside" (%table "temperature" 3))
+             (%series "outside" "Outside" (%table "temperature" 4))))
+      (setf *captured* nil)
+      (%chart-live-update "inside" (%table "temperature" 5) 1755000001)
+      (is-true (js~ "c.data[1].push(5); c.data[2].push(undefined);"))
+      (setf *captured* nil)
+      (%chart-live-update "outside" (%table "temperature" 6) 1755000002)
+      (is-true (js~ "c.data[1].push(undefined); c.data[2].push(6);"))
+      (setf *captured* nil)
+      (%chart-live-update "inside" (%table "temperature" 7) 1755000003)
+      (is-true (js~ "c.data[1].push(7); c.data[2].push(undefined);"))
+      (setf *captured* nil)
+      (%chart-live-update "inside" (%table) 1755000004)
+      (is-true (js~ "c.data[1].push(null); c.data[2].push(undefined);")))))
+
+(test widget--scalar-live-series-retain-null-alignment
+  (with-fixture render-env ()
+    (with-captured-clog
+      (ui-renderer::%render-uplot
+       :owner (page:chart '(inside outside))
+       (clog:create-div (make-body))
+       (list (%series "inside" "Inside" 3) (%series "outside" "Outside" 4)))
+      (setf *captured* nil)
+      (%chart-live-update "inside" 5 1755000001)
+      (is-true (js~ "c.data[1].push(5); c.data[2].push(null);"))
+      (setf *captured* nil)
+      (%chart-live-update "outside" 6 1755000002)
+      (is-true (js~ "c.data[1].push(null); c.data[2].push(6);")))))

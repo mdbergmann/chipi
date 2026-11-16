@@ -39,7 +39,7 @@ components:
         type-hint:
           type: string
           nullable: true
-          description: Optional type hint for the value.
+          description: Optional type hint for the value, including TABLE for flat objects.
         tags:
           type: object
           additionalProperties:
@@ -56,6 +56,7 @@ components:
                 - type: string
                 - type: boolean
                 - type: "null"
+                - $ref: "#/components/schemas/TableValue"
               description: Current item value.
             timestamp:
               type: integer
@@ -77,14 +78,24 @@ components:
       required: [value]
       properties:
         value:
-          description: New value to set (same scalar rules as Item.value).
+          description: New complete value to set, including a flat object for TABLE items.
           oneOf:
             - type: integer
             - type: number
             - type: string
             - type: boolean
             - type: "null"
+            - $ref: "#/components/schemas/TableValue"
       example: { "value": 42 }
+
+    TableValue:
+      type: object
+      description: Flat, case-sensitive string keys; each update replaces the whole snapshot.
+      additionalProperties:
+        oneOf:
+          - type: number
+          - type: string
+          - type: boolean
 
     ItemGroup:
       type: object

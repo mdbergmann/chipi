@@ -25,10 +25,10 @@
   (with-fixture init-destroy-env ()
     (let ((cut (make-influx-persistence
                 :persp-influx
-                :base-url "http://picellar:8086"
+                :base-url (test-setting "CHIPI_TEST_INFLUX_URL")
                 :token "some"
-                :org "mabe"
-                :bucket "test")))
+                :org (test-setting "CHIPI_TEST_INFLUX_ORG")
+                :bucket (test-setting "CHIPI_TEST_INFLUX_BUCKET"))))
       (print cut)
       (is-true cut)
       (is (typep cut 'influx-persistence)))))
@@ -37,17 +37,25 @@
 ;; !!! tests below require a running influxdb instance
 ;; --------------------------------------
 
+(defun test-setting (name)
+  (or (uiop:getenv name)
+      (error "Missing ~a; run scripts/test-influx" name)))
+
 (defun make-cut ()
   (make-influx-persistence
    :persp-influx
-   :base-url "http://picellar:8086"
-   :token "A005mInE0uPMoW6l-kHmsxX1l8XC14Uw0UyAjV20GDq7qev0M1-kaGy77M7JH7wsIrc3-rTm1hRoHZ735Q4tHw=="
-   :org "mabe"
-   :bucket "test"))
+   :base-url (test-setting "CHIPI_TEST_INFLUX_URL")
+   :token (test-setting "CHIPI_TEST_INFLUX_TOKEN")
+   :org (test-setting "CHIPI_TEST_INFLUX_ORG")
+   :bucket (test-setting "CHIPI_TEST_INFLUX_BUCKET")))
+
+(defun make-test-item (id &rest args)
+  (apply #'item:make-item
+         (make-symbol (format nil "~a-~a" id (symbol-name (gensym "test-")))) args))
 
 (defmacro test-type-value (type value itemid)
   `(let ((cut (make-cut))
-         (item (item:make-item ,itemid :type-hint ,type)))
+         (item (make-test-item ,itemid :type-hint ,type)))
      (item:set-value item ,value)
      (persp:store cut item)
      (sleep 1)
@@ -89,9 +97,9 @@
                 :persp-influx
                 :base-url "http://notexist:8086"
                 :token ""
-                :org "mabe"
-                :bucket "test"))
-          (item (item:make-item 'someid :type-hint 'string)))
+                :org (test-setting "CHIPI_TEST_INFLUX_ORG")
+                :bucket (test-setting "CHIPI_TEST_INFLUX_BUCKET")))
+          (item (make-test-item 'someid :type-hint 'string)))
       (let ((fetched (persp:fetch cut item)))
         (assert-fetch-error fetched)))))
 
@@ -101,11 +109,11 @@
   (with-fixture init-destroy-env ()
     (let ((cut (make-influx-persistence
                 :persp-influx
-                :base-url "http://picellar:8086"
+                :base-url (test-setting "CHIPI_TEST_INFLUX_URL")
                 :token "wrong-token"
-                :org "mabe"
-                :bucket "test"))
-          (item (item:make-item 'someid :type-hint 'string)))
+                :org (test-setting "CHIPI_TEST_INFLUX_ORG")
+                :bucket (test-setting "CHIPI_TEST_INFLUX_BUCKET")))
+          (item (make-test-item 'someid :type-hint 'string)))
       (let ((fetched (persp:fetch cut item)))
         (assert-fetch-error fetched)))))
   
@@ -117,7 +125,7 @@
   "Retrieves item value history for time frame."
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
-          (item (item:make-item 'history :type-hint 'integer)))
+          (item (make-test-item 'history :type-hint 'integer)))
       (item:add-persistence item cut :frequency :every-change)
       (dotimes (x 10)
         (item:set-value item x)
@@ -152,7 +160,7 @@
 instead of an error (influx responds with an empty body)."
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
-          (item (item:make-item 'never-persisted-item :type-hint 'float)))
+          (item (make-test-item 'never-persisted-item :type-hint 'float)))
       (is (null (persp:retrieve-range cut item
                                       (persp:make-relative-range :seconds 20)))))))
 
@@ -161,11 +169,11 @@ instead of an error (influx responds with an empty body)."
   (with-fixture init-destroy-env ()
     (let ((cut (make-influx-persistence
                 :persp-influx
-                :base-url "http://picellar:8086"
+                :base-url (test-setting "CHIPI_TEST_INFLUX_URL")
                 :token "wrong-token"
-                :org "mabe"
-                :bucket "test"))
-          (item (item:make-item 'someid :type-hint 'string)))
+                :org (test-setting "CHIPI_TEST_INFLUX_ORG")
+                :bucket (test-setting "CHIPI_TEST_INFLUX_BUCKET")))
+          (item (make-test-item 'someid :type-hint 'string)))
       (let ((fetched (persp:fetch cut item (persp:make-relative-range :seconds 20))))
         (assert-fetch-error fetched)))))
 
@@ -176,7 +184,7 @@ instead of an error (influx responds with an empty body)."
 (test influx-persistence--aggregate--influx-fn
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
-          (item (item:make-item 'avgfield :type-hint 'integer)))
+          (item (make-test-item 'avgfield :type-hint 'integer)))
       (item:add-persistence item cut :frequency :every-change)
       ;; push values 1,2,3,4,5 one per second
       (dotimes (i 5)
@@ -203,7 +211,7 @@ instead of an error (influx responds with an empty body)."
 (test influx-persistence--aggregate--error--bad-aggregate-parameter
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
-          (item (item:make-item 'avgfield :type-hint 'integer)))
+          (item (make-test-item 'avgfield :type-hint 'integer)))
       (item:add-persistence item cut :frequency :every-change)
       (let ((fut (persp:fetch cut item
                               (persp:make-relative-range :seconds 20)
@@ -211,3 +219,91 @@ instead of an error (influx responds with an empty body)."
         (is-true (miscutils:await-cond 2.0 (future:complete-p fut)))
         (let ((result (future:fresult fut)))
           (is (eq (car result) :error)))))))
+
+(defun table-value (&rest fields)
+  (alexandria:plist-hash-table fields :test 'equal))
+
+(defun write-table-point (persistence item fields universal-time)
+  (is (= 204 (nth-value 1
+                       (chipi.influx-persistence::%make-write-request
+                        persistence (act-cell:name item) fields
+                        (chipi.influx-persistence::%universal-to-unix-ts universal-time))))))
+
+(test influx-persistence--tables-roundtrip-range-and-aggregates
+  (with-fixture init-destroy-env ()
+    (let* ((cut (make-cut))
+           (item (make-test-item '|Room, A=B"| :type-hint 'table))
+           (first-time (- (get-universal-time) 40))
+           (second-time (+ first-time 10))
+           (special-key "Room, A=B\\field")
+           (special-value "a, quote\" and slash\\")
+           (range (persp:make-absolute-range (- first-time 1) (+ second-time 1))))
+      (write-table-point cut item
+                         (table-value "Temp" 30 "temp" 20 "Removed" 10
+                                      special-key special-value "Label" "first"
+                                      "Empty" "" "On" 'item:true "Off" 'item:false)
+                         first-time)
+      (write-table-point cut item
+                         (table-value "Temp" 30.5 "temp" 22
+                                      special-key special-value "Label" "second"
+                                      "Empty" "" "On" 'item:false "Off" 'item:true)
+                         second-time)
+      (let* ((latest (persp:retrieve cut item))
+             (value (persisted-item-value latest)))
+        (is (= second-time (persisted-item-timestamp latest)))
+        (is (= 7 (hash-table-count value)))
+        (is (= 30.5 (gethash "Temp" value)))
+        (is (= 22 (gethash "temp" value)))
+        (is (string= special-value (gethash special-key value)))
+        (is (string= "" (gethash "Empty" value)))
+        (is (eq 'item:false (gethash "On" value)))
+        (is (eq 'item:true (gethash "Off" value)))
+        (is (not (nth-value 1 (gethash "Removed" value)))))
+      (let ((history (persp:retrieve-range cut item range)))
+        (is (= 2 (length history)))
+        (is (= first-time (persisted-item-timestamp (first history))))
+        (is (= second-time (persisted-item-timestamp (second history))))
+        (is (= 10 (gethash "Removed" (persisted-item-value (first history)))))
+        (is (not (nth-value 1 (gethash "Removed" (persisted-item-value (second history)))))))
+      (loop :for aggregate :in '(:avg :min :max :sum :median :count)
+            :for expected :in '(30.25 30 30.5 60.5 30.25 2)
+            :do (let* ((results (persp:retrieve-range cut item range aggregate))
+                       (entry (first results))
+                       (table (persisted-item-value entry)))
+                  (is (= 1 (length results)))
+                  (is (eq :undefined (persisted-item-timestamp entry)))
+                  (is (= expected (gethash "Temp" table)))
+                  (if (eq aggregate :count)
+                      (progn
+                        (is (= 8 (hash-table-count table)))
+                        (is (= 2 (gethash "Label" table)))
+                        (is (= 2 (gethash "On" table)))
+                        (is (= 1 (gethash "Removed" table))))
+                      (progn
+                        (is (= 3 (hash-table-count table)))
+                        (is (not (nth-value 1 (gethash "Label" table))))) ))))))
+
+(test influx-persistence--table-no-data-preserves-startup-state
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-cut))
+          (item (make-test-item 'table-no-data :type-hint 'table
+                                 :initial-value (table-value "Initial" 7))))
+      (is (eq :error (car (persp:retrieve cut item))))
+      (is (null (persp:retrieve-range cut item (persp:make-relative-range :seconds 60))))
+      (is (null (persp:retrieve-range cut item (persp:make-relative-range :seconds 60) :avg)))
+      (is (= 7 (gethash "Initial" (item:item-state-value (item:get-item-stateq item))))))))
+
+(test influx-persistence--reserved-looking-table-keys-roundtrip
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-cut))
+          (item (make-test-item 'reserved-keys :type-hint 'table)))
+      (write-table-point cut item
+                         (table-value "_field" "field" "_measurement" "measurement"
+                                      "_value" "_value" "Time" 1)
+                         (- (get-universal-time) 1))
+      (let ((value (persisted-item-value (persp:retrieve cut item))))
+        (is (= 4 (hash-table-count value)))
+        (is (string= "field" (gethash "_field" value)))
+        (is (string= "measurement" (gethash "_measurement" value)))
+        (is (string= "_value" (gethash "_value" value)))
+        (is (= 1 (gethash "Time" value)))))))

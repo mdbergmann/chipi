@@ -319,7 +319,7 @@ REPL:
 
 The three positional arguments are the **id** (a symbol, used everywhere the
 item is referenced), the **label** shown in the UI, and the **type hint**:
-`'integer`, `'float`, `'boolean`, `'string`, or `nil`. The type hint is
+`'integer`, `'float`, `'boolean`, `'string`, `'table`, or `nil`. The type hint is
 required for the InfluxDB persistence (it decides how values are written and
 parsed) and is used by the UI and API to render and convert values; it is good
 practice to always give one.
@@ -412,6 +412,41 @@ to several places.
 Bindings for specific protocols are plugins; see
 [Binding plugins](#binding-plugins).
 
+### Compound values
+
+Use the `'table` type hint for a flat snapshot with string keys:
+
+```lisp
+(defitem 'weather "Weather" 'table
+  :initial-value (alexandria:plist-hash-table
+                   (list "temperature" 21.5 "humidity" 45 "online" 'item:true)
+                   :test 'equal))
+```
+
+Fields contain finite real numbers, strings, or `item:true` / `item:false`.
+Nested objects, arrays, null fields and non-string keys are rejected before
+state changes. Key case is preserved. Updating replaces the whole snapshot;
+fields absent from the new value are removed. Input tables and their strings
+are copied. Equal field contents do not change the state or trigger persistence;
+`:push :always` retains its existing command semantics. Omitting the initial
+value creates an empty table.
+
+The items API represents the value as a JSON object and reports the type hint
+as `"TABLE"`. Boolean fields round-trip as JSON true/false. The file
+persistence restores the snapshot and timestamp, including an empty table.
+InfluxDB stores every numeric table field as a float, so a field can move from
+`30` to `30.5` without a field-type conflict. File persistence preserves integer
+and float distinctions. InfluxDB skips empty tables. Before sending a write, the adapter rejects
+CR/LF characters in names or string values, empty field names, names ending
+with a backslash, and the exact field name `time`. These values cannot reliably
+round-trip through the line protocol. File/JSON values do not have these
+transport restrictions. Each history result
+contains only fields recorded at that timestamp; reading the last observation
+does not carry forward fields from older observations. Retrieving the latest
+table currently reads its history before selecting the newest timestamp.
+Existing second-level
+timestamps still allow writes within one second to merge.
+
 ### Persistences
 
 A persistence is a storage backend. It is defined once at top level with an
@@ -454,7 +489,7 @@ item starts with its stored value.
 Writes every persisted value as a point to InfluxDB v2 and can read back
 ranges, which is what charts in the UI and "average of the last 24 hours"
 style rules use. Supported item types are `integer`, `float`, `boolean`
-and `string`; the item's type hint must be set.
+and `string`, plus flat `hash-table` values; the item's type hint must be set.
 
 #### Attaching persistences to items
 
@@ -959,3 +994,31 @@ Main dependencies: [Sento](https://github.com/mdbergmann/cl-gserver) ≥ 3.4.2,
 cl-cron, timer-wheel, com.inuoe.jzon, Drakma, local-time; Hunchentoot and
 Snooze for the API; CLOG for the UI. All are available through Quicklisp and
 OCICL.
+
+### Reproducible InfluxDB tests
+
+The integration tests use a disposable `influxdb:2.7.11` container. SBCL and
+Quicklisp must be installed, and the Docker daemon must be running:
+
+```sh
+scripts/test-influx                  # InfluxDB integration tests
+scripts/test-influx --suite all      # full core, API and UI suites
+scripts/test-unit                    # no InfluxDB or Docker required
+```
+
+On a Mac with Colima, prefix the commands with `DOCKER_CONTEXT=colima`.
+The scripts load `~/quicklisp/setup.lisp` by default. Set `CHIPI_LISP_SETUP` to
+another setup file, such as an existing Qlot `setup.lisp`, when needed. They
+verify that Chipi itself loads from this checkout.
+
+The runner creates a unique Compose project, publishes a random loopback port,
+initializes an isolated org/bucket/token, waits for readiness and verifies bucket
+access before starting Lisp. It preserves the test exit status, prints database
+logs on failure, and removes the container and its volumes after the run. It
+never uses the smart-home stand's database or fixed port 8086.
+
+For an independently managed test server, set `CHIPI_TEST_INFLUX_URL`,
+`CHIPI_TEST_INFLUX_ORG`, `CHIPI_TEST_INFLUX_BUCKET`, and
+`CHIPI_TEST_INFLUX_TOKEN` before running the InfluxDB suite through FiveAM.
+The existing integration suite passed 46/46 checks twice on separate fresh
+containers before compound-value implementation began.

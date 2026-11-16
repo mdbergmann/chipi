@@ -1,0 +1,24 @@
+services:
+  influxdb:
+    image: influxdb:2.7.11
+    ports:
+      - "127.0.0.1::8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: chipi-test
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${CHIPI_TEST_PASSWORD:?}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${CHIPI_TEST_INFLUX_TOKEN:?}
+      DOCKER_INFLUXDB_INIT_ORG: chipi-tests
+      DOCKER_INFLUXDB_INIT_BUCKET: chipi-tests
+    volumes:
+      - data:/var/lib/influxdb2
+      - config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping", "--host", "http://localhost:8086"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+volumes:
+  data:
+  config:

@@ -248,3 +248,8 @@
 
 (test chart--right-axis-rejects-unknown-keys
   (signals error (chart '(pv soc) :right-axis '(:series (soc) :label "%"))))
+
+(test chart--field-is-optional-string
+  (is (null (page:chart-field (page:chart 'temperature))))
+  (is (string= "temperature" (page:chart-field (page:chart 'weather :field "temperature"))))
+  (signals type-error (page:chart 'weather :field 'temperature)))

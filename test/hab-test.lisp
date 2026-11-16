@@ -286,3 +286,42 @@
     (add-to-shutdown (lambda () (error "Foo err")))
     (shutdown)
     (is-true called)))
+
+(test defitem--table-default
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    (let ((item (defitem 'table-default "Table" 'table)))
+      (is (eq 'table (item:value-type-hint item)))
+      (is (= 0 (hash-table-count (item:item-state-value (item:get-item-stateq item))))))
+    (signals item:invalid-table-value
+      (defitem 'table-nil "Invalid" 'table :initial-value nil))))
+
+(test defitem--invalid-table-redefinition-preserves-item
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    (defitemgroup 'table-group "Tables")
+    (let* ((value (alexandria:plist-hash-table '("field" 1) :test #'equal))
+           (binding (binding:make-function-binding :push #'identity))
+           (item (defitem 'kept-table "Original" 'table
+                   :initial-value value :group '(table-group) binding))
+           (state (item:get-item-stateq item))
+           (id-evaluations 0)
+           (hint-evaluations 0)
+           (value-evaluations 0))
+      (dolist (invalid (list nil (alexandria:plist-hash-table '("nested" (1)))))
+        (signals item:invalid-table-value
+          (defitem (progn (incf id-evaluations) 'kept-table)
+              "Replacement" (progn (incf hint-evaluations) 'table)
+            :initial-value (progn (incf value-evaluations) invalid)))
+        (is (eq item (get-item 'kept-table)))
+        (is-true (act-cell:running-p item))
+        (is (member item (get-items-on-group 'table-group)))
+        (is (member binding (item:bindings item)))
+        (is (equalp (item:item-state-value state)
+                    (item:item-state-value (item:get-item-stateq item))))
+        (is (= (item:item-state-timestamp state)
+               (item:item-state-timestamp (item:get-item-stateq item)))))
+      (is (= 2 id-evaluations hint-evaluations value-evaluations))
+      (defitem (progn (incf id-evaluations) 'new-table)
+          "Default" (progn (incf hint-evaluations) 'table))
+      (is (= 3 id-evaluations hint-evaluations)))))

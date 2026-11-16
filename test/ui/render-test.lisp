@@ -232,3 +232,54 @@ value)."
         (is-true (js~ "text('99.50')"))
         ;; ... and the timestamp display refreshed too (epoch 0 -> 1970)
         (is-true (js~ "1970"))))))
+
+(test render-item--compound-snapshots-use-safe-text-and-replace-fields
+  (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal)))
+    (with-captured-clog
+      (let ((snapshot (make-hash-table :test #'equal))
+            (next (make-hash-table :test #'equal))
+            (state (make-hash-table :test #'equal))
+            (long-value (make-string 2048 :initial-element #\x)))
+        (setf (gethash "<script>key</script>" snapshot) "<img src=x onerror=alert(1)>"
+              (gethash "long" snapshot) long-value
+              (gethash "active" snapshot) t
+              (gethash "inactive" snapshot) nil)
+        (ui-renderer::%render-item
+         +owner+ (make-item-ht :name "weather" :type-hint "TABLE" :value snapshot)
+         (make-body))
+        (is-true (js~ "Fields"))
+        (is-true (js~ "item-fields"))
+        (is-true (js~ "text('<script>key</script>')"))
+        (is-true (js~ "text('<img src=x onerror=alert(1)>')"))
+        (is-true (js~ (format nil "text('~a')" long-value)))
+        (is-true (js~ "text('true')"))
+        (is-true (js~ "text('false')"))
+        (is-false (js~ "<div class='item-field-name'><script>"))
+        (setf *captured* nil
+              (gethash "new-key" next) 42
+              (gethash "active" next) nil
+              (gethash "value" state) next
+              (gethash "timestamp" state) 0)
+        (ui-renderer:call-item-value-update-fun "weather" state)
+        (is-true (js~ "html('')"))
+        (is-true (js~ "text('new-key')"))
+        (is-true (js~ "text('42')"))
+        (is-true (js~ "text('active')"))
+        (is-true (js~ "text('false')"))
+        (is-false (js~ "text('true')"))
+        (is-false (js~ "<script>key</script>"))
+        (setf *captured* nil
+              (gethash "value" state) (make-hash-table :test #'equal))
+        (ui-renderer:call-item-value-update-fun "weather" state)
+        (is-true (js~ "html('')"))
+        (is-true (js~ "No fields"))))))
+
+(test render-item--compound-floats-have-no-reader-exponent-marker
+  (with-captured-clog
+    (let ((snapshot (make-hash-table :test #'equal)))
+      (setf (gethash "temperature" snapshot) 30.5d0
+            (gethash "count" snapshot) 30)
+      (ui-renderer::%render-table-fields (make-body) snapshot)
+      (is-true (js~ "text('30.5')"))
+      (is-true (js~ "text('30')"))
+      (is-false (js~ "30.5d0")))))
