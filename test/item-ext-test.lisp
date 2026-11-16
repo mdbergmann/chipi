@@ -119,7 +119,7 @@
          (decoded (com.inuoe.jzon:parse
                    (com.inuoe.jzon:stringify (item-value-internal-to-ext internal)))))
     (is (= 1 (gethash "A" internal)))
-    (is (typep (gethash "a" internal) 'single-float))
+    (is (typep (gethash "a" internal) 'double-float))
     (is (eq 'item:true (gethash "yes" internal)))
     (is (eq 'item:false (gethash "no" internal)))
     (is (equalp external decoded)))
@@ -153,3 +153,9 @@
       (is (= 1 (gethash key converted)))
       (signals item:invalid-table-value
         (item:copy-table-value converted)))))
+
+(test item-value-ext-to-internal--table-numbers-defer-normalization
+  (dolist (number '(29.08d0 21.1d0 16777217 1/3 1d100 1d-100))
+    (let* ((external (alexandria:plist-hash-table (list "number" number)))
+           (internal (item-value-ext-to-internal external)))
+      (is (eql number (gethash "number" internal))))))

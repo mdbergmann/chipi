@@ -368,3 +368,41 @@ instead of an error (influx responds with an empty body)."
         (is (string= "measurement" (gethash "_measurement" value)))
         (is (string= "_value" (gethash "_value" value)))
         (is (= 1 (gethash "Time" value)))))))
+
+(test retrieve--canonical-table-numbers-do-not-republish-original-reading
+  (with-fixture init-destroy-env ()
+    (let* ((cut (make-cut))
+           (original (table-value "Temperature" 29.08d0 "Other" 21.1d0
+                                  "Count" 16777217 "Ratio" 1/3
+                                  "Max" most-positive-single-float
+                                  "Min" least-positive-single-float))
+           (item (make-test-item 'canonical-numbers :type-hint 'table :initial-value original))
+           (stored (item:item-state-value (item:get-item-stateq item)))
+           (events 0))
+      (maphash (lambda (key value)
+                 (declare (ignore key))
+                 (is (typep value 'single-float))) stored)
+      (write-table-point cut item stored (- (get-universal-time) 1))
+      (is (equalp stored (persisted-item-value (persp:retrieve cut item))))
+      (item:set-value item (table-value) :push nil :persist nil)
+      (let ((barrier (item:get-value item)))
+        (is-true (miscutils:await-cond 1
+                   (let ((value (future:fresult barrier)))
+                     (and (hash-table-p value) (zerop (hash-table-count value)))))))
+      (with-mocks ()
+        (answer ev:publish (incf events))
+        (answer persp:store t)
+        (item:add-persistence item cut :load-on-start t :frequency :every-change)
+        (is-true (miscutils:await-cond 2
+                   (equalp stored (item:item-state-value (item:get-item-stateq item)))))
+        (let ((barrier (item:get-value item)))
+          (is-true (miscutils:await-cond 1 (hash-table-p (future:fresult barrier)))))
+        (is (= 1 events))
+        (is (null (invocations 'persp:store)))
+        (let ((timestamp (item:item-state-timestamp (item:get-item-stateq item))))
+          (item:set-value item original :timestamp (1+ timestamp))
+          (let ((barrier (item:get-value item)))
+            (is-true (miscutils:await-cond 1 (hash-table-p (future:fresult barrier)))))
+          (is (= timestamp (item:item-state-timestamp (item:get-item-stateq item))))
+          (is (= 1 events))
+          (is (null (invocations 'persp:store))))))))

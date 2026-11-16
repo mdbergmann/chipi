@@ -31,7 +31,9 @@ Influx persistence supports the following value types:
 - integer
 - float
 - boolean, for boolean values, use the symbols 'item:true and 'item:false.
-- hash-table snapshots with string keys and finite real, string or boolean fields.
+- hash-table snapshots with string keys and finite single-float, string or boolean fields.
+Table items normalize numeric fields to single-float before persistence; numbers
+that overflow or round a nonzero value to zero are rejected at item ingress.
 Table numbers use Influx floats. Influx skips empty table snapshots, so restore
 returns the last nonempty snapshot. Simple file persistence stores and restores
 empty snapshots as well. Line protocol cannot

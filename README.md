@@ -423,7 +423,10 @@ Use the `'table` hint for a flat snapshot with string keys:
                    :test 'equal))
 ```
 
-Fields accept finite real numbers, strings, and `item:true` / `item:false`.
+Fields accept real numbers, strings, and `item:true` / `item:false`.
+Numeric fields normalize to finite `single-float` on creation and update, for
+both persistence backends. Numbers that overflow or round a nonzero value to
+zero are rejected before the item changes.
 Nested objects, arrays, null fields and non-string keys are rejected. Updates
 replace the complete snapshot; omitted fields disappear. Without an initial
 value, the table starts empty. The API represents tables as JSON objects.

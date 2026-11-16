@@ -58,7 +58,9 @@
             (let* ((ht (jzon:parse stream))
                    (item-state (item-ext:ht-to-item-state ht)))
               (make-persisted-item :value
-                                   (item:item-state-value item-state)
+                                   (if (item:table-type-hint-p (item:value-type-hint item))
+                                       (item:copy-table-value (item:item-state-value item-state))
+                                       (item:item-state-value item-state))
                                    :timestamp
                                    (item:item-state-timestamp item-state)))))
       (error (e)

@@ -41,6 +41,9 @@
     (answer (drakma:http-request) (error "Unexpected HTTP request: ~a" :invalid))
     (signals item:invalid-table-value
       (influx::%make-write-request nil "name" (table "ok" 1 "bad" '(1 2)) 123))
+    (dolist (number '(1d100 -1d100 1d-100 -1d-100))
+      (signals item:invalid-table-value
+        (influx::%make-write-request nil "name" (table "number" number) 123)))
     (signals error
       (influx::%make-write-request nil "name" (table "multiline" (format nil "a~%b")) 123))
     (signals error
@@ -239,3 +242,13 @@
 (test %read-csv-records--malformed-quotes-signal-errors
   (dolist (csv '("\"unfinished" "unquoted\"quote" "\"closed\"tail" "\"escaped\"\""))
     (signals error (influx::%read-csv-records csv))))
+
+(test %typed-csv-value--canonical-single-float-boundaries-roundtrip
+  (dolist (number (list most-positive-single-float least-positive-single-float
+                        least-positive-normalized-single-float 0.0 -0.0))
+    (let* ((canonical (item:copy-table-value (table "number" number)))
+           (line (influx::%line-value (gethash "number" canonical) t))
+           (restored (influx::%typed-csv-value
+                      (influx::make-influx-row :value line :datatype "double"))))
+      (is (typep restored 'single-float))
+      (is (= number restored)))))

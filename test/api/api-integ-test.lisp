@@ -570,7 +570,8 @@
       (let ((before (item:get-item-stateq item)))
         (dolist (json '("{\"value\":{\"x\":null}}" "{\"value\":{\"x\":[]}}"
                         "{\"value\":{\"x\":{\"flag\":false}}}" "{\"value\":null}"
-                        "{\"value\":[]}" "{\"value\":5}"))
+                        "{\"value\":[]}" "{\"value\":5}"
+                        "{\"value\":{\"x\":1e100}}" "{\"value\":{\"x\":1e-100}}"))
           (multiple-value-bind (body status) (make-post-item-request headers "TABLE-API" json)
             (declare (ignore body))
             (is (= 400 status)))

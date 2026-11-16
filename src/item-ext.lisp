@@ -27,7 +27,10 @@
 Used e.g. for API or persistences."
   (cond
     ((hash-table-p ext-value)
-     (%convert-table ext-value #'item-value-ext-to-internal))
+     (%convert-table ext-value
+                     (lambda (value)
+                       ;; Keep precision until SET-VALUE checks and normalizes table fields.
+                       (if (numberp value) value (item-value-ext-to-internal value)))))
     ((typep ext-value 'double-float)
      (coerce ext-value 'single-float))
     ((eq ext-value t) 'item:true)

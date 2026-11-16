@@ -83,15 +83,17 @@
   (with-fixture init-destroy-env ()
     (let* ((cut (make-simple-persistence :table-files
                                         :storage-root-path #P"/tmp/chipi/table-files/"))
-           (value (alexandria:plist-hash-table
-                   '("Count" 12 "count" 2.5 "text" "ok" "yes" item:true "no" item:false)
-                   :test #'equal))
-           (item (item:make-item 'table-file :type-hint 'table :initial-value value)))
+           (original (alexandria:plist-hash-table
+                      '("Count" 12 "count" 2.5 "temperature" 29.08d0
+                        "ratio" 1/3 "text" "ok" "yes" item:true "no" item:false)
+                      :test #'equal))
+           (item (item:make-item 'table-file :type-hint 'table :initial-value original))
+           (value (item:item-state-value (item:get-item-stateq item))))
       (is-true (miscutils:await-cond 1 (uiop:directory-exists-p #P"/tmp/chipi/table-files/")))
       (persp:persist cut item)
       (let ((fetched (persp:retrieve cut item)))
         (is (equalp value (persp:persisted-item-value fetched)))
-        (is (integerp (gethash "Count" (persp:persisted-item-value fetched)))))
+        (is (typep (gethash "Count" (persp:persisted-item-value fetched)) 'single-float)))
       (let* ((timestamp (item:item-state-timestamp (item:get-item-stateq item)))
              (path #P"/tmp/chipi/table-files/TABLE-FILE.store")
              (file-text (uiop:read-file-string path))

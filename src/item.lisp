@@ -110,9 +110,21 @@ Reading this from another thread yields a snapshot: the list is only ever replac
                  (<= (- limit) value limit))
              (arithmetic-error () nil)))))
 
+(defun %table-single-float (number table)
+  "Normalize NUMBER to finite SINGLE-FLOAT; reject overflow and underflow to zero."
+  (handler-case
+      (let ((converted (coerce number 'single-float)))
+        (unless (and (%finite-real-p converted)
+                     (or (zerop number) (not (zerop converted))))
+          (error 'invalid-table-value :value table))
+        converted)
+    (arithmetic-error ()
+      (error 'invalid-table-value :value table))))
+
 (defun copy-table-value (value)
   "Validate a flat STRING-keyed snapshot and copy its mutable keys and values.
-Fields accept finite reals, strings, ITEM:TRUE and ITEM:FALSE.
+Fields accept reals representable as finite SINGLE-FLOAT, strings, ITEM:TRUE and ITEM:FALSE.
+Normalize numeric fields to SINGLE-FLOAT; reject nonzero numbers rounding to zero.
 Signal INVALID-TABLE-VALUE for any other value."
   (unless (hash-table-p value)
     (error 'invalid-table-value :value value))
@@ -125,7 +137,9 @@ Signal INVALID-TABLE-VALUE for any other value."
                (when (nth-value 1 (gethash key copy))
                  (error 'invalid-table-value :value value))
                (setf (gethash (copy-seq key) copy)
-                     (if (stringp field) (copy-seq field) field)))
+                     (cond ((stringp field) (copy-seq field))
+                           ((realp field) (%table-single-float field value))
+                           (t field))))
              value)
     copy))
 

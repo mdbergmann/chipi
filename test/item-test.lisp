@@ -544,7 +544,8 @@ This also tests the error handling in item calling `exec-push' of the binding."
 (test copy-table-value--finite-real-fields
   (dolist (value (list 12 1/3 2.5 3.5d0 "text" 'item:true 'item:false))
     (let ((table (alexandria:plist-hash-table (list "value" value))))
-      (is (equal value (gethash "value" (copy-table-value table))))))
+      (is (equal (if (realp value) (coerce value 'single-float) value)
+                 (gethash "value" (copy-table-value table))))))
   (dolist (value (list #C(1 2)
                       #+sbcl sb-ext:double-float-positive-infinity
                       #+sbcl sb-ext:double-float-negative-infinity))
@@ -668,3 +669,27 @@ This also tests the error handling in item calling `exec-push' of the binding."
           (is (not (eq old-value event-value)))
           (setf (char (gethash "field" event-value) 0) #\x)
           (is (equal "old" (gethash "field" old-value))))))))
+
+(test copy-table-value--canonical-single-float-fields
+  (dolist (number '(29.08d0 21.1d0 16777217 1/3 0 -1 1.5))
+    (let* ((original (alexandria:plist-hash-table (list "number" number)))
+           (copy (copy-table-value original)))
+      (is (typep (gethash "number" copy) 'single-float))
+      (is (= (coerce number 'single-float) (gethash "number" copy)))
+      (is (eql number (gethash "number" original))))))
+
+(test set-value--unrepresentable-table-numbers-preserve-state
+  (with-fixture init-destroy-env ()
+    (let* ((initial (alexandria:plist-hash-table '("number" 1.0) :test #'equal))
+           (item (make-item 'numeric-limits :type-hint 'table :initial-value initial))
+           (timestamp (item-state-timestamp (get-item-stateq item))))
+      (dolist (number (list 1d100 -1d100 1d-100 -1d-100
+                            #+sbcl sb-ext:double-float-positive-infinity
+                            #+sbcl sb-ext:double-float-negative-infinity))
+        (let ((bad (alexandria:plist-hash-table (list "number" number))))
+          (signals invalid-table-value (copy-table-value bad))
+          (signals invalid-table-value
+            (make-item (gensym "INVALID-NUMERIC-TABLE") :type-hint 'table :initial-value bad))
+          (signals invalid-table-value (set-value item bad))
+          (is (equalp initial (item-state-value (get-item-stateq item))))
+          (is (= timestamp (item-state-timestamp (get-item-stateq item)))))))))
