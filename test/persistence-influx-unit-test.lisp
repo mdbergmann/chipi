@@ -151,14 +151,53 @@
     (is (= 2 (gethash "Label" (persp:persisted-item-value (first items)))))
     (is (= 3 (gethash "On" (persp:persisted-item-value (first items)))))))
 
-(test parse-csv--no-data-and-scalar-quoted-strings
+(test parse-csv--no-table-data
   (is (null (influx::%parsed-range-persisted-item "" 'table)))
-  (signals error (influx::%parsed-last-persisted-item "" 'table))
-  (let ((items (influx::%parsed-range-persisted-item
-                (annotated-csv "string"
-                               '(("" "" "0" "2026-11-15T12:00:00Z" "value" "a,b\"c")))
-                'string)))
-    (is (string= "a,b\"c" (persp:persisted-item-value (first items))))))
+  (signals error (influx::%parsed-last-persisted-item "" 'table)))
+
+(test make-query-request--scalar-flux-and-table-annotated-json
+  (let ((persistence (influx:make-influx-persistence
+                      :request-test :base-url "http://localhost" :token "token"
+                      :org "test" :bucket "test")))
+    (dolist (table-p '(nil t))
+      (dolist (range (list nil (persp:make-relative-range :hours 1)))
+        (with-mocks ()
+          (if-called 'drakma:http-request
+           (lambda (url &rest arguments)
+            (is (string= "http://localhost/api/v2/query" url))
+            (let ((content (getf arguments :content))
+                  (query (if range
+                             (influx::%make-range-query-string persistence "sensor" range nil table-p)
+                             (influx::%make-single-query-string persistence "sensor" table-p))))
+              (if table-p
+                  (let ((body (com.inuoe.jzon:parse content)))
+                    (is (string= "application/json" (getf arguments :content-type)))
+                    (is (string= query (gethash "query" body)))
+                    (is (equalp #("datatype" "group" "default")
+                                (gethash "annotations" (gethash "dialect" body)))))
+                  (progn
+                    (is (string= "application/vnd.flux" (getf arguments :content-type)))
+                    (is (string= query content)))))
+            (values "" 200)))
+          (influx::%make-query-request persistence "sensor" range nil table-p)
+          (is (= 1 (length (invocations 'drakma:http-request)))))))))
+
+(test parse-csv--scalar-retains-main-parser-and-response-order
+  (let* ((csv (format nil ",result,table,_time,_value~c~c,_result,0,2026-11-15T12:00:01Z,2~c~c,_result,0,2026-11-15T12:00:00Z,1~c~c"
+                      #\Return #\Linefeed #\Return #\Linefeed #\Return #\Linefeed))
+         (items (influx::%parsed-range-persisted-item csv 'integer)))
+    (is (equal '(2 1) (mapcar #'persp:persisted-item-value items)))
+    (is (= 1 (persp:persisted-item-value
+              (influx::%parsed-last-persisted-item csv 'integer)))))
+  (is (equal '((nil . "3"))
+             (influx::%parse-csv-to-time-value-pairs
+              (format nil ",result,table,_value~c~c,_result,0,3~c~c"
+                      #\Return #\Linefeed #\Return #\Linefeed))))
+  ;; Main splits cells directly; quoted scalar values retain that behavior.
+  (is (equal '(("timestamp" . "\"a"))
+             (influx::%parse-csv-lines '(",_time,_value" ",timestamp,\"a,b\""))))
+  (is (null (influx::%parse-csv-to-time-value-pairs "")))
+  (is (null (influx::%parse-csv-to-time-value-pairs nil))))
 
 (test parse-csv--reserved-looking-field-and-value-are-data
   (let* ((csv (annotated-csv

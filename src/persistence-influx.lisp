@@ -265,15 +265,17 @@ observations
                          :accept "application/json"
                          :additional-headers
                          `(("Authorization" . ,(format nil "Token ~a" (token persistence))))
-                         :content-type "application/json"
-                         :content (com.inuoe.jzon:stringify
-                                   (alexandria:plist-hash-table
-                                    (list "query" data-string
-                                          "dialect" (alexandria:plist-hash-table
-                                                     (list "annotations"
-                                                           #("datatype" "group" "default"))
-                                                     :test 'equal))
-                                    :test 'equal)))))
+                         :content-type (if table-p "application/json" "application/vnd.flux")
+                         :content (if table-p
+                                      (com.inuoe.jzon:stringify
+                                       (alexandria:plist-hash-table
+                                        (list "query" data-string
+                                              "dialect" (alexandria:plist-hash-table
+                                                         (list "annotations"
+                                                               #("datatype" "group" "default"))
+                                                         :test 'equal))
+                                        :test 'equal))
+                                      data-string))))
 
 (defstruct influx-row timestamp field value datatype)
 
@@ -325,8 +327,31 @@ observations
     (nreverse result)))
 
 (defun %parse-csv-to-time-value-pairs (body)
-  (mapcar (lambda (row) (cons (influx-row-timestamp row) (influx-row-value row)))
-          (%parse-csv-rows body)))
+  "Parses influx output csv.
+Returns a list of `(timestamp . value) pairs.
+An empty response body (the query yielded no data) parses to an empty list.
+Applied aggregate functions omit the _time column, in this case the timestamo in return as `NIL`."
+  (let ((csv-lines (and body
+                        (str:split (format nil "~c~c" #\return #\linefeed) body
+                                   :omit-nulls t))))
+    (if (null csv-lines)
+        '()
+        (%parse-csv-lines csv-lines))))
+
+(defun %parse-csv-lines (csv-lines)
+  (let* ((csv-headers (str:split "," (first csv-lines) :omit-nulls t))
+         (index-time (position "_time" csv-headers :test #'equal))
+         (index-value (position "_value" csv-headers :test #'equal))
+         (csv-columns
+           (mapcar (lambda (s) (str:split "," s :omit-nulls t))
+                   (rest csv-lines)))
+         (time-value-pairs
+           (mapcar (lambda (row)
+                     (cons (and index-time
+                                (nth index-time row))
+                           (nth index-value row)))
+                   csv-columns)))
+    time-value-pairs))
 
 (defun %typed-csv-value (row)
   (let ((value (influx-row-value row)) (datatype (influx-row-datatype row)))
@@ -386,9 +411,18 @@ observations
 ;; -------------------------------------
 
 (defun %parsed-last-persisted-item (response-body type-hint)
-  (let ((items (%parsed-range-persisted-item response-body type-hint)))
-    (or (car (last items))
-        (error "No persisted value for type ~a" type-hint))))
+  (if (item:table-type-hint-p type-hint)
+      (or (car (last (%table-persisted-items response-body)))
+          (error "No persisted value for type ~a" type-hint))
+      (let ((pairs (%parse-csv-to-time-value-pairs response-body)))
+        (log:debug "Parsed pairs: ~a" pairs)
+        (let* ((last-pair (first (last pairs)))
+               (timestamp (car last-pair))
+               (value (cdr last-pair))
+               (persisted-item (%make-persisted-item timestamp value type-hint)))
+          (log:debug "Loaded persisted item: ~a" persisted-item)
+          (log:trace "Loaded persisted item value type: ~a" (type-of (persisted-item-value persisted-item)))
+          persisted-item))))
 
 (defmethod retrieve ((persistence influx-persistence) item)
   "Output format of influxdb is csv, so we need to parse it."
@@ -424,12 +458,9 @@ observations
 (defun %parsed-range-persisted-item (response-body type-hint)
   (if (item:table-type-hint-p type-hint)
       (%table-persisted-items response-body)
-      (sort (mapcar (lambda (pair)
-                      (%make-persisted-item (car pair) (cdr pair) type-hint))
-                    (%parse-csv-to-time-value-pairs response-body))
-            #'< :key (lambda (entry)
-                       (let ((timestamp (persisted-item-timestamp entry)))
-                         (if (eq timestamp :undefined) 0 timestamp))))))
+      (mapcar (lambda (pair)
+                (%make-persisted-item (car pair) (cdr pair) type-hint))
+              (%parse-csv-to-time-value-pairs response-body))))
 
 (defmethod retrieve-range ((persistence influx-persistence) item range &optional aggregate)
   (log:debug "Reading item with range: ~a, aggregate: ~a" item aggregate)
