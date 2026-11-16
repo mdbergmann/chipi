@@ -11,7 +11,6 @@
                "local-time"
                "binding-arrows"
                "parse-float"
-               "cl-csv"
                "babel")
   :components ((:module "src"
                 :serial t

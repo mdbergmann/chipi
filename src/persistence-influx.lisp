@@ -285,28 +285,50 @@ observations
     (string body)
     ((vector (unsigned-byte 8)) (babel:octets-to-string body :encoding :utf-8))))
 
-(defun %normalize-csv-record-newlines (text)
-  ;; CL-CSV sees CR before LF as whitespace after a closing quote when trimming
-  ;; is disabled. Normalize record separators while preserving quoted CR/LF and
-  ;; whitespace in actual values. Doubled quotes toggle twice without a gap.
-  (with-output-to-string (stream)
-    (loop :with quoted-p = nil
-          :for character :across text
-          :for index :from 0
-          :do (when (char= character #\") (setf quoted-p (not quoted-p)))
-              (unless (and (not quoted-p) (char= character #\Return)
-                           (< (1+ index) (length text))
-                           (char= (char text (1+ index)) #\Newline))
-                (write-char character stream)))))
+(defun %read-csv-records (text)
+  "Read CSV records without trimming cells or changing quoted line endings."
+  (with-input-from-string (input text)
+    (let ((cell (make-string-output-stream))
+          (state :start) (row nil) (rows nil) (pending-p nil))
+      (labels ((finish-cell ()
+                 (push (get-output-stream-string cell) row)
+                 (setf state :start))
+               (finish-row ()
+                 (finish-cell)
+                 (push (nreverse row) rows)
+                 (setf row nil pending-p nil)))
+        (loop :for character = (read-char input nil nil)
+              :while character
+              :do (setf pending-p t)
+                  (cond
+                    ((eq state :quoted)
+                     (if (char= character #\")
+                         (setf state :closed)
+                         (write-char character cell)))
+                    ((char= character #\")
+                     (ecase state
+                       (:start (setf state :quoted))
+                       (:closed (write-char character cell) (setf state :quoted))
+                       (:unquoted (error "Quote inside unquoted CSV cell: ~s" text))))
+                    ((char= character #\,)
+                     (finish-cell))
+                    ((or (char= character #\Return) (char= character #\Newline))
+                     (when (and (char= character #\Return)
+                                (eql (peek-char nil input nil nil) #\Newline))
+                       (read-char input))
+                     (finish-row))
+                    ((eq state :closed)
+                     (error "Unexpected character after closing CSV quote: ~s" character))
+                    (t (write-char character cell) (setf state :unquoted))))
+        (when (eq state :quoted)
+          (error "Unterminated quoted CSV cell: ~s" text))
+        (when pending-p (finish-row))
+        (nreverse rows)))))
 
 (defun %parse-csv-rows (body)
   "Read annotated Flux CSV, retaining blank strings and multiline quoted cells."
   (let ((headers nil) (datatypes nil) (result nil))
-    (dolist (row (cl-csv:read-csv (%normalize-csv-record-newlines (%csv-text body))
-                                :newline #\Newline
-                                :unquoted-empty-string-is-nil nil
-                                :quoted-empty-string-is-nil nil
-                                :trim-outer-whitespace nil))
+    (dolist (row (%read-csv-records (%csv-text body)))
       (cond
         ((string= (first row) "#datatype") (setf datatypes row headers nil))
         ((and (first row) (alexandria:starts-with #\# (first row))) nil)

@@ -58,8 +58,22 @@
                                (influx::%make-write-request nil "name" (table) 123))))
     (is (null (invocations 'drakma:http-request)))))
 
+(defun csv-fixture (rows)
+  ;; Quote every fixture cell; parser edge cases below use literal input.
+  (with-output-to-string (output)
+    (dolist (row rows)
+      (loop :for value :in row
+            :for first-p = t :then nil
+            :do (unless first-p (write-char #\, output))
+                (write-char #\" output)
+                (loop :for character :across value
+                      :do (write-char character output)
+                          (when (char= character #\") (write-char character output)))
+                (write-char #\" output))
+      (terpri output))))
+
 (defun annotated-csv (datatype rows)
-  (cl-csv:write-csv
+  (csv-fixture
    (append (list (list "#datatype" "string" "long" "dateTime:RFC3339" "string" datatype)
                  '("#group" "false" "false" "false" "true" "false")
                  '("#default" "_result" "" "" "" "")
@@ -140,7 +154,7 @@
                (influx::%parsed-last-persisted-item csv 'table)))))))
 
 (test parse-csv--aggregate-datatypes-without-timestamps
-  (let* ((csv (cl-csv:write-csv
+  (let* ((csv (csv-fixture
                '(("#datatype" "string" "long" "string" "long")
                  ("" "result" "table" "_field" "_value")
                  ("" "_result" "0" "Label" "2")
@@ -208,3 +222,17 @@
                  (first (influx::%parsed-range-persisted-item csv 'table)))))
     (is (string= "_value" (gethash "_value" table)))
     (is (string= " tail " (gethash "spaced" table)))))
+
+(test read-csv-records--quoted-empty-multiline-and-significant-whitespace
+  (let* ((multiline (format nil "first~c~csecond~%third" #\Return #\Newline))
+         (csv (format nil "plain,\"a,b\",\"say \"\"hi\"\"\",,\"\", tail ,\" padded \"~c~c\"~a\",end~%last,"
+                      #\Return #\Newline multiline)))
+    (is (equal (list '("plain" "a,b" "say \"hi\"" "" "" " tail " " padded ")
+                     (list multiline "end") '("last" ""))
+               (influx::%read-csv-records csv))))
+  (is (null (influx::%read-csv-records "")))
+  (is (equal '(("")) (influx::%read-csv-records (format nil "~%")))))
+
+(test read-csv-records--malformed-quotes-signal-errors
+  (dolist (csv '("\"unfinished" "unquoted\"quote" "\"closed\"tail" "\"escaped\"\""))
+    (signals error (influx::%read-csv-records csv))))
