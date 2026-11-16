@@ -252,17 +252,7 @@ See `hab-test.lisp' and `item' for more examples."
        itemgroups ig ig-key ig-val tags)
     `(let* ((,item-id ,id)
             (,item-label ,label)
-            (,hint ,type-hint)
-            (,body-forms (list ,@body))
-            (,initial-value (loop :for (k v) :on ,body-forms
-                                  :if (eq k :initial-value)
-                                    :return v
-                                  :finally (return (if (item:table-type-hint-p ,hint)
-                                                       (make-hash-table :test #'equal)
-                                                       nil)))))
-       ;; Validate before removing an existing item or its group memberships.
-       (when (item:table-type-hint-p ,hint)
-         (setf ,initial-value (item:copy-table-value ,initial-value)))
+            (,hint ,type-hint))
        (when-let ((,old-item (get-item ,item-id)))
          (log:info "Cleaning from itemgroups...")
          (maphash (lambda (,ig-key ,ig-val)
@@ -272,12 +262,19 @@ See `hab-test.lisp' and `item' for more examples."
          (log:info "Cleaning old item: " ,item-id)
          (item:destroy ,old-item)
          (remhash ,item-id *items*))
-       (let* ((,bindings (loop :for x :in ,body-forms
+       (let* ((,body-forms (list ,@body))
+              (,bindings (loop :for x :in ,body-forms
                               :if (typep x 'binding::binding)
                                 :collect x))
               (,p-reps (loop :for (k v) :on ,body-forms
                              :if (eq k :persistence)
                                :collect v))
+              (,initial-value (loop :for (k v) :on ,body-forms
+                                    :if (eq k :initial-value)
+                                      :return v
+                                    :finally (return (if (item:table-type-hint-p ,hint)
+                                                         (make-hash-table :test #'equal)
+                                                         nil))))
               (,itemgroups (loop :for (k v) :on ,body-forms
                                 :if (eq k :group)
                                   :return v))
