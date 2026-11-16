@@ -228,7 +228,8 @@
       (cl-mock:answer binding-matter::start-controller t)
       (matter-init :storage storage :controller t)
       ;; the storage only, no keys: start-controller's own defaults apply
-      (is (equal (list (list (binding-matter::%storage-directory storage)))
+      (is (equal (list (list 'binding-matter::start-controller
+                             (binding-matter::%storage-directory storage)))
                  (cl-mock:invocations 'binding-matter::start-controller))))))
 
 (test matter-init--no-controller-unless-asked
@@ -285,20 +286,25 @@
     (apply #'start-controller storage *test-controller-args*)
     (let ((port (nth-value 1 (matter:transport-local-endpoint
                               (matter:exchange-manager-transport
-                               (binding-matter::controller-manager binding-matter::*controller*))))))
+                               (binding-matter::controller-manager binding-matter::*controller*)))))
+          (blocker (string-right-trim "/" (namestring storage))))
       ;; the files cannot be written: the storage directory is gone, a file in its place
       (%delete-storage storage)
-      (with-open-file (out (string-right-trim "/" (namestring storage))
-                           :direction :output :if-does-not-exist :create)
+      (with-open-file (out blocker :direction :output :if-does-not-exist :create)
         (write-line "x" out))
-      (is-true (stop-controller))
-      (is-false (matter-controller-running-p))
-      ;; the port is free again, so the manager was closed
-      (let ((manager (matter:make-exchange-manager
-                      :transport (matter:make-udp-transport :family :ipv4 :address "127.0.0.1"
-                                                            :port port))))
-        (matter:exchange-manager-close manager)
-        (pass)))))
+      (unwind-protect
+           (progn
+             (is-true (stop-controller))
+             (is-false (matter-controller-running-p))
+             ;; the port is free again, so the manager was closed
+             (let ((manager (matter:make-exchange-manager
+                             :transport (matter:make-udp-transport :family :ipv4 :address "127.0.0.1"
+                                                                   :port port))))
+               (matter:exchange-manager-close manager)
+               (pass)))
+        ;; the fixture deletes a directory
+        (delete-file blocker)
+        (ensure-directories-exist storage)))))
 
 ;; -----------------------------
 ;; requests that cannot go out
