@@ -253,3 +253,24 @@
   (is (null (page:chart-field (page:chart 'temperature))))
   (is (string= "temperature" (page:chart-field (page:chart 'weather :field "temperature"))))
   (signals type-error (page:chart 'weather :field 'temperature)))
+
+(test chart--series-fields-override-chart-default
+  (let* ((c (chart '((weather :field "temperature" :label "Temp")
+                     (weather :field "humidity")
+                     (outside :label "Outside")
+                     legacy (old . "Old"))
+                   :field "default"))
+         (entries (chart-series c)))
+    (is (equal '(weather weather outside legacy old) (mapcar #'car entries)))
+    (is (equal '("temperature" "humidity" "default" "default" "default")
+               (mapcar (lambda (entry)
+                         (page::%chart-series-field entry (chart-field c)))
+                       entries)))
+    (is (equal '("Temp" nil "Outside" nil "Old")
+               (mapcar #'page::%chart-series-label entries)))
+    (is (equal '(old . "Old") (fifth entries)))))
+
+(test chart--series-validates-field-and-label
+  (signals type-error (chart '((weather :field temperature))))
+  (signals type-error (chart '((weather :label 123))))
+  (signals error (chart '((weather :unknown "temperature")))))

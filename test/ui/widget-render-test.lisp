@@ -1401,3 +1401,77 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
       (setf *captured* nil)
       (%chart-live-update "outside" 6 1755000002)
       (is-true (js~ "c.data[1].push(null); c.data[2].push(6);")))))
+
+(test chart--same-item-fields-propagate-through-history-and-live
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-mocks ()
+        (answer hab:get-item :mock-weather)
+        (answer item:name "WEATHER")
+        (answer item:label "Weather")
+        (answer ui-renderer::%chart-persistence :mock-persp)
+        (answer persp:retrieve-range
+          (list (persp:make-persisted-item
+                 :value (%table "temperature" 2 "humidity" 40)
+                 :timestamp 3900000000)
+                (persp:make-persisted-item
+                 :value (%table "temperature" 3)
+                 :timestamp 3900000001)))
+        ;; Run the loader on this thread, keeping the real series collector.
+        (answer (ui-renderer::%load-and-render-chart owner w series plot persistence)
+          (multiple-value-bind (data ok)
+              (ui-renderer::%collect-chart-series-data w series persistence)
+            (is-true ok)
+            (ui-renderer::%render-uplot owner w plot data)))
+        (let ((w (page:chart '((weather :field "temperature" :label "Temp")
+                              (weather :field "humidity"))
+                            :transform (lambda (v) (* 10 v)) :refresh 60)))
+          (ui-renderer:render-widget w :owner (make-body))
+          (is-true (js~ "label: 'Temp'"))
+          (is-true (js~ "label: 'Weather'"))
+          (is-true (js~ "[20,30]]"))
+          (is-true (js~ "[400,null]]"))
+          (is-false (js~ "spanGaps: true"))
+          (setf *captured* nil)
+          (%chart-live-update "WEATHER" (%table "temperature" 4 "humidity" 50))
+          (is (= 1 (%js-count "c.data[0].push(")))
+          (is-true (js~ "c.data[1].push(40); c.data[2].push(500);"))
+          (setf *captured* nil)
+          (%chart-live-update "WEATHER" (%table "temperature" 5) 1755000030)
+          (is (zerop (%js-count "c.data[0].push(")))
+          (%chart-live-update "WEATHER" (%table "temperature" 5) 1755000060)
+          (is (= 1 (%js-count "c.data[0].push(")))
+          (is-true (js~ "c.data[1].push(50); c.data[2].push(null);")))))))
+
+(test chart--series-default-fields-and-unrelated-alignment
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-mocks ()
+        (answer hab:get-item :mock-item)
+        (answer item:label "Weather")
+        (answer item:name "WEATHER")
+        (answer ui-renderer::%chart-persistence :mock-persp)
+        (answer persp:retrieve-range
+          (list (persp:make-persisted-item
+                 :value (%table "temperature" 2 "humidity" 40)
+                 :timestamp 3900000000)))
+        (answer (ui-renderer::%load-and-render-chart owner w series plot persistence)
+          (let ((data (ui-renderer::%collect-chart-series-data w series persistence)))
+            ;; A different item at a different timestamp aligns with undefined.
+            (ui-renderer::%render-uplot
+             owner w plot
+             (append data (list (append (%series "OUTSIDE" "Outside" (%table))
+                                        (list "temperature")))))))
+        (ui-renderer:render-widget
+         (page:chart '((weather :label "Temp") (weather :field "humidity"))
+                     :field "temperature")
+         :owner (make-body))
+        (is-true (js~ "[2]]"))
+        (is-true (js~ "[40]]"))
+        (setf *captured* nil)
+        (%chart-live-update "WEATHER" (%table "humidity" 55))
+        (is (= 1 (%js-count "c.data[0].push(")))
+        (is-true (js~ "c.data[1].push(null); c.data[2].push(55); c.data[3].push(undefined);"))
+        (setf *captured* nil)
+        (%chart-live-update "OUTSIDE" (%table "temperature" 9))
+        (is-true (js~ "c.data[1].push(undefined); c.data[2].push(undefined); c.data[3].push(9);"))))))

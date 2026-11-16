@@ -122,7 +122,7 @@
   persistence   ; persistence id; nil => first defined historic persistence
   field         ; nil, or string key selected from a compound item value
   transform     ; nil, or 1-arg function applied to every charted value
-  series        ; list of (item-id . label-or-nil), one entry per series
+  series        ; item/label conses or (item-id :field key :label label) entries
   (height 220)  ; plot height in CSS pixels
   (line-width 2) ; stroke width of every series in CSS pixels
   refresh       ; nil, or minimum seconds between live-appended points
@@ -348,6 +348,22 @@ chart with a silently ignored axis."
                  range)))
       (list :series ids :range range))))
 
+(defun %chart-series-label (entry)
+  (if (listp (cdr entry)) (getf (cdr entry) :label) (cdr entry)))
+
+(defun %chart-series-field (entry default)
+  (if (listp (cdr entry)) (getf (cdr entry) :field default) default))
+
+(defun %normalize-chart-series (entry)
+  (cond
+    ((symbolp entry) (cons entry nil))
+    ((stringp (cdr entry)) entry)
+    (t
+     (destructuring-bind (id &key (field nil field-p) label) entry
+       (check-type field (or null string))
+       (check-type label (or null string))
+       (append (list id :label label) (when field-p (list :field field)))))))
+
 (defun chart (item-ids &key label (type :line) range persistence transform field
                             (height 220) (line-width 2) refresh (fill :auto)
                             right-axis)
@@ -362,8 +378,10 @@ the last day.
 `persistence' names the persistence to load from; without it the first
 defined historic persistence is used.
 `field', when given, is the string key of a numeric field in a hash-table
-value. Missing or non-numeric fields chart as gaps. Every series selects the
-same key. Compound items require a field; scalar charts omit it.
+value. Missing or non-numeric fields chart as gaps. Every series selects
+the default key. A series entry `(item-id :field \"key\" :label \"Label\")`
+selects its own field and optional label. Compound items require a field;
+scalar charts omit it.
 `transform', when given, is a one-argument function applied to every charted
 value of every series, historic and live alike -- e.g. converting a raw
 sensor reading to a display unit.  It is called with a number (booleans
@@ -414,9 +432,7 @@ colour."
                   ;; a single (item-id . "label") cons
                   ((and (consp item-ids) (stringp (cdr item-ids)))
                    (list item-ids))
-                  (t (mapcar (lambda (s)
-                               (if (consp s) s (cons s nil)))
-                             item-ids)))))
+                  (t (mapcar #'%normalize-chart-series item-ids)))))
     (make-chart :item-id (car (first series))
                 :label label :type type
                 :persistence persistence

@@ -827,10 +827,13 @@ Unlike `%render-item-row' this resolves no item: buttons are not item-bound."
 ;; ---------------------------------------------------------------------------
 
 (defmethod render-widget ((w page:chart) ctx parent)
-  (let ((series (loop :for (id . label) :in (page:chart-series w)
+  (let ((series (loop :for entry :in (page:chart-series w)
+                      :for id = (car entry)
+                      :for label = (page::%chart-series-label entry)
+                      :for field = (page::%chart-series-field entry (page:chart-field w))
                       :for item = (hab:get-item id)
                       :if item
-                        :collect (list item (or label (item:label item)))
+                        :collect (list item (or label (item:label item)) field)
                       :else
                         :do (log:warn "Chart references unknown item: ~a" id))))
     (if (null series)
@@ -847,11 +850,11 @@ Unlike `%render-item-row' this resolves no item: buttons are not item-bound."
                                                          (page:chart-height w))))
                 (persistence (%chart-persistence w)))
             (cond
-              ((and (null (page:chart-field w))
-                    (some (lambda (entry)
-                            (and (typep (first entry) 'item:item)
-                                 (item:table-type-hint-p (item:value-type-hint (first entry)))))
-                          series))
+              ((some (lambda (entry)
+                       (and (null (third entry))
+                            (typep (first entry) 'item:item)
+                            (item:table-type-hint-p (item:value-type-hint (first entry)))))
+                     series)
                (create-div plot-div :class "chart-empty"
                                     :content "Select a numeric field with :field"))
               ((null persistence)
@@ -902,24 +905,25 @@ returned something unusable (each logged)."
        nil))))
 
 (defun %collect-chart-series-data (w series persistence)
-  "Fetches the history of every chart series -- a list of (item label) --
-blocking until all are in.  Returns (values series-data any-ok) where
-SERIES-DATA is a list of (item-name series-label persisted-items) and
+  "Fetches each (item label field) series, blocking until all are in.
+Returns (values series-data any-ok), where SERIES-DATA entries contain
+(item-name series-label persisted-items) with an optional fourth field, and
 ANY-OK is t when at least one fetch succeeded."
   (let ((any-ok nil))
     (values
-     (loop :for (item series-label) :in series
-           :collect (list (item:name item)
-                          series-label
-                          (multiple-value-bind (items ok)
-                              (%fetch-chart-series
-                               persistence item (page:chart-range w))
-                            (when ok (setf any-ok t))
-                            items)))
+     (loop :for (item series-label field) :in series
+           :collect (append
+                     (list (item:name item)
+                           series-label
+                           (multiple-value-bind (items ok)
+                               (%fetch-chart-series persistence item (page:chart-range w))
+                             (when ok (setf any-ok t))
+                             items))
+                     (when field (list field))))
      any-ok)))
 
 (defun %load-and-render-chart (owner w series plot-div persistence)
-  "Fetches the history of every chart series -- a list of (item label) -- in
+  "Fetches the history of each (item label field) chart series in
 a background thread (so page rendering is not blocked), then renders the
 plot into PLOT-DIV.  OWNER is who the live-append callbacks are registered
 for, see `set-on-value-update'."
@@ -1139,22 +1143,26 @@ chart in W lost its minus signs and leading digits."
 })();"
             plot-id tables height scales-js right-axis-js series-defs plot-id)))
 
-(defun %uplot-append-js (plot-id ts series-count series-idx y-literal
-                          &optional field)
-  "Appends Y-LITERAL to SERIES-IDX (1-based).
-For field charts other series receive undefined alignment cells, matching
-uPlot.join. Explicit missing observations remain null and break the line.
-Scalar charts retain their existing null alignment cells."
+(defun %uplot-append-row-js (plot-id ts values)
+  "Append one timestamp with all series values from one item observation."
   (format nil "if (window.chipiCharts && window.chipiCharts['~a']) {
   var c = window.chipiCharts['~a'];
   c.data[0].push(~a);~{ c.data[~a].push(~a);~}
   c.setData(c.data);
 }"
           plot-id plot-id ts
-          (loop :for i :from 1 :to series-count
-                :append (list i (if (= i series-idx)
-                                    y-literal
-                                    (if field "undefined" "null"))))))
+          (loop :for value :in values :for i :from 1 :append (list i value))))
+
+(defun %uplot-append-js (plot-id ts series-count series-idx y-literal
+                          &optional field)
+  "Appends Y-LITERAL to SERIES-IDX (1-based).
+For field charts other series receive undefined alignment cells, matching
+uPlot.join. Explicit missing observations remain null and break the line.
+Scalar charts retain their existing null alignment cells."
+  (%uplot-append-row-js
+   plot-id ts
+   (loop :for i :from 1 :to series-count
+         :collect (if (= i series-idx) y-literal (if field "undefined" "null")))))
 
 (defun %right-axis-series-p (item-name right-ids)
   "Whether the series of item ITEM-NAME reads against the right axis, i.e.
@@ -1163,21 +1171,23 @@ id (see `item:name'), which is what the ids are compared as."
   (and (member item-name right-ids :key #'symbol-name :test #'string=) t))
 
 (defun %render-uplot (owner w plot-div series-data)
-  "Renders the uPlot chart for SERIES-DATA -- a list of
-(item-name series-label persisted-items) -- and registers a live-append
-callback per series item on behalf of OWNER."
-  (when (and (null (page:chart-field w))
-             (some (lambda (entry)
+  "Render (item-name label persisted-items [field]) SERIES-DATA entries.
+Register one live callback per item on behalf of OWNER; each observation
+appends one row containing every series of that item."
+  (when (some (lambda (entry)
+                (and (null (or (fourth entry) (page:chart-field w)))
                      (some (lambda (point)
                              (hash-table-p (persp:persisted-item-value point)))
-                           (third entry)))
-                   series-data))
+                           (third entry))))
+              series-data)
     (return-from %render-uplot
       (create-div plot-div :class "chart-empty"
                            :content "Select a numeric field with :field")))
   (let* ((plot-id (html-id plot-div))
          (transform (page:chart-transform w))
-         (field (page:chart-field w))
+         (fields (mapcar (lambda (entry)
+                           (or (fourth entry) (page:chart-field w)))
+                         series-data))
          (right-axis (page:chart-right-axis w))
          (right-ids (getf right-axis :series))
          (right-colors '())
@@ -1186,13 +1196,14 @@ callback per series item on behalf of OWNER."
                    (:auto single-p)
                    ((t) t)
                    ((nil) nil)))
-         (series-count (length series-data))
          (tables (loop :for (nil nil persisted-items) :in series-data
+                       :for field :in fields
                        :for points = (%chart-points persisted-items transform field)
                        :collect (format nil "[[~{~a~^,~}],[~{~a~^,~}]]"
                                         (first points) (second points))))
          (series-defs (loop :for (item-name label nil) :in series-data
                             :for idx :from 0
+                            :for field :in fields
                             :for color = (nth (mod idx (length *chart-series-colors*))
                                               *chart-series-colors*)
                             :for right-p = (%right-axis-series-p item-name right-ids)
@@ -1215,27 +1226,25 @@ callback per series item on behalf of OWNER."
                                         :color (when (= 1 (length right-colors))
                                                  (first right-colors))))))
     ;; live append on item change; timestamps in the update state are unix already
-    (loop :with refresh = (page:chart-refresh w)
-          :for (item-name nil nil) :in series-data
-          :for series-idx :from 1
-          :do (let ((idx series-idx)
-                    (last-ts nil))
-                (set-on-value-update
-                 owner item-name
-                 (lambda (updated-item-state)
-                   (let ((ts (gethash "timestamp" updated-item-state)))
-                     ;; :refresh drops updates inside the window Lisp-side, so
-                     ;; they never reach the browser connection at all
-                     (unless (and refresh last-ts ts
-                                  (< (- ts last-ts) refresh))
-                       (when ts (setf last-ts ts))
-                       (let ((y (%chart-transformed-y
-                                 transform
-                                 (%ext-value (gethash "value" updated-item-state))
-                                 field)))
-                         (js-execute plot-div
-                                     (%uplot-append-js plot-id ts series-count
-                                                       idx (%js-number y) field)))))))))))
+    (dolist (item-name (remove-duplicates (mapcar #'first series-data) :test #'equal))
+      (let ((last-ts nil)
+            (refresh (page:chart-refresh w)))
+        (set-on-value-update
+         owner item-name
+         (lambda (updated-item-state)
+           (let ((ts (gethash "timestamp" updated-item-state)))
+             (unless (and refresh last-ts ts (< (- ts last-ts) refresh))
+               (when ts (setf last-ts ts))
+               (let ((value (%ext-value (gethash "value" updated-item-state))))
+                 (js-execute
+                  plot-div
+                  (%uplot-append-row-js
+                   plot-id ts
+                   (loop :for entry :in series-data
+                         :for field :in fields
+                         :collect (if (equal item-name (first entry))
+                                      (%js-number (%chart-transformed-y transform value field))
+                                      (if field "undefined" "null"))))))))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; page rendering / navigation
