@@ -1475,3 +1475,42 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (setf *captured* nil)
         (%chart-live-update "OUTSIDE" (%table "temperature" 9))
         (is-true (js~ "c.data[1].push(undefined); c.data[2].push(undefined); c.data[3].push(9);"))))))
+
+(test value--selected-field-formats-and-follows-live-snapshots
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-item (:name "weather" :type-hint "TABLE"
+                  :value (%table "temperature" 12.5 "hidden" 99))
+        (ui-renderer:render-widget
+         (page:value 'weather :field "temperature" :format "~,1f °C")
+         :owner (make-body))
+        (is-true (js~ "text('12.5 °C')"))
+        (is-false (js~ "hidden"))
+        (is-false (js~ "item-fields"))
+        (is-false (js~ "<input"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "temperature" 0))
+        (is-true (js~ "text('0.0 °C')"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "Temperature" 9))
+        (is-true (js~ "text('')"))
+        (is-false (js~ "0.0 °C"))))))
+
+(test value--selected-field-uses-safe-text-and-preserves-booleans
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-item (:name "weather" :type-hint "TABLE"
+                  :value (%table "<b>key</b>" "<img src=x onerror=alert(1)>"))
+        (ui-renderer:render-widget (page:value 'weather :field "<b>key</b>" :format "~a")
+                                  :owner (make-body))
+        (is-true (js~ "text('<img src=x onerror=alert(1)>')"))
+        (is-false (js~ "<div class='item-value-display'><img"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "<b>key</b>" "<script>live</script>"))
+        (is-true (js~ "text('<script>live</script>')")))
+      (with-item (:name "flag" :type-hint "TABLE" :value (%table "active" nil))
+        (ui-renderer:render-widget (page:value 'flag :field "active") :owner (make-body))
+        (is-true (js~ "text('false')"))
+        (setf *captured* nil)
+        (%chart-live-update "flag" (%table "active" t))
+        (is-true (js~ "text('true')"))))))

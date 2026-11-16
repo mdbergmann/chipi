@@ -274,3 +274,10 @@
   (signals type-error (chart '((weather :field temperature))))
   (signals type-error (chart '((weather :label 123))))
   (signals error (chart '((weather :unknown "temperature")))))
+
+(test value--selected-field-preserves-format
+  (let ((widget (value 'weather :field "temperature" :format "~,1f °C")))
+    (is (string= "temperature" (value-display-field widget)))
+    (is (string= "~,1f °C" (value-display-format widget))))
+  (is (null (value-display-field (value 'weather))))
+  (signals error (value 'weather :field :temperature)))

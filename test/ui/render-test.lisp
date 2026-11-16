@@ -283,3 +283,32 @@ value)."
       (is-true (js~ "text('30.5')"))
       (is-true (js~ "text('30')"))
       (is-false (js~ "30.5d0")))))
+
+(test render-item--ui-fields-preserves-order-and-selection-on-updates
+  (dolist (fields '( ("z" "a") #("z" "a") ("a")))
+    (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal)))
+      (with-captured-clog
+        (let ((tags (make-hash-table))
+              (snapshot (make-hash-table :test #'equal))
+              (state (make-hash-table :test #'equal)))
+          (setf (gethash :ui-fields tags) fields
+                (gethash "z" snapshot) 2
+                (gethash "a" snapshot) nil
+                (gethash "hidden" snapshot) "<script>hidden</script>")
+          (ui-renderer::%render-item
+           +owner+ (make-item-ht :name "weather" :type-hint "TABLE"
+                                :tags tags :value snapshot) (make-body))
+          (is-false (js~ "hidden"))
+          (is-true (js~ "text('false')"))
+          (if (= 1 (length fields))
+              (is-false (js~ "text('z')"))
+              (is (< (search "text('z')" (captured-js))
+                     (search "text('a')" (captured-js)))))
+          (setf *captured* nil
+                (gethash "value" state) (make-hash-table)
+                (gethash "timestamp" state) 0)
+          (ui-renderer:call-item-value-update-fun "weather" state)
+          (is-true (js~ "text('a')"))
+          (is-true (js~ "text('')"))
+          (is-false (js~ "text('0')"))
+          (is-false (js~ "text('false')")))))))

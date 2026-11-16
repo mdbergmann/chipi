@@ -17,6 +17,7 @@
            #:item-widget-label
            #:value-display
            #:value-display-format
+           #:value-display-field
            #:toggle
            #:text-input
            #:number-input
@@ -98,7 +99,8 @@
   label)     ; nil => the item's own label is used
 
 (defstruct (value-display (:include item-widget))
-  format)    ; nil => default formatting per type-hint
+  format     ; nil => default formatting per type-hint
+  field)     ; nil => whole value; string => selected table key
 
 (defstruct (toggle (:include item-widget)))
 
@@ -265,13 +267,16 @@ Widgets are ordinary values, so they can be composed programmatically
                                          (or ,path (%default-path ,pid)))
                                   :children ,widgets)))))
 
-(defun value (item-id &key label format)
+(defun value (item-id &key label format field)
   "A read-only display of the item's value.
 `format' is a CL format string applied to the value (e.g. \"~,1f °C\");
 without it the value is formatted according to the item's type-hint.
+`field' selects a string key from a table item; a missing key displays empty text.
 Boolean items render as ON/OFF, or as the labels of their `:ui-mapping' tag
 (see `value-mapping')."
-  (make-value-display :item-id item-id :label label :format format))
+  (when (and field (not (stringp field)))
+    (error "Value field must be a string: ~s" field))
+  (make-value-display :item-id item-id :label label :format format :field field))
 
 (defun value-mapping (&rest value-label-pairs)
   "Builds an item's `:ui-mapping' tag from alternating values and labels:

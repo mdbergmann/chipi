@@ -333,38 +333,73 @@ interacted with the checkbox; the property reflects the state reliably."
                                           (item-ext:item-value-ext-to-internal current-state)))))
     toggle-input))
 
-(defun %render-table-fields (parent value)
-  "Replaces all displayed fields with VALUE's complete snapshot.
+(defun %table-field-text (value)
+  "Formats a present table field without reader-specific numeric markers."
+  (cond
+    ((eq value t) "true")
+    ((null value) "false")
+    ((floatp value) (format nil "~f" value))
+    (t (princ-to-string value))))
+
+(defun %ui-fields (tags)
+  "Returns the ordered string keys requested by :ui-fields, or NIL."
+  (let ((fields (when (hash-table-p tags) (gethash :ui-fields tags))))
+    (when (and (typep fields '(or list vector))
+               (not (stringp fields))
+               (every #'stringp fields))
+      (coerce fields 'list))))
+
+(defun %render-table-fields (parent value &optional fields)
+  "Replaces displayed fields with the snapshot, in FIELDS order when given.
 Keys and values use text setters, so item data never becomes HTML."
   (setf (inner-html parent) "")
-  (if (and (hash-table-p value) (plusp (hash-table-count value)))
-      (dolist (key (sort (loop :for key :being :the :hash-keys :of value
-                              :collect key)
-                        #'string<))
-        (let* ((row (create-div parent :class "item-field"))
-               (name (create-div row :class "item-field-name"))
-               (display (create-div row :class "item-field-value"))
-               (field-value (gethash key value)))
-          (setf (text name) key
-                (text display) (cond
-                                 ((eq field-value t) "true")
-                                 ((null field-value) "false")
-                                 ((floatp field-value) (format nil "~f" field-value))
-                                 (t (princ-to-string field-value))))))
-      (create-div parent :class "item-fields-empty" :content "No fields")))
+  (let ((keys (or fields
+                  (when (hash-table-p value)
+                    (sort (loop :for key :being :the :hash-keys :of value
+                                :collect key)
+                          #'string<)))))
+    (if keys
+        (dolist (key keys)
+          (let* ((row (create-div parent :class "item-field"))
+                 (name (create-div row :class "item-field-name"))
+                 (display (create-div row :class "item-field-value")))
+            (setf (text name) key
+                  (text display)
+                  (multiple-value-bind (field-value present-p)
+                      (when (hash-table-p value) (gethash key value))
+                    (if present-p (%table-field-text field-value) "")))))
+        (create-div parent :class "item-fields-empty" :content "No fields"))))
 
-(defun %create-table-display (owner parent item-name value)
-  "A read-only field list that follows the item's full snapshots."
+(defun %create-table-display (owner parent item-name value &optional fields)
+  "A read-only field list following snapshots and optional ordered FIELDS."
   (let ((display (create-div parent :class "item-value-display item-fields")))
-    (%render-table-fields display value)
+    (%render-table-fields display value fields)
     (set-on-value-update owner item-name
                          (lambda (state)
-                           (%render-table-fields display (gethash "value" state))))
+                           (%render-table-fields display (gethash "value" state) fields)))
+    display))
+
+(defun %create-field-display (owner parent item-name value field format)
+  "A selected table field, formatted and updated through safe text setters."
+  (let ((display (create-div parent :class "item-value-display")))
+    (labels ((update (snapshot)
+               (setf (text display)
+                     (multiple-value-bind (value present-p)
+                         (when (hash-table-p snapshot) (gethash field snapshot))
+                       (if present-p
+                           (if format (format nil format value) (%table-field-text value))
+                           "")))))
+      (update value)
+      (set-on-value-update owner item-name
+                           (lambda (state) (update (gethash "value" state)))))
     display))
 
 (defun %create-value-display (owner parent item-name value type-hint
-                              &optional format mapping)
+                              &optional format mapping field)
   "A read-only formatted display of the item's value."
+  (when field
+    (return-from %create-value-display
+      (%create-field-display owner parent item-name value field format)))
   (when (string= "TABLE" type-hint)
     (return-from %create-value-display
       (%create-table-display owner parent item-name value)))
@@ -678,11 +713,12 @@ CONTROL-FN is called with the row container and the item hash-table."
                           ;; too: the labels replace ON/OFF, the state colour
                           ;; stays
                           (if (and (string= "BOOLEAN" type-hint)
-                                   (null (page:value-display-format w)))
+                                   (null (page:value-display-format w))
+                                   (null (page:value-display-field w)))
                               (%create-boolean-display ctx row name value mapping)
                               (%create-value-display ctx row name value type-hint
                                                      (page:value-display-format w)
-                                                     mapping)))))))
+                                                     mapping (page:value-display-field w))))))))
 
 (defmethod render-widget ((w page:toggle) ctx parent)
   (%render-item-row w ctx parent "widget-toggle"
@@ -1703,7 +1739,7 @@ fresh list."
   (let ((mapping (%display-mapping tags)))
     (cond
       ((string= "TABLE" type-hint)
-       (%create-table-display ctx parent item-name item-value))
+       (%create-table-display ctx parent item-name item-value (%ui-fields tags)))
       ;; a contact reports and is never switched, tagged read-only or not
       ((and (eq :contact (%house-kind tags)) (string= "BOOLEAN" type-hint))
        (%create-boolean-display ctx parent item-name item-value mapping))
