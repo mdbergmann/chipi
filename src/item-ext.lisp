@@ -13,14 +13,9 @@
 (in-package :chipi.item-ext)
 
 (defun %convert-table (table converter)
-  (let ((converted (make-hash-table :test #'equal)))
+  (let ((converted (make-hash-table :test (hash-table-test table))))
     (maphash (lambda (key value)
-               ;; Reject nested containers before applying scalar conversions.
-               (unless (and (stringp key)
-                            (or (realp value) (stringp value)
-                                (member value '(t nil item:true item:false))))
-                 (error 'item:invalid-table-value :value table))
-               (setf (gethash (copy-seq key) converted)
+               (setf (gethash key converted)
                      (handler-case (funcall converter value)
                        (arithmetic-error ()
                          (error 'item:invalid-table-value :value table)))))
@@ -32,7 +27,7 @@
 Used e.g. for API or persistences."
   (cond
     ((hash-table-p ext-value)
-     (item:copy-table-value (%convert-table ext-value #'item-value-ext-to-internal)))
+     (%convert-table ext-value #'item-value-ext-to-internal))
     ((typep ext-value 'double-float)
      (coerce ext-value 'single-float))
     ((eq ext-value t) 'item:true)
@@ -44,7 +39,7 @@ Used e.g. for API or persistences."
   "Converts internal item-value (`item-state-value') to external representation, i.e. used for JSON."
   (cond
     ((hash-table-p item-value)
-     (%convert-table (item:copy-table-value item-value) #'item-value-internal-to-ext))
+     (%convert-table item-value #'item-value-internal-to-ext))
     ((eq item-value 'item:true) t)
     ((eq item-value 'item:false) nil)
     ((null item-value) 'cl:null)

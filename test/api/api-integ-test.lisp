@@ -569,10 +569,15 @@
           (is-false (gethash "no" value))))
       (let ((before (item:get-item-stateq item)))
         (dolist (json '("{\"value\":{\"x\":null}}" "{\"value\":{\"x\":[]}}"
-                        "{\"value\":{\"x\":{}}}" "{\"value\":null}"))
+                        "{\"value\":{\"x\":{\"flag\":false}}}" "{\"value\":null}"
+                        "{\"value\":[]}" "{\"value\":5}"))
           (multiple-value-bind (body status) (make-post-item-request headers "TABLE-API" json)
             (declare (ignore body))
-            (is (= 400 status))))
+            (is (= 400 status)))
+          (is (equalp (item:item-state-value before)
+                      (item:item-state-value (item:get-item-stateq item))))
+          (is (= (item:item-state-timestamp before)
+                 (item:item-state-timestamp (item:get-item-stateq item)))))
         (is (equalp (item:item-state-value before)
                     (item:item-state-value (item:get-item-stateq item))))
         (is (= (item:item-state-timestamp before)
