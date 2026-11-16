@@ -158,15 +158,14 @@ Signal INVALID-TABLE-VALUE for any other value."
 (defun %item-receive (msg id)
   (log:debug "Received msg: ~a, item: ~a" msg id)
   (let ((self *self*))
-    (flet ((apply-new-value (new-value timestamp old-value publish-p)
+    (flet ((apply-new-value (new-value timestamp old-value)
              (let ((timestamp (or timestamp (get-universal-time))))
                (prog1
                    (setf (item-state-value *state*) new-value
                          (item-state-timestamp *state*) timestamp)
-                 (when publish-p
-                   (ev:publish self (make-item-changed-event
-                                     :item self
-                                     :old-value (%copy-value old-value)))))))
+                 (ev:publish self (make-item-changed-event
+                                   :item self
+                                   :old-value (%copy-value old-value))))))
            (push-to-bindings (new-value push)
              (with-slots (bindings) self
                (log:debug "Processing ~a binding(s)." (length bindings))
@@ -198,9 +197,9 @@ Signal INVALID-TABLE-VALUE for any other value."
                 (persist (getf (cdr msg) :persist-p t))
                 (timestamp (getf (cdr msg) :timestamp))
                 (changed (not (%value-equal-p old-val val))))
-           (when (or changed (not (getf (cdr msg) :publish-p t)))
+           (when changed
              (log:debug "set-state: ~a on item: ~a" val id)
-             (apply-new-value val timestamp old-val (getf (cdr msg) :publish-p t))
+             (apply-new-value val timestamp old-val)
              (when persist
                (apply-persistences)))
            ;; `:always' pushes a value the item already holds as well
@@ -330,15 +329,10 @@ Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on 
       (t
        (progn
          (log:debug "Setting loaded value to item: ~a" item)
-         (if (table-type-hint-p (value-type-hint item))
-             (! item (list :set-state
-                           :value (copy-table-value (persp:persisted-item-value result))
-                           :timestamp (persp:persisted-item-timestamp result)
-                           :push-p nil :persist-p nil :publish-p nil))
-             (set-value item (persp:persisted-item-value result)
-                        :push nil
-                        :timestamp (persp:persisted-item-timestamp result)
-                        :persist nil)))))))
+         (set-value item (persp:persisted-item-value result)
+                    :push nil
+                    :timestamp (persp:persisted-item-timestamp result)
+                    :persist nil))))))
 
 (defun %parse-frequency (freq)
   (let* ((freq-str (symbol-name freq))

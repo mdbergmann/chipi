@@ -112,14 +112,18 @@
       (persp:persist cut item)
       (is (= 0 (hash-table-count (persp:persisted-item-value (persp:retrieve cut item))))))))
 
-(test simple-persistence--empty-table-restores-timestamp-without-event
+(test simple-persistence--equal-empty-table-restore-is-no-op
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :empty-table-files
                                         :storage-root-path #P"/tmp/chipi/empty-table/"))
            (item (item:make-item 'empty-file :type-hint 'table))
            (events nil)
            (subscribed nil)
-           (timestamp 3900000000))
+           (timestamp 3900000000)
+           (initial-timestamp nil)
+           (enqueued nil)
+           (original-set-value (symbol-function 'item:set-value)))
+      (setf initial-timestamp (item:item-state-timestamp (item:get-item-stateq item)))
       (is-true (miscutils:await-cond 1 (uiop:directory-exists-p #P"/tmp/chipi/empty-table/")))
       (with-open-file (stream #P"/tmp/chipi/empty-table/EMPTY-FILE.store"
                               :direction :output :if-exists :supersede)
@@ -135,9 +139,15 @@
                               (when (typep msg 'item:item-changed-event)
                                 (push msg events))))
       (is-true (miscutils:await-cond 1 subscribed))
-      (item:add-persistence item cut :load-on-start t)
-      (is-true (miscutils:await-cond 1
-                 (= timestamp (item:item-state-timestamp (item:get-item-stateq item)))))
+      (cl-mock:with-mocks ()
+        (cl-mock:answer (item:set-value target value :push push :timestamp ts :persist persist)
+          (prog1 (funcall original-set-value target value :push push :timestamp ts :persist persist)
+            (setf enqueued t)))
+        (item:add-persistence item cut :load-on-start t)
+        (is-true (miscutils:await-cond 1 enqueued))
+        (let ((barrier (item:get-value item)))
+          (is-true (miscutils:await-cond 1 (hash-table-p (future:fresult barrier))))))
+      (is (= initial-timestamp (item:item-state-timestamp (item:get-item-stateq item))))
       (is (= 0 (hash-table-count (item:item-state-value (item:get-item-stateq item)))))
       (sleep 0.1)
       (is-false events))))

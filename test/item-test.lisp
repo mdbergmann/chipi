@@ -339,6 +339,45 @@ that when loading the value the second (or any more) persistence does not persit
   )
 
 
+(test fetch-persisted-value--changed-table-publishes-without-push-or-persistence
+  (with-fixture init-destroy-env ()
+    (let* ((old-value (alexandria:plist-hash-table '("field" 1) :test #'equal))
+           (value (alexandria:plist-hash-table '("field" 2) :test #'equal))
+           (item (make-item 'restored-table :type-hint 'table :initial-value old-value))
+           (persp (make-simple-persistence
+                   :table-restore :storage-root-path #P"/tmp/chipi/table-restore/"))
+           (timestamp 3900000000)
+           (events nil)
+           (subscribed nil)
+           (pushes 0))
+      (ac:actor-of (isys:ensure-isys)
+                   :init (lambda (self)
+                           (ev:subscribe self self 'item-changed-event)
+                           (setf subscribed t))
+                   :receive (lambda (msg)
+                              (when (typep msg 'item-changed-event)
+                                (push msg events))))
+      (is-true (await-cond 1 subscribed))
+      (add-binding item (binding:make-function-binding
+                         :push (lambda (value) (declare (ignore value)) (incf pushes))
+                         :call-push-p t))
+      (with-mocks ()
+        (answer persp:fetch
+          (future:with-fut (persp:make-persisted-item :value value :timestamp timestamp)))
+        (answer persp:store t)
+        (add-persistence item persp :load-on-start t :frequency :every-change)
+        (is-true (await-cond 1 events))
+        ;; An ask waits for the restore message, including its persistence and binding paths.
+        (let ((barrier (get-value item)))
+          (is-true (await-cond 1 (hash-table-p (future:fresult barrier)))))
+        (is (= 1 (length events)))
+        (is (eq item (item-changed-event-item (first events))))
+        (is (equalp old-value (item-changed-event-old-value (first events))))
+        (is (equalp value (item-state-value (get-item-stateq item))))
+        (is (= timestamp (item-state-timestamp (get-item-stateq item))))
+        (is (= 0 pushes))
+        (is-false (invocations 'persp:store))))))
+
 (test item--tags-remain-unchanged
   "Test that tags remain unchanged through item lifecycle."
   (with-fixture init-destroy-env ()
