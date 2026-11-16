@@ -129,11 +129,11 @@ Signal INVALID-TABLE-VALUE for any other value."
              value)
     copy))
 
-(defun %copy-value (value)
-  (if (hash-table-p value) (copy-table-value value) value))
+(defun %copy-value (value hint)
+  (if (table-type-hint-p hint) (copy-table-value value) value))
 
-(defun %value-equal-p (left right)
-  (if (and (hash-table-p left) (hash-table-p right))
+(defun %value-equal-p (left right hint)
+  (if (table-type-hint-p hint)
       (and (= (hash-table-count left) (hash-table-count right))
            (loop :for key :being :the :hash-keys :of left :using (hash-value value)
                  :always (multiple-value-bind (other present) (gethash key right)
@@ -165,7 +165,7 @@ Signal INVALID-TABLE-VALUE for any other value."
                          (item-state-timestamp *state*) timestamp)
                  (ev:publish self (make-item-changed-event
                                    :item self
-                                   :old-value (%copy-value old-value))))))
+                                   :old-value (%copy-value old-value (value-type-hint self)))))))
            (push-to-bindings (new-value push)
              (with-slots (bindings) self
                (log:debug "Processing ~a binding(s)." (length bindings))
@@ -175,7 +175,8 @@ Signal INVALID-TABLE-VALUE for any other value."
                                                (binding:call-push-p binding)
                                                nil)))
                        (when effective-push
-                         (binding:exec-push binding (%copy-value new-value))))
+                         (binding:exec-push binding
+                                            (%copy-value new-value (value-type-hint self)))))
                    (error (c) (log:warn "Error in binding: ~a, error: ~a" binding c))))))
            (apply-persistences ()
              (with-slots (persistences) self
@@ -189,14 +190,14 @@ Signal INVALID-TABLE-VALUE for any other value."
         (:get-state
          (let ((state-value (item-state-value *state*)))
            (log:debug "Current state value: ~a, item: ~a" state-value id)
-           (reply (%copy-value state-value))))
+           (reply (%copy-value state-value (value-type-hint self)))))
         (:set-state
          (let* ((old-val (item-state-value *state*))
                 (val (getf (cdr msg) :value))
                 (push (getf (cdr msg) :push-p))
                 (persist (getf (cdr msg) :persist-p t))
                 (timestamp (getf (cdr msg) :timestamp))
-                (changed (not (%value-equal-p old-val val))))
+                (changed (not (%value-equal-p old-val val (value-type-hint self)))))
            (when changed
              (log:debug "set-state: ~a on item: ~a" val id)
              (apply-new-value val timestamp old-val)
@@ -259,9 +260,7 @@ A `VALUE' equal to the current one (by field contents for tables) changes nothin
 Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on whether the value is pushed or not.
 `TIMESTAMP': can be used to define a custom timestamp (universal-time). If `NIL' a timestamp is created.
 `PERSIST': if non-nil, persistences will be applied."
-  (setf value (if (table-type-hint-p (value-type-hint item))
-                  (copy-table-value value)
-                  (%copy-value value)))
+  (setf value (%copy-value value (value-type-hint item)))
   (! item `(:set-state . (:value ,value
                           :push-p ,push
                           :timestamp ,timestamp
@@ -270,8 +269,8 @@ Even if `PUSH' is non-nil, the bindings `CALL-PUSH-P' still takes precedence on 
 (defun get-item-stateq (item)
   "Returns the item state `item-state'."
   (let ((state (act-cell:state item)))
-    (if (hash-table-p (item-state-value state))
-        (make-item-state :value (copy-table-value (item-state-value state))
+    (if (table-type-hint-p (value-type-hint item))
+        (make-item-state :value (%copy-value (item-state-value state) (value-type-hint item))
                          :timestamp (item-state-timestamp state))
         state)))
 
