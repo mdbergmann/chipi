@@ -161,16 +161,8 @@ Signal INVALID-TABLE-VALUE for any other value."
     (flet ((apply-new-value (new-value timestamp old-value publish-p)
              (let ((timestamp (or timestamp (get-universal-time))))
                (prog1
-                   (if (table-type-hint-p (value-type-hint self))
-                       (let ((state (make-item-state :value new-value :timestamp timestamp)))
-                         ;; Publish the complete observation before notifying other actors.
-                         ;; Sento's STATE accessor is read-only; its wrapper commits *STATE*
-                         ;; after this receive function returns.
-                         (setf *state* state
-                               (slot-value self 'act-cell:state) state)
-                         new-value)
-                       (setf (item-state-value *state*) new-value
-                             (item-state-timestamp *state*) timestamp))
+                   (setf (item-state-value *state*) new-value
+                         (item-state-timestamp *state*) timestamp)
                  (when publish-p
                    (ev:publish self (make-item-changed-event
                                      :item self

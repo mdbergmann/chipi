@@ -512,11 +512,11 @@ This also tests the error handling in item calling `exec-push' of the binding."
     (signals invalid-table-value
       (copy-table-value (alexandria:plist-hash-table (list "value" value))))))
 
-(test table-value--publishes-complete-state-before-notification
+(test get-item-stateq--table-snapshots-remain-independent
   (with-fixture init-destroy-env ()
     (let* ((value (alexandria:plist-hash-table '("field" 1) :test #'equal))
            (item (make-item 'atomic-table :type-hint 'table :initial-value value))
-           (old-state (act-cell:state item))
+           (old-state (get-item-stateq item))
            (old-timestamp (item-state-timestamp old-state))
            (new-timestamp (1+ old-timestamp))
            (observed nil))
@@ -530,7 +530,12 @@ This also tests the error handling in item calling `exec-push' of the binding."
         (is (= new-timestamp (item-state-timestamp observed)))
         (is (= 1 (gethash "field" (item-state-value old-state))))
         (is (= old-timestamp (item-state-timestamp old-state)))
-        (is (not (eq old-state (act-cell:state item))))))))
+        (let ((current-state (get-item-stateq item)))
+          (is (not (eq observed current-state)))
+          (is (not (eq (item-state-value observed)
+                       (item-state-value current-state))))
+          (setf (gethash "field" (item-state-value observed)) 3)
+          (is (= 2 (gethash "field" (item-state-value (get-item-stateq item))))))))))
 
 (test table-type-hint--package-independent
   (is-true (table-type-hint-p 'table))
