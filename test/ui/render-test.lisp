@@ -233,7 +233,7 @@ value)."
         ;; ... and the timestamp display refreshed too (epoch 0 -> 1970)
         (is-true (js~ "1970"))))))
 
-(test render-item--compound-snapshots-use-safe-text-and-replace-fields
+(test %render-item--compound-snapshots-use-safe-text-and-replace-fields
   (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal)))
     (with-captured-clog
       (let ((snapshot (make-hash-table :test #'equal))
@@ -274,7 +274,7 @@ value)."
         (is-true (js~ "html('')"))
         (is-true (js~ "No fields"))))))
 
-(test render-item--compound-floats-have-no-reader-exponent-marker
+(test %render-table-fields--floats-have-no-reader-exponent-marker
   (with-captured-clog
     (let ((snapshot (make-hash-table :test #'equal)))
       (setf (gethash "temperature" snapshot) 30.5d0
@@ -284,7 +284,7 @@ value)."
       (is-true (js~ "text('30')"))
       (is-false (js~ "30.5d0")))))
 
-(test render-item--ui-fields-preserves-order-and-selection-on-updates
+(test %render-item--ui-fields-preserves-order-and-selection-on-updates
   (dolist (fields '( ("z" "a") #("z" "a") ("a")))
     (let ((ui-renderer:*item-value-form-update-funs* (make-hash-table :test #'equal)))
       (with-captured-clog

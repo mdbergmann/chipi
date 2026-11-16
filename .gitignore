@@ -19,10 +19,7 @@ ocicl/
 ocicl.csv
 
 # Working specs
-specs/*
-!specs/core/
-specs/core/*
-!specs/core/hash-table.spec.md
+specs/
 
 # UI build artifacts and dependencies
 ui-ts/node_modules/

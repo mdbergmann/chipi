@@ -548,7 +548,7 @@
           (setf eventsc:*heartbeat-sleep-time-s* heartbeat-sleep-s
                 eventsc:*max-heartbeats* max-heartbeats))))))
 
-(test items--table-get-post-and-invalid-update
+(test update-item-value--table-get-post-and-invalid-update
   (with-fixture api-start-stop (t)
     (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read :update)))
            (headers `(("X-Api-Key" . ,apikey-id)))

@@ -1261,7 +1261,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           :do (setf (gethash key table) value))
     table))
 
-(test widget--table-value-is-readonly-and-empty-state-updates
+(test render-widget--table-value-is-readonly-and-empty-state-updates
   (with-fixture render-env ()
     (with-captured-clog
       (with-item (:name "weather" :type-hint "TABLE" :value (%table))
@@ -1274,7 +1274,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "text('temperature')"))
         (is-true (js~ "text('12')"))))))
 
-(test widget--table-chart-selects-number-before-transform-history-and-live
+(test render-widget--table-chart-selects-number-before-transform-history-and-live
   (with-fixture render-env ()
     (with-captured-clog
       (let ((w (page:chart 'weather :field "Temperature"
@@ -1287,7 +1287,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (%chart-live-update "weather" (%table "Temperature" 3.5))
         (is-true (js~ "push(35.0)"))))))
 
-(test widget--table-chart-missing-and-nonnumeric-fields-are-gaps
+(test render-widget--table-chart-missing-and-nonnumeric-fields-are-gaps
   (with-fixture render-env ()
     (with-captured-clog
       (let* ((calls 0)
@@ -1312,7 +1312,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "push(0)"))
         (is (= 1 calls))))))
 
-(test widget--table-chart-transform-failures-are-gaps
+(test render-widget--table-chart-transform-failures-are-gaps
   (with-fixture render-env ()
     (with-captured-clog
       (let ((w (page:chart 'weather :field "temperature"
@@ -1325,7 +1325,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (%chart-live-update "weather" (%table "temperature" 4))
         (is-true (js~ "push(null)"))))))
 
-(test widget--table-chart-without-field-explains-selection
+(test render-widget--table-chart-without-field-explains-selection
   (with-fixture render-env ()
     (with-captured-clog
       (let ((item (make-instance 'item:item :receive t :name "weather")))
@@ -1337,7 +1337,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (is-true (js~ "Select a numeric field with :field"))
           (is-false (js~ "new uPlot")))))))
 
-(test widget--table-chart-multiple-series-preserve-explicit-gaps
+(test render-widget--table-chart-multiple-series-preserve-explicit-gaps
   (with-fixture render-env ()
     (with-captured-clog
       (ui-renderer::%render-uplot
@@ -1352,7 +1352,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
       (%chart-live-update "outside" (%table "temperature" 5))
       (is-true (js~ "push(5)")))))
 
-(test widget--scalar-booleans-retain-number-conversion-and-transform
+(test render-widget--scalar-booleans-retain-number-conversion-and-transform
   (with-fixture render-env ()
     (with-captured-clog
       (ui-renderer::%render-uplot
@@ -1367,7 +1367,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
       (%chart-live-update "switch" t)
       (is-true (js~ "push(2)")))))
 
-(test widget--compound-live-series-distinguish-alignment-from-missing-fields
+(test render-widget--compound-live-series-distinguish-alignment-from-missing-fields
   (with-fixture render-env ()
     (with-captured-clog
       (ui-renderer::%render-uplot
@@ -1388,7 +1388,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
       (%chart-live-update "inside" (%table) 1755000004)
       (is-true (js~ "c.data[1].push(null); c.data[2].push(undefined);")))))
 
-(test widget--scalar-live-series-retain-null-alignment
+(test render-widget--scalar-live-series-retain-null-alignment
   (with-fixture render-env ()
     (with-captured-clog
       (ui-renderer::%render-uplot
@@ -1402,7 +1402,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
       (%chart-live-update "outside" 6 1755000002)
       (is-true (js~ "c.data[1].push(null); c.data[2].push(6);")))))
 
-(test chart--same-item-fields-propagate-through-history-and-live
+(test render-widget--same-item-fields-propagate-through-history-and-live
   (with-fixture render-env ()
     (with-captured-clog
       (with-mocks ()
@@ -1443,7 +1443,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
           (is (= 1 (%js-count "c.data[0].push(")))
           (is-true (js~ "c.data[1].push(50); c.data[2].push(null);")))))))
 
-(test chart--series-default-fields-and-unrelated-alignment
+(test render-widget--series-default-fields-and-unrelated-alignment
   (with-fixture render-env ()
     (with-captured-clog
       (with-mocks ()
@@ -1476,7 +1476,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (%chart-live-update "OUTSIDE" (%table "temperature" 9))
         (is-true (js~ "c.data[1].push(undefined); c.data[2].push(undefined); c.data[3].push(9);"))))))
 
-(test value--selected-field-formats-and-follows-live-snapshots
+(test render-widget--selected-field-formats-and-follows-live-snapshots
   (with-fixture render-env ()
     (with-captured-clog
       (with-item (:name "weather" :type-hint "TABLE"
@@ -1496,7 +1496,7 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-true (js~ "text('')"))
         (is-false (js~ "0.0 °C"))))))
 
-(test value--selected-field-uses-safe-text-and-preserves-booleans
+(test render-widget--selected-field-uses-safe-text-and-preserves-booleans
   (with-fixture render-env ()
     (with-captured-clog
       (with-item (:name "weather" :type-hint "TABLE"

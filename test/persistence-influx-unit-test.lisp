@@ -9,7 +9,7 @@
 (defun table (&rest fields)
   (alexandria:plist-hash-table fields :test 'equal))
 
-(test make-single-query-string--selects-latest-table-time-on-server
+(test %make-single-query-string--selects-latest-table-time-on-server
   (let* ((persistence (influx:make-influx-persistence
                        :query-test :base-url "http://localhost" :token ""
                        :org "test" :bucket "test"))
@@ -24,7 +24,7 @@
     (is (string= (format nil "~a~%|> last()" base)
                  (influx::%make-single-query-string persistence "sensor")))))
 
-(test serialize-point--typed-and-escaped-fields
+(test %serialize-point--typed-and-escaped-fields
   (let ((line (influx::%serialize-point
                "Room, A=B" (table "Temp" 30 "temp" 30.5 "On" 'item:true
                                      "Off" 'item:false "a, b=c" "quote\" slash\\") 123)))
@@ -36,7 +36,7 @@
     (is (search "a\\,\\ b\\=c=\"quote\\\" slash\\\\\"" line))
     (is (alexandria:ends-with-subseq " 123" line))))
 
-(test serialize-point--invalid-snapshot-never-calls-http
+(test %make-write-request--invalid-snapshot-never-calls-http
   (with-mocks ()
     (answer (drakma:http-request) (error "Unexpected HTTP request: ~a" :invalid))
     (signals item:invalid-table-value
@@ -51,7 +51,7 @@
       (influx::%make-write-request nil "name" (table "time" 1) 123))
     (is (null (invocations 'drakma:http-request)))))
 
-(test serialize-point--empty-snapshot-skips-http
+(test %make-write-request--empty-snapshot-skips-http
   (with-mocks ()
     (answer (drakma:http-request) (error "Unexpected HTTP request: ~a" :empty))
     (multiple-value-bind (body status headers)
@@ -83,7 +83,7 @@
                  '("" "result" "table" "_time" "_field" "_value"))
            rows)))
 
-(test parse-csv--table-numbers-restore-without-republishing
+(test %parsed-last-persisted-item--table-numbers-restore-without-republishing
   (unwind-protect
        (let* ((stored (table "Battery" 87 "Temperature" 21.3))
               (csv (annotated-csv
@@ -129,7 +129,7 @@
              (is (= stores-after-restore (length (invocations 'persp:store)))))))
     (envi:shutdown-env)))
 
-(test parse-csv--multiple-tables-types-multiline-and-empty-strings
+(test %parsed-range-persisted-item--multiple-tables-types-multiline-and-empty-strings
   (let* ((old "2026-11-15T12:00:00Z")
          (new "2026-11-15T12:00:01Z")
          (text (format nil "comma, quote\"~%next line"))
@@ -156,7 +156,7 @@
               (persp:persisted-item-value
                (influx::%parsed-last-persisted-item csv 'table)))))))
 
-(test parse-csv--aggregate-datatypes-without-timestamps
+(test %parsed-range-persisted-item--aggregate-datatypes-without-timestamps
   (let* ((csv (csv-fixture
                '(("#datatype" "string" "long" "string" "long")
                  ("" "result" "table" "_field" "_value")
@@ -168,11 +168,11 @@
     (is (= 2 (gethash "Label" (persp:persisted-item-value (first items)))))
     (is (= 3 (gethash "On" (persp:persisted-item-value (first items)))))))
 
-(test parse-csv--no-table-data
+(test %parsed-range-persisted-item--no-table-data
   (is (null (influx::%parsed-range-persisted-item "" 'table)))
   (signals error (influx::%parsed-last-persisted-item "" 'table)))
 
-(test make-query-request--scalar-flux-and-table-annotated-json
+(test %make-query-request--scalar-flux-and-table-annotated-json
   (let ((persistence (influx:make-influx-persistence
                       :request-test :base-url "http://localhost" :token "token"
                       :org "test" :bucket "test")))
@@ -199,7 +199,7 @@
           (influx::%make-query-request persistence "sensor" range nil table-p)
           (is (= 1 (length (invocations 'drakma:http-request)))))))))
 
-(test parse-csv--scalar-retains-main-parser-and-response-order
+(test %parsed-range-persisted-item--scalar-retains-main-parser-and-response-order
   (let* ((csv (format nil ",result,table,_time,_value~c~c,_result,0,2026-11-15T12:00:01Z,2~c~c,_result,0,2026-11-15T12:00:00Z,1~c~c"
                       #\Return #\Linefeed #\Return #\Linefeed #\Return #\Linefeed))
          (items (influx::%parsed-range-persisted-item csv 'integer)))
@@ -216,7 +216,7 @@
   (is (null (influx::%parse-csv-to-time-value-pairs "")))
   (is (null (influx::%parse-csv-to-time-value-pairs nil))))
 
-(test parse-csv--reserved-looking-field-and-value-are-data
+(test %parsed-range-persisted-item--reserved-looking-field-and-value-are-data
   (let* ((csv (annotated-csv
                "string"
                '(("" "" "0" "2026-11-15T12:00:00Z" "_value" "_value")
@@ -226,7 +226,7 @@
     (is (string= "_value" (gethash "_value" table)))
     (is (string= " tail " (gethash "spaced" table)))))
 
-(test read-csv-records--quoted-empty-multiline-and-significant-whitespace
+(test %read-csv-records--quoted-empty-multiline-and-significant-whitespace
   (let* ((multiline (format nil "first~c~csecond~%third" #\Return #\Newline))
          (csv (format nil "plain,\"a,b\",\"say \"\"hi\"\"\",,\"\", tail ,\" padded \"~c~c\"~a\",end~%last,"
                       #\Return #\Newline multiline)))
@@ -236,6 +236,6 @@
   (is (null (influx::%read-csv-records "")))
   (is (equal '(("")) (influx::%read-csv-records (format nil "~%")))))
 
-(test read-csv-records--malformed-quotes-signal-errors
+(test %read-csv-records--malformed-quotes-signal-errors
   (dolist (csv '("\"unfinished" "unquoted\"quote" "\"closed\"tail" "\"escaped\"\""))
     (signals error (influx::%read-csv-records csv))))

@@ -797,25 +797,20 @@ The UI is under active development.
 
 ### Compound item display and charts
 
-An item with the `'table` hint displays its current fields as a read-only
-key/value list, both in the overview and in a `value` widget. Live updates
-replace the field list, including additions and removals. Empty tables show an
-empty state. Keys and string values are displayed as text, not markup.
-
-Select a single numeric field for a history chart:
+Items with the `'table` hint display read-only fields. Use the `:ui-fields` tag
+to select card fields in display order, and `value` with `:field` to format one
+field:
 
 ```lisp
-(chart 'weather :field "temperature" :range '(:hours 6))
-(chart 'weather :field "humidity" :label "Humidity [%]")
+(defitem 'weather "Weather" 'table
+  :tags '((:ui-fields . ("temperature" "humidity"))))
+(value 'weather :field "temperature" :format "~,1f °C")
+(chart '((weather :field "temperature" :label "Temp")
+         (weather :field "humidity" :label "Humidity")))
+(chart '(weather outside) :field "temperature" :range '(:hours 6))
 ```
 
-`:field` is a case-sensitive string key. With multiple items in one chart, the
-same field is selected from every item. History and live updates select the
-field before applying `:transform`. Missing fields, strings and booleans produce
-gaps rather than zero readings. A table chart without `:field` displays an
-instruction to select one. Existing scalar charts remain unchanged.
-
-The items API accepts a complete table in a POST body such as
-`{"value":{"temperature":21.5,"online":true}}`. A successful update replaces
-the whole table. Invalid field types produce HTTP 400 without mutating the
-item. GET responses and item-change SSE events use the same JSON object shape.
+Field keys are case-sensitive strings. A series `:field` overrides the chart's
+`:field` default. Charts select numeric fields before applying `:transform`;
+missing or nonnumeric fields appear as gaps. Table charts require a field.
+The API and item-change SSE events represent table values as JSON objects.

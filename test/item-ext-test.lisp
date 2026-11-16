@@ -113,7 +113,7 @@
     (is-true (gethash :ui-type tags-ht))
     (is (equal "Light" (gethash :ui-type tags-ht)))))
 
-(test table-value--json-roundtrip
+(test item-value-ext-to-internal--table-json-roundtrip
   (let* ((external (com.inuoe.jzon:parse "{\"A\":1,\"a\":2.5,\"yes\":true,\"no\":false,\"text\":\"ok\"}"))
          (internal (item-value-ext-to-internal external))
          (decoded (com.inuoe.jzon:parse
@@ -126,7 +126,7 @@
   (is (= 0 (hash-table-count
             (item-value-ext-to-internal (com.inuoe.jzon:parse "{}"))))))
 
-(test item-value-converters--defer-table-validation
+(test item-value-ext-to-internal--defers-table-validation
   (cl-mock:with-mocks ()
     (cl-mock:answer item:copy-table-value
       (error "Converters must defer table validation to SET-VALUE."))

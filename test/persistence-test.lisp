@@ -79,7 +79,7 @@
       (let ((fetched (persp:fetch cut item)))
         (assert-fetch-error fetched)))))
 
-(test simple-persistence--table-roundtrip-and-restart
+(test retrieve--file-table-roundtrip-and-restart
   (with-fixture init-destroy-env ()
     (let* ((cut (make-simple-persistence :table-files
                                         :storage-root-path #P"/tmp/chipi/table-files/"))
@@ -112,7 +112,7 @@
       (persp:persist cut item)
       (is (= 0 (hash-table-count (persp:persisted-item-value (persp:retrieve cut item))))))))
 
-(test simple-persistence--equal-empty-table-restore-is-no-op
+(test %fetch-persisted-value--equal-empty-file-table-is-no-op
   (with-fixture init-destroy-env ()
     (let ((cut (make-simple-persistence :empty-table-files
                                         :storage-root-path #P"/tmp/chipi/empty-table/"))

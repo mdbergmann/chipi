@@ -204,7 +204,7 @@
               (is (search "200" output) "Should contain the new item value")
               (is (search "BROADCAST-TEST-ITEM" output) "Should contain the item name")))))))))
 
-(test serialize-item--table-json-object
+(test %serialize-item-for-sse--table-json-object
   (with-fixture with-isys ()
     (let* ((value (alexandria:plist-hash-table '("MixedCase" 4 "off" item:false) :test #'equal))
            (item (item:make-item 'table-sse :type-hint 'table :initial-value value))

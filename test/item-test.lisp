@@ -339,7 +339,7 @@ that when loading the value the second (or any more) persistence does not persit
   )
 
 
-(test fetch-persisted-value--changed-table-publishes-without-push-or-persistence
+(test %fetch-persisted-value--changed-table-publishes-without-push-or-persistence
   (with-fixture init-destroy-env ()
     (let* ((old-value (alexandria:plist-hash-table '("field" 1) :test #'equal))
            (value (alexandria:plist-hash-table '("field" 2) :test #'equal))
@@ -457,7 +457,7 @@ This also tests the error handling in item calling `exec-push' of the binding."
       (is-true (await-cond 2 (equalp
                               pushed-value (list 2 1)))))))
 
-(test table-value--validation-and-snapshots
+(test set-value--table-validation-and-snapshots
   (with-fixture init-destroy-env ()
     (let* ((key (copy-seq "MixedCase"))
            (text (copy-seq "original"))
@@ -477,14 +477,14 @@ This also tests the error handling in item calling `exec-push' of the binding."
         (set-value item (alexandria:plist-hash-table (list :bad 1))))
       (is (equal "original" (gethash "MixedCase" (item-state-value (get-item-stateq item))))))))
 
-(test table-value--default-and-explicit-nil
+(test make-item--table-default-and-explicit-nil
   (with-fixture init-destroy-env ()
     (let ((item (make-item 'empty-table :type-hint 'table)))
       (is (= 0 (hash-table-count (item-state-value (get-item-stateq item))))))
     (signals invalid-table-value
       (make-item 'invalid-table :type-hint 'table :initial-value nil))))
 
-(test table-value--equal-snapshots-and-always-push
+(test set-value--equal-table-snapshots-and-always-push
   (with-fixture init-destroy-env ()
     (let* ((table (alexandria:plist-hash-table '("A" 1 "a" item:false) :test #'equal))
            (item (make-item 'equal-table :type-hint 'table :initial-value table))
@@ -514,7 +514,7 @@ This also tests the error handling in item calling `exec-push' of the binding."
       (is-false events)
       (is (= timestamp (item-state-timestamp (get-item-stateq item)))))))
 
-(test table-value--numeric-equality-preserves-case-and-scalar-comparison
+(test %value-equal-p--table-numbers-case-and-scalar-comparison
   (flet ((table (&rest fields)
            (alexandria:plist-hash-table fields :test #'equal)))
     (is-true (item::%value-equal-p (table "Battery" 87 "Label" "On")
@@ -524,7 +524,7 @@ This also tests the error handling in item calling `exec-push' of the binding."
     (is-false (item::%value-equal-p 87 87.0 nil))
     (is-false (item::%value-equal-p "On" "on" nil))))
 
-(test table-value--enqueue-and-future-isolation
+(test set-value--table-enqueue-and-future-isolation
   (with-fixture init-destroy-env ()
     (let* ((item (make-item 'queued-table :type-hint 'table))
            (key (copy-seq "Field"))
@@ -541,7 +541,7 @@ This also tests the error handling in item calling `exec-push' of the binding."
         (setf (char (gethash "Field" snapshot) 0) #\x)
         (is (equal "text" (gethash "Field" (item-state-value (get-item-stateq item)))))))))
 
-(test table-value--finite-real-fields
+(test copy-table-value--finite-real-fields
   (dolist (value (list 12 1/3 2.5 3.5d0 "text" 'item:true 'item:false))
     (let ((table (alexandria:plist-hash-table (list "value" value))))
       (is (equal value (gethash "value" (copy-table-value table))))))
@@ -576,7 +576,7 @@ This also tests the error handling in item calling `exec-push' of the binding."
           (setf (gethash "field" (item-state-value observed)) 3)
           (is (= 2 (gethash "field" (item-state-value (get-item-stateq item))))))))))
 
-(test table-type-hint--package-independent
+(test table-type-hint-p--package-independent
   (is-true (table-type-hint-p 'table))
   (is-true (table-type-hint-p (make-symbol "TABLE")))
   (is-false (table-type-hint-p nil))

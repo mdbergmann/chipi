@@ -33,13 +33,13 @@
 ;; This suite is run only by the configuration regression tests below.
 (def-suite influx-configuration-probe-tests)
 
-(test (influx-configuration-probe :suite influx-configuration-probe-tests)
+(test (retrieve-range--configuration-probe :suite influx-configuration-probe-tests)
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
           (item (make-test-item 'configuration-probe :type-hint 'integer)))
       (is (null (persp:retrieve-range cut item (persp:make-relative-range :seconds 20)))))))
 
-(test init-destroy-env--missing-settings-skip-before-http
+(test test-setting--missing-settings-skip-before-http
   (dolist (missing '("CHIPI_TEST_INFLUX_URL" "CHIPI_TEST_INFLUX_TOKEN"
                      "CHIPI_TEST_INFLUX_ORG" "CHIPI_TEST_INFLUX_BUCKET"))
     (dolist (missing-value '(nil ""))
@@ -49,20 +49,20 @@
         (answer (drakma:http-request)
           (error "Unexpected HTTP request without ~a" missing))
         (multiple-value-bind (passed failures skipped)
-            (results-status (run 'influx-configuration-probe))
+            (results-status (run 'retrieve-range--configuration-probe))
           (is-true passed)
           (is (null failures))
           (is (= 1 (length skipped))))
         (is (null (invocations 'drakma:http-request)))))))
 
-(test init-destroy-env--configured-http-failure-is-not-skipped
+(test test-setting--configured-http-failure-is-not-skipped
   (with-mocks ()
     (answer (uiop:getenv name)
       (if (string= name "CHIPI_TEST_INFLUX_URL") "http://localhost:8086" "configured"))
     (answer (drakma:http-request)
       (error "Configured Influx request failed: ~a" :unavailable))
     (multiple-value-bind (passed failures skipped)
-        (results-status (run 'influx-configuration-probe))
+        (results-status (run 'retrieve-range--configuration-probe))
       (is-false passed)
       (is (= 1 (length failures)))
       (is (null skipped)))
@@ -273,7 +273,7 @@ instead of an error (influx responds with an empty body)."
                         persistence (act-cell:name item) fields
                         (chipi.influx-persistence::%universal-to-unix-ts universal-time))))))
 
-(test influx-persistence--tables-roundtrip-range-and-aggregates
+(test retrieve-range--tables-roundtrip-and-aggregates
   (with-fixture init-destroy-env ()
     (let* ((cut (make-cut))
            (item (make-test-item '|Room, A=B"| :type-hint 'table))
@@ -339,7 +339,7 @@ instead of an error (influx responds with an empty body)."
                         (is (= 3 (hash-table-count table)))
                         (is (not (nth-value 1 (gethash "Label" table))))) ))))))
 
-(test influx-persistence--table-no-data-preserves-startup-state
+(test retrieve--table-no-data-preserves-startup-state
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
           (item (make-test-item 'table-no-data :type-hint 'table
@@ -354,7 +354,7 @@ instead of an error (influx responds with an empty body)."
       (is (null (persp:retrieve-range cut item (persp:make-relative-range :seconds 60) :avg)))
       (is (= 7 (gethash "Initial" (item:item-state-value (item:get-item-stateq item))))))))
 
-(test influx-persistence--reserved-looking-table-keys-roundtrip
+(test retrieve--reserved-looking-table-keys-roundtrip
   (with-fixture init-destroy-env ()
     (let ((cut (make-cut))
           (item (make-test-item 'reserved-keys :type-hint 'table)))

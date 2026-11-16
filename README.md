@@ -414,7 +414,7 @@ Bindings for specific protocols are plugins; see
 
 ### Compound values
 
-Use the `'table` type hint for a flat snapshot with string keys:
+Use the `'table` hint for a flat snapshot with string keys:
 
 ```lisp
 (defitem 'weather "Weather" 'table
@@ -423,29 +423,16 @@ Use the `'table` type hint for a flat snapshot with string keys:
                    :test 'equal))
 ```
 
-Fields contain finite real numbers, strings, or `item:true` / `item:false`.
-Nested objects, arrays, null fields and non-string keys are rejected before
-state changes. Key case is preserved. Updating replaces the whole snapshot;
-fields absent from the new value are removed. Input tables and their strings
-are copied. Equal field contents do not change the state or trigger persistence;
-`:push :always` retains its existing command semantics. Omitting the initial
-value creates an empty table.
+Fields accept finite real numbers, strings, and `item:true` / `item:false`.
+Nested objects, arrays, null fields and non-string keys are rejected. Updates
+replace the complete snapshot; omitted fields disappear. Without an initial
+value, the table starts empty. The API represents tables as JSON objects.
 
-The items API represents the value as a JSON object and reports the type hint
-as `"TABLE"`. Boolean fields round-trip as JSON true/false. The file
-persistence restores the snapshot and timestamp, including an empty table.
-InfluxDB stores every numeric table field as a float, so a field can move from
-`30` to `30.5` without a field-type conflict. File persistence preserves integer
-and float distinctions. InfluxDB skips empty tables. Before sending a write, the adapter rejects
-CR/LF characters in names or string values, empty field names, names ending
-with a backslash, and the exact field name `time`. These values cannot reliably
-round-trip through the line protocol. File/JSON values do not have these
-transport restrictions. Each history result
-contains only fields recorded at that timestamp; reading the last observation
-does not carry forward fields from older observations. Retrieving the latest
-table currently reads its history before selecting the newest timestamp.
-Existing second-level
-timestamps still allow writes within one second to merge.
+File persistence restores empty tables; InfluxDB skips them. InfluxDB stores
+numeric fields as floats and rejects CR/LF in names or string values, empty
+field names, names ending in a backslash, and the exact field name `time`.
+History returns only fields recorded at each timestamp. Writes within the same
+second can merge.
 
 ### Persistences
 
@@ -995,32 +982,21 @@ cl-cron, timer-wheel, com.inuoe.jzon, Drakma, local-time; Hunchentoot and
 Snooze for the API; CLOG for the UI. All are available through Quicklisp and
 OCICL.
 
-### Reproducible InfluxDB tests
+### InfluxDB tests
 
-With OCICL configured and Docker running, start an isolated InfluxDB instance
-from the repository root and run the normal ASDF tests:
+With OCICL configured and Docker running, start the test server and export its
+connection settings:
 
 ```sh
-(
-  set -e
-  export COMPOSE_FILE=test/influx/compose.yaml
-  export COMPOSE_PROJECT_NAME="chipi-test-$(openssl rand -hex 8)"
-  export CHIPI_TEST_PASSWORD="$(openssl rand -hex 24)"
-  export CHIPI_TEST_INFLUX_TOKEN="$(openssl rand -hex 32)"
-  export CHIPI_TEST_INFLUX_ORG=chipi-tests CHIPI_TEST_INFLUX_BUCKET=chipi-tests
-  trap 'docker compose down --volumes --remove-orphans' EXIT
-  docker compose up -d --wait --wait-timeout 120
-  export CHIPI_TEST_INFLUX_URL="http://$(docker compose port influxdb 8086)"
-  sbcl --non-interactive --eval '(require :asdf)' --eval '(asdf:test-system :chipi)'
-)
+export COMPOSE_FILE=test/influx/compose.yaml
+export CHIPI_TEST_PASSWORD="$(openssl rand -hex 24)"
+export CHIPI_TEST_INFLUX_TOKEN="$(openssl rand -hex 32)"
+export CHIPI_TEST_INFLUX_ORG=chipi-tests CHIPI_TEST_INFLUX_BUCKET=chipi-tests
+docker compose up -d --wait
+export CHIPI_TEST_INFLUX_URL="http://$(docker compose port influxdb 8086)"
+sbcl --non-interactive --eval '(require :asdf)' --eval '(asdf:test-system :chipi)'
+docker compose down --volumes
 ```
 
-Compose publishes a random loopback port. The exit trap removes the test
-container and its volumes. On a Mac with Colima, first export `DOCKER_CONTEXT=colima`.
-Without the four `CHIPI_TEST_INFLUX_*` settings, the integration tests skip.
-
-For an independently managed test server, set `CHIPI_TEST_INFLUX_URL`,
-`CHIPI_TEST_INFLUX_ORG`, `CHIPI_TEST_INFLUX_BUCKET`, and
-`CHIPI_TEST_INFLUX_TOKEN` before running the InfluxDB suite through FiveAM.
-The existing integration suite passed 46/46 checks twice on separate fresh
-containers before compound-value implementation began.
+For an existing server, export the same four `CHIPI_TEST_INFLUX_*` variables.
+Integration tests skip when any connection setting is missing.
