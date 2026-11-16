@@ -54,8 +54,11 @@
 (test serialize-point--empty-snapshot-skips-http
   (with-mocks ()
     (answer (drakma:http-request) (error "Unexpected HTTP request: ~a" :empty))
-    (is (eq :skipped (nth-value 1
-                               (influx::%make-write-request nil "name" (table) 123))))
+    (multiple-value-bind (body status headers)
+        (influx::%make-write-request nil "name" (table) 123)
+      (is (null body))
+      (is (eq :skipped status))
+      (is (null headers)))
     (is (null (invocations 'drakma:http-request)))))
 
 (defun csv-fixture (rows)

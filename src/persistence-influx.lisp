@@ -32,7 +32,9 @@ Influx persistence supports the following value types:
 - float
 - boolean, for boolean values, use the symbols 'item:true and 'item:false.
 - hash-table snapshots with string keys and finite real, string or boolean fields.
-Table numbers use Influx floats. Empty tables are skipped. Line protocol cannot
+Table numbers use Influx floats. Influx skips empty table snapshots, so restore
+returns the last nonempty snapshot. Simple file persistence stores and restores
+empty snapshots as well. Line protocol cannot
 represent CR/LF, empty field names, the reserved field name time, or names ending
 with a backslash.
 
@@ -124,6 +126,7 @@ Specify those types as 'type-hint' in the item definition."))
 (defun %make-write-request (persistence item-name item-value item-timestamp)
   (let ((data-string (%serialize-point item-name item-value item-timestamp)))
     (unless data-string
+      (log:debug "Skipping empty table snapshot for item: ~a" item-name)
       (return-from %make-write-request (values nil :skipped)))
     (log:debug "Write request data string: ~a" data-string)
     (drakma:http-request (format nil "~a/api/v2/write" (base-url persistence))
