@@ -475,6 +475,16 @@ This also tests the error handling in item calling `exec-push' of the binding."
       (is-false events)
       (is (= timestamp (item-state-timestamp (get-item-stateq item)))))))
 
+(test table-value--numeric-equality-preserves-case-and-scalar-comparison
+  (flet ((table (&rest fields)
+           (alexandria:plist-hash-table fields :test #'equal)))
+    (is-true (item::%value-equal-p (table "Battery" 87 "Label" "On")
+                                  (table "Battery" 87.0 "Label" "On")))
+    (is-false (item::%value-equal-p (table "Label" "On") (table "Label" "on")))
+    (is-false (item::%value-equal-p (table "Label" 1) (table "label" 1)))
+    (is-false (item::%value-equal-p 87 87.0))
+    (is-false (item::%value-equal-p "On" "on"))))
+
 (test table-value--enqueue-and-future-isolation
   (with-fixture init-destroy-env ()
     (let* ((item (make-item 'queued-table :type-hint 'table))

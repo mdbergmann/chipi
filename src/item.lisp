@@ -137,7 +137,10 @@ Signal INVALID-TABLE-VALUE for any other value."
       (and (= (hash-table-count left) (hash-table-count right))
            (loop :for key :being :the :hash-keys :of left :using (hash-value value)
                  :always (multiple-value-bind (other present) (gethash key right)
-                           (and present (equal value other)))))
+                           (and present
+                                (if (and (numberp value) (numberp other))
+                                    (= value other)
+                                    (equal value other))))))
       (equal left right)))
 
 (defstruct item-persistence

@@ -337,7 +337,7 @@ observations
              ((string= value "false") 'item:false)
              (t (error "Invalid CSV boolean: ~s" value))))
       ((member datatype '("long" "unsignedLong") :test #'equal) (parse-integer value))
-      ((equal datatype "double") (parse-float:parse-float value :type 'double-float))
+      ((equal datatype "double") (parse-float:parse-float value :type 'single-float))
       (t (error "Unsupported CSV datatype: ~s" datatype)))))
 
 (defun %table-persisted-items (body)

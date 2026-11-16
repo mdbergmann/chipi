@@ -66,6 +66,52 @@
                  '("" "result" "table" "_time" "_field" "_value"))
            rows)))
 
+(test parse-csv--table-numbers-restore-without-republishing
+  (unwind-protect
+       (let* ((stored (table "Battery" 87 "Temperature" 21.3))
+              (csv (annotated-csv
+                    "double"
+                    '(("" "" "0" "2026-11-15T12:00:00Z" "Battery" "87")
+                      ("" "" "0" "2026-11-15T12:00:00Z" "Temperature" "21.3"))))
+              (restored (influx::%parsed-last-persisted-item csv 'table))
+              (persistence (influx:make-influx-persistence
+                            :numeric-restore-persistence :base-url "http://localhost" :token ""
+                            :org "test" :bucket "test"))
+              (item (item:make-item 'numeric-restore :type-hint 'table))
+              (events 0)
+              (subscribed nil))
+         (is (equalp stored (persp:persisted-item-value restored)))
+         (maphash (lambda (key value)
+                    (declare (ignore key))
+                    (is (typep value 'single-float)))
+                  (persp:persisted-item-value restored))
+         (ac:actor-of (isys:ensure-isys)
+                      :init (lambda (self)
+                              (ev:subscribe self self 'item:item-changed-event)
+                              (setf subscribed t))
+                      :receive (lambda (msg)
+                                 (when (typep msg 'item:item-changed-event)
+                                   (incf events))))
+         (is-true (miscutils:await-cond 1 subscribed))
+         (with-mocks ()
+           (answer influx::%make-query-request (values csv 200))
+           (answer persp:store t)
+           (item:add-persistence item persistence :load-on-start t)
+           (is-true (miscutils:await-cond 2
+                      (equalp stored (item:item-state-value (item:get-item-stateq item)))))
+           ;; Restore may publish an event; only subsequent events count here.
+           (sleep 0.1)
+           (let ((events-after-restore events)
+                 (stores-after-restore (length (invocations 'persp:store)))
+                 (timestamp (item:item-state-timestamp (item:get-item-stateq item))))
+             (item:set-value item stored :timestamp (1+ timestamp))
+             (item:get-item-stateq item)
+             (sleep 0.1)
+             (is (= timestamp (item:item-state-timestamp (item:get-item-stateq item))))
+             (is (= events-after-restore events))
+             (is (= stores-after-restore (length (invocations 'persp:store)))))))
+    (envi:shutdown-env)))
+
 (test parse-csv--multiple-tables-types-multiline-and-empty-strings
   (let* ((old "2026-11-15T12:00:00Z")
          (new "2026-11-15T12:00:01Z")
