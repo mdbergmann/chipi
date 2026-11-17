@@ -131,7 +131,7 @@
   (line-width 2) ; stroke width of every series in CSS pixels
   refresh       ; nil, or minimum seconds between live-appended points
   (fill :auto)  ; area fill under the lines: :auto (lone series only), t, nil
-  right-axis)   ; nil, or (:series (item-id ...) :range (min max)) -- see `chart'
+  right-axis)   ; nil, or (:series (selector ...) :range (min max)) -- see `chart'
 
 (defstruct (button (:include widget))
   caption    ; the button's own text
@@ -334,18 +334,30 @@ signals on an alist -- one alist tag would fail the whole item listing."
 item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
-(defun %check-right-axis (right-axis series)
+(defun %check-right-axis (right-axis series default-field)
   "Validates the `chart' RIGHT-AXIS plist against SERIES -- the chart's
-normalized (item-id . label) list -- and returns it normalized, or `nil'.
+normalized entries -- and returns it normalized, or `nil'.
 Signals at page definition, where a typo is found, rather than rendering a
 chart with a silently ignored axis."
   (when right-axis
     (destructuring-bind (&key ((:series ids)) range) right-axis
       (unless (and ids (listp ids))
-        (error ":right-axis needs a :series list of item ids, got ~s" right-axis))
-      (dolist (id ids)
-        (unless (assoc id series)
-          (error "Right-axis series ~a is not a series of the chart" id)))
+        (error ":right-axis needs a :series list of selectors, got ~s" right-axis))
+      (dolist (selector ids)
+        (unless (if (symbolp selector)
+                    (assoc selector series)
+                    (and (listp selector)
+                         (= 3 (length selector))
+                         (symbolp (first selector))
+                         (eq :field (second selector))
+                         (typep (third selector) '(or null string))
+                         (some (lambda (entry)
+                                 (and (eq (car entry) (first selector))
+                                      (equal (chart-series-field entry default-field)
+                                             (third selector))))
+                               series)))
+          (error "Right-axis selector ~s does not select a series of the chart"
+                 selector)))
       (when range
         (unless (and (listp range)
                      (= 2 (length range))
@@ -431,7 +443,10 @@ thousands:
          :label \"Energie [W]\"
          :right-axis '(:series (battery-soc) :range (0 100)))
 
-`:series' lists the item ids (of `item-ids') that read against the right axis;
+`:series' lists selectors for the right axis. A bare item id selects every
+series of that item. `(item-id :field \"key\")' selects only the matching item
+and effective field, including the chart-level `field' default. Selectors
+must match a chart series; invalid selectors signal at page construction.
 `:range', when given, fixes its bounds as (min max).  Without it the axis
 auto-scales like the left one, which for a percentage lets 60..80 fill the
 plot height and suggests swings that are not there.  Right-axis series are
@@ -456,7 +471,7 @@ colour."
                 :line-width line-width
                 :refresh refresh
                 :fill (ecase fill ((:auto t nil) fill))
-                :right-axis (%check-right-axis right-axis series)
+                :right-axis (%check-right-axis right-axis series field)
                 :range (etypecase range
                          (null (persp:make-relative-range :days 1))
                          (cons (apply #'persp:make-relative-range range))

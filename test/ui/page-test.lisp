@@ -287,3 +287,26 @@
     (is (string= "~,1f °C" (value-display-format widget))))
   (is (null (value-display-field (value 'weather))))
   (signals error (value 'weather :field :temperature)))
+
+(test chart--right-axis-field-selectors-use-effective-fields
+  (is (chart '((weather :field "temperature") (weather :field "humidity"))
+             :right-axis '(:series ((weather :field "humidity")))))
+  (is (chart '(weather) :field "humidity"
+             :right-axis '(:series ((weather :field "humidity")))))
+  (signals error
+    (chart '(weather) :field "temperature"
+           :right-axis '(:series ((weather :field "humidity"))))))
+
+(test chart--right-axis-rejects-unknown-or-malformed-field-selectors
+  (dolist (selector '((unknown :field "humidity") (weather :field "unknown") (weather :field "Humidity")
+                      (weather) (weather :label "Humidity")
+                      (weather :field 5) (weather :field "humidity" :extra t)
+                      "weather"))
+    (signals error
+      (chart '((weather :field "humidity"))
+             :right-axis (list :series (list selector)))))
+  (dolist (range '((0 0) (0 100 200) (0 . 100) (0 #C(1 2))))
+    (signals error
+      (chart '((weather :field "humidity"))
+             :right-axis (list :series '((weather :field "humidity"))
+                               :range range)))))

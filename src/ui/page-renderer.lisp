@@ -1200,11 +1200,15 @@ Scalar charts retain their existing null alignment cells."
    (loop :for i :from 1 :to series-count
          :collect (if (= i series-idx) y-literal (if field "undefined" "null")))))
 
-(defun %right-axis-series-p (item-name right-ids)
-  "Whether the series of item ITEM-NAME reads against the right axis, i.e.
-its item id is among RIGHT-IDS.  An item's name is the `symbol-name' of its
-id (see `item:name'), which is what the ids are compared as."
-  (and (member item-name right-ids :key #'symbol-name :test #'string=) t))
+(defun %right-axis-series-p (item-name field selectors)
+  "Match ITEM-NAME and its effective FIELD against right-axis SELECTORS.
+A bare item symbol selects all its series; a field selector selects one field."
+  (some (lambda (selector)
+          (if (symbolp selector)
+              (string= item-name (symbol-name selector))
+              (and (string= item-name (symbol-name (first selector)))
+                   (equal field (third selector)))))
+        selectors))
 
 (defun %render-uplot (owner w plot-div series-data)
   "Render (item-name label persisted-items [field]) SERIES-DATA entries.
@@ -1242,7 +1246,7 @@ appends one row containing every series of that item."
                             :for field :in fields
                             :for color = (nth (mod idx (length *chart-series-colors*))
                                               *chart-series-colors*)
-                            :for right-p = (%right-axis-series-p item-name right-ids)
+                            :for right-p = (%right-axis-series-p item-name field right-ids)
                             :do (when right-p (push color right-colors))
                             :collect (%uplot-series-def
                                       label

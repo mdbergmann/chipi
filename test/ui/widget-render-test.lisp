@@ -1514,3 +1514,37 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (setf *captured* nil)
         (%chart-live-update "flag" (%table "active" t))
         (is-true (js~ "text('true')"))))))
+
+(test widget--chart-right-axis-selects-item-and-field
+  (with-fixture render-env ()
+    (dolist (default-p '(nil t))
+      (with-captured-clog
+        (let ((body (make-body))
+              (w (page:chart
+                  (if default-p '(weather (weather :field "humidity"))
+                      '((weather :field "temperature") (weather :field "humidity")))
+                  :field (when default-p "temperature")
+                  :fill t
+                  :right-axis '(:series ((weather :field "humidity")) :range (0 100)))))
+          (ui-renderer::%render-uplot
+           :owner w (clog:create-div body)
+           (list (append (%series "WEATHER" "Temperature" 21)
+                         (unless default-p '("temperature")))
+                 (append (%series "WEATHER" "Humidity" 65) '("humidity"))))
+          (is (= 1 (count-js "scale: 'y2', dash")))
+          (is-true (js~ "label: 'Humidity', stroke: '#dc3545', width: 2, scale: 'y2', dash: [6, 4]"))
+          (is-true (js~ "label: 'Temperature', stroke: '#0d6efd', width: 2, fill:"))
+          (is-true (js~ "grid: { show: false }, stroke: '#dc3545'")))))))
+
+(test widget--chart-right-axis-bare-item-selects-all-its-fields
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart '((weather :field "temperature") (weather :field "humidity"))
+                           :right-axis '(:series (weather)))))
+        (ui-renderer::%render-uplot
+         :owner w (clog:create-div body)
+         (list (append (%series "WEATHER" "Temperature" 21) '("temperature"))
+               (append (%series "WEATHER" "Humidity" 65) '("humidity"))))
+        (is (= 2 (count-js "scale: 'y2', dash")))
+        (is-true (js~ "{ scale: 'y2', side: 1, size: ySize, grid: { show: false } }"))))))
