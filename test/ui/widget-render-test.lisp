@@ -840,6 +840,70 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-false any-ok)
         (is (null (third (first series-data))))))))
 
+(test chart--collect-series-data--same-item-shares-history
+  (with-fixture render-env ()
+    (with-mocks ()
+      (let ((reads 0))
+        (answer item:name "WEATHER")
+        (answer persp:retrieve-range
+          (list (persp:make-persisted-item
+                 :value (%table "temperature" (incf reads) "humidity" 40)
+                 :timestamp 3900000000)))
+        (multiple-value-bind (data ok)
+            (ui-renderer::%collect-chart-series-data
+             (page:chart 'weather)
+             '((:weather "Temperature" "temperature")
+               (:weather "Humidity" "humidity"))
+             :mock-persp)
+          (is-true ok)
+          (is (= 1 reads))
+          (is (eq (third (first data)) (third (second data)))))))))
+
+(test chart--collect-series-data--distinct-items-read-once
+  (with-fixture render-env ()
+    (with-mocks ()
+      (let ((reads (make-hash-table)))
+        (answer (item:name item) (symbol-name item))
+        (answer (persp:retrieve-range persistence item range)
+          (progn
+            (incf (gethash item reads 0))
+            (list (persp:make-persisted-item :value 1 :timestamp 3900000000))))
+        (multiple-value-bind (data ok)
+            (ui-renderer::%collect-chart-series-data
+             (page:chart '(inside outside))
+             '((:inside "Temperature" "temperature")
+               (:outside "Outside")
+               (:inside "Humidity" "humidity"))
+             :mock-persp)
+          (is-true ok)
+          (is (= 1 (gethash :inside reads)))
+          (is (= 1 (gethash :outside reads)))
+          (is (= 3 (length data)))
+          (is (= 3 (length (second data)))))))))
+
+(test chart--collect-series-data--failed-item-retries-next-render
+  (with-fixture render-env ()
+    (with-mocks ()
+      (let ((reads 0)
+            (series '((:weather "Temperature" "temperature")
+                      (:weather "Humidity" "humidity")))
+            (w (page:chart 'weather)))
+        (answer item:name "WEATHER")
+        (answer persp:retrieve-range
+          (if (= 1 (incf reads))
+              (error "History unavailable")
+              (list (persp:make-persisted-item :value 1 :timestamp 3900000000))))
+        (multiple-value-bind (data ok)
+            (ui-renderer::%collect-chart-series-data w series :mock-persp)
+          (is-false ok)
+          (is (= 1 reads))
+          (is (every (lambda (entry) (null (third entry))) data)))
+        (multiple-value-bind (data ok)
+            (ui-renderer::%collect-chart-series-data w series :mock-persp)
+          (is-true ok)
+          (is (= 2 reads))
+          (is (eq (third (first data)) (third (second data)))))))))
+
 (test widget--chart-refresh-throttles-live-appends
   ;; a KNX item can broadcast every second; :refresh keeps such an item from
   ;; appending a point per telegram -- updates inside the window are dropped

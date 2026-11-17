@@ -941,18 +941,24 @@ returned something unusable (each logged)."
        nil))))
 
 (defun %collect-chart-series-data (w series persistence)
-  "Fetches each (item label field) series, blocking until all are in.
+  "Fetches history once per item for this call, sharing results across fields.
+Failed fetches are also shared; a later call retries them.
 Returns (values series-data any-ok), where SERIES-DATA entries contain
 (item-name series-label persisted-items) with an optional fourth field, and
 ANY-OK is t when at least one fetch succeeded."
-  (let ((any-ok nil))
+  (let ((any-ok nil)
+        (history (make-hash-table :test #'eq)))
     (values
      (loop :for (item series-label field) :in series
+           :for result = (or (gethash item history)
+                             (setf (gethash item history)
+                                   (multiple-value-list
+                                    (%fetch-chart-series persistence item
+                                                         (page:chart-range w)))))
            :collect (append
                      (list (item:name item)
                            series-label
-                           (multiple-value-bind (items ok)
-                               (%fetch-chart-series persistence item (page:chart-range w))
+                           (destructuring-bind (items &optional ok) result
                              (when ok (setf any-ok t))
                              items))
                      (when field (list field))))
