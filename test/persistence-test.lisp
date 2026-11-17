@@ -85,7 +85,8 @@
                                         :storage-root-path #P"/tmp/chipi/table-files/"))
            (original (alexandria:plist-hash-table
                       '("Count" 12 "count" 2.5 "temperature" 29.08d0
-                        "ratio" 1/3 "text" "ok" "yes" item:true "no" item:false)
+                        "timestamp" 1763370000 "large" 16777217
+                        "exact-double" 9007199254740992 "text" "ok" "yes" item:true "no" item:false)
                       :test #'equal))
            (item (item:make-item 'table-file :type-hint 'table :initial-value original))
            (value (item:item-state-value (item:get-item-stateq item))))
@@ -93,7 +94,12 @@
       (persp:persist cut item)
       (let ((fetched (persp:retrieve cut item)))
         (is (equalp value (persp:persisted-item-value fetched)))
-        (is (typep (gethash "Count" (persp:persisted-item-value fetched)) 'single-float)))
+        (let ((restored (persp:persisted-item-value fetched)))
+          (loop :for key :in '("Count" "timestamp" "large" "exact-double")
+                :do (is (typep (gethash key restored) 'integer))
+                    (is (= (gethash key original) (gethash key restored))))
+          (is (typep (gethash "temperature" restored) 'single-float))
+          (is (= (coerce 29.08d0 'single-float) (gethash "temperature" restored)))))
       (let* ((timestamp (item:item-state-timestamp (item:get-item-stateq item)))
              (path #P"/tmp/chipi/table-files/TABLE-FILE.store")
              (file-text (uiop:read-file-string path))
@@ -105,6 +111,12 @@
         (item:add-persistence item cut :load-on-start t)
         (is-true (miscutils:await-cond 1
                    (equalp value (item:item-state-value (item:get-item-stateq item)))))
+        (let ((restored (item:item-state-value (item:get-item-stateq item))))
+          (loop :for key :in '("Count" "timestamp" "large" "exact-double")
+                :do (is (typep (gethash key restored) 'integer))
+                    (is (= (gethash key original) (gethash key restored))))
+          (is (typep (gethash "temperature" restored) 'single-float))
+          (is (= (coerce 29.08d0 'single-float) (gethash "temperature" restored))))
         (is (= timestamp (item:item-state-timestamp (item:get-item-stateq item))))
         (is (= 0 pushes))
         (is (string= file-text (uiop:read-file-string path))))

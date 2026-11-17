@@ -123,22 +123,25 @@ Reading this from another thread yields a snapshot: the list is only ever replac
 
 (defun copy-table-value (value)
   "Validate a flat STRING-keyed snapshot and copy its mutable keys and values.
-Fields accept reals representable as finite SINGLE-FLOAT, strings, ITEM:TRUE and ITEM:FALSE.
-Normalize numeric fields to SINGLE-FLOAT; reject nonzero numbers rounding to zero.
+Fields accept integers, finite floats, strings, ITEM:TRUE and ITEM:FALSE.
+Preserve integers exactly and normalize floats to finite SINGLE-FLOAT.
+Reject ratios and nonzero floats rounding to zero.
 Signal INVALID-TABLE-VALUE for any other value."
   (unless (hash-table-p value)
     (error 'invalid-table-value :value value))
   (let ((copy (make-hash-table :test #'equal)))
     (maphash (lambda (key field)
                (unless (and (stringp key)
-                            (or (%finite-real-p field) (stringp field)
+                            (or (integerp field)
+                                (and (floatp field) (%finite-real-p field))
+                                (stringp field)
                                 (member field '(item:true item:false))))
                  (error 'invalid-table-value :value value))
                (when (nth-value 1 (gethash key copy))
                  (error 'invalid-table-value :value value))
                (setf (gethash (copy-seq key) copy)
                      (cond ((stringp field) (copy-seq field))
-                           ((realp field) (%table-single-float field value))
+                           ((floatp field) (%table-single-float field value))
                            (t field))))
              value)
     copy))

@@ -541,12 +541,12 @@ This also tests the error handling in item calling `exec-push' of the binding."
         (setf (char (gethash "Field" snapshot) 0) #\x)
         (is (equal "text" (gethash "Field" (item-state-value (get-item-stateq item)))))))))
 
-(test copy-table-value--finite-real-fields
-  (dolist (value (list 12 1/3 2.5 3.5d0 "text" 'item:true 'item:false))
+(test copy-table-value--supported-fields
+  (dolist (value (list 12 2.5 3.5d0 "text" 'item:true 'item:false))
     (let ((table (alexandria:plist-hash-table (list "value" value))))
-      (is (equal (if (realp value) (coerce value 'single-float) value)
+      (is (equal (if (floatp value) (coerce value 'single-float) value)
                  (gethash "value" (copy-table-value table))))))
-  (dolist (value (list #C(1 2)
+  (dolist (value (list 1/3 #C(1 2)
                       #+sbcl sb-ext:double-float-positive-infinity
                       #+sbcl sb-ext:double-float-negative-infinity))
     (signals invalid-table-value
@@ -671,19 +671,43 @@ This also tests the error handling in item calling `exec-push' of the binding."
           (is (equal "old" (gethash "field" old-value))))))))
 
 (test copy-table-value--canonical-single-float-fields
-  (dolist (number '(29.08d0 21.1d0 16777217 1/3 0 -1 1.5))
+  (dolist (number '(29.08d0 21.1d0 0.0 -1.0 1.5))
     (let* ((original (alexandria:plist-hash-table (list "number" number)))
            (copy (copy-table-value original)))
       (is (typep (gethash "number" copy) 'single-float))
       (is (= (coerce number 'single-float) (gethash "number" copy)))
       (is (eql number (gethash "number" original))))))
 
+(test copy-table-value--integer-fields-remain-exact
+  (dolist (number (list 0 -1 1763370000 16777217 9007199254740992 (expt 2 1024)))
+    (let* ((original (alexandria:plist-hash-table (list "number" number)))
+           (copy (copy-table-value original)))
+      (is (not (eq original copy)))
+      (is (typep (gethash "number" copy) 'integer))
+      (is (= number (gethash "number" copy))))))
+
+(test set-value--integer-fields-remain-exact
+  (with-fixture init-destroy-env ()
+    (let ((item (make-item 'integer-table :type-hint 'table
+                           :initial-value
+                           (alexandria:plist-hash-table '("number" 1763370000)))))
+      (let ((initial (gethash "number" (item-state-value (get-item-stateq item)))))
+        (is (typep initial 'integer))
+        (is (= 1763370000 initial)))
+      (dolist (number '(16777217 9007199254740992))
+        (set-value item (alexandria:plist-hash-table (list "number" number)))
+        (is-true (await-cond 1
+                   (= number (gethash "number" (item-state-value (get-item-stateq item))))))
+        (let ((stored (gethash "number" (item-state-value (get-item-stateq item)))))
+          (is (typep stored 'integer))
+          (is (= number stored)))))))
+
 (test set-value--unrepresentable-table-numbers-preserve-state
   (with-fixture init-destroy-env ()
     (let* ((initial (alexandria:plist-hash-table '("number" 1.0) :test #'equal))
            (item (make-item 'numeric-limits :type-hint 'table :initial-value initial))
            (timestamp (item-state-timestamp (get-item-stateq item))))
-      (dolist (number (list 1d100 -1d100 1d-100 -1d-100
+      (dolist (number (list 1/3 -1/3 1d100 -1d100 1d-100 -1d-100
                             #+sbcl sb-ext:double-float-positive-infinity
                             #+sbcl sb-ext:double-float-negative-infinity))
         (let ((bad (alexandria:plist-hash-table (list "number" number))))
