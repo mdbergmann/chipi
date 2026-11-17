@@ -16,9 +16,7 @@
   (let ((converted (make-hash-table :test (hash-table-test table))))
     (maphash (lambda (key value)
                (setf (gethash key converted)
-                     (handler-case (funcall converter value)
-                       (arithmetic-error ()
-                         (error 'item:invalid-table-value :value table)))))
+                     (funcall converter value)))
              table)
     converted))
 
