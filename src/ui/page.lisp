@@ -41,6 +41,8 @@
            #:chart-field
            #:chart-transform
            #:chart-series
+           #:chart-series-label
+           #:chart-series-field
            #:chart-height
            #:chart-line-width
            #:chart-refresh
@@ -353,10 +355,16 @@ chart with a silently ignored axis."
                  range)))
       (list :series ids :range range))))
 
-(defun %chart-series-label (entry)
+(defun chart-series-label (entry)
+  "Return the explicit label of an ENTRY from CHART-SERIES, or NIL.
+Supports both legacy (item-id . label) entries and normalized plist entries.
+A NIL label lets the renderer use the item's own label."
   (if (listp (cdr entry)) (getf (cdr entry) :label) (cdr entry)))
 
-(defun %chart-series-field (entry default)
+(defun chart-series-field (entry default)
+  "Return the field selected by an ENTRY from CHART-SERIES.
+Use DEFAULT when the entry omits :FIELD, including legacy entries.
+An explicit :FIELD NIL overrides DEFAULT and selects the scalar item value."
   (if (listp (cdr entry)) (getf (cdr entry) :field default) default))
 
 (defun %normalize-chart-series (entry)

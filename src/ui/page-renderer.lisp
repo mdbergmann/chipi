@@ -865,8 +865,8 @@ Unlike `%render-item-row' this resolves no item: buttons are not item-bound."
 (defmethod render-widget ((w page:chart) ctx parent)
   (let ((series (loop :for entry :in (page:chart-series w)
                       :for id = (car entry)
-                      :for label = (page::%chart-series-label entry)
-                      :for field = (page::%chart-series-field entry (page:chart-field w))
+                      :for label = (page:chart-series-label entry)
+                      :for field = (page:chart-series-field entry (page:chart-field w))
                       :for item = (hab:get-item id)
                       :if item
                         :collect (list item (or label (item:label item)) field)
