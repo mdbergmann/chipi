@@ -694,7 +694,8 @@ This also tests the error handling in item calling `exec-push' of the binding."
       (let ((initial (gethash "number" (item-state-value (get-item-stateq item)))))
         (is (typep initial 'integer))
         (is (= 1763370000 initial)))
-      (dolist (number '(16777217 9007199254740992))
+      (dolist (number '(16777217 -16777217 9007199254740992 -9007199254740992
+                        1763370000 -1763370000))
         (set-value item (alexandria:plist-hash-table (list "number" number)))
         (is-true (await-cond 1
                    (= number (gethash "number" (item-state-value (get-item-stateq item))))))

@@ -44,6 +44,9 @@
     (dolist (number '(1d100 -1d100 1d-100 -1d-100))
       (signals item:invalid-table-value
         (influx::%make-write-request nil "name" (table "number" number) 123)))
+    (dolist (number (list (1+ (expt 2 53)) (- (1+ (expt 2 53))) (expt 2 1024)))
+      (signals error
+        (influx::%make-write-request nil "name" (table "number" number) 123)))
     (signals error
       (influx::%make-write-request nil "name" (table "multiline" (format nil "a~%b")) 123))
     (signals error
@@ -101,10 +104,8 @@
               (events 0)
               (subscribed nil))
          (is (equalp stored (persp:persisted-item-value restored)))
-         (maphash (lambda (key value)
-                    (declare (ignore key))
-                    (is (typep value 'single-float)))
-                  (persp:persisted-item-value restored))
+         (is (typep (gethash "Battery" (persp:persisted-item-value restored)) 'integer))
+         (is (typep (gethash "Temperature" (persp:persisted-item-value restored)) 'single-float))
          (ac:actor-of (isys:ensure-isys)
                       :init (lambda (self)
                               (ev:subscribe self self 'item:item-changed-event)
@@ -250,5 +251,15 @@
            (line (influx::%line-value (gethash "number" canonical) t))
            (restored (influx::%typed-csv-value
                       (influx::make-influx-row :value line :datatype "double"))))
-      (is (typep restored 'single-float))
+      (is (typep restored (if (zerop (nth-value 1 (truncate (rational number))))
+                             'integer 'single-float)))
+      (is (= (rational number) (rational restored))))))
+
+(test %typed-csv-value--exact-integers-roundtrip-through-double
+  (dolist (number '(1763370000 -1763370000 16777217 -16777217
+                   9007199254740992 -9007199254740992 87 21))
+    (let ((restored (influx::%typed-csv-value
+                     (influx::make-influx-row
+                      :value (influx::%line-value number t) :datatype "double"))))
+      (is (integerp restored))
       (is (= number restored)))))

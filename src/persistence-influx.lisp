@@ -31,10 +31,12 @@ Influx persistence supports the following value types:
 - integer
 - float
 - boolean, for boolean values, use the symbols 'item:true and 'item:false.
-- hash-table snapshots with string keys and finite single-float, string or boolean fields.
-Table items normalize numeric fields to single-float before persistence; numbers
-that overflow or round a nonzero value to zero are rejected at item ingress.
-Table numbers use Influx floats. Influx skips empty table snapshots, so restore
+- hash-table snapshots with string keys and integer, finite single-float, string or boolean fields.
+Table items preserve integers and normalize floats to single-float at ingress.
+Table numbers use Influx doubles. Integer fields must be exactly representable
+as finite doubles; precision loss or overflow is rejected before HTTP. Integral
+doubles restore as integers, and fractional doubles restore as single-floats.
+Influx skips empty table snapshots, so restore
 returns the last nonempty snapshot. Simple file persistence stores and restores
 empty snapshots as well. Line protocol cannot
 represent CR/LF, empty field names, the reserved field name time, or names ending
@@ -92,6 +94,17 @@ Specify those types as 'type-hint' in the item definition."))
               (write-char character stream))
     (write-char #\" stream)))
 
+(defun %table-double (value)
+  "Convert a table number without losing integer precision before HTTP."
+  (handler-case
+      (let ((converted (coerce value 'double-float)))
+        (unless (and (<= (- most-positive-double-float) converted most-positive-double-float)
+                     (or (not (integerp value)) (= value (rational converted))))
+          (error "Influx table number is not exactly representable as a finite double: ~s" value))
+        converted)
+    (arithmetic-error ()
+      (error "Influx table number overflows a finite double: ~s" value))))
+
 (defun %line-value (value &optional table-p)
   (cond
     ((stringp value) (%line-string value))
@@ -101,7 +114,7 @@ Specify those types as 'type-hint' in the item definition."))
     ((realp value)
      ;; Fixed-point formatting avoids Lisp exponent markers and always writes
      ;; table numbers as Influx floats, even when the observation is integral.
-     (format nil "~f" (if table-p (coerce value 'double-float) value)))
+     (format nil "~f" (if table-p (%table-double value) value)))
     (t (error "Unsupported item value type: ~a" (type-of value)))))
 
 (defun %serialize-point (item-name value timestamp)
@@ -389,7 +402,19 @@ Applied aggregate functions omit the _time column, in this case the timestamo in
              ((string= value "false") 'item:false)
              (t (error "Invalid CSV boolean: ~s" value))))
       ((member datatype '("long" "unsignedLong") :test #'equal) (parse-integer value))
-      ((equal datatype "double") (parse-float:parse-float value :type 'single-float))
+      ((equal datatype "double")
+       (let ((number (parse-float:parse-float value :type 'double-float)))
+         (unless (<= (- most-positive-double-float) number most-positive-double-float)
+           (error "Invalid nonfinite CSV double: ~s" value))
+         (multiple-value-bind (integer remainder) (truncate number)
+           (if (zerop remainder)
+               integer
+               (let ((single (coerce number 'single-float)))
+                 (unless (and (<= (- most-positive-single-float)
+                                  single most-positive-single-float)
+                              (not (zerop single)))
+                   (error "CSV double is outside the finite single-float range: ~s" value))
+                 single)))))
       (t (error "Unsupported CSV datatype: ~s" datatype)))))
 
 (defun %table-persisted-items (body)

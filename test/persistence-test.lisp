@@ -86,7 +86,9 @@
            (original (alexandria:plist-hash-table
                       '("Count" 12 "count" 2.5 "temperature" 29.08d0
                         "timestamp" 1763370000 "large" 16777217
-                        "exact-double" 9007199254740992 "text" "ok" "yes" item:true "no" item:false)
+                        "exact-double" 9007199254740992
+                        "negative-epoch" -1763370000 "negative-large" -16777217
+                        "negative-double" -9007199254740992 "text" "ok" "yes" item:true "no" item:false)
                       :test #'equal))
            (item (item:make-item 'table-file :type-hint 'table :initial-value original))
            (value (item:item-state-value (item:get-item-stateq item))))
@@ -95,7 +97,8 @@
       (let ((fetched (persp:retrieve cut item)))
         (is (equalp value (persp:persisted-item-value fetched)))
         (let ((restored (persp:persisted-item-value fetched)))
-          (loop :for key :in '("Count" "timestamp" "large" "exact-double")
+          (loop :for key :in '("Count" "timestamp" "large" "exact-double"
+                                   "negative-epoch" "negative-large" "negative-double")
                 :do (is (typep (gethash key restored) 'integer))
                     (is (= (gethash key original) (gethash key restored))))
           (is (typep (gethash "temperature" restored) 'single-float))
@@ -112,7 +115,8 @@
         (is-true (miscutils:await-cond 1
                    (equalp value (item:item-state-value (item:get-item-stateq item)))))
         (let ((restored (item:item-state-value (item:get-item-stateq item))))
-          (loop :for key :in '("Count" "timestamp" "large" "exact-double")
+          (loop :for key :in '("Count" "timestamp" "large" "exact-double"
+                                   "negative-epoch" "negative-large" "negative-double")
                 :do (is (typep (gethash key restored) 'integer))
                     (is (= (gethash key original) (gethash key restored))))
           (is (typep (gethash "temperature" restored) 'single-float))

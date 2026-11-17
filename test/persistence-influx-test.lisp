@@ -373,17 +373,25 @@ instead of an error (influx responds with an empty body)."
   (with-fixture init-destroy-env ()
     (let* ((cut (make-cut))
            (original (table-value "Temperature" 29.08d0 "Other" 21.1d0
-                                  "Count" 16777217 "Ratio" 1/3
+                                  "Count" 16777217 "NegativeCount" -16777217
+                                  "Epoch" 1763370000 "NegativeEpoch" -1763370000
+                                  "ExactDouble" 9007199254740992
+                                  "NegativeExactDouble" -9007199254740992
+                                  "Battery" 87 "Whole" 21
                                   "Max" most-positive-single-float
                                   "Min" least-positive-single-float))
            (item (make-test-item 'canonical-numbers :type-hint 'table :initial-value original))
            (stored (item:item-state-value (item:get-item-stateq item)))
            (events 0))
-      (maphash (lambda (key value)
-                 (declare (ignore key))
-                 (is (typep value 'single-float))) stored)
+      (is (typep (gethash "Count" stored) 'integer))
+      (is (typep (gethash "Temperature" stored) 'single-float))
       (write-table-point cut item stored (- (get-universal-time) 1))
-      (is (equalp stored (persisted-item-value (persp:retrieve cut item))))
+      (let ((restored (persisted-item-value (persp:retrieve cut item))))
+        (is (equalp stored restored))
+        (dolist (key '("Count" "NegativeCount" "Epoch" "NegativeEpoch"
+                       "ExactDouble" "NegativeExactDouble" "Battery" "Whole"))
+          (is (integerp (gethash key restored)))
+          (is (= (gethash key original) (gethash key restored)))))
       (item:set-value item (table-value) :push nil :persist nil)
       (let ((barrier (item:get-value item)))
         (is-true (miscutils:await-cond 1
@@ -400,6 +408,8 @@ instead of an error (influx responds with an empty body)."
         (is (= 1 events))
         (is (null (invocations 'persp:store)))
         (let ((timestamp (item:item-state-timestamp (item:get-item-stateq item))))
+          (setf (gethash "Battery" original) 87.0
+                (gethash "Whole" original) 21.0)
           (item:set-value item original :timestamp (1+ timestamp))
           (let ((barrier (item:get-value item)))
             (is-true (miscutils:await-cond 1 (hash-table-p (future:fresult barrier)))))

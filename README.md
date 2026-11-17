@@ -433,7 +433,11 @@ replace the complete snapshot; omitted fields disappear. Without an initial
 value, the table starts empty. The API represents tables as JSON objects.
 
 File persistence restores empty tables; InfluxDB skips them. InfluxDB stores
-numeric fields as floats and rejects CR/LF in names or string values, empty
+numeric fields as doubles. Integer fields must be exactly representable as finite
+doubles; InfluxDB persistence rejects precision loss or overflow before HTTP.
+Integral doubles restore as integers; fractional doubles restore as single-floats.
+These backend limits do not restrict integers in memory or file persistence.
+InfluxDB rejects CR/LF in names or string values, empty
 field names, names ending in a backslash, and the exact field name `time`.
 History returns only fields recorded at each timestamp. Writes within the same
 second can merge.
