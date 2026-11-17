@@ -144,15 +144,15 @@ Specify those types as 'type-hint' in the item definition."))
       (return-from %make-write-request (values nil :skipped)))
     (log:debug "Write request data string: ~a" data-string)
     (drakma:http-request (format nil "~a/api/v2/write" (base-url persistence))
-                        :method :post
-                        :parameters `(("bucket" . ,(bucket persistence))
-                                      ("org" . ,(org persistence))
-                                      ("precision" . ,(precision persistence)))
-                        :accept "application/json"
-                        :additional-headers
-                        `(("Authorization" . ,(format nil "Token ~a" (token persistence))))
-                        :content-type "text/plain; charset=utf-8"
-                        :content data-string)))
+                         :method :post
+                         :parameters `(("bucket" . ,(bucket persistence))
+                                       ("org" . ,(org persistence))
+                                       ("precision" . ,(precision persistence)))
+                         :accept "application/json"
+                         :additional-headers
+                         `(("Authorization" . ,(format nil "Token ~a" (token persistence))))
+                         :content-type "text/plain; charset=utf-8"
+                         :content data-string)))
 
 (defmethod persist ((persistence influx-persistence) item)
   (log:debug "Persisting item: ~a" (item:name item))

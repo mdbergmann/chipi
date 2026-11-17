@@ -264,8 +264,8 @@ See `hab-test.lisp' and `item' for more examples."
          (remhash ,item-id *items*))
        (let* ((,body-forms (list ,@body))
               (,bindings (loop :for x :in ,body-forms
-                              :if (typep x 'binding::binding)
-                                :collect x))
+                               :if (typep x 'binding::binding)
+                                 :collect x))
               (,p-reps (loop :for (k v) :on ,body-forms
                              :if (eq k :persistence)
                                :collect v))
