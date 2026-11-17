@@ -46,7 +46,7 @@ The bridge does not start here but when the configuration is loaded: `hab:config
 
 The bridge's pairing codes are logged at start and `matter-bridge-pairing-code' returns them. `start-bridge' starts a bridge at once, for who needs that.
 
-`CONTROLLER': NIL, or T or a plist to run Chipi as a Matter controller, the administrator of a fabric of its own whose nodes `matter-read' reads and `matter-invoke' switches. The plist's keys are those of `start-controller': `:fabric-id' (1), `:vendor-id' (#xFFF1), `:attestation' (`:ignore'), `:label' (\"Chipi\"). Unlike the bridge the controller starts here, at once: the items defined after it pull from it. One that runs already -- the configuration was loaded again -- stays as it is.
+`CONTROLLER': NIL, or T or a plist to run Chipi as a Matter controller, the administrator of a fabric of its own whose nodes become items with `matter-binding' (and that `matter-read' reads and `matter-invoke' switches). The plist's keys are those of `start-controller': `:fabric-id' (1), `:vendor-id' (#xFFF1), `:attestation' (`:ignore'), `:label' (\"Chipi\"). Unlike the bridge the controller starts here, at once: the items defined after it bind to it. One that runs already -- the configuration was loaded again -- stays as it is.
 
   (matter-init :storage \"~/.chipi/matter/\"
                :controller '(:fabric-id #xC1 :attestation :ignore))"
@@ -67,6 +67,7 @@ The bridge's pairing codes are logged at start and `matter-bridge-pairing-code' 
   (stop-bridge)
   (stop-controller)
   (%clear-bridge-bindings)
+  (%clear-matter-bindings)
   (setf *pending-bridge* nil)
   (setf *storage* nil)
   t)

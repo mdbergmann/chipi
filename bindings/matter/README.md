@@ -7,9 +7,9 @@ Chipi plays two Matter roles with this plugin:
   devices. This is what the plugin does today; it runs a KNX house in Apple
   Home (lights, window contacts, thermostats; since 2026-11-11, on AmiLisp).
 - as a **controller**, Chipi commissions Matter devices into a fabric of its
-  own, and they become items. Its core is there -- the fabric, the node
-  registry, reading and switching a node -- and runs against an in-process
-  device in the tests; discovery, the binding and subscriptions follow
+  own, and they become items with `matter-binding`: state by subscription,
+  changes as commands. That runs against an in-process device in the tests;
+  finding a device on the network and pairing it from its code follow
   (`specs/binding-matter.md`, and *The controller, so far* below).
 
 The protocol is [cl-matter](../../../cl-matter), a Matter implementation in
@@ -457,13 +457,14 @@ the TXT; `_matter._tcp` shows one instance per fabric once it is paired.
 - **OTA.** Apple Home writes to an OTA requestor cluster the bridge does not
   have and takes the refusal; harmless.
 - **SBCL.** No IPv6 and no mDNS in cl-matter's SBCL backend: tests only.
-- **The controller role** -- Matter devices as items -- has its core only;
-  see the next section.
+- **The controller role** -- Matter devices as items -- has no discovery
+  yet; see the next section.
 
 ##### The controller, so far
 
-Phase 1 of `specs/binding-matter.md`: what the binding and the pairing
-wizard will stand on. Nothing here finds a device on the network yet.
+Phases 1 and 2 of `specs/binding-matter.md`: the fabric, the node registry,
+and the binding that makes an item of a node's attribute. Nothing here
+finds a device on the network yet.
 
 ```lisp
 (defconfig "my-home"
@@ -472,7 +473,7 @@ wizard will stand on. Nothing here finds a device on the network yet.
 ```
 
 `:controller` -- `t` or a plist -- starts the controller at once, in the
-`defconfig`, unlike the bridge: the items defined after it pull from it.
+`defconfig`, unlike the bridge: the items defined after it bind to it.
 Both roles can run in one Chipi; they share the storage directory and
 nothing else. The keys:
 
@@ -507,28 +508,82 @@ once; the answer is a datagram a later turn of the controller actor
 receives. A future fails with the condition that says why not (no such
 node, no session, no answer, a status from the node): `future:frecover`
 handles it, `future:error-p` tells. That is the shape a binding wants -- a
-pull hands the future to chipi, a push drops it:
+pull hands the future to chipi, a push drops it -- and what `matter-binding`
+is made of.
+
+###### matter-binding
 
 ```lisp
-(defitem 'lamp "Lamp" 'boolean
-  (binding :pull (lambda ()
-                   ;; what the lamp says is not sent back to it
-                   (values (matter-read "lamp" 1 :on-off :on-off) '(:push nil)))
-           :transform (lambda (on) (if on 'item:true 'item:false))
-           :push (lambda (value)
-                   (matter-invoke "lamp" 1 :on-off (if (eq value 'item:true) :on :off)))
-           :initial-delay 2 :delay 60
-           :call-push-p t))
+;; a plug: the On/Off cluster is state (the attribute) and command (Off / On) in one
+(defplug plug-kitchen "Kitchen plug"
+  (matter-binding :node "eve-plug-kitchen" :endpoint 1 :cluster :on-off))
+
+;; a sensor: read only, hundredths of a degree
+(defitem 'temp-bath "Bath temperature" 'float
+  (matter-binding :node "aqara-bath" :endpoint 1 :cluster :temperature-measurement
+                  :scale 1/100))
+
+;; a contact: Matter's StateValue is true while closed, a defcontact while open
+(defcontact window-bath "Bath window"
+  (matter-binding :node "aqara-bath" :endpoint 2 :cluster :boolean-state
+                  :transform (lambda (closed)
+                               (if (eq closed 'item:true) 'item:false 'item:true))))
+
+;; the level of a dimmable light, 0..100 on the item, 1..254 on the wire
+(defitem 'light-living-level "Living room level" 'integer
+  (matter-binding :node "hue-living" :endpoint 1 :cluster :level-control
+                  :scale 100/254 :transform #'round
+                  :command (:move-to-level-with-on-off :level (:scale 254/100)
+                                                       :transition-time 0)))
+
+;; commands only: a shutter's stop
+(defitem 'blind-stop "Blind stop" 'boolean
+  (matter-binding :node "shelly-blind" :endpoint 1 :cluster :window-covering
+                  :command :stop-motion))
 ```
 
-The `matter-binding` form that does this by itself, with subscriptions in
-place of the polling, is the next phase.
+| Key | |
+|---|---|
+| `:node` | the label the node was commissioned under (recommended: it survives a new commissioning) or its node id |
+| `:endpoint` | the endpoint id |
+| `:cluster` | the cluster: a name cl-matter defines, as a keyword, or an id |
+| `:attribute` | the attribute that is the item's state, a name or an id. Default per cluster: `:on-off` for `:on-off`, `:current-level` for `:level-control`, `:state-value` for `:boolean-state`, `:measured-value` for `:temperature-measurement`; none otherwise, and none with `:attribute nil` |
+| `:command` | what a change of the item sends. A name (`:stop-motion`): sent whatever the value. A pair (`(:off :on)`): the first for `item:false`, the second for `item:true`. A command with its fields (`(:move-to-level :level (:scale 254/100) :transition-time 0)`): `(:scale r)` is the item's number times r, rounded, `(:value)` the item's value as it is, anything else itself. Default `(:off :on)` for `:on-off`, none otherwise: without a command the item is read only |
+| `:scale` | a rational the attribute's value is multiplied with on its way to the item. A fraction that results is a float; `:transform #'round` makes a whole number of it |
+| `:transform`, `:call-push-p`, `:initial-delay`, `:delay` | the base binding's. `:call-push-p` is `t` when there is a command. `:initial-delay` reads the attribute once and `:delay` again and again -- for a node that takes no subscription; none is set by default |
+
+A `:command` written as a list stands as it is, unevaluated;
+`make-matter-binding` is the same as a function, everything evaluated. A
+binding needs an attribute or a command, and names that cl-matter does not
+know are an error when the binding is made -- the configuration does not
+load -- while a node that is not commissioned yet, or a controller that
+does not run, is not: the binding takes effect when they are there.
+
+**State comes by subscription.** The controller asks each node for one
+subscription to every attribute its bindings bind, a second after the last
+binding came or went (`*subscribe-delay*`), so a configuration being loaded
+makes one subscription per node, not one per item. The first report of a
+subscription carries every value, so the items have their state without a
+read; what the node reports later -- its own button, Apple Home, another
+administrator -- is set on the items and not pushed back. A boolean is
+`item:true` / `item:false`, a null leaves the item as it is. A node reports
+every 60 seconds at least (`*subscription-max-interval*`); one that misses
+that is taken for restarted: its session is dropped and the subscription
+asked for again, every 30 seconds (`*resubscribe-delay*`) until the node
+answers.
+
+**A change of the item is a command**, `matter-invoke`, and nothing waits
+for the node: one that does not take it is a line in the log, and the item
+keeps the value it was given until the node's next report says otherwise.
+Attributes that are written, not commanded -- a thermostat's setpoint --
+are not there yet.
 
 One CASE session per node, opened by the first request and kept; requests
 that arrive while it is being opened wait for it together. A request that
 gets no answer costs the session, and the next one opens a new one. The
 node is reached at the address it was commissioned at: no operational
-discovery yet, so a node whose address changed is lost until then.
+discovery yet, so a node whose address changed is lost until then. A
+subscription lives on its session and goes with it.
 
 Commissioning is there as the internal `%commission-at` -- address, port,
 passcode and label given -- which the integration test uses: PASE,
@@ -559,7 +614,8 @@ above), `matter-actors.lisp` (the polling actor), `matter-convert.lisp`
 `qr-code.lisp` (the QR encoder), `matter-ui.lisp` (the settings card, system
 `binding-matter/ui`), `matter-registry.lisp` (the controller's node
 registry), `matter-controller.lisp` (the controller: fabric, sessions,
-`matter-read`, `matter-invoke`), `binding-matter.lisp` (`matter-init`,
+subscriptions, `matter-read`, `matter-invoke`), `matter-binding.lisp` (the
+controller's binding), `binding-matter.lisp` (`matter-init`,
 `matter-shutdown`).
 
 #### Tests
@@ -575,9 +631,10 @@ node-qrcode's symbols, the bridge on loopback without a network) and the
 integration test, in which cl-matter's own commissioner commissions the
 bridge over loopback UDP, switches a light, reads the item's change back and
 writes a heating's setpoint. The controller has the same two: unit tests
-(registry, futures, start and stop) and an integration test in which it
-commissions an in-process cl-matter lamp over loopback UDP, and a `defitem`
-reads and switches it. `(asdf:test-system :binding-matter/ui-tests)`
+(registry, futures, start and stop, the keys and conversions of
+`matter-binding`) and an integration test in which it commissions an
+in-process cl-matter lamp over loopback UDP, and items with a
+`matter-binding` follow the lamp by subscription and switch and dim it. `(asdf:test-system :binding-matter/ui-tests)`
 renders the settings card into a stubbed CLOG connection. All run on SBCL
 and on AmiLisp. From the shell, `scripts/review/run-tests.sh matter` runs
 both suites on SBCL and exits non-zero when a check fails (`CL_MATTER_DIR`

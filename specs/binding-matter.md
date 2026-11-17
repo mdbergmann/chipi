@@ -5,7 +5,8 @@ production: B0 to B3 done 2026-11-09, proven against Apple Home on the bench
 2026-11-10, in the house since 2026-11-11, reachability (the first half of
 B4) since 2026-11-12. What it is now, as opposed to what was planned, is in
 `bindings/matter/README.md`. The controller role: phase 1 done 2026-11-16
-(binding-matter 0.7.0), the rest of section 7 open.
+(binding-matter 0.7.0), phase 2 built 2026-11-17 (0.8.0) with its bench
+check owed, the rest of section 7 open.
 cl-matter lives at `../cl-matter`; its README describes its state.
 
 ## 1. Role and shape
@@ -603,7 +604,7 @@ single process. The plugin's integtest does the same with a real
 |---|---|---|
 | 0 | cl-matter: `UpdateFabricLabel` from the commissioner (done 2026-11-16: `start-fabric-label-update`, `update-fabric-label`); Level Control, Boolean State, Temperature Measurement, Window Covering clusters (SBCL IPv6 + multicast + interfaces deferred, see section 8). Boolean State and Temperature Measurement done with B1, Window Covering and Thermostat (heating only) with B2 (2026-11-09), Level Control with the bridge's Dimmable Light (2026-11-15) | new clusters have tests in cl-matter |
 | 1 | `matter-actors`, `matter-registry`, controller core: commissioner state, CASE per node, read / invoke as futures (done 2026-11-16, binding-matter 0.7.0: `matter-init :controller`, `start-controller`, `matter-nodes`, `matter-read`, `matter-invoke`, `matter-actor-future`; commissioning at a known address as the internal `%commission-at`, which describes the node into the registry and sends the fabric label) | integtest: a `defitem` on an in-process lamp reads and switches it -- `matter-controller-integtest.lisp`, on SBCL too: loopback IPv4 needs neither IPv6 nor multicast |
-| 2 | `matter-binding` with subscriptions, `matter-init` / `matter-shutdown`, README | the Eve plug is a `defplug` in a running Chipi; UI toggles it; Apple Home's change shows up |
+| 2 | `matter-binding` with subscriptions, `matter-init` / `matter-shutdown`, README (built 2026-11-17, binding-matter 0.8.0: `matter-binding`, `make-matter-binding`, one subscription per node; proven against the in-process lamp, `matter-controller-integtest.lisp`) | the Eve plug is a `defplug` in a running Chipi; UI toggles it; Apple Home's change shows up -- owed: needs the plug commissioned with `%commission-at` at its address, on AmiLisp |
 | 3 | `matter-discover`, the commissioning job with its states, `matter-commission`, `matter-decommission`, `matter-open-window`, labels, `matter-describe` | a new device goes from pairing code to item without leaving the REPL |
 | 3b | chipi-ui: settings section registry and `/settings/<id>` routing; `binding-matter/ui`: devices view and pairing wizard over the phase-3 functions | a device is paired from the wall tablet, and its suggested definer copied from the node view |
 | 4 | resilience: re-resolve, re-establish with backoff, re-subscribe, unreachable flag, repush policy | pull the plug's power, plug it back: Chipi follows without a restart |
@@ -628,6 +629,24 @@ What phase 1 built differently from sections 3.2 to 3.5:
   discovery (re-resolve) is phase 4, and what a real network needs first.
 - **State files are written in the actor**, not on the `:tasks` pool: they
   are small, and cl-matter's device side does the same.
+
+What phase 2 built differently from sections 3.4 and 3.5:
+
+- **No dispatch registry.** A report is matched against the live bindings
+  of its node (`node-bindings`), a list under a lock as the bridge's is;
+  there are few bindings and few reports.
+- **Subscriptions follow the bindings with a delay** (`*subscribe-delay*`,
+  a second) in place of "eagerly at init": bindings are defined after
+  `matter-init`, one by one, and may name a node that is commissioned
+  later. A new subscription replaces the old one.
+- **Retry is a fixed delay** (`*resubscribe-delay*`, 30 s) on the address
+  on file; backoff, re-resolve and the unreachable mark are phase 4, and so
+  is `:repush-on-reconnect`, which the binding does not take yet.
+- **`:command` fields**: `(:value)` next to `(:scale r)`; a list is quoted
+  by the macro. `:scale` works on the way in only -- there is no attribute
+  write on the way out yet (a thermostat's setpoint, phase 5).
+- **A scaled value that is no whole number is a float**; `:transform` (the
+  base binding's) rounds it where the item wants an integer.
 
 ## 8. Decisions to take
 

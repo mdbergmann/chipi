@@ -15,9 +15,14 @@
 ;; futures (`matter-actor-future'), which is what a binding's pull hands to
 ;; `binding:exec-pull', and what a push simply drops.
 ;;
+;; State comes by subscription: the attributes that `matter-binding's
+;; (matter-binding.lisp) bind on a node are one subscription on its session,
+;; and what the node reports is set on the bound items.
+;;
 ;; What this is not yet: no discovery (a node is reached at the address it
-;; was commissioned at), no subscriptions, no reconnect backoff.  A session
-;; whose request timed out is dropped, and the next request opens a new one.
+;; was commissioned at) and no reconnect backoff.  A session whose request
+;; timed out is dropped, and the next request opens a new one; a
+;; subscription that ended is asked for again every `*resubscribe-delay*'.
 
 (defvar *controller* nil
   "The running Matter controller of this process, a `controller', or NIL.")
@@ -25,14 +30,30 @@
 (defparameter *commissioning-country-code* nil
   "The two-letter country code the controller sets as a node's regulatory location when it commissions it, or NIL to leave the node's own.")
 
+(defparameter *subscribe-delay* 1
+  "Seconds the controller collects the bindings of a node that come and go -- a configuration being loaded defines many -- before it asks the node for one subscription to all their attributes.")
+
+(defparameter *resubscribe-delay* 30
+  "Seconds after which the controller asks again for a subscription that ended or that it did not get: the node was off, or restarted.")
+
+(defparameter *subscription-max-interval* 60
+  "Seconds: the longest a node may go without a report to its subscription. A node that misses it by cl-matter's grace is taken for gone, its session dropped and the subscription asked for again.")
+
 (defstruct (connection (:constructor %make-connection))
   "What the controller holds per node at run time: the CASE SESSION or NIL,
 whether one is being opened (OPENING-P), and the WAITERS for it, conses of
 a function of the session and a function of the condition that says why
-there is none."
+there is none. And the SUBSCRIPTION to the attributes the node's bindings
+bind, or NIL: whether one is being asked for (SUBSCRIBING-P) and is to be
+asked for once more when that is through (SUBSCRIBE-AGAIN-P), and whether
+a timer is set that will ask (SUBSCRIBE-SCHEDULED-P)."
   session
   opening-p
-  (waiters '()))
+  (waiters '())
+  subscription
+  subscribing-p
+  subscribe-again-p
+  subscribe-scheduled-p)
 
 (defstruct (controller (:constructor %make-controller))
   "Chipi's Matter controller: its ACTOR, the exchange MANAGER the actor
@@ -145,10 +166,18 @@ nodes are told to list Chipi's fabric under."
   (ignore-errors (matter:close-session (controller-channel controller) session)))
 
 (defun %session-closed (controller session)
-  "The channel's word that `SESSION' is gone, by whichever side: no connection keeps it."
-  (loop :for connection :being :the :hash-values :of (controller-connections controller)
-        :when (eq session (connection-session connection))
-          :do (setf (connection-session connection) nil)))
+  "The channel's word that `SESSION' is gone, by whichever side: no connection keeps it, and a subscription on it is over -- it is asked for again on a new session."
+  (loop :for node-id :being :the :hash-keys :of (controller-connections controller)
+          :using (hash-value connection)
+        :for subscription := (connection-subscription connection)
+        :do (when (eq session (connection-session connection))
+              (setf (connection-session connection) nil))
+            (when (and subscription (eq session (matter:subscription-session subscription)))
+              (matter:unsubscribe subscription)
+              (setf (connection-subscription connection) nil)
+              (when-let ((entry (find-node-entry (controller-nodes controller) node-id)))
+                (log:warn "Matter controller: the session with ~a is gone and its subscription with it" entry)
+                (%schedule-subscribe controller entry *resubscribe-delay*)))))
 
 ;; -----------------------------
 ;; requests
@@ -301,6 +330,134 @@ The future fails with the condition that says why not, as `matter-read's does. W
      (mapcar #'node-entry-plist (controller-nodes *controller*)))))
 
 ;; -----------------------------
+;; subscriptions
+;; -----------------------------
+
+;; One subscription per node, to every attribute a live `matter-binding'
+;; binds on it.  Bindings come and go one by one while a configuration is
+;; loaded, so a change only sets a timer (`*subscribe-delay*'), and what the
+;; timer starts asks for the paths of the bindings there are by then.  A new
+;; subscription replaces the old one, on the node's side too.
+
+(declaim (ftype function node-bindings binding-path binding-report))
+
+(defun %subscription-paths (bindings)
+  "The attribute paths of `BINDINGS', each once, as lists (endpoint cluster-id attribute-id)."
+  (remove-duplicates (mapcar #'binding-path bindings) :test #'equal))
+
+(defun %dispatch-reports (controller entry reports)
+  "What the node of `ENTRY' reported, set on the items of the bindings that bind it. A status in place of a value is logged; one report that cannot be handled does not cost the others."
+  (setf (node-entry-last-seen entry) (get-universal-time))
+  (let ((bindings (node-bindings (controller-nodes controller) entry)))
+    (dolist (report reports)
+      (handler-case
+          (let* ((path (matter:attribute-report-path report))
+                 (key (list (matter:attribute-path-endpoint path)
+                            (matter:attribute-path-cluster path)
+                            (matter:attribute-path-attribute path))))
+            (multiple-value-bind (value kind) (matter:attribute-report-value report)
+              (if (eq kind :status)
+                  (log:warn "Matter controller: ~a reports ~a for ~a" entry
+                            (matter:im-status-name (matter:im-status-status value)) path)
+                  (dolist (binding bindings)
+                    (when (equal key (binding-path binding))
+                      (binding-report binding value))))))
+        (error (c)
+          (log:warn "Matter controller: a report of ~a was not handled: ~a" entry c))))))
+
+(defun %schedule-subscribe (controller entry &optional (delay *subscribe-delay*))
+  "Has the node of `ENTRY' asked for its subscription in `DELAY' seconds, unless a timer for that is set already."
+  (let ((connection (%connection controller (node-entry-node-id entry))))
+    (unless (connection-subscribe-scheduled-p connection)
+      (setf (connection-subscribe-scheduled-p connection) t)
+      (timer:schedule-once
+       delay
+       (lambda ()
+         ;; the timer's thread: back into the actor, if it is still the one
+         (when (eq controller *controller*)
+           (ignore-errors
+            (matter-actor-run (controller-actor controller)
+                              (lambda ()
+                                (setf (connection-subscribe-scheduled-p connection) nil)
+                                (when (find entry (controller-nodes controller))
+                                  (%subscribe controller entry)))))))))))
+
+(defun %subscribe-failed (controller entry connection condition)
+  (log:warn "Matter controller: no subscription to ~a: ~a; again in ~a s" entry condition *resubscribe-delay*)
+  (setf (connection-subscribing-p connection) nil
+        (connection-subscribe-again-p connection) nil)
+  (%schedule-subscribe controller entry *resubscribe-delay*))
+
+(defun %subscription-ended (controller entry connection subscription reason)
+  "cl-matter's word that `SUBSCRIPTION' is over -- the node's reports stopped coming. The node is taken for restarted: its session goes, and the subscription is asked for again."
+  (when (eq subscription (connection-subscription connection))
+    (log:warn "Matter controller: the subscription to ~a ended (~a)" entry reason)
+    (setf (connection-subscription connection) nil)
+    (%drop-session controller entry (matter:subscription-session subscription))
+    (%schedule-subscribe controller entry)))
+
+(defun %subscribed (controller entry connection session interaction)
+  "The end of a subscribe interaction: the new subscription takes the old one's place and its first reports are set on the items."
+  (multiple-value-bind (subscription condition)
+      (%interaction-outcome controller entry session interaction)
+    (cond (condition
+           (%subscribe-failed controller entry connection condition))
+          (t
+           (let ((old (connection-subscription connection))
+                 (again-p (connection-subscribe-again-p connection)))
+             (when old
+               (matter:unsubscribe old))
+             (setf (connection-subscription connection) subscription
+                   (connection-subscribing-p connection) nil
+                   (connection-subscribe-again-p connection) nil)
+             (log:info "Matter controller: subscribed to ~d attribute~:p of ~a, a report every ~d s at least"
+                       (length (matter:subscription-paths subscription)) entry
+                       (matter:subscription-max-interval subscription))
+             (%dispatch-reports controller entry (matter:subscription-primed-reports subscription))
+             (when again-p
+               (%subscribe controller entry)))))))
+
+(defun %subscribe (controller entry)
+  "Asks the node of `ENTRY' for one subscription to the attributes its bindings bind, in place of the one there is. A node without such bindings is left without subscription. While one is being asked for, this only notes that it is to be asked for again."
+  (let ((connection (%connection controller (node-entry-node-id entry))))
+    (if (connection-subscribing-p connection)
+        (setf (connection-subscribe-again-p connection) t)
+        (let ((paths (%subscription-paths (node-bindings (controller-nodes controller) entry))))
+          (cond ((null paths)
+                 (when-let ((old (connection-subscription connection)))
+                   (matter:unsubscribe old)
+                   (setf (connection-subscription connection) nil)))
+                (t
+                 (setf (connection-subscribing-p connection) t)
+                 (%with-session
+                  controller entry
+                  (lambda (session)
+                    (matter:start-subscribe
+                     (controller-model controller) session
+                     (loop :for (endpoint cluster attribute) :in paths
+                           :collect (matter:attribute-path endpoint cluster attribute))
+                     :min-interval 0 :max-interval *subscription-max-interval*
+                     :on-report (lambda (subscription reports)
+                                  (when (eq subscription (connection-subscription connection))
+                                    (%dispatch-reports controller entry reports)))
+                     :on-failure (lambda (subscription reason)
+                                   (%subscription-ended controller entry connection subscription reason))
+                     :on-complete (lambda (interaction)
+                                    (%subscribed controller entry connection session interaction))))
+                  (lambda (condition)
+                    (%subscribe-failed controller entry connection condition)))))))))
+
+(defun %bindings-changed (node)
+  "A `matter-binding' on `NODE' -- a label or node id -- came or went: its node's subscription is to follow. Nothing while the controller is not running, which asks for all subscriptions when it starts; a node that is not commissioned is logged, and subscribed to when it is."
+  (when-let ((controller *controller*))
+    (matter-actor-run (controller-actor controller)
+                      (lambda ()
+                        (let ((entry (find-node-entry (controller-nodes controller) node)))
+                          (if entry
+                              (%schedule-subscribe controller entry)
+                              (log:warn "Matter controller: a binding names the node ~s, which is not commissioned" node)))))))
+
+;; -----------------------------
 ;; commissioning, at a known address
 ;; -----------------------------
 
@@ -358,6 +515,8 @@ The future fails with the condition that says why not, as `matter-read's does. W
         (%write-commissioner-state controller)
         (%write-registry controller)
         (log:info "Matter controller: commissioned ~a at [~a]:~d" entry host port)
+        ;; bindings that were defined before their node was commissioned
+        (%schedule-subscribe controller entry)
         (flet ((finish ()
                  (funcall resolve (node-entry-plist entry))))
           (handler-case
@@ -470,6 +629,12 @@ The device's attestation is checked as the controller was configured (`:attestat
                                     :on-stop (lambda () (%controller-stopping controller))))
            (setf *controller* controller
                  done t)
+           ;; the nodes whose attributes are bound already are subscribed to
+           (matter-actor-run (controller-actor controller)
+                             (lambda ()
+                               (dolist (entry (controller-nodes controller))
+                                 (when (node-bindings (controller-nodes controller) entry)
+                                   (%schedule-subscribe controller entry)))))
            (multiple-value-bind (host local-port) (matter:transport-local-endpoint transport)
              (log:info "Matter controller on [~a]:~d, fabric ~16,'0x, ~d node~:p"
                        host local-port

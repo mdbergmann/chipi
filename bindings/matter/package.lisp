@@ -30,6 +30,9 @@
            #:matter-nodes
            #:matter-read
            #:matter-invoke
+           ;; a node's attribute and command as an item's binding
+           #:matter-binding
+           #:make-matter-binding
            ;; a QR code encoder (qr-code.lisp), for the pairing code
            #:qr-encode
            #:qr-svg
@@ -48,9 +51,9 @@
 ;; - as a *bridge* (matter-bridge.lisp) Chipi is a Matter device that Apple
 ;;   Home, Google Home or Alexa commission, and items -- KNX-bound or
 ;;   virtual -- are its bridged devices;
-;; - as a *controller* (matter-controller.lisp, its core so far) Chipi
-;;   commissions Matter devices into a fabric of its own, and they become
-;;   items.
+;; - as a *controller* (matter-controller.lisp) Chipi commissions Matter
+;;   devices into a fabric of its own, and they become items
+;;   (matter-binding.lisp).
 ;;
 ;; Both roles sit on cl-matter, which is single-threaded and polled; each
 ;; role owns one Sento actor on a thread of its own that polls its exchange

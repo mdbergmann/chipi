@@ -28,18 +28,19 @@
 (defparameter *lamp-passcode* 20202021)
 
 (defstruct lamp
-  "The lamp of a test: the ACTOR that polls it, its On/Off cluster LIGHT, the cl-matter DEVICE and the UDP PORT it listens on."
-  actor light device port)
+  "The lamp of a test: the ACTOR that polls it, its On/Off cluster LIGHT and Level Control cluster LEVEL, the cl-matter DEVICE and the UDP PORT it listens on."
+  actor light level device port)
 
 (defun %start-lamp ()
   "A commissionable On/Off Light on loopback, its window open for `*lamp-passcode*'."
   (let* ((transport (make-udp-transport :address "127.0.0.1"))
          (manager (make-exchange-manager :transport transport))
          (light (make-on-off-cluster))
+         (level (make-level-control-cluster :current-level 127 :on-off light))
          (node (make-basic-node :vendor-name "ACME" :vendor-id #xFFF1 :product-name "Lamp" :product-id #x8000
                                 :serial-number "L-0001"
                                 :endpoints (list (make-endpoint 1 :device-types (list (cons +device-type-on-off-light+ 3))
-                                                                  :clusters (list (make-identify-cluster) light)))))
+                                                                  :clusters (list (make-identify-cluster) light level)))))
          (channel (make-secure-channel manager))
          (model (make-interaction-model manager :node node))
          (device (make-device :node node :channel channel :model model
@@ -47,7 +48,7 @@
                               :discriminator 3840 :passcode *lamp-passcode*
                               :salt binding-matter::*bridge-salt* :iterations 1000)))
     (make-lamp :actor (make-matter-actor "test-lamp" manager)
-               :light light :device device
+               :light light :level level :device device
                :port (nth-value 1 (transport-local-endpoint transport)))))
 
 (defun %lamp-side (lamp thunk)
@@ -69,9 +70,14 @@
 (def-fixture lamp-env ()
   "A chipi environment with the Matter controller on loopback, its storage in a fresh directory bound to `storage', and a lamp to commission bound to `lamp'."
   (let ((storage (%temp-storage))
-        (lamp nil))
+        (lamp nil)
+        (subscribe-delay binding-matter::*subscribe-delay*)
+        (resubscribe-delay binding-matter::*resubscribe-delay*))
     (unwind-protect
          (progn
+           ;; set, not bound: the controller's actor and the timer read them
+           (setf binding-matter::*subscribe-delay* 0.1
+                 binding-matter::*resubscribe-delay* 0.5)
            (hab:defconfig "chipi")
            (matter-init :storage storage :controller *test-controller-args*)
            (setf lamp (%start-lamp))
@@ -82,6 +88,8 @@
         ;; a controller the test started again has no shutdown hook
         (matter-shutdown)
         (hab:shutdown)
+        (setf binding-matter::*subscribe-delay* subscribe-delay
+              binding-matter::*resubscribe-delay* resubscribe-delay)
         (%delete-storage storage)))))
 
 (defun %lamp-binding ()
@@ -207,3 +215,141 @@ is read without being commissioned again."
     (is (eq nil (%lamp-on-p lamp)))
     ;; still one fabric on the lamp
     (is (= 1 (%lamp-side lamp (lambda () (length (device-fabrics (lamp-device lamp)))))))))
+
+;; -----------------------------
+;; matter-binding: state by subscription, changes as commands
+;; -----------------------------
+
+(defun %lamp-level (lamp)
+  (%lamp-side lamp (lambda () (attribute-value (lamp-level lamp) 'current-level))))
+
+(defun %dim-lamp (lamp level)
+  "The lamp dimmed at the lamp."
+  (%lamp-side lamp (lambda () (setf (attribute-value (lamp-level lamp) 'current-level) level))))
+
+(defun %subscription (&optional (node-id 2))
+  "The controller's subscription to the node, or NIL."
+  (let ((controller binding-matter::*controller*))
+    (matter-actor-call (binding-matter::controller-actor controller)
+                       (lambda ()
+                         (binding-matter::connection-subscription
+                          (binding-matter::%connection controller node-id))))))
+
+(defun %barrier (lamp)
+  "A round trip through the lamp side and the controller actor, twice.
+The barrier for negative assertions (\"nothing was sent\"): what was queued
+before it has been handled once it returns. No time-based waiting."
+  (dotimes (i 2)
+    (%lamp-side lamp (lambda () nil))
+    (when (matter-controller-running-p)
+      (%subscription))))
+
+(defun %subscribed-paths (&optional (node-id 2))
+  (let ((subscription (%subscription node-id)))
+    (and subscription (length (subscription-paths subscription)))))
+
+(test matter-binding--items-follow-the-lamp-and-switch-it
+  "Items defined before their node is commissioned get its state with the
+subscription, follow what happens at the lamp without sending it back, and
+their own changes are commands."
+  (with-fixture lamp-env ()
+    (hab:defitem 'lamp "Lamp" 'boolean
+      (matter-binding :node "lamp" :endpoint 1 :cluster :on-off))
+    (hab:defitem 'lamp-level "Lamp level" 'integer
+      ;; 64 of 254 is 25.2 %: a whole number for the item
+      (matter-binding :node "lamp" :endpoint 1 :cluster :level-control :scale 100/254 :transform #'round
+                      :command (:move-to-level :level (:scale 254/100) :transition-time 0)))
+    (is (listp (%commission-lamp lamp)))
+    ;; the first reports of the subscription
+    (is-true (await-cond 10 (eq 'item:false (%item-value 'lamp))))
+    (is-true (await-cond 10 (eql 50 (%item-value 'lamp-level))))
+    (is (= 2 (%subscribed-paths)))
+    ;; switched at the lamp: the item follows, and nothing goes back
+    (%switch-lamp lamp t)
+    (is-true (await-cond 5 (eq 'item:true (%item-value 'lamp))))
+    (is (eq t (%lamp-on-p lamp)))
+    (%dim-lamp lamp 254)
+    (is-true (await-cond 5 (eql 100 (%item-value 'lamp-level))))
+    ;; the items' changes are commands
+    (hab:set-item-value 'lamp 'item:false)
+    (is-true (await-cond 5 (eq nil (%lamp-on-p lamp))))
+    (hab:set-item-value 'lamp 'item:true)
+    (is-true (await-cond 5 (eq t (%lamp-on-p lamp))))
+    (hab:set-item-value 'lamp-level 25)
+    (is-true (await-cond 5 (eql 64 (%lamp-level lamp))))
+    ;; which the lamp reports in its turn
+    (%barrier lamp)
+    (is (eql 25 (%item-value 'lamp-level)))
+    (is (eq 'item:true (%item-value 'lamp)))
+
+    ;; an item defined later joins the subscription: same attribute, same path
+    (hab:defitem 'lamp-state "Lamp state" 'boolean
+      (matter-binding :node 2 :endpoint 1 :cluster :on-off :command nil))
+    (is-true (await-cond 5 (eq 'item:true (%item-value 'lamp-state))))
+    (is (= 2 (%subscribed-paths)))
+    (%switch-lamp lamp nil)
+    (is-true (await-cond 5 (eq 'item:false (%item-value 'lamp-state))))
+    (is-true (await-cond 5 (eq 'item:false (%item-value 'lamp))))
+    ;; it is read only
+    (hab:set-item-value 'lamp-state 'item:true)
+    (%barrier lamp)
+    (is (eq nil (%lamp-on-p lamp)))
+    ;; a pull reads the attribute
+    (%dim-lamp lamp 127)
+    (binding:exec-pull (first (item:bindings (hab:get-item 'lamp-level))))
+    (is-true (await-cond 5 (eql 50 (%item-value 'lamp-level))))
+    (is (eql 127 (%lamp-level lamp)))))
+
+(test matter-binding--a-binding-that-goes-leaves-the-subscription
+  (with-fixture lamp-env ()
+    (is (listp (%commission-lamp lamp)))
+    (is (null (%subscription)))
+    (let ((switch (matter-binding :node "lamp" :endpoint 1 :cluster :on-off))
+          (level (matter-binding :node "lamp" :endpoint 1 :cluster :level-control)))
+      (is-true (await-cond 10 (eql 2 (%subscribed-paths))))
+      (binding:destroy level)
+      (is-true (await-cond 10 (eql 1 (%subscribed-paths))))
+      (binding:destroy switch)
+      (is-true (await-cond 10 (null (%subscription)))))))
+
+(test matter-binding--the-subscription-comes-back-with-a-new-session
+  (with-fixture lamp-env ()
+    (hab:defitem 'lamp "Lamp" 'boolean
+      (matter-binding :node "lamp" :endpoint 1 :cluster :on-off))
+    (is (listp (%commission-lamp lamp)))
+    (is-true (await-cond 10 (eq 'item:false (%item-value 'lamp))))
+    (let* ((controller binding-matter::*controller*)
+           (first (%subscription)))
+      (is-true first)
+      ;; the session goes, by a request that got no answer, say
+      (matter-actor-call (binding-matter::controller-actor controller)
+                         (lambda ()
+                           (binding-matter::%drop-session
+                            controller (binding-matter::%require-node controller "lamp")
+                            (subscription-session first))))
+      (is (null (%subscription)))
+      (is-false (subscription-active-p first))
+      ;; what happens at the lamp meanwhile is in the new subscription's first report
+      (%switch-lamp lamp t)
+      (is-true (await-cond 30 (%subscription)))
+      (is-false (eq first (%subscription)))
+      (is-true (await-cond 5 (eq 'item:true (%item-value 'lamp))))
+      (%switch-lamp lamp nil)
+      (is-true (await-cond 5 (eq 'item:false (%item-value 'lamp)))))))
+
+(test matter-binding--a-restarted-controller-subscribes-again
+  (with-fixture lamp-env ()
+    (hab:defitem 'lamp "Lamp" 'boolean
+      (matter-binding :node "lamp" :endpoint 1 :cluster :on-off))
+    (is (listp (%commission-lamp lamp)))
+    (is-true (await-cond 10 (eq 'item:false (%item-value 'lamp))))
+    (stop-controller)
+    (%switch-lamp lamp t)
+    ;; the binding outlives the controller: a change is logged, not signalled
+    (hab:set-item-value 'lamp 'item:false)
+    (%barrier lamp)
+    (is (eq t (%lamp-on-p lamp)))
+    (apply #'start-controller storage *test-controller-args*)
+    (is-true (await-cond 30 (eq 'item:true (%item-value 'lamp))))
+    (hab:set-item-value 'lamp 'item:false)
+    (is-true (await-cond 5 (eq nil (%lamp-on-p lamp))))))
