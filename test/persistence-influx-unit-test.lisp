@@ -9,20 +9,16 @@
 (defun table (&rest fields)
   (alexandria:plist-hash-table fields :test 'equal))
 
-(test %make-single-query-string--selects-latest-table-time-on-server
+(test %make-single-query-string--last-per-field-without-history-sort
   (let* ((persistence (influx:make-influx-persistence
                        :query-test :base-url "http://localhost" :token ""
                        :org "test" :bucket "test"))
-         (base (influx::%make-range-query-string persistence "sensor" nil))
-         (query (influx::%make-single-query-string persistence "sensor" t)))
-    (is (search "|> keep(columns: [\"_time\"])" query))
-    (is (search "|> group(columns: [])" query))
-    (is (search "|> sort(columns: [\"_time\"], desc: true)" query))
-    (is (search "|> limit(n: 1)" query))
-    (is (search "|> findColumn(fn: (key) => true, column: \"_time\")" query))
-    (is (search "contains(value: r._time, set: latestTimes)" query))
-    (is (string= (format nil "~a~%|> last()" base)
-                 (influx::%make-single-query-string persistence "sensor")))))
+         (base (influx::%make-range-query-string persistence "sensor" nil)))
+    (dolist (table-p '(nil t))
+      (let ((query (influx::%make-single-query-string persistence "sensor" table-p)))
+        (is (string= (format nil "~a~%|> last()" base) query))
+        (is (not (search "sort(" query)))
+        (is (not (search "group(" query)))))))
 
 (test %serialize-point--typed-and-escaped-fields
   (let ((line (influx::%serialize-point
@@ -151,6 +147,28 @@
              (is (= events-after-restore events))
              (is (= stores-after-restore (length (invocations 'persp:store)))))))
     (envi:shutdown-env)))
+
+(test %parsed-last-persisted-item--newest-fields-only-with-nanosecond-times
+  (let* ((old "2026-11-15T12:00:00.100000001Z")
+         (new "2026-11-15T12:00:00.100000002Z")
+         (numeric-rows (list (list "" "" "0" new "Temp" "30.5")
+                             (list "" "" "1" old "Removed" "10"))))
+    (dolist (rows (list numeric-rows (reverse numeric-rows)))
+      (let* ((csv (concatenate
+                   'string
+                   (annotated-csv "double" rows)
+                   (annotated-csv "string" (list (list "" "" "2" new "Label" "")))
+                   (annotated-csv "boolean" (list (list "" "" "3" new "On" "false")
+                                                  (list "" "" "4" old "RemovedBool" "true")))))
+             (latest (influx::%parsed-last-persisted-item csv 'table))
+             (value (persp:persisted-item-value latest)))
+        (is (= (influx::%parse-timestamp new) (persp:persisted-item-timestamp latest)))
+        (is (= 3 (hash-table-count value)))
+        (is (= 30.5 (gethash "Temp" value)))
+        (is (string= "" (gethash "Label" value)))
+        (is (eq 'item:false (gethash "On" value)))
+        (is (not (nth-value 1 (gethash "Removed" value))))
+        (is (not (nth-value 1 (gethash "RemovedBool" value))))))))
 
 (test %parsed-range-persisted-item--multiple-tables-types-multiline-and-empty-strings
   (let* ((old "2026-11-15T12:00:00Z")

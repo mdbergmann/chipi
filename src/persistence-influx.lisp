@@ -234,20 +234,10 @@ Specify those types as 'type-hint' in the item definition."))
   (com.inuoe.jzon:stringify value))
 
 (defun %make-single-query-string (persistence item-name &optional table-p)
-  (let ((query (%make-range-query-string persistence item-name nil)))
-    (if table-p
-        ;; Group timestamps alone to avoid merging heterogeneous _value columns.
-        ;; Keep the original typed tables and omit fields absent at the newest time.
-        (format nil "observations = ~a~%
-latestTimes = observations
-|> keep(columns: [\"_time\"])
-|> group(columns: [])
-|> sort(columns: [\"_time\"], desc: true)
-|> limit(n: 1)
-|> findColumn(fn: (key) => true, column: \"_time\")~%
-observations
-|> filter(fn: (r) => contains(value: r._time, set: latestTimes))" query)
-        (format nil "~a~%|> last()" query))))
+  (declare (ignore table-p))
+  ;; Flux keeps fields in separate typed tables. Return at most one row per
+  ;; field; the table reader discards fields older than the newest snapshot.
+  (format nil "~a~%|> last()" (%make-range-query-string persistence item-name nil)))
 
 (defun %make-range-query-string (persistence item-name range &optional aggregate table-p)
   (let ((base-pipe
@@ -461,9 +451,25 @@ Applied aggregate functions omit the _time column, in this case the timestamo in
 ;; Retrieve last
 ;; -------------------------------------
 
+(defun %last-table-persisted-item (body)
+  "Keep only fields at the maximum timestamp, including nanosecond precision."
+  (let ((latest-time nil)
+        (latest-text nil)
+        (table (make-hash-table :test 'equal)))
+    (dolist (row (%parse-csv-rows body))
+      (let ((timestamp (local-time:parse-timestring (influx-row-timestamp row))))
+        (when (or (null latest-time) (local-time:timestamp> timestamp latest-time))
+          (clrhash table)
+          (setf latest-time timestamp
+                latest-text (influx-row-timestamp row)))
+        (when (local-time:timestamp= timestamp latest-time)
+          (setf (gethash (influx-row-field row) table) (%typed-csv-value row)))))
+    (when latest-time
+      (make-persisted-item :value table :timestamp (%parse-timestamp latest-text)))))
+
 (defun %parsed-last-persisted-item (response-body type-hint)
   (if (item:table-type-hint-p type-hint)
-      (or (car (last (%table-persisted-items response-body)))
+      (or (%last-table-persisted-item response-body)
           (error "No persisted value for type ~a" type-hint))
       (let ((pairs (%parse-csv-to-time-value-pairs response-body)))
         (log:debug "Parsed pairs: ~a" pairs)

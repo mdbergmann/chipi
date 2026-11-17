@@ -351,18 +351,18 @@ instead of an error (influx responds with an empty body)."
                                       special-key special-value "Label" "second"
                                       "Empty" "" "On" 'item:false "Off" 'item:true)
                          second-time)
-      ;; Inspect the HTTP response itself: Lisp must not receive old snapshots.
+      ;; The response contains one latest row per field, including removed fields.
       (multiple-value-bind (body status)
           (chipi.influx-persistence::%make-query-request
            cut (act-cell:name item) nil nil t)
         (is (= 200 status))
         (let ((rows (chipi.influx-persistence::%parse-csv-rows body)))
-          (is (= 7 (length rows)))
+          (is (= 8 (length rows)))
           (dolist (row rows)
-            (is (= second-time
+            (is (= (if (string= "Removed" (chipi.influx-persistence::influx-row-field row))
+                       first-time second-time)
                    (chipi.influx-persistence::%parse-timestamp
-                    (chipi.influx-persistence::influx-row-timestamp row))))
-            (is (not (string= "Removed" (chipi.influx-persistence::influx-row-field row)))))))
+                    (chipi.influx-persistence::influx-row-timestamp row)))))))
       (let* ((latest (persp:retrieve cut item))
              (value (persisted-item-value latest)))
         (is (= second-time (persisted-item-timestamp latest)))
@@ -397,6 +397,38 @@ instead of an error (influx responds with an empty body)."
                       (progn
                         (is (= 3 (hash-table-count table)))
                         (is (not (nth-value 1 (gethash "Label" table))))) ))))))
+
+(test retrieve--latest-table-response-bounded-by-fields-with-nanosecond-removals
+  (with-fixture init-destroy-env ()
+    (let* ((cut (make-cut))
+           (item (make-test-item 'latest-fields :type-hint 'table))
+           (timestamp (- (get-universal-time) 5))
+           (unix (chipi.influx-persistence::%universal-to-unix-ts timestamp)))
+      (setf (slot-value cut 'chipi.influx-persistence::precision) "ns")
+      ;; Repeated snapshots increase history size, but not the latest response.
+      (dotimes (index 20)
+        (is (= 204 (nth-value 1
+                             (chipi.influx-persistence::%make-write-request
+                              cut (act-cell:name item)
+                              (table-value "Temp" index "Removed" "old")
+                              (+ (* unix 1000000000) index))))))
+      (is (= 204 (nth-value 1
+                           (chipi.influx-persistence::%make-write-request
+                            cut (act-cell:name item)
+                            (table-value "Temp" 30.5 "On" 'item:false "Label" "latest")
+                            (+ (* unix 1000000000) 20)))))
+      (multiple-value-bind (body status)
+          (chipi.influx-persistence::%make-query-request cut (act-cell:name item) nil nil t)
+        (is (= 200 status))
+        (is (= 4 (length (chipi.influx-persistence::%parse-csv-rows body)))))
+      (let* ((latest (persp:retrieve cut item))
+             (value (persisted-item-value latest)))
+        (is (= timestamp (persisted-item-timestamp latest)))
+        (is (= 3 (hash-table-count value)))
+        (is (= 30.5 (gethash "Temp" value)))
+        (is (eq 'item:false (gethash "On" value)))
+        (is (string= "latest" (gethash "Label" value)))
+        (is (not (nth-value 1 (gethash "Removed" value))))))))
 
 (test retrieve--table-no-data-preserves-startup-state
   (with-fixture init-destroy-env ()
