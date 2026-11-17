@@ -1195,17 +1195,6 @@ chart in W lost its minus signs and leading digits."
           plot-id plot-id ts
           (loop :for value :in values :for i :from 1 :append (list i value))))
 
-(defun %uplot-append-js (plot-id ts series-count series-idx y-literal
-                          &optional field)
-  "Appends Y-LITERAL to SERIES-IDX (1-based).
-For field charts other series receive undefined alignment cells, matching
-uPlot.join. Explicit missing observations remain null and break the line.
-Scalar charts retain their existing null alignment cells."
-  (%uplot-append-row-js
-   plot-id ts
-   (loop :for i :from 1 :to series-count
-         :collect (if (= i series-idx) y-literal (if field "undefined" "null")))))
-
 (defun %right-axis-series-p (item-name field selectors)
   "Match ITEM-NAME and its effective FIELD against right-axis SELECTORS.
 A bare item symbol selects all its series; a field selector selects one field."
