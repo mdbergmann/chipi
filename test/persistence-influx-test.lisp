@@ -93,9 +93,31 @@
    :org (test-setting "CHIPI_TEST_INFLUX_ORG")
    :bucket (test-setting "CHIPI_TEST_INFLUX_BUCKET")))
 
+(defun make-test-run-prefix (&optional (timestamp (get-universal-time)))
+  (format nil "test-~d-~32,'0x" timestamp
+          (random (expt 2 128) (make-random-state t))))
+
+(defparameter *test-run-prefix* (make-test-run-prefix))
+
 (defun make-test-item (id &rest args)
   (apply #'item:make-item
-         (make-symbol (format nil "~a-~a" id (symbol-name (gensym "test-")))) args))
+         (make-symbol (format nil "~a-~a-~a" *test-run-prefix* id
+                              (symbol-name (gensym "test-")))) args))
+
+(test make-test-item--distinct-within-run-and-across-restarted-counters
+  (unwind-protect
+       (let ((initial-random-state (make-random-state nil)))
+         ;; Independent runs may start during the same second, with identical
+         ;; default random states and gensym counters.
+         (flet ((run-name ()
+                  (let* ((*random-state* (make-random-state initial-random-state))
+                         (*test-run-prefix* (make-test-run-prefix 4000000000))
+                         (*gensym-counter* 0))
+                    (act-cell:name (make-test-item 'same-id)))))
+           (is (not (string= (run-name) (run-name)))))
+         (is (not (string= (act-cell:name (make-test-item 'same-id))
+                           (act-cell:name (make-test-item 'same-id))))))
+    (envi:shutdown-env)))
 
 (defmacro test-type-value (type value itemid)
   `(let ((cut (make-cut))
