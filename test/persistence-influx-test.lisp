@@ -114,6 +114,20 @@
   (with-fixture init-destroy-env ()
     (test-type-value 'string "some string" 'stringfield)))
 
+(test influx-persistence--write--multiline-scalar-strings
+  (with-fixture init-destroy-env ()
+    (let ((cut (make-cut)))
+      (dolist (separator (list (string #\Newline) (string #\Return)
+                              (format nil "~c~c" #\Return #\Newline)))
+        (let ((item (make-test-item 'multiline-scalar :type-hint 'string))
+              (value (format nil "first~asecond \"quote\" slash\\" separator)))
+          ;; Verify write acceptance without changing the scalar CSV parser.
+          (is (= 204 (nth-value 1
+                               (chipi.influx-persistence::%make-write-request
+                                cut (act-cell:name item) value
+                                (chipi.influx-persistence::%universal-to-unix-ts
+                                 (get-universal-time)))))))))))
+
 (test influx-persistence--store-and-fetch--int-type
   "Store an integer value in a `influx` persistence and fetch the last one."
   (with-fixture init-destroy-env ()
@@ -272,6 +286,29 @@ instead of an error (influx responds with an empty body)."
                        (chipi.influx-persistence::%make-write-request
                         persistence (act-cell:name item) fields
                         (chipi.influx-persistence::%universal-to-unix-ts universal-time))))))
+
+(test retrieve-range--multiline-table-strings-roundtrip
+  (with-fixture init-destroy-env ()
+    (let* ((cut (make-cut))
+           (item (make-test-item 'multiline-table :type-hint 'table))
+           (timestamp (- (get-universal-time) 5))
+           (lf (format nil "first~%second \"quote\" slash\\"))
+           (crlf (format nil "first~c~csecond \"quote\" slash\\" #\Return #\Newline))
+           (cr (format nil "first~csecond \"quote\" slash\\" #\Return))
+           (range (persp:make-absolute-range (1- timestamp) (1+ timestamp))))
+      (write-table-point cut item (table-value "LF" lf "CRLF" crlf "CR" cr) timestamp)
+      (let* ((latest (persp:retrieve cut item))
+             (history (persp:retrieve-range cut item range)))
+        (is (= 1 (length history)))
+        (dolist (point (list latest (first history)))
+          (is (= timestamp (persisted-item-timestamp point)))
+          (let ((value (persisted-item-value point)))
+            (is (= 3 (hash-table-count value)))
+            ;; InfluxDB CSV normalizes LF to CRLF and removes bare CR.
+            ;; A raw HTTP probe confirms this happens before Lisp parses CSV.
+            (is (string= crlf (gethash "LF" value)))
+            (is (string= crlf (gethash "CRLF" value)))
+            (is (string= "firstsecond \"quote\" slash\\" (gethash "CR" value)))))))))
 
 (test retrieve-range--tables-roundtrip-and-aggregates
   (with-fixture init-destroy-env ()

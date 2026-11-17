@@ -36,6 +36,27 @@
     (is (search "a\\,\\ b\\=c=\"quote\\\" slash\\\\\"" line))
     (is (alexandria:ends-with-subseq " 123" line))))
 
+(test %serialize-point--multiline-string-values
+  (dolist (separator (list (string #\Newline) (string #\Return)
+                          (format nil "~c~c" #\Return #\Newline)))
+    (let ((value (format nil "first~asecond \"quote\" slash\\" separator))
+          (escaped (format nil "\"first~asecond \\\"quote\\\" slash\\\\\"" separator)))
+      (is (string= (format nil "sensor,item=sensor value=~a 123" escaped)
+                   (influx::%serialize-point "sensor" value 123)))
+      (is (string= (format nil "sensor,item=sensor Text=~a 123" escaped)
+                   (influx::%serialize-point "sensor" (table "Text" value) 123))))))
+
+(test %make-write-request--multiline-names-never-call-http
+  (with-mocks ()
+    (answer (drakma:http-request) (error "Unexpected HTTP request: ~a" :invalid-name))
+    (dolist (separator (list (string #\Newline) (string #\Return)
+                            (format nil "~c~c" #\Return #\Newline)))
+      (let ((name (format nil "first~asecond" separator)))
+        (signals error (influx::%make-write-request nil name "value" 123))
+        (signals error (influx::%make-write-request nil name (table "Text" "value") 123))
+        (signals error (influx::%make-write-request nil "sensor" (table name "value") 123))))
+    (is (null (invocations 'drakma:http-request)))))
+
 (test %make-write-request--invalid-snapshot-never-calls-http
   (with-mocks ()
     (answer (drakma:http-request) (error "Unexpected HTTP request: ~a" :invalid))
@@ -47,8 +68,6 @@
     (dolist (number (list (1+ (expt 2 53)) (- (1+ (expt 2 53))) (expt 2 1024)))
       (signals error
         (influx::%make-write-request nil "name" (table "number" number) 123)))
-    (signals error
-      (influx::%make-write-request nil "name" (table "multiline" (format nil "a~%b")) 123))
     (signals error
       (influx::%make-write-request nil "name" (table "" 1) 123))
     (signals error
@@ -136,7 +155,8 @@
 (test %parsed-range-persisted-item--multiple-tables-types-multiline-and-empty-strings
   (let* ((old "2026-11-15T12:00:00Z")
          (new "2026-11-15T12:00:01Z")
-         (text (format nil "comma, quote\"~%next line"))
+         (text (format nil "comma, quote\" slash\\~%next~c~cline~ctail"
+                       #\Return #\Newline #\Return))
          (csv (concatenate
                'string
                (annotated-csv "double" (list (list "" "" "0" new "Temp" "30.5")

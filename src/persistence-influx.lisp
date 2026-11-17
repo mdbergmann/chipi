@@ -38,9 +38,9 @@ as finite doubles; precision loss or overflow is rejected before HTTP. Integral
 doubles restore as integers, and fractional doubles restore as single-floats.
 Influx skips empty table snapshots, so restore
 returns the last nonempty snapshot. Simple file persistence stores and restores
-empty snapshots as well. Line protocol cannot
-represent CR/LF, empty field names, the reserved field name time, or names ending
-with a backslash.
+empty snapshots as well. String values accept CR/LF on write. InfluxDB CSV
+responses normalize LF to CRLF and remove bare CR from string values. Names
+cannot contain CR/LF or end with a backslash. Field names cannot be empty or equal time.
 
 Other value types are not supported.
 Specify those types as 'type-hint' in the item definition."))
@@ -69,7 +69,7 @@ Specify those types as 'type-hint' in the item definition."))
 
 (defun %check-line-text (text)
   (when (find-if (lambda (character) (find character '(#\Return #\Newline))) text)
-    (error "Influx line protocol does not support CR/LF in names or strings: ~s" text))
+    (error "Influx line protocol does not support CR/LF in names: ~s" text))
   text)
 
 (defun %escape-line-name (name &optional measurement-p)
@@ -85,7 +85,6 @@ Specify those types as 'type-hint' in the item definition."))
               (write-char character stream))))
 
 (defun %line-string (value)
-  (%check-line-text value)
   (with-output-to-string (stream)
     (write-char #\" stream)
     (loop :for character :across value
