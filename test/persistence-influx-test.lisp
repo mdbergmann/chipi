@@ -326,11 +326,38 @@ instead of an error (influx responds with an empty body)."
           (is (= timestamp (persisted-item-timestamp point)))
           (let ((value (persisted-item-value point)))
             (is (= 3 (hash-table-count value)))
-            ;; InfluxDB CSV normalizes LF to CRLF and removes bare CR.
-            ;; A raw HTTP probe confirms this happens before Lisp parses CSV.
-            (is (string= crlf (gethash "LF" value)))
-            (is (string= crlf (gethash "CRLF" value)))
+            ;; Table reads canonicalize server CRLF to LF; bare CR is lost upstream.
+            (is (string= lf (gethash "LF" value)))
+            (is (string= lf (gethash "CRLF" value)))
             (is (string= "firstsecond \"quote\" slash\\" (gethash "CR" value)))))))))
+
+(test retrieve--lf-table-restore-does-not-republish-identical-reading
+  (with-fixture init-destroy-env ()
+    (let* ((cut (make-cut))
+           (original (table-value "Text" (format nil "first~%second \"quote\" slash\\")
+                                  "Empty" ""))
+           (item (make-test-item 'lf-restore :type-hint 'table))
+           (events 0))
+      (write-table-point cut item original (- (get-universal-time) 1))
+      (with-mocks ()
+        (answer ev:publish (incf events))
+        (answer persp:store t)
+        (item:add-persistence item cut :load-on-start t :frequency :every-change)
+        (is-true (miscutils:await-cond 2
+                   (equalp original (item:item-state-value (item:get-item-stateq item)))))
+        (let ((barrier (item:get-value item)))
+          (is-true (miscutils:await-cond 1 (hash-table-p (future:fresult barrier)))))
+        (is (= 1 events))
+        (is (null (invocations 'persp:store)))
+        (let ((events-after-restore events)
+              (stores-after-restore (length (invocations 'persp:store)))
+              (timestamp (item:item-state-timestamp (item:get-item-stateq item))))
+          (item:set-value item original :timestamp (1+ timestamp))
+          (let ((barrier (item:get-value item)))
+            (is-true (miscutils:await-cond 1 (hash-table-p (future:fresult barrier)))))
+          (is (= timestamp (item:item-state-timestamp (item:get-item-stateq item))))
+          (is (= events-after-restore events))
+          (is (= stores-after-restore (length (invocations 'persp:store)))))))))
 
 (test retrieve-range--tables-roundtrip-and-aggregates
   (with-fixture init-destroy-env ()

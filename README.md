@@ -438,7 +438,9 @@ doubles; InfluxDB persistence rejects precision loss or overflow before HTTP.
 Integral doubles restore as integers; fractional doubles restore as single-floats.
 These backend limits do not restrict integers in memory or file persistence.
 String values accept CR/LF on write. InfluxDB CSV responses normalize LF to CRLF
-and remove bare CR from string values. InfluxDB persistence rejects CR/LF in names, empty
+and remove bare CR from string values. Table reads canonicalize CRLF to LF,
+including genuine CRLF input. The server's bare CR loss cannot be recovered.
+InfluxDB persistence rejects CR/LF in names, empty
 field names, names ending in a backslash, and the exact field name `time`.
 History returns only fields recorded at each timestamp. Writes within the same
 second can merge.

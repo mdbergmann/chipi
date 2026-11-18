@@ -39,7 +39,9 @@ doubles restore as integers, and fractional doubles restore as single-floats.
 Influx skips empty table snapshots, so restore
 returns the last nonempty snapshot. Simple file persistence stores and restores
 empty snapshots as well. String values accept CR/LF on write. InfluxDB CSV
-responses normalize LF to CRLF and remove bare CR from string values. Names
+responses normalize LF to CRLF and remove bare CR from string values. Table
+reads canonicalize CRLF to LF, including genuine CRLF input. The server's bare
+CR loss cannot be recovered. Names
 cannot contain CR/LF or end with a backslash. Field names cannot be empty or equal time.
 
 Other value types are not supported.
@@ -385,7 +387,15 @@ Applied aggregate functions omit the _time column, in this case the timestamo in
 (defun %typed-csv-value (row)
   (let ((value (influx-row-value row)) (datatype (influx-row-datatype row)))
     (cond
-      ((equal datatype "string") value)
+      ((equal datatype "string")
+       ;; InfluxDB emits embedded LF as CRLF; canonicalize table values only.
+       (with-output-to-string (output)
+         (loop :for index :from 0 :below (length value)
+               :for character = (char value index)
+               :unless (and (char= character #\Return)
+                            (< (1+ index) (length value))
+                            (char= (char value (1+ index)) #\Newline))
+                 :do (write-char character output))))
       ((equal datatype "boolean")
        (cond ((string= value "true") 'item:true)
              ((string= value "false") 'item:false)

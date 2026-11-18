@@ -170,6 +170,34 @@
         (is (not (nth-value 1 (gethash "Removed" value))))
         (is (not (nth-value 1 (gethash "RemovedBool" value))))))))
 
+(test %typed-csv-value--string-line-endings
+  (let ((lf (format nil "first~%second")))
+    (dolist (pair (list (cons (format nil "first~c~csecond" #\Return #\Newline) lf)
+                        (cons lf lf)
+                        (cons (format nil "first~csecond" #\Return)
+                              (format nil "first~csecond" #\Return))
+                        (cons (format nil "a~c~cb~%c~cd~c~c" #\Return #\Newline
+                                           #\Return #\Return #\Newline)
+                              (format nil "a~%b~%c~cd~%" #\Return))
+                        (cons "" "")
+                        (cons "quote\" slash\\" "quote\" slash\\")))
+      (is (string= (cdr pair)
+                   (influx::%typed-csv-value
+                    (influx::make-influx-row :value (car pair) :datatype "string")))))))
+
+(test %parsed-table-strings--latest-and-range-preserve-field-names
+  (let* ((field (format nil "field~c~cname" #\Return #\Newline))
+         (csv (annotated-csv
+               "string" (list (list "" "" "0" "2026-11-15T12:00:00Z" field
+                                    (format nil "first~c~csecond" #\Return #\Newline)))))
+         (latest (influx::%parsed-last-persisted-item csv 'table))
+         (history (influx::%parsed-range-persisted-item csv 'table)))
+    (is (= 1 (length history)))
+    (dolist (point (list latest (first history)))
+      (let ((value (persp:persisted-item-value point)))
+        (is (= 1 (hash-table-count value)))
+        (is (string= (format nil "first~%second") (gethash field value)))))))
+
 (test %parsed-range-persisted-item--multiple-tables-types-multiline-and-empty-strings
   (let* ((old "2026-11-15T12:00:00Z")
          (new "2026-11-15T12:00:01Z")
@@ -188,7 +216,8 @@
          (first (persp:persisted-item-value (first items)))
          (last (persp:persisted-item-value (second items))))
     (is (= 2 (length items)))
-    (is (string= text (gethash "Label" first)))
+    (is (string= (format nil "comma, quote\" slash\\~%next~%line~ctail" #\Return)
+                 (gethash "Label" first)))
     (is (eq 'item:true (gethash "On" first)))
     (is (= 30.5 (gethash "Temp" last)))
     (is (string= "" (gethash "Label" last)))
