@@ -1,5 +1,5 @@
 (defsystem "chipi"
-  :version "0.9.8"
+  :version "0.9.9"
   :author "Manfred Bergmann"
   :license "Apache-2"
   :depends-on ("alexandria"
