@@ -8,9 +8,10 @@ Chipi plays two Matter roles with this plugin:
   Home (lights, window contacts, thermostats; since 2026-11-11, on AmiLisp).
 - as a **controller**, Chipi commissions Matter devices into a fabric of its
   own, and they become items with `matter-binding`: state by subscription,
-  changes as commands. That runs against an in-process device in the tests;
-  finding a device on the network and pairing it from its code follow
-  (`specs/binding-matter.md`, and *The controller, so far* below).
+  changes as commands, found on the network and paired from their code at
+  the REPL. That runs against an in-process device in the tests; the bench
+  with a real device is owed (`specs/binding-matter.md`, and *The
+  controller, so far* below).
 
 The protocol is [cl-matter](../../../cl-matter), a Matter implementation in
 Common Lisp with a device and a controller side.
@@ -457,14 +458,17 @@ the TXT; `_matter._tcp` shows one instance per fabric once it is paired.
 - **OTA.** Apple Home writes to an OTA requestor cluster the bridge does not
   have and takes the refusal; harmless.
 - **SBCL.** No IPv6 and no mDNS in cl-matter's SBCL backend: tests only.
-- **The controller role** -- Matter devices as items -- has no discovery
-  yet; see the next section.
+- **The controller role** -- Matter devices as items -- is driven from the
+  REPL and has not met a real device yet; see the next section.
 
 ##### The controller, so far
 
-Phases 1 and 2 of `specs/binding-matter.md`: the fabric, the node registry,
-and the binding that makes an item of a node's attribute. Nothing here
-finds a device on the network yet.
+Phases 1 to 3 of `specs/binding-matter.md`: the fabric, the node registry,
+the binding that makes an item of a node's attribute, and the way a device
+gets there -- found on the network, commissioned from its pairing code,
+labelled, described -- as functions for the REPL. The view for it in
+chipi-ui and what a real network asks for (a node whose address changed, a
+node that is off) are not there yet.
 
 ```lisp
 (defconfig "my-home"
@@ -483,6 +487,7 @@ nothing else. The keys:
 | `:vendor-id` | `#xFFF1` | the test vendor, fine for a private fabric |
 | `:attestation` | `:ignore` | how a device is checked when it is commissioned: `:ignore` accepts any device that holds the key of its attestation certificate, `:verify` checks the chain against cl-matter's trust store, which has the SDK's test authorities only |
 | `:label` | `"Chipi"` | the name the nodes list Chipi's fabric under for their other administrators (`UpdateFabricLabel` after commissioning) |
+| `:interface` | all | the network interface discovery asks on (`"en0"`) |
 
 Two files in the storage directory: `commissioner.state` -- the fabric with
 its root key, the node ids handed out, the resumption records; whoever has
@@ -585,11 +590,129 @@ node is reached at the address it was commissioned at: no operational
 discovery yet, so a node whose address changed is lost until then. A
 subscription lives on its session and goes with it.
 
-Commissioning is there as the internal `%commission-at` -- address, port,
-passcode and label given -- which the integration test uses: PASE,
-attestation, the NOC, CommissioningComplete, then the read of what the node
-is and the fabric label. `matter-commission`, which finds the device from
-its pairing code, comes with discovery (phase 3).
+###### From pairing code to item
+
+```lisp
+(matter-discover)
+;; => (:commissionable (...)   ; devices whose pairing window is open
+;;     :operational (...)      ; nodes of Chipi's fabric that answer
+;;     :silent (...))          ; nodes of the registry that do not
+
+(matter-commission "3497-011-2332" :label "kitchen-lamp")   ; => the node's plist
+(matter-describe "kitchen-lamp")                            ; prints what it is
+```
+
+```
+Matter node "kitchen-lamp", node id 2
+  ACME Lamp, vendor #xFFF1 product #x8000, serial L-0001
+  at fe80::1234 port 5540, commissioned 2026-11-17 15:02
+
+  endpoint 0: Root Node
+    clusters: descriptor, basic-information, ...
+
+  endpoint 1: On/Off Light
+    clusters: identify, on-off, descriptor
+
+(deflight kitchen-lamp "kitchen-lamp"
+  (matter-binding :node "kitchen-lamp" :endpoint 1 :cluster :on-off))
+```
+
+The form goes into the configuration, and that is the item: defining items
+stays a matter of the configuration file.
+
+**The device's pairing window must be open.** A new device opens it when it
+is powered. One that is in Apple Home or Google Home already gets it opened
+there ("pairing mode"), which also shows the code to use here; Chipi then is
+one more administrator next to that app, and the device stays where it was.
+
+**The code** is the manual pairing code -- 11 or 21 digits, dashes and
+blanks ignored -- or the text of the QR code (`MT:...`).
+`matter-decode-pairing-code` says what a code carries, and signals for one
+that is none (a wrong check digit). The device is searched for by the code's
+discriminator (mDNS, three seconds); several that answer are told apart by
+the vendor and product of the code, and when the code has none the
+commissioning fails and names them: give it the one meant, an entry of
+`matter-discover`'s `:commissionable`, as `:device`.
+
+**The label** is the node's name in Chipi, the `:node` of its bindings.
+Without one the node is called what the device advertises (`DN`), else
+`matter-node`; a label that is taken gets `-2`, `-3`, and one that is given
+and taken is an error. It is also written to the device's NodeLabel, the
+name its other apps show, unless `:device-label nil`.
+
+**A commissioning is a job** that the controller's actor works through
+while its caller watches. `matter-commission` waits for it (`:wait`, 120
+seconds) and signals a `matter-commissioning-error`, which says in plain
+words in which state it failed and why; `matter-start-commissioning` returns
+the job at once, for a view:
+
+```lisp
+(matter-start-commissioning "3497-011-2332" :label "kitchen-lamp"
+  :on-step (lambda (job) (print (commissioning-job-state job)))
+  :on-complete (lambda (node-or-error) ...))
+(matter-commissioning-job)        ; the job that runs, or ran last
+```
+
+| State | |
+|---|---|
+| `:discovering` | finding the device (on a task's thread: mDNS blocks) |
+| `:pairing` | establishing the pairing session (PASE), arming the fail-safe |
+| `:attesting` | checking the device's identity, as `:attestation` says |
+| `:credentials` | issuing credentials: the CSR, the root certificate, the NOC |
+| `:completing` | the first CASE session, CommissioningComplete |
+| `:reading` | reading what the device is into the registry |
+| `:labeling` | the NodeLabel and the fabric label |
+| `:done`, `:failed` | `commissioning-job-node` has the plist, `commissioning-job-error` the condition |
+
+One commissioning at a time. From `:reading` on the device is a node of the
+fabric and in the registry, whatever happens: what fails there is logged.
+Both callbacks run on the controller actor's thread and must not block. A
+job that is under way when the controller stops fails with that.
+
+###### What is done to a node
+
+```lisp
+(matter-set-label "kitchen-lamp" "kitchen")           ; registry and NodeLabel
+(matter-open-window "kitchen" :timeout 300)           ; a code for the next app
+(matter-decommission "kitchen")                       ; leave the device
+(matter-await (matter-open-window "kitchen"))         ; => (:manual-code "..." :qr-code "MT:..." ...)
+```
+
+They are requests to the node like `matter-read`, and return futures;
+`matter-await` waits on one at the REPL and signals what it failed with.
+
+- `matter-set-label` renames the node. Bindings that name the new label bind
+  it from then on, those that name the old one no longer do: change the
+  configuration along with it. `:device-label nil` leaves the device's own
+  NodeLabel alone.
+- `matter-open-window` asks the device to open its pairing window, 180 to
+  900 seconds, with a passcode made for that window: the manual code and
+  the QR text for the next app (`qr-string`, `qr-svg` draw it). The reverse
+  of how Chipi got in.
+- `matter-decommission` has the device remove Chipi's fabric and forgets
+  the node; the device stays with its other apps, and one that has none
+  opens its window again. A device that does not answer keeps the node in
+  the registry, unless `:force t`: for a device that is gone for good. The
+  items bound to the node keep their last value.
+- `matter-describe` prints what `matter-suggestions` returns as data: each
+  endpoint with its device types, its clusters, the items bound to it
+  (`matter-items-of`; `matter-node-of` is the way back from an item) and,
+  where no item is bound, the definer its device type suggests:
+
+| Device type | Suggested |
+|---|---|
+| On/Off Light, On/Off Plug-in Unit | `deflight`, `defplug` on `:on-off` |
+| Dimmable, Color Temperature, Extended Color Light | `defdimmablelight`: switch and level, no colour |
+| Contact Sensor | `defcontact`, the state inverted |
+| Temperature, Humidity, Occupancy Sensor | `defitem`, scaled |
+| Window Covering | `defrollershutter`: move, stop, position |
+| Thermostat | `defheating`: temperature, and the setpoint read only |
+| Generic Switch | a remark: its presses are events, which are not taken yet |
+
+What is not there: the view in chipi-ui (the next phase), a node found
+again when its address changed, attributes that are written. On SBCL
+discovery finds nothing -- no multicast in cl-matter's backend there -- so
+the search is AmiLisp's; with `:device` a commissioning runs anywhere.
 
 ##### How it runs
 
@@ -615,8 +738,9 @@ above), `matter-actors.lisp` (the polling actor), `matter-convert.lisp`
 `binding-matter/ui`), `matter-registry.lisp` (the controller's node
 registry), `matter-controller.lisp` (the controller: fabric, sessions,
 subscriptions, `matter-read`, `matter-invoke`), `matter-binding.lisp` (the
-controller's binding), `binding-matter.lisp` (`matter-init`,
-`matter-shutdown`).
+controller's binding), `matter-commissioning.lisp` (discovery, the
+commissioning job, labels, the window, `matter-describe`),
+`binding-matter.lisp` (`matter-init`, `matter-shutdown`).
 
 #### Tests
 
@@ -634,7 +758,9 @@ writes a heating's setpoint. The controller has the same two: unit tests
 (registry, futures, start and stop, the keys and conversions of
 `matter-binding`) and an integration test in which it commissions an
 in-process cl-matter lamp over loopback UDP, and items with a
-`matter-binding` follow the lamp by subscription and switch and dim it. `(asdf:test-system :binding-matter/ui-tests)`
+`matter-binding` follow the lamp by subscription and switch and dim it; the
+lamp is also what a pairing code is commissioned against, renamed, opened
+for a next administrator and decommissioned, with the mDNS search mocked. `(asdf:test-system :binding-matter/ui-tests)`
 renders the settings card into a stubbed CLOG connection. All run on SBCL
 and on AmiLisp. From the shell, `scripts/review/run-tests.sh matter` runs
 both suites on SBCL and exits non-zero when a check fails (`CL_MATTER_DIR`

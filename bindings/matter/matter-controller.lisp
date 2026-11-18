@@ -19,10 +19,14 @@
 ;; (matter-binding.lisp) bind on a node are one subscription on its session,
 ;; and what the node reports is set on the bound items.
 ;;
-;; What this is not yet: no discovery (a node is reached at the address it
-;; was commissioned at) and no reconnect backoff.  A session whose request
-;; timed out is dropped, and the next request opens a new one; a
-;; subscription that ended is asked for again every `*resubscribe-delay*'.
+;; How a device becomes a node -- discovery, the commissioning job -- and
+;; what is done to a node as a whole is in matter-commissioning.lisp.
+;;
+;; What this is not yet: a node is reached at the address it was
+;; commissioned at (no re-resolve) and there is no reconnect backoff.  A
+;; session whose request timed out is dropped, and the next request opens a
+;; new one; a subscription that ended is asked for again every
+;; `*resubscribe-delay*'.
 
 (defvar *controller* nil
   "The running Matter controller of this process, a `controller', or NIL.")
@@ -60,14 +64,18 @@ a timer is set that will ask (SUBSCRIBE-SCHEDULED-P)."
 polls, the Secure CHANNEL and Interaction MODEL on it, the cl-matter
 COMMISSIONER with Chipi's fabric, the STORAGE directory, the node entries
 of the registry (NODES, oldest first), the CONNECTIONS by node id, how a
-device's ATTESTATION is checked at commissioning, and the FABRIC-LABEL the
-nodes are told to list Chipi's fabric under."
+device's ATTESTATION is checked at commissioning, the FABRIC-LABEL the
+nodes are told to list Chipi's fabric under, the network INTERFACE
+discovery asks on (NIL: all), and JOB, the `commissioning-job' that runs
+or ran last."
   actor manager channel model commissioner
   storage
   (nodes '())
   (connections (make-hash-table))
   (attestation :ignore)
   fabric-label
+  interface
+  job
   ;; the resolve functions of futures not settled yet; actor context only
   (pending (make-hash-table :test 'eq)))
 
@@ -458,96 +466,6 @@ The future fails with the condition that says why not, as `matter-read's does. W
                               (log:warn "Matter controller: a binding names the node ~s, which is not commissioned" node)))))))
 
 ;; -----------------------------
-;; commissioning, at a known address
-;; -----------------------------
-
-;; The whole ceremony -- finding the device from its pairing code, the
-;; steps a wizard shows -- comes with discovery.  This is its core: a
-;; device whose address and passcode are known becomes a node of the
-;; fabric and an entry of the registry.
-
-(defun %describe-paths ()
-  "What a node is asked about itself: its Basic Information and the Descriptor of every endpoint."
-  (list (matter:attribute-path 0 matter:+cluster-basic-information+ nil)
-        (matter:attribute-path nil matter:+cluster-descriptor+ nil)))
-
-(defun %label-fabric (controller entry session done)
-  "Tells the node of `ENTRY' the name of Chipi's fabric, then calls `DONE'. A node that does not take it is no failure of the commissioning: it is logged."
-  (let ((label (controller-fabric-label controller)))
-    (if (and label (plusp (length label)))
-        (matter:start-fabric-label-update
-         (controller-commissioner controller) session label
-         :on-complete (lambda (interaction error)
-                        (declare (ignore interaction))
-                        (when error
-                          (log:warn "Matter controller: ~a did not take the fabric label ~s: ~a" entry label error))
-                        (funcall done)))
-        (funcall done))))
-
-(defun %describe-node (controller entry session done)
-  "Reads what the node of `ENTRY' says about itself into the entry and the registry file, then calls `DONE'. A node that does not say is logged and stays registered by its id and label."
-  (matter:start-read (controller-model controller) session (%describe-paths)
-                     :on-complete (lambda (interaction)
-                                    ;; whatever the answer is made of, DONE is called
-                                    (handler-case
-                                        (multiple-value-bind (reports condition)
-                                            (%interaction-outcome controller entry session interaction)
-                                          (when condition (error condition))
-                                          (describe-node-entry entry reports)
-                                          (%write-registry controller))
-                                      (error (c)
-                                        (log:warn "Matter controller: ~a does not describe itself: ~a" entry c)))
-                                    (funcall done))))
-
-(defun %commissioned (controller commissioning label host port resolve)
-  "The end of a commissioning flow: a failed one resolves with its condition; a node that joined is registered under `LABEL' at once -- it is on the fabric whatever happens next --, then described and told the fabric's name, and `RESOLVE' gets its plist."
-  (if (not (matter:commissioning-complete-p commissioning))
-      (funcall resolve (matter:commissioning-condition commissioning))
-      (let* ((result (matter:commissioning-result commissioning))
-             (session (getf result :session))
-             (now (get-universal-time))
-             (entry (make-node-entry :node-id (getf result :node-id)
-                                     :label (unique-node-label (controller-nodes controller) label)
-                                     :addresses (list host) :port port
-                                     :commissioned-at now :last-seen now)))
-        (setf (controller-nodes controller) (append (controller-nodes controller) (list entry))
-              (connection-session (%connection controller (node-entry-node-id entry))) session)
-        (%write-commissioner-state controller)
-        (%write-registry controller)
-        (log:info "Matter controller: commissioned ~a at [~a]:~d" entry host port)
-        ;; bindings that were defined before their node was commissioned
-        (%schedule-subscribe controller entry)
-        (flet ((finish ()
-                 (funcall resolve (node-entry-plist entry))))
-          (handler-case
-              (%describe-node controller entry session
-                              (lambda ()
-                                (handler-case (%label-fabric controller entry session #'finish)
-                                  (error (c)
-                                    (log:warn "Matter controller: fabric label for ~a: ~a" entry c)
-                                    (finish)))))
-            (error (c)
-              (log:warn "Matter controller: ~a does not describe itself: ~a" entry c)
-              (finish)))))))
-
-(defun %commission-at (host port &key passcode label (country-code *commissioning-country-code*))
-  "Commissions the device at `HOST':`PORT', whose commissioning window is open for `PASSCODE', into Chipi's fabric and registers it under `LABEL'. Returns a future of the new node's plist, as `matter-nodes' lists it; it fails with the condition that says why the device did not join.
-The device's attestation is checked as the controller was configured (`:attestation'). The pure-Lisp handshakes take their seconds: wait on the future with a generous timeout."
-  (unless (and (stringp label) (plusp (length label)))
-    (error "A node needs a label, a string that is not empty, not: ~s" label))
-  (%controller-future
-   (lambda (controller resolve)
-     (when (find-node-entry (controller-nodes controller) label)
-       (error "A Matter node ~s is commissioned already" label))
-     (matter:start-commissioning
-      (controller-commissioner controller) host port
-      :passcode passcode :country-code country-code
-      :attestation (controller-attestation controller)
-      :on-complete (lambda (commissioning)
-                     (handler-case (%commissioned controller commissioning label host port resolve)
-                       (error (c) (funcall resolve c))))))))
-
-;; -----------------------------
 ;; start and stop
 ;; -----------------------------
 
@@ -580,8 +498,11 @@ The device's attestation is checked as the controller was configured (`:attestat
     (dolist (resolve pending)
       (ignore-errors (funcall resolve condition)))))
 
+(declaim (ftype function %job-stopped))
+
 (defun %controller-stopping (controller)
-  "In actor context, before the manager is closed: what waits is failed, the nodes are told their sessions end, and the state files are written -- a write that fails is logged and does not keep the manager from closing."
+  "In actor context, before the manager is closed: what waits is failed -- a commissioning that runs with it --, the nodes are told their sessions end, and the state files are written -- a write that fails is logged and does not keep the manager from closing."
+  (ignore-errors (%job-stopped controller))
   (%settle-pending controller)
   (loop :for connection :being :the :hash-values :of (controller-connections controller)
         :for session := (connection-session connection)
@@ -594,11 +515,12 @@ The device's attestation is checked as the controller was configured (`:attestat
     (error (c) (log:warn "Matter controller: the registry was not written: ~a" c))))
 
 (defun start-controller (storage &key (fabric-id 1) (vendor-id #xFFF1) (attestation :ignore) (label "Chipi")
-                                   (port 0) address (family :ipv6))
+                                   interface (port 0) address (family :ipv6))
   "Starts Chipi's Matter controller; `matter-init' does this with its `:controller' keys.
 `STORAGE' is the directory of `commissioner.state' (the fabric with its keys, the node ids handed out, resumption records) and `nodes' (the node registry). A fabric kept there is the one that is used: `FABRIC-ID' and `VENDOR-ID' (the test vendor, fine for a private fabric) make a new one only when there is none.
 `ATTESTATION' is how a device is checked when it is commissioned: `:ignore', the default, accepts any device that holds the key of its device attestation certificate -- cl-matter's trust store has the SDK's test authorities only --, `:verify' checks the chain against the trust store.
 `LABEL' is the name the nodes list Chipi's fabric under for their other administrators; NIL leaves it unnamed.
+`INTERFACE' is the network interface discovery asks on (`\"en0\"'), NIL for all of them.
 `PORT' is the UDP port, 0 for any; `FAMILY' and `ADDRESS' bind it elsewhere (tests: `:family :ipv4 :address \"127.0.0.1\"')."
   (when *controller*
     (error "The Matter controller is already running; `matter-shutdown' first"))
@@ -610,6 +532,7 @@ The device's attestation is checked as the controller was configured (`:attestat
     (unwind-protect
          (let* ((controller (%make-controller :manager manager :storage storage
                                               :attestation attestation :fabric-label label
+                                              :interface interface
                                               :nodes (read-registry storage)))
                 (channel (matter:make-secure-channel
                           manager

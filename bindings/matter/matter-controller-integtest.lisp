@@ -353,3 +353,227 @@ their own changes are commands."
     (is-true (await-cond 30 (eq 'item:true (%item-value 'lamp))))
     (hab:set-item-value 'lamp 'item:false)
     (is-true (await-cond 5 (eq nil (%lamp-on-p lamp))))))
+
+;; -----------------------------
+;; from pairing code to item: the job, labels, the window, leaving
+;; -----------------------------
+
+(defparameter *lamp-code* "3497-011-2332"
+  "The lamp's manual pairing code: discriminator 3840, passcode `*lamp-passcode*'.")
+
+(defun %lamp-advert (lamp &rest more)
+  "What the lamp would advertise, were there mDNS: an entry of `matter-discover's `:commissionable'."
+  (list* :name "Test Lamp" :device-name "Test Lamp" :discriminator 3840 :commissioning-mode 1
+         :addresses '("127.0.0.1") :port (lamp-port lamp) more))
+
+(defun %lamp-fabrics (lamp)
+  (%lamp-side lamp (lambda () (length (device-fabrics (lamp-device lamp))))))
+
+(defun %lamp-window-open-p (lamp)
+  (%lamp-side lamp (lambda () (commissioning-window-open-p (lamp-device lamp)))))
+
+(defun %described (node)
+  (with-output-to-string (out) (matter-describe node out)))
+
+(test matter-start-commissioning--from-pairing-code-to-item
+  "The search finds the lamp by the code's discriminator, the job goes through
+its states, and what `matter-describe' prints defines the item that follows
+and switches the lamp."
+  (with-fixture lamp-env ()
+    (let ((states '())
+          (results '()))
+      (cl-mock:with-mocks ()
+        (cl-mock:answer binding-matter::%browse-commissionable (list (%lamp-advert lamp)))
+        (let ((job (matter-start-commissioning *lamp-code* :label "lamp"
+                                                           :on-step (lambda (job)
+                                                                      (push (commissioning-job-state job) states))
+                                                           :on-complete (lambda (result) (push result results)))))
+          (is-true (await-cond 90 (not (commissioning-job-running-p job))))
+          (is (eq :done (commissioning-job-state job)))
+          (is (null (commissioning-job-error job)))
+          (is (equal '(:pairing :attesting :credentials :completing :reading :labeling :done)
+                     (reverse states)))
+          (is (equal (list (commissioning-job-node job)) results))
+          (is (string= "Test Lamp" (getf (commissioning-job-device job) :name)))
+          (is (eq job (matter-commissioning-job)))))
+      (let ((node (first results)))
+        (is (string= "lamp" (getf node :label)))
+        (is (string= "ACME" (getf node :vendor-name)))
+        (is (equal '(0 1) (mapcar (lambda (e) (getf e :id)) (getf node :endpoints)))))
+      (is (equal '("lamp") (mapcar (lambda (n) (getf n :label)) (matter-nodes))))
+      ;; the lamp carries the label for its other administrators
+      (is (string= "lamp" (matter-await (matter-read "lamp" 0 :basic-information :node-label))))
+      (is (equal '("Chipi") (%lamp-side lamp (lambda () (mapcar #'fabric-label (device-fabrics (lamp-device lamp)))))))
+
+      ;; what it is, and the definer for it
+      (let ((suggestions (matter-suggestions "lamp"))
+            (text (%described "lamp")))
+        (is (equal '(("Root Node") ("On/Off Light")) (mapcar (lambda (s) (getf s :device-types)) suggestions)))
+        (is (search "Matter node \"lamp\", node id 2" text))
+        (is (search "ACME Lamp, vendor #xFFF1 product #x8000, serial L-0001" text))
+        (is (search "endpoint 1: On/Off Light" text))
+        (is (search "on-off" text))
+        (is (search (getf (second suggestions) :definer) text))
+        (is (null (matter-items-of "lamp")))
+        ;; pasted into the configuration
+        (eval (let ((*package* (find-package :chipi.binding.matter-test-config)))
+                (read-from-string (getf (second suggestions) :definer)))))
+      (let ((item (intern "LAMP" :chipi.binding.matter-test-config)))
+        (is-true (await-cond 10 (eq 'item:false (%item-value item))))
+        (hab:set-item-value item 'item:true)
+        (is-true (await-cond 5 (eq t (%lamp-on-p lamp))))
+        (%switch-lamp lamp nil)
+        (is-true (await-cond 5 (eq 'item:false (%item-value item))))
+        ;; the node knows its items, the item its node
+        (is (equal '("LAMP") (matter-items-of "lamp")))
+        (is (equal '("LAMP") (matter-items-of 2)))
+        (is (equal '("lamp" 2) (multiple-value-list (matter-node-of item))))
+        (is (equal '("LAMP") (getf (second (matter-suggestions "lamp")) :items)))
+        ;; and an endpoint that has an item is not suggested one
+        (let ((text (%described "lamp")))
+          (is (search "items: lamp" text))
+          (is (null (search "(deflight" text))))))))
+
+(test matter-commission--waits-and-signals
+  "A wrong passcode fails the job in its pairing state; the right code, for the
+device named, gives the node -- labelled as the device calls itself."
+  (with-fixture lamp-env ()
+    (let ((wrong (encode-manual-pairing-code (make-onboarding-payload :discriminator 3840 :passcode 12345679))))
+      (signals matter-commissioning-error
+        (matter-commission wrong :label "lamp" :device (%lamp-advert lamp)))
+      (let ((job (matter-commissioning-job)))
+        (is (eq :failed (commissioning-job-state job)))
+        (is (eq :pairing (matter-commissioning-error-state (commissioning-job-error job)))))
+      (is (null (matter-nodes)))
+      (is (= 0 (%lamp-fabrics lamp))))
+    (let ((node (matter-commission *lamp-code* :device (%lamp-advert lamp) :device-label nil)))
+      (is (string= "Test Lamp" (getf node :label)))
+      (is (= (lamp-port lamp) (getf node :port)))
+      (is (= 1 (%lamp-fabrics lamp)))
+      ;; the device was not told
+      (is (string= "" (matter-await (matter-read "Test Lamp" 0 :basic-information :node-label)))))
+    (is (eq :done (commissioning-job-state (matter-commissioning-job))))))
+
+(test matter-set-label--the-registry-the-device-and-the-bindings
+  (with-fixture lamp-env ()
+    (hab:defitem 'lamp "Lamp" 'boolean
+      (matter-binding :node "lamp" :endpoint 1 :cluster :on-off))
+    (hab:defitem 'desk "Desk" 'boolean
+      (matter-binding :node "desk" :endpoint 1 :cluster :on-off))
+    (is (listp (%commission-lamp lamp)))
+    (is-true (await-cond 10 (eq 'item:false (%item-value 'lamp))))
+    (is (eql 1 (%subscribed-paths)))
+    (let ((node (matter-await (matter-set-label "lamp" "desk"))))
+      (is (string= "desk" (getf node :label)))
+      (is (= 2 (getf node :node-id))))
+    (is (equal '("desk") (mapcar (lambda (n) (getf n :label)) (matter-nodes))))
+    (is (equal '("desk") (mapcar #'binding-matter::node-entry-label (binding-matter::read-registry storage))))
+    (is (string= "desk" (matter-await (matter-read "desk" 0 :basic-information :node-label))))
+    (signals error (matter-await (matter-read "lamp" 1 :on-off :on-off)))
+    ;; the item that names the new label follows the lamp now, the other no more
+    (is (equal '("DESK") (matter-items-of "desk")))
+    (%switch-lamp lamp t)
+    (is-true (await-cond 10 (eq 'item:true (%item-value 'desk))))
+    (%barrier lamp)
+    (is (eq 'item:false (%item-value 'lamp)))
+    ;; the label alone, the device left as it is
+    (is (string= "bureau" (getf (matter-await (matter-set-label 2 "bureau" :device-label nil)) :label)))
+    (is (string= "desk" (matter-await (matter-read "bureau" 0 :basic-information :node-label))))
+    ;; its own label again is no conflict
+    (is (string= "bureau" (getf (matter-await (matter-set-label "bureau" "bureau")) :label)))))
+
+(test matter-open-window--a-code-for-the-next-app
+  (with-fixture lamp-env ()
+    (is (listp (%commission-lamp lamp)))
+    (is-false (%lamp-window-open-p lamp))
+    ;; a window is open three minutes at least
+    (signals error (matter-await (matter-open-window "lamp" :timeout 100)))
+    (is-false (%lamp-window-open-p lamp))
+    (let* ((window (matter-await (matter-open-window "lamp" :timeout 180)))
+           (manual (matter-decode-pairing-code (getf window :manual-code)))
+           (qr (matter-decode-pairing-code (getf window :qr-code))))
+      (is (= 180 (getf window :timeout)))
+      (is (= 11 (length (getf window :manual-code))))
+      (is (eq :qr (getf qr :kind)))
+      (is (= (getf window :discriminator) (getf qr :discriminator)))
+      (is (= (getf manual :passcode) (getf qr :passcode)))
+      (is (= #xFFF1 (getf qr :vendor-id)))
+      (is (= #x8000 (getf qr :product-id)))
+      (is-true (%lamp-window-open-p lamp))
+      ;; the window is the lamp's: what it advertises is what the code says
+      (is (= (getf window :discriminator)
+             (%lamp-side lamp (lambda () (device-window-discriminator (lamp-device lamp)))))))
+    ;; one window at a time: the lamp refuses a second
+    (signals error (matter-await (matter-open-window "lamp" :timeout 180)))))
+
+(test matter-decommission--the-node-leaves-the-fabric
+  (with-fixture lamp-env ()
+    (hab:defitem 'lamp "Lamp" 'boolean
+      (matter-binding :node "lamp" :endpoint 1 :cluster :on-off))
+    (is (listp (%commission-lamp lamp)))
+    (is-true (await-cond 10 (eq 'item:false (%item-value 'lamp))))
+    (is (= 1 (%lamp-fabrics lamp)))
+    (is (eq t (matter-await (matter-decommission "lamp"))))
+    (is (null (matter-nodes)))
+    (is (null (binding-matter::read-registry storage)))
+    (is (zerop (hash-table-count (binding-matter::controller-connections binding-matter::*controller*))))
+    ;; the lamp lets go of the fabric, and is to be had again
+    (is-true (await-cond 10 (= 0 (%lamp-fabrics lamp))))
+    (signals error (matter-await (matter-read "lamp" 1 :on-off :on-off)))
+    (signals error (matter-await (matter-decommission "lamp")))
+    ;; the item stays as it was, and a change of it is a line in the log
+    (hab:set-item-value 'lamp 'item:true)
+    (%barrier lamp)
+    (is (eq nil (%lamp-on-p lamp)))
+    (is-true (await-cond 10 (%lamp-window-open-p lamp)))
+    (let ((node (matter-commission *lamp-code* :label "lamp" :device (%lamp-advert lamp))))
+      (is (string= "lamp" (getf node :label)))
+      (is (= 3 (getf node :node-id))))
+    ;; the binding by label binds the new node
+    (is-true (await-cond 10 (eq 'item:false (%item-value 'lamp))))
+    (hab:set-item-value 'lamp 'item:true)
+    (is-true (await-cond 5 (eq t (%lamp-on-p lamp))))))
+
+(test matter-decommission--a-node-that-is-gone-is-forgotten-by-force
+  (with-fixture lamp-env ()
+    (is (listp (%commission-lamp lamp)))
+    ;; the node is not to be reached: no session, no address
+    (let ((controller binding-matter::*controller*))
+      (matter-actor-call (binding-matter::controller-actor controller)
+                         (lambda ()
+                           (let ((entry (binding-matter::%require-node controller "lamp")))
+                             (binding-matter::%drop-session
+                              controller entry
+                              (binding-matter::connection-session (binding-matter::%connection controller 2)))
+                             (setf (binding-matter::node-entry-addresses entry) '())))))
+    (let ((condition (%await (matter-decommission "lamp"))))
+      (is (typep condition 'error))
+      (is (search ":force t" (princ-to-string condition))))
+    (is (= 1 (length (matter-nodes))))
+    (is (eq t (matter-await (matter-decommission "lamp" :force t))))
+    (is (null (matter-nodes)))
+    (is (null (binding-matter::read-registry storage)))
+    ;; the lamp was not asked
+    (is (= 1 (%lamp-fabrics lamp)))))
+
+(test matter-discover--the-nodes-that-answer-and-those-that-do-not
+  (with-fixture lamp-env ()
+    (is (listp (%commission-lamp lamp)))
+    (cl-mock:with-mocks ()
+      (cl-mock:answer binding-matter::%browse-commissionable '())
+      (cl-mock:answer binding-matter::%browse-operational (list (list 2 :addresses '("fe80::2") :port 5541)))
+      (let ((found (matter-discover :timeout 1)))
+        (is (null (getf found :commissionable)))
+        (is (equal '("lamp") (mapcar (lambda (n) (getf n :label)) (getf found :operational))))
+        ;; where it is now, not where the registry has it
+        (is (equal '("fe80::2") (getf (first (getf found :operational)) :addresses)))
+        (is (= 5541 (getf (first (getf found :operational)) :port)))
+        (is (null (getf found :silent)))
+        (is (equal '("127.0.0.1") (getf (first (matter-nodes)) :addresses)))))
+    (cl-mock:with-mocks ()
+      (cl-mock:answer binding-matter::%browse-commissionable (list (%lamp-advert lamp)))
+      (cl-mock:answer binding-matter::%browse-operational '())
+      (let ((found (matter-discover :timeout 1)))
+        (is (equal '("Test Lamp") (mapcar (lambda (d) (getf d :name)) (getf found :commissionable))))
+        (is (null (getf found :operational)))
+        (is (equal '("lamp") (mapcar (lambda (n) (getf n :label)) (getf found :silent))))))))

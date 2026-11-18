@@ -5,8 +5,8 @@ production: B0 to B3 done 2026-11-09, proven against Apple Home on the bench
 2026-11-10, in the house since 2026-11-11, reachability (the first half of
 B4) since 2026-11-12. What it is now, as opposed to what was planned, is in
 `bindings/matter/README.md`. The controller role: phase 1 done 2026-11-16
-(binding-matter 0.7.0), phase 2 built 2026-11-17 (0.8.0) with its bench
-check owed, the rest of section 7 open.
+(binding-matter 0.7.0), phases 2 and 3 built 2026-11-17 (0.8.0, 0.9.0) with
+their bench checks owed, the rest of section 7 open.
 cl-matter lives at `../cl-matter`; its README describes its state.
 
 ## 1. Role and shape
@@ -605,7 +605,7 @@ single process. The plugin's integtest does the same with a real
 | 0 | cl-matter: `UpdateFabricLabel` from the commissioner (done 2026-11-16: `start-fabric-label-update`, `update-fabric-label`); Level Control, Boolean State, Temperature Measurement, Window Covering clusters (SBCL IPv6 + multicast + interfaces deferred, see section 8). Boolean State and Temperature Measurement done with B1, Window Covering and Thermostat (heating only) with B2 (2026-11-09), Level Control with the bridge's Dimmable Light (2026-11-15) | new clusters have tests in cl-matter |
 | 1 | `matter-actors`, `matter-registry`, controller core: commissioner state, CASE per node, read / invoke as futures (done 2026-11-16, binding-matter 0.7.0: `matter-init :controller`, `start-controller`, `matter-nodes`, `matter-read`, `matter-invoke`, `matter-actor-future`; commissioning at a known address as the internal `%commission-at`, which describes the node into the registry and sends the fabric label) | integtest: a `defitem` on an in-process lamp reads and switches it -- `matter-controller-integtest.lisp`, on SBCL too: loopback IPv4 needs neither IPv6 nor multicast |
 | 2 | `matter-binding` with subscriptions, `matter-init` / `matter-shutdown`, README (built 2026-11-17, binding-matter 0.8.0: `matter-binding`, `make-matter-binding`, one subscription per node; proven against the in-process lamp, `matter-controller-integtest.lisp`) | the Eve plug is a `defplug` in a running Chipi; UI toggles it; Apple Home's change shows up -- owed: needs the plug commissioned with `%commission-at` at its address, on AmiLisp |
-| 3 | `matter-discover`, the commissioning job with its states, `matter-commission`, `matter-decommission`, `matter-open-window`, labels, `matter-describe` | a new device goes from pairing code to item without leaving the REPL |
+| 3 | `matter-discover`, the commissioning job with its states, `matter-commission`, `matter-decommission`, `matter-open-window`, labels, `matter-describe` (built 2026-11-17, binding-matter 0.9.0, `matter-commissioning.lisp`; cl-matter's `start-commissioning` got `:on-step` for it; proven against the in-process lamp with the mDNS search mocked) | a new device goes from pairing code to item without leaving the REPL -- owed: needs a real device and AmiLisp, where mDNS is |
 | 3b | chipi-ui: settings section registry and `/settings/<id>` routing; `binding-matter/ui`: devices view and pairing wizard over the phase-3 functions | a device is paired from the wall tablet, and its suggested definer copied from the node view |
 | 4 | resilience: re-resolve, re-establish with backoff, re-subscribe, unreachable flag, repush policy | pull the plug's power, plug it back: Chipi follows without a restart |
 | 5 | remaining clusters and conversions; `defrollershutter`, `defheating`, sensors end to end | one device per house kind on the bench |
@@ -647,6 +647,33 @@ What phase 2 built differently from sections 3.4 and 3.5:
   write on the way out yet (a thermostat's setpoint, phase 5).
 - **A scaled value that is no whole number is a float**; `:transform` (the
   base binding's) rounds it where the item wants an integer.
+
+What phase 3 built differently from sections 4.1 to 4.3 and 5:
+
+- **Futures, and one function to wait.** `matter-set-label`,
+  `matter-decommission` and `matter-open-window` return futures as
+  `matter-read` does; `matter-await` waits on one at the REPL. Only
+  `matter-commission` waits by itself, on the job.
+- **One job at a time**, kept on the controller (`matter-commissioning-job`)
+  so that a view that comes back finds it. A job carries no pairing code:
+  "try again" is the view's to do, with the code it was given.
+- **`:device`** names the advertisement to commission, an entry of
+  `matter-discover`; that is what the wizard's first step hands over, what
+  "else ask" of 4.2 comes to, and what lets a commissioning run without
+  mDNS (SBCL, the tests).
+- **Failures** are a `matter-commissioning-error` with the job's state and
+  the cause; busy and a full fabric table are recognised by cl-matter's
+  message text, the rest is the state and the cause's own words.
+- **`matter-discover` asks once per fabric**, by the `_I` subtype, not once
+  per node; it does not write what it finds to the registry (phase 4).
+- **Decommissioning asks the device for the fabric index**
+  (`CurrentFabricIndex`) instead of keeping it in the registry; `:force t`
+  forgets a node that does not answer.
+- **Renaming** does not rewrite bindings: they bind by the label they name,
+  so the configuration is changed with the label.
+- **`matter-describe` prints**, `matter-suggestions` is the data for the
+  view; a suggestion is text, in the form the configuration takes. The
+  reachability item of 4.3 waits for phase 4's unreachable mark.
 
 ## 8. Decisions to take
 

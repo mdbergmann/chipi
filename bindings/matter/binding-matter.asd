@@ -1,8 +1,8 @@
 (defsystem "binding-matter"
-  :version "0.8.0"
+  :version "0.9.0"
   :author "Manfred Bergmann"
   :license "Apache-2"
-  :description "Matter binding for Chipi. The bridge role: Chipi is a Matter bridge whose bridged devices are items, for Apple Home, Google Home and the like. The controller role: Chipi commissions Matter devices into a fabric of its own and and they become items with `matter-binding'; discovery follows."
+  :description "Matter binding for Chipi. The bridge role: Chipi is a Matter bridge whose bridged devices are items, for Apple Home, Google Home and the like. The controller role: Chipi commissions Matter devices into a fabric of its own and they become items with `matter-binding': found on the network and commissioned from their pairing code."
   :depends-on ((:version "chipi" "0.9.8")
                "cl-matter"
                "babel"
@@ -15,6 +15,7 @@
                (:file "matter-registry")
                (:file "matter-controller")
                (:file "matter-binding")
+               (:file "matter-commissioning")
                (:file "binding-matter"))
   :in-order-to ((test-op (test-op "binding-matter/tests"))))
 
@@ -38,7 +39,8 @@
                (:file "binding-matter-integtest")
                (:file "matter-controller-test")
                (:file "matter-binding-test")
-               (:file "matter-controller-integtest"))
+               (:file "matter-controller-integtest")
+               (:file "matter-commissioning-test"))
   :description "Test system for the Matter binding"
   :perform (test-op (op c)
                     (symbol-call
@@ -62,7 +64,10 @@
                                         '#:chipi.binding.matter.ui-test))))
 
 #|
-cl-matter is not on OCICL. Make it and this plugin visible to ASDF, from the
+cl-matter is not on OCICL. This plugin needs a cl-matter whose
+`matter:start-commissioning' takes `:on-step' (cl-matter's commissioning
+change that adds it, committed): an older one fails at the first
+commissioning with an unknown keyword. Make it and this plugin visible to ASDF, from the
 chipi root, with the sibling checkouts:
 
 (let ((cwd (uiop:getcwd)))

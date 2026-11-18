@@ -3,7 +3,7 @@
 ;; House kinds to bridged device types, and item values to cluster
 ;; attribute values.  Deliberately small: a few tables and a handful of
 ;; conversions.  The mirror of this, Matter device types to house definers
-;; for the controller role, joins it later.
+;; for the controller role, is at the end.
 
 (defparameter *bridged-device-types*
   `((:on-off-light        ,matter:+device-type-on-off-light+        3 :on-off)
@@ -144,3 +144,112 @@ A `house:defdimmablelight' is a Dimmable Light, a `house:defrollershutter' a Win
 (defun heating-setpoint->item-setpoint (hundredths)
   "The setpoint item value, degrees as a float, of a Thermostat setpoint."
   (/ hundredths 100.0))
+
+;; -----------------------------
+;; the controller role: device types to house definers
+;; -----------------------------
+
+;; What a commissioned node says it is, as a name and as the house definer
+;; that makes an item of it: ready-to-paste text for the configuration.
+
+(defparameter *device-types*
+  '((#x0016 "Root Node")
+    (#x0011 "Power Source")
+    (#x0012 "OTA Requestor")
+    (#x000E "Aggregator")
+    (#x0013 "Bridged Node")
+    (#x0100 "On/Off Light" :light)
+    (#x0101 "Dimmable Light" :dimmable-light)
+    (#x010C "Color Temperature Light" :dimmable-light)
+    (#x010D "Extended Color Light" :dimmable-light)
+    (#x010A "On/Off Plug-in Unit" :plug)
+    (#x010B "Dimmable Plug-in Unit" :dimmable-light)
+    (#x0103 "On/Off Light Switch")
+    (#x000F "Generic Switch" :switch)
+    (#x0015 "Contact Sensor" :contact)
+    (#x0302 "Temperature Sensor" :temperature)
+    (#x0307 "Humidity Sensor" :humidity)
+    (#x0107 "Occupancy Sensor" :occupancy)
+    (#x0202 "Window Covering" :shutter)
+    (#x0301 "Thermostat" :heating))
+  "The Matter device types the controller knows by name: (id name suggestion). SUGGESTION names the house definer `suggest-definer' writes for an endpoint of that type; a type without one is infrastructure, or nothing the house has a definer for.")
+
+(defun device-type-name (id)
+  "The name of the Matter device type `ID' (\"On/Off Light\"), or \"Device type #x....\" for one the table does not have."
+  (or (second (assoc id *device-types*))
+      (format nil "Device type #x~4,'0x" id)))
+
+(defun device-type-suggestion (id)
+  "The kind of definer suggested for an endpoint of the Matter device type `ID', a keyword, or NIL."
+  (third (assoc id *device-types*)))
+
+(defun item-name-of-label (label)
+  "A name for an item, as a string, made of `LABEL': lower case, what is neither letter nor digit a dash (\"Kitchen lamp 2\" is \"kitchen-lamp-2\"); \"node\" when nothing is left."
+  (let ((name (string-trim "-"
+                           (with-output-to-string (out)
+                             (let ((dash-p nil))
+                               (loop :for char :across label
+                                     :do (cond ((alphanumericp char)
+                                                (write-char (char-downcase char) out)
+                                                (setf dash-p nil))
+                                               ((not dash-p)
+                                                (write-char #\- out)
+                                                (setf dash-p t)))))))))
+    (if (plusp (length name)) name "node")))
+
+(defun suggest-definer (kind name label node endpoint)
+  "The form that defines the item `NAME' (a string), labelled `LABEL', for `ENDPOINT' of the node `NODE' (its label or id) as the house `KIND' of `device-type-suggestion', as text to paste into a configuration; NIL for a kind there is none for."
+  (labels ((nl (column)
+             ;; a new line, indented: `~t' counts columns differently from Lisp to Lisp
+             (format nil "~%~a" (make-string column :initial-element #\Space)))
+           (binding (cluster &rest more)
+             (format nil "(matter-binding :node ~s :endpoint ~d :cluster ~a~{~a~})" node endpoint cluster more)))
+    (case kind
+      (:light
+       (format nil "(deflight ~a ~s~a~a)" name label (nl 2) (binding ":on-off")))
+      (:plug
+       (format nil "(defplug ~a ~s~a~a)" name label (nl 2) (binding ":on-off")))
+      (:dimmable-light
+       (format nil "(defdimmablelight ~a ~s~a:switch     (~a)~a:brightness (~a))"
+               name label
+               (nl 2) (binding ":on-off")
+               (nl 2) (binding ":level-control"
+                               (nl 31) ":scale 100/254 :transform #'round"
+                               (nl 31) ":command (:move-to-level-with-on-off :level (:scale 254/100)"
+                               (nl 68) ":transition-time 0)")))
+      (:contact
+       (format nil "(defcontact ~a ~s~a:tags '((:ui-readonly . t))~a;; Matter's StateValue is true while closed, a defcontact while open~a~a)"
+               name label (nl 2) (nl 2) (nl 2)
+               (binding ":boolean-state"
+                        (nl 18) ":transform (lambda (closed)"
+                        (nl 30) "(if (eq closed 'item:true) 'item:false 'item:true))")))
+      (:temperature
+       (format nil "(defitem '~a ~s 'float~a~a)" name label (nl 2)
+               (binding ":temperature-measurement" " :scale 1/100")))
+      (:humidity
+       (format nil "(defitem '~a ~s 'float~a;; Relative Humidity Measurement, MeasuredValue in hundredths of a percent~a~a)"
+               name label (nl 2) (nl 2)
+               (binding "#x0405" " :attribute 0 :scale 1/100")))
+      (:occupancy
+       (format nil "(defitem '~a ~s 'boolean~a;; Occupancy Sensing: bit 0 of Occupancy says someone is there~a~a)"
+               name label (nl 2) (nl 2)
+               (binding "#x0406" " :attribute 0"
+                        (nl 18) ":transform (lambda (bits)"
+                        (nl 30) "(if (logbitp 0 bits) 'item:true 'item:false))")))
+      (:shutter
+       (format nil "(defrollershutter ~a ~s~a:move     (~a)~a:stop     (~a)~a:position (~a))"
+               name label
+               (nl 2) (binding ":window-covering" (nl 29) ":command (:up-or-open :down-or-close)")
+               (nl 2) (binding ":window-covering" (nl 29) ":command :stop-motion")
+               (nl 2) (binding ":window-covering"
+                               (nl 29) ":attribute :current-position-lift-percent100ths"
+                               (nl 29) ":scale 1/100 :transform #'round"
+                               (nl 29) ":command (:go-to-lift-percentage :lift-percent100ths-value (:scale 100))")))
+      (:heating
+       (format nil "(defheating ~a ~s~a:temperature (~a)~a;; read only so far: a setpoint is written, not commanded~a:setpoint    (~a))"
+               name label
+               (nl 2) (binding ":thermostat" (nl 32) ":attribute :local-temperature :scale 1/100")
+               (nl 2) (nl 2)
+               (binding ":thermostat" (nl 32) ":attribute :occupied-heating-setpoint :scale 1/100")))
+      (:switch
+       (format nil ";; ~a: a Generic Switch reports its presses as events, which the controller does not take yet" name)))))

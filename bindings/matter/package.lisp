@@ -30,6 +30,32 @@
            #:matter-nodes
            #:matter-read
            #:matter-invoke
+           #:matter-await
+           ;; devices become nodes: discovery, commissioning, labels, what a node is
+           #:matter-discover
+           #:matter-decode-pairing-code
+           #:matter-commission
+           #:matter-start-commissioning
+           #:matter-commissioning-job
+           #:commissioning-job
+           #:commissioning-job-state
+           #:commissioning-job-label
+           #:commissioning-job-device
+           #:commissioning-job-node
+           #:commissioning-job-error
+           #:commissioning-job-running-p
+           #:*commissioning-states*
+           #:matter-commissioning-state-text
+           #:matter-commissioning-error
+           #:matter-commissioning-error-state
+           #:matter-commissioning-error-cause
+           #:matter-set-label
+           #:matter-decommission
+           #:matter-open-window
+           #:matter-describe
+           #:matter-suggestions
+           #:matter-items-of
+           #:matter-node-of
            ;; a node's attribute and command as an item's binding
            #:matter-binding
            #:make-matter-binding
