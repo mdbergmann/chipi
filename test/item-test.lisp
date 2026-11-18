@@ -339,6 +339,45 @@ that when loading the value the second (or any more) persistence does not persit
   )
 
 
+(test %fetch-persisted-value--changed-table-publishes-without-push-or-persistence
+  (with-fixture init-destroy-env ()
+    (let* ((old-value (alexandria:plist-hash-table '("field" 1) :test #'equal))
+           (value (alexandria:plist-hash-table '("field" 2) :test #'equal))
+           (item (make-item 'restored-table :type-hint 'table :initial-value old-value))
+           (persp (make-simple-persistence
+                   :table-restore :storage-root-path #P"/tmp/chipi/table-restore/"))
+           (timestamp 3900000000)
+           (events nil)
+           (subscribed nil)
+           (pushes 0))
+      (ac:actor-of (isys:ensure-isys)
+                   :init (lambda (self)
+                           (ev:subscribe self self 'item-changed-event)
+                           (setf subscribed t))
+                   :receive (lambda (msg)
+                              (when (typep msg 'item-changed-event)
+                                (push msg events))))
+      (is-true (await-cond 1 subscribed))
+      (add-binding item (binding:make-function-binding
+                         :push (lambda (value) (declare (ignore value)) (incf pushes))
+                         :call-push-p t))
+      (with-mocks ()
+        (answer persp:fetch
+          (future:with-fut (persp:make-persisted-item :value value :timestamp timestamp)))
+        (answer persp:store t)
+        (add-persistence item persp :load-on-start t :frequency :every-change)
+        (is-true (await-cond 1 events))
+        ;; An ask waits for the restore message, including its persistence and binding paths.
+        (let ((barrier (get-value item)))
+          (is-true (await-cond 1 (hash-table-p (future:fresult barrier)))))
+        (is (= 1 (length events)))
+        (is (eq item (item-changed-event-item (first events))))
+        (is (equalp old-value (item-changed-event-old-value (first events))))
+        (is (equalp value (item-state-value (get-item-stateq item))))
+        (is (= timestamp (item-state-timestamp (get-item-stateq item))))
+        (is (= 0 pushes))
+        (is-false (invocations 'persp:store))))))
+
 (test item--tags-remain-unchanged
   "Test that tags remain unchanged through item lifecycle."
   (with-fixture init-destroy-env ()
@@ -417,3 +456,265 @@ This also tests the error handling in item calling `exec-push' of the binding."
       (set-value item 1)
       (is-true (await-cond 2 (equalp
                               pushed-value (list 2 1)))))))
+
+(test set-value--table-validation-and-snapshots
+  (with-fixture init-destroy-env ()
+    (let* ((key (copy-seq "MixedCase"))
+           (text (copy-seq "original"))
+           (table (alexandria:plist-hash-table (list key text) :test #'equal))
+           (item (make-item 'table-item :type-hint 'table :initial-value table)))
+      (setf (char key 0) #\x (char text 0) #\x)
+      (is (equal "original" (gethash "MixedCase" (item-state-value (get-item-stateq item)))))
+      (let ((snapshot (item-state-value (get-item-stateq item))))
+        (setf (char (gethash "MixedCase" snapshot) 0) #\z)
+        (is (equal "original" (gethash "MixedCase" (item-state-value (get-item-stateq item))))))
+      (dolist (bad (list nil t (vector 1) (list 1)))
+        (signals invalid-table-value (set-value item bad)))
+      (dolist (bad (list nil t 'cl:null (list 1) #(1) (make-hash-table)))
+        (signals invalid-table-value
+          (set-value item (alexandria:plist-hash-table (list "bad" bad)))))
+      (signals invalid-table-value
+        (set-value item (alexandria:plist-hash-table (list :bad 1))))
+      (is (equal "original" (gethash "MixedCase" (item-state-value (get-item-stateq item))))))))
+
+(test make-item--table-default-and-explicit-nil
+  (with-fixture init-destroy-env ()
+    (let ((item (make-item 'empty-table :type-hint 'table)))
+      (is (= 0 (hash-table-count (item-state-value (get-item-stateq item))))))
+    (signals invalid-table-value
+      (make-item 'invalid-table :type-hint 'table :initial-value nil))))
+
+(test set-value--equal-table-snapshots-and-always-push
+  (with-fixture init-destroy-env ()
+    (let* ((table (alexandria:plist-hash-table '("A" 1 "a" item:false) :test #'equal))
+           (item (make-item 'equal-table :type-hint 'table :initial-value table))
+           (events nil)
+           (subscribed nil)
+           (pushes 0)
+           (binding (binding:make-function-binding :pull (lambda ())
+                       :push (lambda (value) (declare (ignore value)) (incf pushes))))
+           (timestamp (item-state-timestamp (get-item-stateq item))))
+      (ac:actor-of (isys:ensure-isys)
+                   :init (lambda (self)
+                           (ev:subscribe self self 'item-changed-event)
+                           (setf subscribed t))
+                   :receive (lambda (msg)
+                              (when (typep msg 'item-changed-event)
+                                (push msg events))))
+      (is-true (await-cond 1 subscribed))
+      (add-binding item binding)
+      (set-value item (copy-table-value table) :timestamp (1+ timestamp))
+      (let ((barrier (get-value item)))
+        (is-true (await-cond 1 (hash-table-p (future:fresult barrier)))))
+      (is (= 0 pushes))
+      (is (= timestamp (item-state-timestamp (get-item-stateq item))))
+      (set-value item table :push :always :timestamp (1+ timestamp))
+      (is-true (await-cond 1 (= 1 pushes)))
+      (sleep 0.1)
+      (is-false events)
+      (is (= timestamp (item-state-timestamp (get-item-stateq item)))))))
+
+(test %value-equal-p--table-numbers-case-and-scalar-comparison
+  (flet ((table (&rest fields)
+           (alexandria:plist-hash-table fields :test #'equal)))
+    (is-true (item::%value-equal-p (table "Battery" 87 "Label" "On")
+                                  (table "Battery" 87.0 "Label" "On") 'table))
+    (is-false (item::%value-equal-p (table "Label" "On") (table "Label" "on") 'table))
+    (is-false (item::%value-equal-p (table "Label" 1) (table "label" 1) 'table))
+    (is-false (item::%value-equal-p 87 87.0 nil))
+    (is-false (item::%value-equal-p "On" "on" nil))))
+
+(test set-value--table-enqueue-and-future-isolation
+  (with-fixture init-destroy-env ()
+    (let* ((item (make-item 'queued-table :type-hint 'table))
+           (key (copy-seq "Field"))
+           (value (copy-seq "text"))
+           (table (alexandria:plist-hash-table (list key value) :test #'equal)))
+      (set-value item table)
+      (setf (char key 0) #\x (char value 0) #\x)
+      (clrhash table)
+      (let ((future (get-value item))
+            (snapshot nil))
+        (is-true (await-cond 1
+                   (hash-table-p (setf snapshot (future:fresult future)))))
+        (is (equal "text" (gethash "Field" snapshot)))
+        (setf (char (gethash "Field" snapshot) 0) #\x)
+        (is (equal "text" (gethash "Field" (item-state-value (get-item-stateq item)))))))))
+
+(test copy-table-value--supported-fields
+  (dolist (value (list 12 2.5 3.5d0 "text" 'item:true 'item:false))
+    (let ((table (alexandria:plist-hash-table (list "value" value))))
+      (is (equal (if (floatp value) (coerce value 'single-float) value)
+                 (gethash "value" (copy-table-value table))))))
+  (dolist (value (list 1/3 #C(1 2)
+                      #+sbcl sb-ext:double-float-positive-infinity
+                      #+sbcl sb-ext:double-float-negative-infinity))
+    (signals invalid-table-value
+      (copy-table-value (alexandria:plist-hash-table (list "value" value))))))
+
+(test get-item-stateq--table-snapshots-remain-independent
+  (with-fixture init-destroy-env ()
+    (let* ((value (alexandria:plist-hash-table '("field" 1) :test #'equal))
+           (item (make-item 'atomic-table :type-hint 'table :initial-value value))
+           (old-state (get-item-stateq item))
+           (old-timestamp (item-state-timestamp old-state))
+           (new-timestamp (1+ old-timestamp))
+           (observed nil))
+      (with-mocks ()
+        (answer ev:publish
+          (setf observed (get-item-stateq item)))
+        (set-value item (alexandria:plist-hash-table '("field" 2) :test #'equal)
+                   :timestamp new-timestamp)
+        (is-true (await-cond 1 observed))
+        (is (= 2 (gethash "field" (item-state-value observed))))
+        (is (= new-timestamp (item-state-timestamp observed)))
+        (is (= 1 (gethash "field" (item-state-value old-state))))
+        (is (= old-timestamp (item-state-timestamp old-state)))
+        (let ((current-state (get-item-stateq item)))
+          (is (not (eq observed current-state)))
+          (is (not (eq (item-state-value observed)
+                       (item-state-value current-state))))
+          (setf (gethash "field" (item-state-value observed)) 3)
+          (is (= 2 (gethash "field" (item-state-value (get-item-stateq item))))))))))
+
+(test table-type-hint-p--package-independent
+  (is-true (table-type-hint-p 'table))
+  (is-true (table-type-hint-p (make-symbol "TABLE")))
+  (is-false (table-type-hint-p nil))
+  (is-false (table-type-hint-p "TABLE"))
+  (is-false (table-type-hint-p 'cl:hash-table))
+  (with-fixture init-destroy-env ()
+    (let ((item (make-item 'foreign-table-hint :type-hint (make-symbol "TABLE"))))
+      (is (= 0 (hash-table-count (item-state-value (get-item-stateq item)))))
+      (signals invalid-table-value (set-value item nil)))))
+
+(test get-item-stateq--non-table-hints-preserve-map-identity
+  (dolist (hint '(nil number cl:hash-table "TABLE"))
+    (with-fixture init-destroy-env ()
+      (let* ((nested (alexandria:plist-hash-table '(:field #(1 2))))
+             (value (alexandria:plist-hash-table (list :nested nested)))
+             (item (make-item 'untyped-map :type-hint hint :initial-value value))
+             (state (get-item-stateq item))
+             (future (get-value item)))
+        (is (eq value (item-state-value state)))
+        (is (eq state (get-item-stateq item)))
+        (is-true (await-cond 1 (eq value (future:fresult future))))))))
+
+(test set-value--non-table-hints-preserve-map-events-and-pushes
+  (dolist (hint '(nil number cl:hash-table "TABLE"))
+    (with-fixture init-destroy-env ()
+      (let* ((nested (alexandria:plist-hash-table '(:field #(1 2))))
+             (old-value (alexandria:plist-hash-table (list :nested nested)))
+             (value (alexandria:plist-hash-table (list :nested nested)))
+             (item (make-item 'untyped-update :type-hint hint :initial-value old-value))
+             (state (act-cell:state item))
+             (events nil)
+             (pushed nil))
+        (add-binding item (binding:make-function-binding
+                           :pull (lambda ())
+                           :push (lambda (value) (setf pushed value))))
+        (with-mocks ()
+          (answer (ev:publish _ event) (push event events))
+          (set-value item value)
+          (let ((future (get-value item)))
+            (is-true (await-cond 1 (eq value (future:fresult future)))))
+          (is (eq state (get-item-stateq item)))
+          (is (eq value (item-state-value state)))
+          (is (eq value pushed))
+          (is (= 1 (length events)))
+          (is (eq old-value (item-changed-event-old-value (first events)))))))))
+
+(test set-value--non-table-hints-compare-map-identity
+  (dolist (hint '(nil number cl:hash-table "TABLE"))
+    (with-fixture init-destroy-env ()
+      (let* ((old-value (alexandria:plist-hash-table '("field" 1) :test #'equal))
+             (value (alexandria:plist-hash-table '("field" 1) :test #'equal))
+             (item (make-item 'untyped-equality :type-hint hint :initial-value old-value))
+             (events nil)
+             (timestamp (1+ (item-state-timestamp (get-item-stateq item)))))
+        (with-mocks ()
+          (answer (ev:publish _ event) (push event events))
+          (set-value item value :timestamp timestamp)
+          (let ((future (get-value item)))
+            (is-true (await-cond 1 (eq value (future:fresult future)))))
+          (is (= timestamp (item-state-timestamp (get-item-stateq item))))
+          (set-value item value :timestamp (1+ timestamp))
+          (let ((future (get-value item)))
+            (is-true (await-cond 1 (eq value (future:fresult future)))))
+          (is (= 1 (length events)))
+          (is (= timestamp (item-state-timestamp (get-item-stateq item)))))))))
+
+(test set-value--table-events-and-binding-pushes-are-isolated
+  (with-fixture init-destroy-env ()
+    (let* ((value (alexandria:plist-hash-table '("field" "old") :test #'equal))
+           (item (make-item 'isolated-update :type-hint 'table :initial-value value))
+           (original (act-cell:state item))
+           (old-value (item-state-value original))
+           (event nil)
+           (pushed nil))
+      (add-binding item (binding:make-function-binding
+                         :pull (lambda ())
+                         :push (lambda (value) (setf (char (gethash "field" value) 0) #\x))))
+      (add-binding item (binding:make-function-binding
+                         :pull (lambda ())
+                         :push (lambda (value) (setf pushed value))))
+      (with-mocks ()
+        (answer (ev:publish _ published-event) (setf event published-event))
+        (set-value item (alexandria:plist-hash-table '("field" "new") :test #'equal))
+        (let ((future (get-value item)))
+          (is-true (await-cond 1 (hash-table-p (future:fresult future)))))
+        (is (equal "new" (gethash "field" pushed)))
+        (is (equal "new" (gethash "field" (item-state-value (get-item-stateq item)))))
+        (let ((event-value (item-changed-event-old-value event)))
+          (is (not (eq old-value event-value)))
+          (setf (char (gethash "field" event-value) 0) #\x)
+          (is (equal "old" (gethash "field" old-value))))))))
+
+(test copy-table-value--canonical-single-float-fields
+  (dolist (number '(29.08d0 21.1d0 0.0 -1.0 1.5))
+    (let* ((original (alexandria:plist-hash-table (list "number" number)))
+           (copy (copy-table-value original)))
+      (is (typep (gethash "number" copy) 'single-float))
+      (is (= (coerce number 'single-float) (gethash "number" copy)))
+      (is (eql number (gethash "number" original))))))
+
+(test copy-table-value--integer-fields-remain-exact
+  (dolist (number (list 0 -1 1763370000 16777217 9007199254740992 (expt 2 1024)))
+    (let* ((original (alexandria:plist-hash-table (list "number" number)))
+           (copy (copy-table-value original)))
+      (is (not (eq original copy)))
+      (is (typep (gethash "number" copy) 'integer))
+      (is (= number (gethash "number" copy))))))
+
+(test set-value--integer-fields-remain-exact
+  (with-fixture init-destroy-env ()
+    (let ((item (make-item 'integer-table :type-hint 'table
+                           :initial-value
+                           (alexandria:plist-hash-table '("number" 1763370000)))))
+      (let ((initial (gethash "number" (item-state-value (get-item-stateq item)))))
+        (is (typep initial 'integer))
+        (is (= 1763370000 initial)))
+      (dolist (number '(16777217 -16777217 9007199254740992 -9007199254740992
+                        1763370000 -1763370000))
+        (set-value item (alexandria:plist-hash-table (list "number" number)))
+        (is-true (await-cond 1
+                   (= number (gethash "number" (item-state-value (get-item-stateq item))))))
+        (let ((stored (gethash "number" (item-state-value (get-item-stateq item)))))
+          (is (typep stored 'integer))
+          (is (= number stored)))))))
+
+(test set-value--unrepresentable-table-numbers-preserve-state
+  (with-fixture init-destroy-env ()
+    (let* ((initial (alexandria:plist-hash-table '("number" 1.0) :test #'equal))
+           (item (make-item 'numeric-limits :type-hint 'table :initial-value initial))
+           (timestamp (item-state-timestamp (get-item-stateq item))))
+      (dolist (number (list 1/3 -1/3 1d100 -1d100 1d-100 -1d-100
+                            #+sbcl sb-ext:double-float-positive-infinity
+                            #+sbcl sb-ext:double-float-negative-infinity))
+        (let ((bad (alexandria:plist-hash-table (list "number" number))))
+          (signals invalid-table-value (copy-table-value bad))
+          (signals invalid-table-value
+            (make-item (gensym "INVALID-NUMERIC-TABLE") :type-hint 'table :initial-value bad))
+          (signals invalid-table-value (set-value item bad))
+          (is (equalp initial (item-state-value (get-item-stateq item))))
+          (is (= timestamp (item-state-timestamp (get-item-stateq item)))))))))

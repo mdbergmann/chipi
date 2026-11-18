@@ -246,20 +246,22 @@ Persistences are references via `:persistence' key.
 
 See `hab-test.lisp' and `item' for more examples."
   (with-gensyms
-      (body-forms
+      (item-id item-label hint body-forms
        item old-item bindings binding
        p-rep p-reps persp initial-value
        itemgroups ig ig-key ig-val tags)
-    `(progn
-       (when-let ((,old-item (get-item ,id)))
+    `(let* ((,item-id ,id)
+            (,item-label ,label)
+            (,hint ,type-hint))
+       (when-let ((,old-item (get-item ,item-id)))
          (log:info "Cleaning from itemgroups...")
          (maphash (lambda (,ig-key ,ig-val)
                     (declare (ignore ,ig-key))
-                    (itemgroup:remove-item ,ig-val ,id))
+                    (itemgroup:remove-item ,ig-val ,item-id))
                   *itemgroups*)
-         (log:info "Cleaning old item: " ,id)
+         (log:info "Cleaning old item: " ,item-id)
          (item:destroy ,old-item)
-         (remhash ,id *items*))
+         (remhash ,item-id *items*))
        (let* ((,body-forms (list ,@body))
               (,bindings (loop :for x :in ,body-forms
                                :if (typep x 'binding::binding)
@@ -269,16 +271,19 @@ See `hab-test.lisp' and `item' for more examples."
                                :collect v))
               (,initial-value (loop :for (k v) :on ,body-forms
                                     :if (eq k :initial-value)
-                                      :return v))
+                                      :return v
+                                    :finally (return (if (item:table-type-hint-p ,hint)
+                                                         (make-hash-table :test #'equal)
+                                                         nil))))
               (,itemgroups (loop :for (k v) :on ,body-forms
                                 :if (eq k :group)
                                   :return v))
               (,tags (loop :for (k v) :on ,body-forms
                            :if (eq k :tags)
                              :return v))
-              (,item (item:make-item ,id
-                                     :label ,label
-                                     :type-hint ,type-hint
+              (,item (item:make-item ,item-id
+                                     :label ,item-label
+                                     :type-hint ,hint
                                      :initial-value ,initial-value
                                      :tags ,tags)))
          (if ,itemgroups
@@ -292,7 +297,7 @@ See `hab-test.lisp' and `item' for more examples."
          (dolist (,p-rep ,p-reps)
            (when-let ((,persp (get-persistence (getf ,p-rep :id))))
              (item:add-persistence ,item ,persp ,p-rep)))
-         (setf (gethash ,id *items*) ,item)))))
+         (setf (gethash ,item-id *items*) ,item)))))
 
 (defmacro binding (&rest args)
   "Creates a binding.

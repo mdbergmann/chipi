@@ -112,3 +112,50 @@
          (tags-ht (gethash "tags" ht)))
     (is-true (gethash :ui-type tags-ht))
     (is (equal "Light" (gethash :ui-type tags-ht)))))
+
+(test item-value-ext-to-internal--table-json-roundtrip
+  (let* ((external (com.inuoe.jzon:parse "{\"A\":1,\"a\":2.5,\"yes\":true,\"no\":false,\"text\":\"ok\"}"))
+         (internal (item-value-ext-to-internal external))
+         (decoded (com.inuoe.jzon:parse
+                   (com.inuoe.jzon:stringify (item-value-internal-to-ext internal)))))
+    (is (= 1 (gethash "A" internal)))
+    (is (typep (gethash "a" internal) 'double-float))
+    (is (eq 'item:true (gethash "yes" internal)))
+    (is (eq 'item:false (gethash "no" internal)))
+    (is (equalp external decoded)))
+  (is (= 0 (hash-table-count
+            (item-value-ext-to-internal (com.inuoe.jzon:parse "{}"))))))
+
+(test item-value-ext-to-internal--defers-table-validation
+  (cl-mock:with-mocks ()
+    (cl-mock:answer item:copy-table-value
+      (error "Converters must defer table validation to SET-VALUE."))
+    (let* ((external (com.inuoe.jzon:parse
+                      "{\"null\":null,\"nested\":{\"flag\":false},\"array\":[]}"))
+           (internal (item-value-ext-to-internal external)))
+      (is (null (gethash "null" internal)))
+      (is (eq 'item:false (gethash "flag" (gethash "nested" internal))))
+      (is (equalp external (item-value-internal-to-ext internal))))
+    (let ((value (make-hash-table :test #'eq)))
+      (setf (gethash :invalid-key value) t)
+      (is (eq 'item:true
+              (gethash :invalid-key (item-value-ext-to-internal value))))
+      (is (eq t (gethash :invalid-key (item-value-internal-to-ext value)))))
+    (is (null (cl-mock:invocations 'item:copy-table-value)))))
+
+(test item-value-ext-to-internal--preserve-keys-before-validation
+  (let ((value (make-hash-table :test #'eq))
+        (key (copy-seq "same")))
+    (setf (gethash key value) 1
+          (gethash (copy-seq key) value) 2)
+    (let ((converted (item-value-ext-to-internal value)))
+      (is (= 2 (hash-table-count converted)))
+      (is (= 1 (gethash key converted)))
+      (signals item:invalid-table-value
+        (item:copy-table-value converted)))))
+
+(test item-value-ext-to-internal--table-numbers-defer-normalization
+  (dolist (number '(29.08d0 21.1d0 16777217 1/3 1d100 1d-100))
+    (let* ((external (alexandria:plist-hash-table (list "number" number)))
+           (internal (item-value-ext-to-internal external)))
+      (is (eql number (gethash "number" internal))))))

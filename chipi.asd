@@ -56,6 +56,7 @@
                  (:file "rule-test")
                  (:file "persistence-test")
                  (:file "persistence-influx-test")
+                 (:file "persistence-influx-unit-test")
                  (:file "env-test")
                  (:file "hab-test")
                  (:file "house-test")

@@ -547,3 +547,39 @@
                  (is (= 2 (length (filter-heartbeat-msgs sse-data))))))
           (setf eventsc:*heartbeat-sleep-time-s* heartbeat-sleep-s
                 eventsc:*max-heartbeats* max-heartbeats))))))
+
+(test update-item-value--table-get-post-and-invalid-update
+  (with-fixture api-start-stop (t)
+    (let* ((apikey-id (apikey-store:create-apikey :access-rights '(:read :update)))
+           (headers `(("X-Api-Key" . ,apikey-id)))
+           (item (hab:defitem 'table-api "Table" 'table)))
+      (multiple-value-bind (body status)
+          (make-post-item-request headers "TABLE-API"
+                                  "{\"value\":{\"A\":1,\"a\":2.5,\"yes\":true,\"no\":false}}")
+        (declare (ignore body))
+        (is (= 204 status)))
+      (is-true (miscutils:await-cond 1
+                 (= 4 (hash-table-count (item:item-state-value (item:get-item-stateq item))))))
+      (multiple-value-bind (body status) (make-get-items-request headers "TABLE-API")
+        (is (= 200 status))
+        (let* ((data (aref (jzon:parse (octets-to-string body)) 0))
+               (value (gethash "value" (gethash "item-state" data))))
+          (is (equal "TABLE" (gethash "type-hint" data)))
+          (is (= 1 (gethash "A" value)))
+          (is-false (gethash "no" value))))
+      (let ((before (item:get-item-stateq item)))
+        (dolist (json '("{\"value\":{\"x\":null}}" "{\"value\":{\"x\":[]}}"
+                        "{\"value\":{\"x\":{\"flag\":false}}}" "{\"value\":null}"
+                        "{\"value\":[]}" "{\"value\":5}"
+                        "{\"value\":{\"x\":1e100}}" "{\"value\":{\"x\":1e-100}}"))
+          (multiple-value-bind (body status) (make-post-item-request headers "TABLE-API" json)
+            (declare (ignore body))
+            (is (= 400 status)))
+          (is (equalp (item:item-state-value before)
+                      (item:item-state-value (item:get-item-stateq item))))
+          (is (= (item:item-state-timestamp before)
+                 (item:item-state-timestamp (item:get-item-stateq item)))))
+        (is (equalp (item:item-state-value before)
+                    (item:item-state-value (item:get-item-stateq item))))
+        (is (= (item:item-state-timestamp before)
+               (item:item-state-timestamp (item:get-item-stateq item))))))))

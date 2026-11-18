@@ -286,3 +286,55 @@
     (add-to-shutdown (lambda () (error "Foo err")))
     (shutdown)
     (is-true called)))
+
+(test defitem--table-default
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    (let ((item (defitem 'table-default "Table" 'table)))
+      (is (eq 'table (item:value-type-hint item)))
+      (is (= 0 (hash-table-count (item:item-state-value (item:get-item-stateq item))))))
+    (signals item:invalid-table-value
+      (defitem 'table-nil "Invalid" 'table :initial-value nil))))
+
+(defclass lifecycle-test-binding (binding:binding)
+  ((destroyed-p :initform nil :accessor destroyed-p)))
+
+(defmethod binding:destroy :after ((binding lifecycle-test-binding))
+  (setf (destroyed-p binding) t))
+
+(test defitem--destroys-old-binding-before-evaluating-body
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    (defitemgroup 'table-group "Tables")
+    (let* ((binding (make-instance 'lifecycle-test-binding))
+           (old-item (defitem 'replaced-table "Original" 'table
+                       :group '(table-group) binding))
+           (id-evaluations 0)
+           (hint-evaluations 0)
+           (body-evaluations 0)
+           (new-item
+             (defitem (progn (incf id-evaluations) 'replaced-table)
+                 "Replacement" (progn (incf hint-evaluations) 'table)
+               (progn
+                 (incf body-evaluations)
+                 (is-true (destroyed-p binding))
+                 (is-false (act-cell:running-p old-item))
+                 (is-false (get-item 'replaced-table))
+                 (is-false (member old-item (get-items-on-group 'table-group)))
+                 (make-instance 'lifecycle-test-binding)))))
+      (is (= 1 id-evaluations hint-evaluations body-evaluations))
+      (is (eq new-item (get-item 'replaced-table)))
+      (is-true (act-cell:running-p new-item))
+      (is (= 1 (length (item:bindings new-item))))
+      (is-false (destroyed-p (first (item:bindings new-item)))))))
+
+(test make-item--validates-initial-table-value
+  (with-fixture clean-after ()
+    (defconfig "chipi")
+    (dolist (invalid (list nil (alexandria:plist-hash-table '("nested" (1)))))
+      (signals item:invalid-table-value
+        (item:make-item 'invalid-table :type-hint 'table :initial-value invalid)))
+    (let* ((value (alexandria:plist-hash-table '("field" 1) :test #'equal))
+           (item (item:make-item 'valid-table :type-hint 'table :initial-value value)))
+      (clrhash value)
+      (is (= 1 (gethash "field" (item:item-state-value (item:get-item-stateq item))))))))

@@ -378,3 +378,32 @@ body {
 .page-nav-links {
     max-width: 30rem;
 }
+
+/* Compound observations share the existing value display typography. */
+.item-fields {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
+}
+.item-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1rem;
+    padding: 0.25rem 0;
+    font-variant-numeric: tabular-nums;
+}
+.item-field-name,
+.item-field-value {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+.item-field-name {
+    text-align: left;
+    font-weight: 400;
+}
+.item-field-value {
+    text-align: right;
+}
+.item-fields-empty {
+    font-weight: 400;
+}

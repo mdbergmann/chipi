@@ -17,6 +17,7 @@
            #:item-widget-label
            #:value-display
            #:value-display-format
+           #:value-display-field
            #:toggle
            #:text-input
            #:number-input
@@ -37,8 +38,11 @@
            #:chart-type
            #:chart-range
            #:chart-persistence
+           #:chart-field
            #:chart-transform
            #:chart-series
+           #:chart-series-label
+           #:chart-series-field
            #:chart-height
            #:chart-line-width
            #:chart-refresh
@@ -97,7 +101,8 @@
   label)     ; nil => the item's own label is used
 
 (defstruct (value-display (:include item-widget))
-  format)    ; nil => default formatting per type-hint
+  format     ; nil => default formatting per type-hint
+  field)     ; nil => whole value; string => selected table key
 
 (defstruct (toggle (:include item-widget)))
 
@@ -119,13 +124,14 @@
   (type :line)  ; :line or :bar
   range         ; persp:range
   persistence   ; persistence id; nil => first defined historic persistence
+  field         ; nil, or string key selected from a compound item value
   transform     ; nil, or 1-arg function applied to every charted value
-  series        ; list of (item-id . label-or-nil), one entry per series
+  series        ; item/label conses or (item-id :field key :label label) entries
   (height 220)  ; plot height in CSS pixels
   (line-width 2) ; stroke width of every series in CSS pixels
   refresh       ; nil, or minimum seconds between live-appended points
   (fill :auto)  ; area fill under the lines: :auto (lone series only), t, nil
-  right-axis)   ; nil, or (:series (item-id ...) :range (min max)) -- see `chart'
+  right-axis)   ; nil, or (:series (selector ...) :range (min max)) -- see `chart'
 
 (defstruct (button (:include widget))
   caption    ; the button's own text
@@ -263,13 +269,16 @@ Widgets are ordinary values, so they can be composed programmatically
                                          (or ,path (%default-path ,pid)))
                                   :children ,widgets)))))
 
-(defun value (item-id &key label format)
+(defun value (item-id &key label format field)
   "A read-only display of the item's value.
 `format' is a CL format string applied to the value (e.g. \"~,1f °C\");
 without it the value is formatted according to the item's type-hint.
+`field' selects a string key from a table item; a missing key displays empty text.
 Boolean items render as ON/OFF, or as the labels of their `:ui-mapping' tag
 (see `value-mapping')."
-  (make-value-display :item-id item-id :label label :format format))
+  (when (and field (not (stringp field)))
+    (error "Value field must be a string: ~s" field))
+  (make-value-display :item-id item-id :label label :format format :field field))
 
 (defun value-mapping (&rest value-label-pairs)
   "Builds an item's `:ui-mapping' tag from alternating values and labels:
@@ -325,18 +334,30 @@ signals on an alist -- one alist tag would fail the whole item listing."
 item when selected."
   (make-selection :item-id item-id :label label :choices choices))
 
-(defun %check-right-axis (right-axis series)
+(defun %check-right-axis (right-axis series default-field)
   "Validates the `chart' RIGHT-AXIS plist against SERIES -- the chart's
-normalized (item-id . label) list -- and returns it normalized, or `nil'.
+normalized entries -- and returns it normalized, or `nil'.
 Signals at page definition, where a typo is found, rather than rendering a
 chart with a silently ignored axis."
   (when right-axis
     (destructuring-bind (&key ((:series ids)) range) right-axis
       (unless (and ids (listp ids))
-        (error ":right-axis needs a :series list of item ids, got ~s" right-axis))
-      (dolist (id ids)
-        (unless (assoc id series)
-          (error "Right-axis series ~a is not a series of the chart" id)))
+        (error ":right-axis needs a :series list of selectors, got ~s" right-axis))
+      (dolist (selector ids)
+        (unless (if (symbolp selector)
+                    (assoc selector series)
+                    (and (listp selector)
+                         (= 3 (length selector))
+                         (symbolp (first selector))
+                         (eq :field (second selector))
+                         (typep (third selector) '(or null string))
+                         (some (lambda (entry)
+                                 (and (eq (car entry) (first selector))
+                                      (equal (chart-series-field entry default-field)
+                                             (third selector))))
+                               series)))
+          (error "Right-axis selector ~s does not select a series of the chart"
+                 selector)))
       (when range
         (unless (and (listp range)
                      (= 2 (length range))
@@ -346,7 +367,29 @@ chart with a silently ignored axis."
                  range)))
       (list :series ids :range range))))
 
-(defun chart (item-ids &key label (type :line) range persistence transform
+(defun chart-series-label (entry)
+  "Return the explicit label of an ENTRY from CHART-SERIES, or NIL.
+Supports both legacy (item-id . label) entries and normalized plist entries.
+A NIL label lets the renderer use the item's own label."
+  (if (listp (cdr entry)) (getf (cdr entry) :label) (cdr entry)))
+
+(defun chart-series-field (entry default)
+  "Return the field selected by an ENTRY from CHART-SERIES.
+Use DEFAULT when the entry omits :FIELD, including legacy entries.
+An explicit :FIELD NIL overrides DEFAULT and selects the scalar item value."
+  (if (listp (cdr entry)) (getf (cdr entry) :field default) default))
+
+(defun %normalize-chart-series (entry)
+  (cond
+    ((symbolp entry) (cons entry nil))
+    ((stringp (cdr entry)) entry)
+    (t
+     (destructuring-bind (id &key (field nil field-p) label) entry
+       (check-type field (or null string))
+       (check-type label (or null string))
+       (append (list id :label label) (when field-p (list :field field)))))))
+
+(defun chart (item-ids &key label (type :line) range persistence transform field
                             (height 220) (line-width 2) refresh (fill :auto)
                             right-axis)
   "A history chart of one or more items' persisted values.
@@ -359,6 +402,11 @@ chart with a silently ignored axis."
 the last day.
 `persistence' names the persistence to load from; without it the first
 defined historic persistence is used.
+`field', when given, is the string key of a numeric field in a hash-table
+value. Missing or non-numeric fields chart as gaps. Every series selects
+the default key. A series entry `(item-id :field \"key\" :label \"Label\")`
+selects its own field and optional label. Compound items require a field;
+scalar charts omit it.
 `transform', when given, is a one-argument function applied to every charted
 value of every series, historic and live alike -- e.g. converting a raw
 sensor reading to a display unit.  It is called with a number (booleans
@@ -395,7 +443,10 @@ thousands:
          :label \"Energie [W]\"
          :right-axis '(:series (battery-soc) :range (0 100)))
 
-`:series' lists the item ids (of `item-ids') that read against the right axis;
+`:series' lists selectors for the right axis. A bare item id selects every
+series of that item. `(item-id :field \"key\")' selects only the matching item
+and effective field, including the chart-level `field' default. Selectors
+must match a chart series; invalid selectors signal at page construction.
 `:range', when given, fixes its bounds as (min max).  Without it the axis
 auto-scales like the left one, which for a percentage lets 60..80 fill the
 plot height and suggests swings that are not there.  Right-axis series are
@@ -403,24 +454,24 @@ drawn dashed and never filled -- the fill is about the left-axis quantity's
 sign, and a dashed line tells the two axes' series apart without consulting
 the legend.  With exactly one right-axis series the axis takes that series'
 colour."
+  (check-type field (or null string))
   (let ((series (cond
                   ((symbolp item-ids) (list (cons item-ids nil)))
                   ;; a single (item-id . "label") cons
                   ((and (consp item-ids) (stringp (cdr item-ids)))
                    (list item-ids))
-                  (t (mapcar (lambda (s)
-                               (if (consp s) s (cons s nil)))
-                             item-ids)))))
+                  (t (mapcar #'%normalize-chart-series item-ids)))))
     (make-chart :item-id (car (first series))
                 :label label :type type
                 :persistence persistence
+                :field field
                 :transform transform
                 :series series
                 :height height
                 :line-width line-width
                 :refresh refresh
                 :fill (ecase fill ((:auto t nil) fill))
-                :right-axis (%check-right-axis right-axis series)
+                :right-axis (%check-right-axis right-axis series field)
                 :range (etypecase range
                          (null (persp:make-relative-range :days 1))
                          (cons (apply #'persp:make-relative-range range))

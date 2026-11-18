@@ -12,10 +12,23 @@
 
 (in-package :chipi.item-ext)
 
+(defun %convert-table (table converter)
+  (let ((converted (make-hash-table :test (hash-table-test table))))
+    (maphash (lambda (key value)
+               (setf (gethash key converted)
+                     (funcall converter value)))
+             table)
+    converted))
+
 (defun item-value-ext-to-internal (ext-value)
   "Converts externally delivered (read) ext-value (`item-state-value') to internal representation
 Used e.g. for API or persistences."
   (cond
+    ((hash-table-p ext-value)
+     (%convert-table ext-value
+                     (lambda (value)
+                       ;; Keep precision until SET-VALUE checks and normalizes table fields.
+                       (if (numberp value) value (item-value-ext-to-internal value)))))
     ((typep ext-value 'double-float)
      (coerce ext-value 'single-float))
     ((eq ext-value t) 'item:true)
@@ -26,6 +39,8 @@ Used e.g. for API or persistences."
 (defun item-value-internal-to-ext (item-value)
   "Converts internal item-value (`item-state-value') to external representation, i.e. used for JSON."
   (cond
+    ((hash-table-p item-value)
+     (%convert-table item-value #'item-value-internal-to-ext))
     ((eq item-value 'item:true) t)
     ((eq item-value 'item:false) nil)
     ((null item-value) 'cl:null)

@@ -248,3 +248,65 @@
 
 (test chart--right-axis-rejects-unknown-keys
   (signals error (chart '(pv soc) :right-axis '(:series (soc) :label "%"))))
+
+(test chart--field-is-optional-string
+  (is (null (page:chart-field (page:chart 'temperature))))
+  (is (string= "temperature" (page:chart-field (page:chart 'weather :field "temperature"))))
+  (signals type-error (page:chart 'weather :field 'temperature)))
+
+(test chart-series-accessors--are-public
+  (dolist (name '("CHART-SERIES-LABEL" "CHART-SERIES-FIELD"))
+    (multiple-value-bind (symbol status) (find-symbol name :chipi-ui.page)
+      (is (eq :external status))
+      (is-true (and symbol (fboundp symbol))))))
+
+(test chart--series-fields-override-chart-default
+  (let* ((c (chart '((weather :field "temperature" :label "Temp")
+                     (weather :field "humidity")
+                     (outside :label "Outside")
+                     legacy (old . "Old"))
+                   :field "default"))
+         (entries (chart-series c)))
+    (is (equal '(weather weather outside legacy old) (mapcar #'car entries)))
+    (is (equal '("temperature" "humidity" "default" "default" "default")
+               (mapcar (lambda (entry)
+                         (page:chart-series-field entry (chart-field c)))
+                       entries)))
+    (is (equal '("Temp" nil "Outside" nil "Old")
+               (mapcar #'page:chart-series-label entries)))
+    (is (equal '(old . "Old") (fifth entries)))))
+
+(test chart--series-validates-field-and-label
+  (signals type-error (chart '((weather :field temperature))))
+  (signals type-error (chart '((weather :label 123))))
+  (signals error (chart '((weather :unknown "temperature")))))
+
+(test value--selected-field-preserves-format
+  (let ((widget (value 'weather :field "temperature" :format "~,1f °C")))
+    (is (string= "temperature" (value-display-field widget)))
+    (is (string= "~,1f °C" (value-display-format widget))))
+  (is (null (value-display-field (value 'weather))))
+  (signals error (value 'weather :field :temperature)))
+
+(test chart--right-axis-field-selectors-use-effective-fields
+  (is (chart '((weather :field "temperature") (weather :field "humidity"))
+             :right-axis '(:series ((weather :field "humidity")))))
+  (is (chart '(weather) :field "humidity"
+             :right-axis '(:series ((weather :field "humidity")))))
+  (signals error
+    (chart '(weather) :field "temperature"
+           :right-axis '(:series ((weather :field "humidity"))))))
+
+(test chart--right-axis-rejects-unknown-or-malformed-field-selectors
+  (dolist (selector '((unknown :field "humidity") (weather :field "unknown") (weather :field "Humidity")
+                      (weather) (weather :label "Humidity")
+                      (weather :field 5) (weather :field "humidity" :extra t)
+                      "weather"))
+    (signals error
+      (chart '((weather :field "humidity"))
+             :right-axis (list :series (list selector)))))
+  (dolist (range '((0 0) (0 100 200) (0 . 100) (0 #C(1 2))))
+    (signals error
+      (chart '((weather :field "humidity"))
+             :right-axis (list :series '((weather :field "humidity"))
+                               :range range)))))

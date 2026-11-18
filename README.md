@@ -319,7 +319,7 @@ REPL:
 
 The three positional arguments are the **id** (a symbol, used everywhere the
 item is referenced), the **label** shown in the UI, and the **type hint**:
-`'integer`, `'float`, `'boolean`, `'string`, or `nil`. The type hint is
+`'integer`, `'float`, `'boolean`, `'string`, `'table`, or `nil`. The type hint is
 required for the InfluxDB persistence (it decides how values are written and
 parsed) and is used by the UI and API to render and convert values; it is good
 practice to always give one.
@@ -412,6 +412,39 @@ to several places.
 Bindings for specific protocols are plugins; see
 [Binding plugins](#binding-plugins).
 
+### Compound values
+
+Use the `'table` hint for a flat snapshot with string keys:
+
+```lisp
+(defitem 'weather "Weather" 'table
+  :initial-value (alexandria:plist-hash-table
+                   (list "temperature" 21.5 "humidity" 45 "online" 'item:true)
+                   :test 'equal))
+```
+
+Fields accept integers, floats, strings, and `item:true` / `item:false`.
+Integers retain their exact value and type in memory and file persistence.
+Float fields normalize to finite `single-float` on creation and update.
+Ratios, overflowing floats, and nonzero floats that round to zero are rejected
+before the item changes.
+Nested objects, arrays, null fields and non-string keys are rejected. Updates
+replace the complete snapshot; omitted fields disappear. Without an initial
+value, the table starts empty. The API represents tables as JSON objects.
+
+File persistence restores empty tables; InfluxDB skips them. InfluxDB stores
+numeric fields as doubles. Integer fields must be exactly representable as finite
+doubles; InfluxDB persistence rejects precision loss or overflow before HTTP.
+Integral doubles restore as integers; fractional doubles restore as single-floats.
+These backend limits do not restrict integers in memory or file persistence.
+String values accept CR/LF on write. InfluxDB CSV responses normalize LF to CRLF
+and remove bare CR from string values. Table reads canonicalize CRLF to LF,
+including genuine CRLF input. The server's bare CR loss cannot be recovered.
+InfluxDB persistence rejects CR/LF in names, empty
+field names, names ending in a backslash, and the exact field name `time`.
+History returns only fields recorded at each timestamp. Writes within the same
+second can merge.
+
 ### Persistences
 
 A persistence is a storage backend. It is defined once at top level with an
@@ -454,7 +487,7 @@ item starts with its stored value.
 Writes every persisted value as a point to InfluxDB v2 and can read back
 ranges, which is what charts in the UI and "average of the last 24 hours"
 style rules use. Supported item types are `integer`, `float`, `boolean`
-and `string`; the item's type hint must be set.
+and `string`, plus flat `hash-table` values; the item's type hint must be set.
 
 #### Attaching persistences to items
 
@@ -978,3 +1011,22 @@ Main dependencies: [Sento](https://github.com/mdbergmann/cl-gserver) ≥ 3.4.2,
 cl-cron, timer-wheel, com.inuoe.jzon, Drakma, local-time; Hunchentoot and
 Snooze for the API; CLOG for the UI. All are available through Quicklisp and
 OCICL.
+
+### InfluxDB tests
+
+With OCICL configured and Docker running, start the test server and export its
+connection settings:
+
+```sh
+export COMPOSE_FILE=test/influx/compose.yaml
+export CHIPI_TEST_PASSWORD="$(openssl rand -hex 24)"
+export CHIPI_TEST_INFLUX_TOKEN="$(openssl rand -hex 32)"
+export CHIPI_TEST_INFLUX_ORG=chipi-tests CHIPI_TEST_INFLUX_BUCKET=chipi-tests
+docker compose up -d --wait
+export CHIPI_TEST_INFLUX_URL="http://$(docker compose port influxdb 8086)"
+sbcl --non-interactive --eval '(require :asdf)' --eval '(asdf:test-system :chipi)'
+docker compose down --volumes
+```
+
+For an existing server, export the same four `CHIPI_TEST_INFLUX_*` variables.
+Integration tests skip when any connection setting is missing.

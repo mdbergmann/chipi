@@ -840,6 +840,70 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (is-false any-ok)
         (is (null (third (first series-data))))))))
 
+(test chart--collect-series-data--same-item-shares-history
+  (with-fixture render-env ()
+    (with-mocks ()
+      (let ((reads 0))
+        (answer item:name "WEATHER")
+        (answer persp:retrieve-range
+          (list (persp:make-persisted-item
+                 :value (%table "temperature" (incf reads) "humidity" 40)
+                 :timestamp 3900000000)))
+        (multiple-value-bind (data ok)
+            (ui-renderer::%collect-chart-series-data
+             (page:chart 'weather)
+             '((:weather "Temperature" "temperature")
+               (:weather "Humidity" "humidity"))
+             :mock-persp)
+          (is-true ok)
+          (is (= 1 reads))
+          (is (eq (third (first data)) (third (second data)))))))))
+
+(test chart--collect-series-data--distinct-items-read-once
+  (with-fixture render-env ()
+    (with-mocks ()
+      (let ((reads (make-hash-table)))
+        (answer (item:name item) (symbol-name item))
+        (answer (persp:retrieve-range persistence item range)
+          (progn
+            (incf (gethash item reads 0))
+            (list (persp:make-persisted-item :value 1 :timestamp 3900000000))))
+        (multiple-value-bind (data ok)
+            (ui-renderer::%collect-chart-series-data
+             (page:chart '(inside outside))
+             '((:inside "Temperature" "temperature")
+               (:outside "Outside")
+               (:inside "Humidity" "humidity"))
+             :mock-persp)
+          (is-true ok)
+          (is (= 1 (gethash :inside reads)))
+          (is (= 1 (gethash :outside reads)))
+          (is (= 3 (length data)))
+          (is (= 3 (length (second data)))))))))
+
+(test chart--collect-series-data--failed-item-retries-next-render
+  (with-fixture render-env ()
+    (with-mocks ()
+      (let ((reads 0)
+            (series '((:weather "Temperature" "temperature")
+                      (:weather "Humidity" "humidity")))
+            (w (page:chart 'weather)))
+        (answer item:name "WEATHER")
+        (answer persp:retrieve-range
+          (if (= 1 (incf reads))
+              (error "History unavailable")
+              (list (persp:make-persisted-item :value 1 :timestamp 3900000000))))
+        (multiple-value-bind (data ok)
+            (ui-renderer::%collect-chart-series-data w series :mock-persp)
+          (is-false ok)
+          (is (= 1 reads))
+          (is (every (lambda (entry) (null (third entry))) data)))
+        (multiple-value-bind (data ok)
+            (ui-renderer::%collect-chart-series-data w series :mock-persp)
+          (is-true ok)
+          (is (= 2 reads))
+          (is (eq (third (first data)) (third (second data)))))))))
+
 (test widget--chart-refresh-throttles-live-appends
   ;; a KNX item can broadcast every second; :refresh keeps such an item from
   ;; appending a point per telegram -- updates inside the window are dropped
@@ -1254,3 +1318,297 @@ hash-table built from ITEM-HT-ARGS (as for `make-item-ht')."
         (chipi-ui.main::%dispatch-path ctx)
         (is-true (js~ "My home"))
         (is-false (js~ "Chipi Home Automation Dashboard"))))))
+
+(defun %table (&rest pairs)
+  (let ((table (make-hash-table :test #'equal)))
+    (loop :for (key value) :on pairs :by #'cddr
+          :do (setf (gethash key table) value))
+    table))
+
+(test render-widget--table-value-is-readonly-and-empty-state-updates
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-item (:name "weather" :type-hint "TABLE" :value (%table))
+        (ui-renderer:render-widget (page:value 'weather) :owner (make-body))
+        (is-true (js~ "No fields"))
+        (is-false (js~ "<input"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "temperature" 12))
+        (is-true (js~ "html('')"))
+        (is-true (js~ "text('temperature')"))
+        (is-true (js~ "text('12')"))))))
+
+(test render-widget--table-chart-selects-number-before-transform-history-and-live
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((w (page:chart 'weather :field "Temperature"
+                                   :transform (lambda (v) (* v 10)))))
+        (ui-renderer::%render-uplot
+         :owner w (clog:create-div (make-body))
+         (list (%series "weather" "Weather" (%table "Temperature" 2.5 "other" 99))))
+        (is-true (js~ "[25.0]]"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "Temperature" 3.5))
+        (is-true (js~ "push(35.0)"))))))
+
+(test render-widget--table-chart-missing-and-nonnumeric-fields-are-gaps
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let* ((calls 0)
+             (w (page:chart 'weather :field "temperature"
+                                    :transform (lambda (v) (incf calls) (* v 2))))
+             (gaps (list (%table) (%table "Temperature" 10)
+                         (%table "temperature" "12") (%table "temperature" nil)
+                         (%table "temperature" t) 12 nil)))
+        (ui-renderer::%render-uplot
+         :owner w (clog:create-div (make-body))
+         (list (apply #'%series "weather" "Weather"
+                      (mapcar #'item-ext:item-value-ext-to-internal gaps))))
+        (is-true (js~ "[null,null,null,null,null,null,null]]"))
+        (is (zerop calls))
+        (dolist (value gaps)
+          (setf *captured* nil)
+          (%chart-live-update "weather" value)
+          (is-true (js~ "push(null)")))
+        (is (zerop calls))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "temperature" 0))
+        (is-true (js~ "push(0)"))
+        (is (= 1 calls))))))
+
+(test render-widget--table-chart-transform-failures-are-gaps
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((w (page:chart 'weather :field "temperature"
+                                   :transform (lambda (v) (error "Bad value: ~a" v)))))
+        (ui-renderer::%render-uplot
+         :owner w (clog:create-div (make-body))
+         (list (%series "weather" "Weather" (%table "temperature" 3))))
+        (is-true (js~ "[null]]"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "temperature" 4))
+        (is-true (js~ "push(null)"))))))
+
+(test render-widget--table-chart-without-field-explains-selection
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((item (make-instance 'item:item :receive t :name "weather")))
+        (setf (slot-value item 'item::value-type-hint) 'table)
+        (with-mocks ()
+          (answer hab:get-item item)
+          (answer item:label "Weather")
+          (ui-renderer:render-widget (page:chart 'weather) :owner (make-body))
+          (is-true (js~ "Select a numeric field with :field"))
+          (is-false (js~ "new uPlot")))))))
+
+(test render-widget--table-chart-multiple-series-preserve-explicit-gaps
+  (with-fixture render-env ()
+    (with-captured-clog
+      (ui-renderer::%render-uplot
+       :owner (page:chart '(inside outside) :field "temperature")
+       (clog:create-div (make-body))
+       (list (%series "inside" "Inside" (%table "temperature" 3) (%table))
+             (%series "outside" "Outside" (%table "temperature" 4))))
+      (is-true (js~ "[3,null]]"))
+      (is-true (js~ "[4]]"))
+      (is-false (js~ "spanGaps: true"))
+      (setf *captured* nil)
+      (%chart-live-update "outside" (%table "temperature" 5))
+      (is-true (js~ "push(5)")))))
+
+(test render-widget--scalar-booleans-retain-number-conversion-and-transform
+  (with-fixture render-env ()
+    (with-captured-clog
+      (ui-renderer::%render-uplot
+       :owner (page:chart 'switch :transform (lambda (v) (* 2 v)))
+       (clog:create-div (make-body))
+       (list (%series "switch" "Switch" 'item:true 'item:false)))
+      (is-true (js~ "[2,0]]"))
+      (setf *captured* nil)
+      (%chart-live-update "switch" nil)
+      (is-true (js~ "push(0)"))
+      (setf *captured* nil)
+      (%chart-live-update "switch" t)
+      (is-true (js~ "push(2)")))))
+
+(test render-widget--compound-live-series-distinguish-alignment-from-missing-fields
+  (with-fixture render-env ()
+    (with-captured-clog
+      (ui-renderer::%render-uplot
+       :owner (page:chart '(inside outside) :field "temperature")
+       (clog:create-div (make-body))
+       (list (%series "inside" "Inside" (%table "temperature" 3))
+             (%series "outside" "Outside" (%table "temperature" 4))))
+      (setf *captured* nil)
+      (%chart-live-update "inside" (%table "temperature" 5) 1755000001)
+      (is-true (js~ "c.data[1].push(5); c.data[2].push(undefined);"))
+      (setf *captured* nil)
+      (%chart-live-update "outside" (%table "temperature" 6) 1755000002)
+      (is-true (js~ "c.data[1].push(undefined); c.data[2].push(6);"))
+      (setf *captured* nil)
+      (%chart-live-update "inside" (%table "temperature" 7) 1755000003)
+      (is-true (js~ "c.data[1].push(7); c.data[2].push(undefined);"))
+      (setf *captured* nil)
+      (%chart-live-update "inside" (%table) 1755000004)
+      (is-true (js~ "c.data[1].push(null); c.data[2].push(undefined);")))))
+
+(test render-widget--scalar-live-series-retain-null-alignment
+  (with-fixture render-env ()
+    (with-captured-clog
+      (ui-renderer::%render-uplot
+       :owner (page:chart '(inside outside))
+       (clog:create-div (make-body))
+       (list (%series "inside" "Inside" 3) (%series "outside" "Outside" 4)))
+      (setf *captured* nil)
+      (%chart-live-update "inside" 5 1755000001)
+      (is-true (js~ "c.data[1].push(5); c.data[2].push(null);"))
+      (setf *captured* nil)
+      (%chart-live-update "outside" 6 1755000002)
+      (is-true (js~ "c.data[1].push(null); c.data[2].push(6);")))))
+
+(test render-widget--same-item-fields-propagate-through-history-and-live
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-mocks ()
+        (answer hab:get-item :mock-weather)
+        (answer item:name "WEATHER")
+        (answer item:label "Weather")
+        (answer ui-renderer::%chart-persistence :mock-persp)
+        (answer persp:retrieve-range
+          (list (persp:make-persisted-item
+                 :value (%table "temperature" 2 "humidity" 40)
+                 :timestamp 3900000000)
+                (persp:make-persisted-item
+                 :value (%table "temperature" 3)
+                 :timestamp 3900000001)))
+        ;; Run the loader on this thread, keeping the real series collector.
+        (answer (ui-renderer::%load-and-render-chart owner w series plot persistence)
+          (multiple-value-bind (data ok)
+              (ui-renderer::%collect-chart-series-data w series persistence)
+            (is-true ok)
+            (ui-renderer::%render-uplot owner w plot data)))
+        (let ((w (page:chart '((weather :field "temperature" :label "Temp")
+                              (weather :field "humidity"))
+                            :transform (lambda (v) (* 10 v)) :refresh 60)))
+          (ui-renderer:render-widget w :owner (make-body))
+          (is-true (js~ "label: 'Temp'"))
+          (is-true (js~ "label: 'Weather'"))
+          (is-true (js~ "[20,30]]"))
+          (is-true (js~ "[400,null]]"))
+          (is-false (js~ "spanGaps: true"))
+          (setf *captured* nil)
+          (%chart-live-update "WEATHER" (%table "temperature" 4 "humidity" 50))
+          (is (= 1 (%js-count "c.data[0].push(")))
+          (is-true (js~ "c.data[1].push(40); c.data[2].push(500);"))
+          (setf *captured* nil)
+          (%chart-live-update "WEATHER" (%table "temperature" 5) 1755000030)
+          (is (zerop (%js-count "c.data[0].push(")))
+          (%chart-live-update "WEATHER" (%table "temperature" 5) 1755000060)
+          (is (= 1 (%js-count "c.data[0].push(")))
+          (is-true (js~ "c.data[1].push(50); c.data[2].push(null);")))))))
+
+(test render-widget--series-default-fields-and-unrelated-alignment
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-mocks ()
+        (answer hab:get-item :mock-item)
+        (answer item:label "Weather")
+        (answer item:name "WEATHER")
+        (answer ui-renderer::%chart-persistence :mock-persp)
+        (answer persp:retrieve-range
+          (list (persp:make-persisted-item
+                 :value (%table "temperature" 2 "humidity" 40)
+                 :timestamp 3900000000)))
+        (answer (ui-renderer::%load-and-render-chart owner w series plot persistence)
+          (let ((data (ui-renderer::%collect-chart-series-data w series persistence)))
+            ;; A different item at a different timestamp aligns with undefined.
+            (ui-renderer::%render-uplot
+             owner w plot
+             (append data (list (append (%series "OUTSIDE" "Outside" (%table))
+                                        (list "temperature")))))))
+        (ui-renderer:render-widget
+         (page:chart '((weather :label "Temp") (weather :field "humidity"))
+                     :field "temperature")
+         :owner (make-body))
+        (is-true (js~ "[2]]"))
+        (is-true (js~ "[40]]"))
+        (setf *captured* nil)
+        (%chart-live-update "WEATHER" (%table "humidity" 55))
+        (is (= 1 (%js-count "c.data[0].push(")))
+        (is-true (js~ "c.data[1].push(null); c.data[2].push(55); c.data[3].push(undefined);"))
+        (setf *captured* nil)
+        (%chart-live-update "OUTSIDE" (%table "temperature" 9))
+        (is-true (js~ "c.data[1].push(undefined); c.data[2].push(undefined); c.data[3].push(9);"))))))
+
+(test render-widget--selected-field-formats-and-follows-live-snapshots
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-item (:name "weather" :type-hint "TABLE"
+                  :value (%table "temperature" 12.5 "hidden" 99))
+        (ui-renderer:render-widget
+         (page:value 'weather :field "temperature" :format "~,1f °C")
+         :owner (make-body))
+        (is-true (js~ "text('12.5 °C')"))
+        (is-false (js~ "hidden"))
+        (is-false (js~ "item-fields"))
+        (is-false (js~ "<input"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "temperature" 0))
+        (is-true (js~ "text('0.0 °C')"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "Temperature" 9))
+        (is-true (js~ "text('')"))
+        (is-false (js~ "0.0 °C"))))))
+
+(test render-widget--selected-field-uses-safe-text-and-preserves-booleans
+  (with-fixture render-env ()
+    (with-captured-clog
+      (with-item (:name "weather" :type-hint "TABLE"
+                  :value (%table "<b>key</b>" "<img src=x onerror=alert(1)>"))
+        (ui-renderer:render-widget (page:value 'weather :field "<b>key</b>" :format "~a")
+                                  :owner (make-body))
+        (is-true (js~ "text('<img src=x onerror=alert(1)>')"))
+        (is-false (js~ "<div class='item-value-display'><img"))
+        (setf *captured* nil)
+        (%chart-live-update "weather" (%table "<b>key</b>" "<script>live</script>"))
+        (is-true (js~ "text('<script>live</script>')")))
+      (with-item (:name "flag" :type-hint "TABLE" :value (%table "active" nil))
+        (ui-renderer:render-widget (page:value 'flag :field "active") :owner (make-body))
+        (is-true (js~ "text('false')"))
+        (setf *captured* nil)
+        (%chart-live-update "flag" (%table "active" t))
+        (is-true (js~ "text('true')"))))))
+
+(test widget--chart-right-axis-selects-item-and-field
+  (with-fixture render-env ()
+    (dolist (default-p '(nil t))
+      (with-captured-clog
+        (let ((body (make-body))
+              (w (page:chart
+                  (if default-p '(weather (weather :field "humidity"))
+                      '((weather :field "temperature") (weather :field "humidity")))
+                  :field (when default-p "temperature")
+                  :fill t
+                  :right-axis '(:series ((weather :field "humidity")) :range (0 100)))))
+          (ui-renderer::%render-uplot
+           :owner w (clog:create-div body)
+           (list (append (%series "WEATHER" "Temperature" 21)
+                         (unless default-p '("temperature")))
+                 (append (%series "WEATHER" "Humidity" 65) '("humidity"))))
+          (is (= 1 (count-js "scale: 'y2', dash")))
+          (is-true (js~ "label: 'Humidity', stroke: '#dc3545', width: 2, scale: 'y2', dash: [6, 4]"))
+          (is-true (js~ "label: 'Temperature', stroke: '#0d6efd', width: 2, fill:"))
+          (is-true (js~ "grid: { show: false }, stroke: '#dc3545'")))))))
+
+(test widget--chart-right-axis-bare-item-selects-all-its-fields
+  (with-fixture render-env ()
+    (with-captured-clog
+      (let ((body (make-body))
+            (w (page:chart '((weather :field "temperature") (weather :field "humidity"))
+                           :right-axis '(:series (weather)))))
+        (ui-renderer::%render-uplot
+         :owner w (clog:create-div body)
+         (list (append (%series "WEATHER" "Temperature" 21) '("temperature"))
+               (append (%series "WEATHER" "Humidity" 65) '("humidity"))))
+        (is (= 2 (count-js "scale: 'y2', dash")))
+        (is-true (js~ "{ scale: 'y2', side: 1, size: ySize, grid: { show: false } }"))))))

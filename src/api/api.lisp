@@ -164,10 +164,13 @@
   (@check-api-key)
   (@check-access-rights '(:update))
   (@check-payload-length)
-  (let ((item-value (%parse-item-value (payload-as-string))))
-    (unless (itemsc:update-item-value item-name item-value)
-      (http-condition hunchentoot:+http-not-found+
-                      (format nil "Item '~a' not found" item-name))))
+  (handler-case
+      (let ((item-value (%parse-item-value (payload-as-string))))
+        (unless (itemsc:update-item-value item-name item-value)
+          (http-condition hunchentoot:+http-not-found+
+                          (format nil "Item '~a' not found" item-name))))
+    (item:invalid-table-value (condition)
+      (http-condition hunchentoot:+http-bad-request+ (princ-to-string condition))))
   nil)
 
 (defmethod snooze:explain-condition ((condition http-condition)

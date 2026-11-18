@@ -160,7 +160,7 @@ Event format follows the SSE standard with `data:` fields containing JSON payloa
 | `event.type` | string | Always `"item-change"` |
 | `event.item.name` | string | Item identifier |
 | `event.item.label` | string | Human-readable item name |
-| `event.item.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`) |
+| `event.item.type-hint` | string | Data type (`boolean`, `float`, `integer`, `string`, `table`) |
 | `event.item.tags` | object | Item metadata (including `:ext-readonly` flag) |
 | `event.item.item-state.value` | any | Current item value |
 | `event.item.item-state.timestamp` | number | Common Lisp universal-time timestamp (seconds since 1900-01-01) |
@@ -794,3 +794,23 @@ supports charts of item history:
 ![Page with widgets and chart](docs/ui/UI2.png)
 
 The UI is under active development.
+
+### Compound item display and charts
+
+Items with the `'table` hint display read-only fields. Use the `:ui-fields` tag
+to select card fields in display order, and `value` with `:field` to format one
+field:
+
+```lisp
+(defitem 'weather "Weather" 'table
+  :tags '((:ui-fields . ("temperature" "humidity"))))
+(value 'weather :field "temperature" :format "~,1f °C")
+(chart '((weather :field "temperature" :label "Temp")
+         (weather :field "humidity" :label "Humidity")))
+(chart '(weather outside) :field "temperature" :range '(:hours 6))
+```
+
+Field keys are case-sensitive strings. A series `:field` overrides the chart's
+`:field` default. Charts select numeric fields before applying `:transform`;
+missing or nonnumeric fields appear as gaps. Table charts require a field.
+The API and item-change SSE events represent table values as JSON objects.

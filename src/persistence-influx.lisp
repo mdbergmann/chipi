@@ -31,6 +31,18 @@ Influx persistence supports the following value types:
 - integer
 - float
 - boolean, for boolean values, use the symbols 'item:true and 'item:false.
+- hash-table snapshots with string keys and integer, finite single-float, string or boolean fields.
+Table items preserve integers and normalize floats to single-float at ingress.
+Table numbers use Influx doubles. Integer fields must be exactly representable
+as finite doubles; precision loss or overflow is rejected before HTTP. Integral
+doubles restore as integers, and fractional doubles restore as single-floats.
+Influx skips empty table snapshots, so restore
+returns the last nonempty snapshot. Simple file persistence stores and restores
+empty snapshots as well. String values accept CR/LF on write. InfluxDB CSV
+responses normalize LF to CRLF and remove bare CR from string values. Table
+reads canonicalize CRLF to LF, including genuine CRLF input. The server's bare
+CR loss cannot be recovered. Names
+cannot contain CR/LF or end with a backslash. Field names cannot be empty or equal time.
 
 Other value types are not supported.
 Specify those types as 'type-hint' in the item definition."))
@@ -57,25 +69,81 @@ Specify those types as 'type-hint' in the item definition."))
 ;; Writing
 ;; ---------------------------------------
 
+(defun %check-line-text (text)
+  (when (find-if (lambda (character) (find character '(#\Return #\Newline))) text)
+    (error "Influx line protocol does not support CR/LF in names: ~s" text))
+  text)
+
+(defun %escape-line-name (name &optional measurement-p)
+  "Escape a measurement, tag value or field key without changing its case."
+  (with-output-to-string (stream)
+    (%check-line-text name)
+    (when (and (plusp (length name)) (char= (char name (1- (length name))) #\\))
+      (error "Influx line protocol cannot delimit a name ending with backslash: ~s" name))
+    (loop :for character :across name
+          :do (when (or (find character " ,")
+                        (and (not measurement-p) (char= character #\=)))
+                (write-char #\\ stream))
+              (write-char character stream))))
+
+(defun %line-string (value)
+  (with-output-to-string (stream)
+    (write-char #\" stream)
+    (loop :for character :across value
+          :do (when (find character '(#\\ #\"))
+                (write-char #\\ stream))
+              (write-char character stream))
+    (write-char #\" stream)))
+
+(defun %table-double (value)
+  "Convert a table number without losing integer precision before HTTP."
+  (handler-case
+      (let ((converted (coerce value 'double-float)))
+        (unless (and (<= (- most-positive-double-float) converted most-positive-double-float)
+                     (or (not (integerp value)) (= value (rational converted))))
+          (error "Influx table number is not exactly representable as a finite double: ~s" value))
+        converted)
+    (arithmetic-error ()
+      (error "Influx table number overflows a finite double: ~s" value))))
+
+(defun %line-value (value &optional table-p)
+  (cond
+    ((stringp value) (%line-string value))
+    ((eq value 'item:true) "true")
+    ((eq value 'item:false) "false")
+    ((and (integerp value) (not table-p)) (format nil "~di" value))
+    ((realp value)
+     ;; Fixed-point formatting avoids Lisp exponent markers and always writes
+     ;; table numbers as Influx floats, even when the observation is integral.
+     (format nil "~f" (if table-p (%table-double value) value)))
+    (t (error "Unsupported item value type: ~a" (type-of value)))))
+
+(defun %serialize-point (item-name value timestamp)
+  "Validate a complete snapshot before producing any line protocol."
+  (let ((value (if (hash-table-p value) (item:copy-table-value value) value)))
+    (when (and (hash-table-p value) (zerop (hash-table-count value)))
+      (return-from %serialize-point nil))
+    (with-output-to-string (stream)
+      (format stream "~a,item=~a " (%escape-line-name item-name t)
+              (%escape-line-name item-name))
+      (if (hash-table-p value)
+          (loop :for key :in (sort (alexandria:hash-table-keys value) #'string<)
+                :for first-p = t :then nil
+                :do (when (zerop (length key))
+                      (error "Influx line protocol does not support an empty field name: ~s" key))
+                    (when (string= key "time")
+                      (error "Influx silently discards the reserved field name: ~s" key))
+                    (unless first-p (write-char #\, stream))
+                    (format stream "~a=~a" (%escape-line-name key)
+                            (%line-value (gethash key value) t)))
+          (format stream "value=~a" (%line-value value)))
+      (format stream " ~d" timestamp))))
+
 (defun %make-write-request (persistence item-name item-value item-timestamp)
-  (let ((data-string
-          (cond
-            ((stringp item-value)
-             (format nil "~a,item=~a value=\"~a\" ~a"
-                     item-name item-name item-value item-timestamp))
-            ((integerp item-value)
-             (format nil "~a,item=~a value=~ai ~a"
-                     item-name item-name item-value item-timestamp))
-            ((floatp item-value)
-             (format nil "~a,item=~a value=~f ~a"
-                     item-name item-name item-value item-timestamp))
-            ((or (eq item-value 'item:true)
-                 (eq item-value 'item:false))
-             (format nil "~a,item=~a value=~a ~a"
-                     item-name item-name
-                     (if (eq item-value 'item:true) "true" "false")
-                     item-timestamp))
-            (t (error "Unsupported item value type: ~a" (type-of item-value))))))
+  (let ((data-string (%serialize-point item-name item-value item-timestamp)))
+    (unless data-string
+      (log:debug "Skipping empty table snapshot for item: ~a" item-name)
+      (return-from %make-write-request (values nil :skipped)))
     (log:debug "Write request data string: ~a" data-string)
     (drakma:http-request (format nil "~a/api/v2/write" (base-url persistence))
                          :method :post
@@ -100,6 +168,7 @@ Specify those types as 'type-hint' in the item definition."))
         (multiple-value-bind (body status headers)
             (%make-write-request persistence item-name item-value unix-timestamp)
           (case status
+            (:skipped nil)
             (204 (log:info "Persisted item OK: ~a, timestamp: ~a" item-name item-timestamp))
             (t
              (let ((message (babel:octets-to-string body)))
@@ -162,47 +231,42 @@ Specify those types as 'type-hint' in the item definition."))
         (relative-range (%relative-range-to-string range))
         (absolute-range (%absolute-range-to-string range)))))
 
-(defun %make-single-query-string (persistence item-name)
-  (format nil "from(bucket:\"~a\")
-|> range(start: 0)
-|> filter(fn: (r) => r._measurement == \"~a\")
-|> last()"
-          (bucket persistence)
-          item-name))
+(defun %flux-string (value)
+  ;; JSON and Flux use the same quoted string escapes for these names.
+  (com.inuoe.jzon:stringify value))
 
-(defun %make-range-query-string (persistence item-name range &optional aggregate)
-  "Build a Flux pipeline for a time RANGE.  
- If AGGREGATE is one of
-`:avg', `:median', `:min', `:max', `:sum', `:count',
-we append the simple Flux aggregate fn."
-  (let* ((bucket (bucket persistence))
-         (rangestr (%range-to-string range))
-         (base-pipe (format nil "from(bucket:\"~a\")
-|> range(~a)
-|> filter(fn: (r) => r._measurement == \"~a\")"
-                            bucket rangestr item-name)))
-    (cond
-      ((null aggregate) base-pipe)
-      (aggregate
-       (format nil "~a~c~a"
-               base-pipe
-               #\linefeed
-               (case aggregate
-                 (:avg "|> mean()")
-                 (:min "|> min()")
-                 (:max "|> max()")
-                 (:sum "|> sum()")
-                 (:count "|> count()")
-                 (:median "|> median()")
-                 (otherwise
-                  (error "Invalid aggregate: ~a" aggregate))))))))
+(defun %make-single-query-string (persistence item-name &optional table-p)
+  (declare (ignore table-p))
+  ;; Flux keeps fields in separate typed tables. Return at most one row per
+  ;; field; the table reader discards fields older than the newest snapshot.
+  (format nil "~a~%|> last()" (%make-range-query-string persistence item-name nil)))
+
+(defun %make-range-query-string (persistence item-name range &optional aggregate table-p)
+  (let ((base-pipe
+          (format nil "from(bucket:~a)~%|> range(~a)~%|> filter(fn: (r) => r._measurement == ~a)"
+                  (%flux-string (bucket persistence))
+                  (if range (%range-to-string range) "start: 0")
+                  (%flux-string item-name))))
+    (if aggregate
+        (format nil "~a~a~%|> ~a()~a"
+                (if (and table-p (not (eq aggregate :count)))
+                    (format nil "import \"types\"~%") "")
+                (concatenate 'string base-pipe
+                             (if (and table-p (not (eq aggregate :count)))
+                                 (format nil "~%|> filter(fn: (r) => types.isNumeric(v: r._value))")
+                                 ""))
+                (ecase aggregate
+                  (:avg "mean") (:min "min") (:max "max")
+                  (:sum "sum") (:count "count") (:median "median"))
+                (if table-p (format nil "~%|> drop(columns: [\"_time\"])") ""))
+        base-pipe)))
 
 (defvar *supported-influx-aggregate-funs* '(:avg :min :max :sum :count :median))
 
-(defun %make-query-request (persistence item-name &optional range aggregate)
+(defun %make-query-request (persistence item-name &optional range aggregate table-p)
   (let ((data-string (if range
-                         (%make-range-query-string persistence item-name range aggregate)
-                         (%make-single-query-string persistence item-name))))
+                         (%make-range-query-string persistence item-name range aggregate table-p)
+                         (%make-single-query-string persistence item-name table-p))))
     (log:debug "Query request data string: ~a" data-string)
     (drakma:http-request (format nil "~a/api/v2/query" (base-url persistence))
                          :method :post
@@ -210,8 +274,88 @@ we append the simple Flux aggregate fn."
                          :accept "application/json"
                          :additional-headers
                          `(("Authorization" . ,(format nil "Token ~a" (token persistence))))
-                         :content-type "application/vnd.flux"
-                         :content data-string)))
+                         :content-type (if table-p "application/json" "application/vnd.flux")
+                         :content (if table-p
+                                      (com.inuoe.jzon:stringify
+                                       (alexandria:plist-hash-table
+                                        (list "query" data-string
+                                              "dialect" (alexandria:plist-hash-table
+                                                         (list "annotations"
+                                                               #("datatype" "group" "default"))
+                                                         :test 'equal))
+                                        :test 'equal))
+                                      data-string))))
+
+(defstruct influx-row timestamp field value datatype)
+
+(defun %csv-text (body)
+  (etypecase body
+    (null "")
+    (string body)
+    ((vector (unsigned-byte 8)) (babel:octets-to-string body :encoding :utf-8))))
+
+(defun %read-csv-records (text)
+  "Read CSV records without trimming cells or changing quoted line endings."
+  (with-input-from-string (input text)
+    (let ((cell (make-string-output-stream))
+          (state :start) (row nil) (rows nil) (pending-p nil))
+      (labels ((finish-cell ()
+                 (push (get-output-stream-string cell) row)
+                 (setf state :start))
+               (finish-row ()
+                 (finish-cell)
+                 (push (nreverse row) rows)
+                 (setf row nil pending-p nil)))
+        (loop :for character = (read-char input nil nil)
+              :while character
+              :do (setf pending-p t)
+                  (cond
+                    ((eq state :quoted)
+                     (if (char= character #\")
+                         (setf state :closed)
+                         (write-char character cell)))
+                    ((char= character #\")
+                     (ecase state
+                       (:start (setf state :quoted))
+                       (:closed (write-char character cell) (setf state :quoted))
+                       (:unquoted (error "Quote inside unquoted CSV cell: ~s" text))))
+                    ((char= character #\,)
+                     (finish-cell))
+                    ((or (char= character #\Return) (char= character #\Newline))
+                     (when (and (char= character #\Return)
+                                (eql (peek-char nil input nil nil) #\Newline))
+                       (read-char input))
+                     (finish-row))
+                    ((eq state :closed)
+                     (error "Unexpected character after closing CSV quote: ~s" character))
+                    (t (write-char character cell) (setf state :unquoted))))
+        (when (eq state :quoted)
+          (error "Unterminated quoted CSV cell: ~s" text))
+        (when pending-p (finish-row))
+        (nreverse rows)))))
+
+(defun %parse-csv-rows (body)
+  "Read annotated Flux CSV, retaining blank strings and multiline quoted cells."
+  (let ((headers nil) (datatypes nil) (result nil))
+    (dolist (row (%read-csv-records (%csv-text body)))
+      (cond
+        ((string= (first row) "#datatype") (setf datatypes row headers nil))
+        ((and (first row) (alexandria:starts-with #\# (first row))) nil)
+        ((every (lambda (cell) (or (null cell) (string= cell ""))) row) nil)
+        ((and (equal (second row) "result") (equal (third row) "table")
+              (member "_value" row :test #'equal))
+         (setf headers row))
+        (headers
+         (flet ((cell (name)
+                  (let ((index (position name headers :test #'equal)))
+                    (and index (nth index row)))))
+           (let ((index (position "_value" headers :test #'equal))
+                 (timestamp (cell "_time")))
+             (push (make-influx-row
+                    :timestamp (unless (or (null timestamp) (string= timestamp "")) timestamp)
+                    :field (cell "_field") :value (cell "_value")
+                    :datatype (nth index datatypes)) result))))))
+    (nreverse result)))
 
 (defun %parse-csv-to-time-value-pairs (body)
   "Parses influx output csv.
@@ -240,6 +384,58 @@ Applied aggregate functions omit the _time column, in this case the timestamo in
                    csv-columns)))
     time-value-pairs))
 
+(defun %typed-csv-value (row)
+  (let ((value (influx-row-value row)) (datatype (influx-row-datatype row)))
+    (cond
+      ((equal datatype "string")
+       ;; InfluxDB emits embedded LF as CRLF; canonicalize table values only.
+       (with-output-to-string (output)
+         (loop :for index :from 0 :below (length value)
+               :for character = (char value index)
+               :unless (and (char= character #\Return)
+                            (< (1+ index) (length value))
+                            (char= (char value (1+ index)) #\Newline))
+                 :do (write-char character output))))
+      ((equal datatype "boolean")
+       (cond ((string= value "true") 'item:true)
+             ((string= value "false") 'item:false)
+             (t (error "Invalid CSV boolean: ~s" value))))
+      ((member datatype '("long" "unsignedLong") :test #'equal) (parse-integer value))
+      ((equal datatype "double")
+       (let ((number (parse-float:parse-float value :type 'double-float)))
+         (unless (<= (- most-positive-double-float) number most-positive-double-float)
+           (error "Invalid nonfinite CSV double: ~s" value))
+         (multiple-value-bind (integer remainder) (truncate number)
+           (if (zerop remainder)
+               integer
+               (let ((single (coerce number 'single-float)))
+                 (unless (and (<= (- most-positive-single-float)
+                                  single most-positive-single-float)
+                              (not (zerop single)))
+                   (error "CSV double is outside the finite single-float range: ~s" value))
+                 single)))))
+      (t (error "Unsupported CSV datatype: ~s" datatype)))))
+
+(defun %table-persisted-items (body)
+  (let ((groups (make-hash-table :test 'equal)))
+    (dolist (row (%parse-csv-rows body))
+      (let* ((timestamp (influx-row-timestamp row))
+             (table (or (gethash timestamp groups)
+                        (setf (gethash timestamp groups) (make-hash-table :test 'equal)))))
+        (setf (gethash (influx-row-field row) table) (%typed-csv-value row))))
+    (sort (loop :for timestamp :being :the :hash-keys :of groups
+                :using (hash-value table)
+                :collect (make-persisted-item
+                          :value table :timestamp (%parse-timestamp timestamp)))
+          #'< :key (lambda (entry)
+                     (let ((timestamp (persisted-item-timestamp entry)))
+                       (if (eq timestamp :undefined) 0 timestamp))))))
+
+(defun %parse-timestamp (timestamp)
+  (if timestamp
+      (local-time:timestamp-to-universal (local-time:parse-timestring timestamp))
+      :undefined))
+
 (defun %make-persisted-item (timestamp value type-hint)
   "Returns a persisted-item instance.
 `timestamp' may be `NIL' which is transformed to `:undefined'."
@@ -265,16 +461,35 @@ Applied aggregate functions omit the _time column, in this case the timestamo in
 ;; Retrieve last
 ;; -------------------------------------
 
+(defun %last-table-persisted-item (body)
+  "Keep only fields at the maximum timestamp, including nanosecond precision."
+  (let ((latest-time nil)
+        (latest-text nil)
+        (table (make-hash-table :test 'equal)))
+    (dolist (row (%parse-csv-rows body))
+      (let ((timestamp (local-time:parse-timestring (influx-row-timestamp row))))
+        (when (or (null latest-time) (local-time:timestamp> timestamp latest-time))
+          (clrhash table)
+          (setf latest-time timestamp
+                latest-text (influx-row-timestamp row)))
+        (when (local-time:timestamp= timestamp latest-time)
+          (setf (gethash (influx-row-field row) table) (%typed-csv-value row)))))
+    (when latest-time
+      (make-persisted-item :value table :timestamp (%parse-timestamp latest-text)))))
+
 (defun %parsed-last-persisted-item (response-body type-hint)
-  (let ((pairs (%parse-csv-to-time-value-pairs response-body)))
-    (log:debug "Parsed pairs: ~a" pairs)
-    (let* ((last-pair (first (last pairs)))
-           (timestamp (car last-pair))
-           (value (cdr last-pair))
-           (persisted-item (%make-persisted-item timestamp value type-hint)))
-      (log:debug "Loaded persisted item: ~a" persisted-item)
-      (log:trace "Loaded persisted item value type: ~a" (type-of (persisted-item-value persisted-item)))
-      persisted-item)))
+  (if (item:table-type-hint-p type-hint)
+      (or (%last-table-persisted-item response-body)
+          (error "No persisted value for type ~a" type-hint))
+      (let ((pairs (%parse-csv-to-time-value-pairs response-body)))
+        (log:debug "Parsed pairs: ~a" pairs)
+        (let* ((last-pair (first (last pairs)))
+               (timestamp (car last-pair))
+               (value (cdr last-pair))
+               (persisted-item (%make-persisted-item timestamp value type-hint)))
+          (log:debug "Loaded persisted item: ~a" persisted-item)
+          (log:trace "Loaded persisted item value type: ~a" (type-of (persisted-item-value persisted-item)))
+          persisted-item))))
 
 (defmethod retrieve ((persistence influx-persistence) item)
   "Output format of influxdb is csv, so we need to parse it."
@@ -283,7 +498,8 @@ Applied aggregate functions omit the _time column, in this case the timestamo in
         (type-hint (item:value-type-hint item)))
     (handler-case
         (multiple-value-bind (body status headers)
-            (%make-query-request persistence item-name)
+            (%make-query-request persistence item-name nil nil
+                                 (item:table-type-hint-p type-hint))
           (case status
             (200
              (progn
@@ -307,16 +523,11 @@ Applied aggregate functions omit the _time column, in this case the timestamo in
 ;; ------------------------------------------
 
 (defun %parsed-range-persisted-item (response-body type-hint)
-  (let ((pairs (%parse-csv-to-time-value-pairs response-body)))
-    (log:debug "Parsed pairs: ~a" pairs)
-    (let ((persisted-items
-            (mapcar (lambda (pair)
-                      (let ((timestamp (car pair))
-                            (value (cdr pair)))
-                        (%make-persisted-item timestamp value type-hint)))
-                    pairs)))
-      (log:debug "Loaded persisted items: ~a" persisted-items)
-      persisted-items)))
+  (if (item:table-type-hint-p type-hint)
+      (%table-persisted-items response-body)
+      (mapcar (lambda (pair)
+                (%make-persisted-item (car pair) (cdr pair) type-hint))
+              (%parse-csv-to-time-value-pairs response-body))))
 
 (defmethod retrieve-range ((persistence influx-persistence) item range &optional aggregate)
   (log:debug "Reading item with range: ~a, aggregate: ~a" item aggregate)
@@ -326,7 +537,8 @@ Applied aggregate functions omit the _time column, in this case the timestamo in
         (type-hint (item:value-type-hint item)))
     (handler-case
         (multiple-value-bind (body status headers)
-            (%make-query-request persistence item-name range aggregate)
+            (%make-query-request persistence item-name range aggregate
+                                 (item:table-type-hint-p type-hint))
           (case status
             (200
              (progn
