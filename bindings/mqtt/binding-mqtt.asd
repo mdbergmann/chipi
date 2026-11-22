@@ -2,8 +2,7 @@
   :version "0.1.0"
   :description "MQTT transport and item bindings for Chipi"
   :license "Apache-2"
-  :depends-on ("chipi" "cl-mqtt" "bordeaux-threads" "serapeum" "yason"
-               "log4cl-extras" "trivial-types")
+  :depends-on ("chipi" "cl-mqtt" "bordeaux-threads" "com.inuoe.jzon")
   :serial t
   :components ((:file "package") (:file "transport") (:file "binding"))
   :in-order-to ((test-op (test-op "binding-mqtt/tests"))))

@@ -64,34 +64,40 @@
 
 (defstruct mqtt-subscription token topic handler)
 
+(defun %enqueue-command (input command)
+  "Append COMMAND in FIFO order. The caller must hold INPUT's queue lock."
+  (setf (mqtt-input-queue input)
+        (nconc (mqtt-input-queue input) (list command))))
+
 (defun subscribe-on (input topic callback)
   "Replace the compatibility callback for TOPIC."
   (bt2:with-lock-held ((mqtt-input-lock input))
     (setf (assoc-value (mqtt-input-callbacks input) topic :test #'string=) callback)
-    (serapeum:push-end (list :subscribe topic) (mqtt-input-queue input)))
+    (%enqueue-command input (list :subscribe topic)))
   (values))
 
 (defun unsubscribe-from (input topic)
   "Remove the compatibility callback for TOPIC."
   (bt2:with-lock-held ((mqtt-input-lock input))
     (removef (mqtt-input-callbacks input) topic :key #'car :test #'string=)
-    (serapeum:push-end (list :unsubscribe topic) (mqtt-input-queue input)))
+    (%enqueue-command input (list :unsubscribe topic)))
   (values))
 
 (defun unsubscribe-from-all-topics (input)
   (dolist (entry (copy-list (mqtt-input-callbacks input)))
     (unsubscribe-from input (car entry))))
 
-(-> publish-to (mqtt-input string (or string hash-table) &key (:qos integer) (:retain t))
-    (values &optional))
+(declaim (ftype (function (mqtt-input string (or string hash-table)
+                          &key (:qos integer) (:retain t))
+                         (values &optional))
+                publish-to))
 
 (defun publish-to (input topic payload &key (qos 0) retain)
   "Queue a publication without waiting for transport acceptance."
   (let ((prepared-payload (%prepare-payload payload)))
     (bt2:with-lock-held ((mqtt-input-lock input))
-      (serapeum:push-end (list :publish topic :payload prepared-payload
-                              :qos qos :retain retain)
-                        (mqtt-input-queue input))))
+      (%enqueue-command input (list :publish topic :payload prepared-payload
+                                    :qos qos :retain retain))))
   (values))
 
 (define-condition mqtt-error (error) ())
@@ -130,7 +136,7 @@
                           (vector (map nil #'validate value)))
                         (remhash value ancestors))))
              (validate payload)))
-         (yason:with-output-to-string* () (yason:encode payload))))
+         (jzon:stringify payload)))
     (error () (error 'mqtt-publication-error))))
 
 (defun %check-wait-context (input)
@@ -164,11 +170,12 @@ are Lisp booleans; heartbeat_age is seconds or NIL before the first tick."
                   (/ (- (get-internal-real-time) heartbeat)
                      internal-time-units-per-second)))
            (thread (mqtt-input-thread mqtt-input)))
-      (serapeum:dict
-       "connected" (not (null (mqtt-input-client mqtt-input)))
-       "loop_alive" (and thread (bt2:thread-alive-p thread)
-                         age (< age heartbeat-timeout) t)
-       "heartbeat_age" age))))
+      (alexandria:plist-hash-table
+       (list "connected" (not (null (mqtt-input-client mqtt-input)))
+             "loop_alive" (and thread (bt2:thread-alive-p thread)
+                               age (< age heartbeat-timeout) t)
+             "heartbeat_age" age)
+       :test #'equal))))
 
 (defun record-loop-heartbeat (mqtt-input)
   (bt2:with-lock-held ((mqtt-input-lock mqtt-input))
@@ -194,9 +201,9 @@ QoS 0 acceptance does not confirm broker delivery or persistence."
                (error 'mqtt-disconnected))
              (let ((request (make-publication-request
                              (mqtt-input-client mqtt-input) deadline)))
-               (serapeum:push-end (list :publish-request topic
-                                       :payload prepared-payload :request request)
-                                 (mqtt-input-queue mqtt-input))
+               (%enqueue-command mqtt-input
+                                 (list :publish-request topic
+                                       :payload prepared-payload :request request))
                request))))
     (loop
       (bt2:with-lock-held ((publication-request-lock request))
@@ -258,9 +265,9 @@ never replay on another connection. This does not confirm physical actuation."
              (let ((request (make-publication-request
                              (mqtt-input-client mqtt-input) deadline)))
                (setf (slot-value request 'retain) retain)
-               (serapeum:push-end (list :publish-confirmed topic
-                                       :payload prepared-payload :request request)
-                                 (mqtt-input-queue mqtt-input))
+               (%enqueue-command mqtt-input
+                                 (list :publish-confirmed topic
+                                       :payload prepared-payload :request request))
                request))))
     (unwind-protect
          (loop
@@ -352,8 +359,7 @@ never replay on another connection. This does not confirm physical actuation."
                (setf (mqtt-input-broker-topics input)
                      (remove topic (mqtt-input-broker-topics input) :test #'string=))))))))))
 
-(-> topic-match-p (string string)
-    (values boolean &optional))
+(declaim (ftype (function (string string) (values boolean &optional)) topic-match-p))
 
 (defun topic-match-p (pattern topic)
   "Enhanced MQTT topic pattern matcher with full spec compliance."
@@ -605,7 +611,7 @@ Call outside raw callbacks: the event-loop thread cannot join itself."
   (let ((input (%managed-input)) (token (gensym "MQTT-SUB-")))
     (bt2:with-lock-held ((mqtt-input-lock input))
       (unless (%topic-required-p input topic)
-        (serapeum:push-end (list :subscribe topic) (mqtt-input-queue input)))
+        (%enqueue-command input (list :subscribe topic)))
       (push (make-mqtt-subscription :token token :topic topic :handler handler)
             (mqtt-input-subscriptions input)))
     token))
@@ -621,8 +627,7 @@ Call outside raw callbacks: the event-loop thread cannot join itself."
             (setf (mqtt-input-subscriptions input)
                   (remove sub (mqtt-input-subscriptions input)))
             (unless (%topic-required-p input (mqtt-subscription-topic sub))
-              (serapeum:push-end (list :unsubscribe (mqtt-subscription-topic sub))
-                                (mqtt-input-queue input))))))))
+              (%enqueue-command input (list :unsubscribe (mqtt-subscription-topic sub)))))))))
   (values))
 
 (defun mqtt-publish (topic payload &key (qos 0) retain)
@@ -632,10 +637,8 @@ Call outside raw callbacks: the event-loop thread cannot join itself."
         (prepared (%prepare-payload payload)))
     (bt2:with-lock-held ((mqtt-input-lock input))
       (unless (mqtt-input-client input) (error 'mqtt-disconnected))
-      (serapeum:push-end
-       (list :publish topic :payload prepared :qos qos :retain retain
-             :connection (mqtt-input-client input))
-       (mqtt-input-queue input))))
+      (%enqueue-command input (list :publish topic :payload prepared :qos qos :retain retain
+             :connection (mqtt-input-client input)))))
   (values))
 
 (defun mqtt-publish-confirmed (topic payload &key retain (timeout 3))
@@ -650,4 +653,5 @@ Accept keyword-only options for the managed transport, or an input first."
     (destructuring-bind (&key (heartbeat-timeout 3)) arguments
       (check-type heartbeat-timeout (real (0)))
       (if input (health-snapshot input :heartbeat-timeout heartbeat-timeout)
-          (serapeum:dict "connected" nil "loop_alive" nil "heartbeat_age" nil)))))
+          (alexandria:plist-hash-table
+           (list "connected" nil "loop_alive" nil "heartbeat_age" nil) :test #'equal)))))

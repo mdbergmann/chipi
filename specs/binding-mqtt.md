@@ -2,7 +2,7 @@
 
 Status: built and locally tested, 2026-11-22 (`binding-mqtt` 0.1.0).
 The transport and item binding are implemented in `bindings/mqtt/`; its
-`README.md` describes how to load and use them. FiveAM passed 89 checks,
+`README.md` describes how to load and use them. FiveAM passed 109 checks,
 and an isolated Mosquitto run proved PUBACK delivery, independent consumers,
 subscription recovery after broker restart and worker shutdown. The local
 smart-home integration also passed its stand, monitoring and browser checks.
@@ -265,9 +265,19 @@ bindings/mqtt/
 └── README.md              ; loading, API and migration contracts
 ```
 
-The plugin depends on `chipi`, `cl-mqtt`, Bordeaux Threads, Serapeum,
-Yason, log4cl-extras and trivial-types. MQTT dependencies belong to the
-plugin ASDF system; none are added to `chipi.asd`.
+The plugin depends on `chipi`, `cl-mqtt`, Bordeaux Threads and
+`com.inuoe.jzon`, the JSON library already used by Chipi. It adds no
+Serapeum or Yason dependency. Queues and type declarations use Common Lisp;
+object construction uses Alexandria, already supplied by Chipi.
+MQTT dependencies belong to the plugin ASDF system; none are added to
+`chipi.asd`.
+
+Jzon reads JSON true as `t`, false as `nil`, and null as `cl:null`.
+The binding converts them explicitly, keeping a present false distinct
+from a missing field and rejecting unsupported null values. Objects use
+string-keyed hash tables and arrays use vectors. Parsing accepts exactly
+one complete JSON value; trailing data is an error. Outgoing dictionaries
+use the same Jzon representation and serializer as the rest of Chipi.
 
 ## 8. Build order and verification
 
@@ -280,8 +290,8 @@ plugin ASDF system; none are added to `chipi.asd`.
 | 5 | Connect smart-home locally, then adapt MOS | Passed locally; raw safety input, durable delivery, hot-water-only MOS configuration and explicit channel `/get` payload tested |
 | 6 | Publish and pin the dependency | Open; publish the Chipi branch separately, then pin the tested commit in smart-home and repeat verification without the local checkout override |
 
-`(asdf:test-system :binding-mqtt)` runs 18 deterministic FiveAM tests,
-89 checks at the recorded verification. They cover shared parsing,
+`(asdf:test-system :binding-mqtt)` runs 21 deterministic FiveAM tests,
+109 checks at the recorded verification. They cover shared parsing,
 missing/false/null/error distinctions, no input echo, encoding order,
 receipt time, consumer removal, real item redefinition, managed lifecycle,
 health options and sanitized publication conditions.

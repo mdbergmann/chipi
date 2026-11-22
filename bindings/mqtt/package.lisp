@@ -1,10 +1,8 @@
 (defpackage #:chipi.binding.mqtt
   (:use #:cl)
   (:nicknames #:binding-mqtt)
-  (:import-from #:serapeum #:->)
+  (:local-nicknames (#:jzon #:com.inuoe.jzon))
   (:import-from #:alexandria #:removef #:assoc-value)
-  (:import-from #:trivial-types #:function-designator)
-  (:import-from #:log4cl-extras/error #:with-log-unhandled)
   (:export #:mqtt-init #:mqtt-shutdown #:mqtt-subscribe #:mqtt-unsubscribe
            #:mqtt-publish #:mqtt-publish-confirmed #:mqtt-health-snapshot
            #:mqtt-error #:mqtt-timeout #:mqtt-disconnected #:mqtt-publication-error

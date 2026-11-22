@@ -58,3 +58,9 @@ The temporary `make-mqtt-input`, `subscribe-on`, `publish-to`, `publish-and-wait
 and related compatibility entry points support migration of existing applications.
 The legacy QoS 0 `publish-and-wait` returns `:sent` after local client acceptance;
 it does not provide the PUBACK contract of `mqtt-publish-confirmed`.
+
+JSON uses `com.inuoe.jzon`, as in Chipi's core: true is `t`, false is `nil`,
+and null is `cl:null` in transport dictionaries. The item binding converts
+booleans to and from `item:true` and `item:false`, and rejects incoming null.
+Arrays remain vectors, including the empty array. The plugin does not require
+Serapeum or Yason.

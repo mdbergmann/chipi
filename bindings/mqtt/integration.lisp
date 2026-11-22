@@ -3,7 +3,7 @@
 (defun run-mqtt-integration (&key (broker "mosquitto") (port (+ 30000 (random 10000))))
   "Exercise real QoS 1 delivery and reconnect against an isolated local broker."
   (let ((process nil) (input nil) (worker nil) (watchdog nil)
-        (first-count 0) (second-count 0)
+        (first-count 0) (second-count 0) (first-json nil)
         (counts-lock (bt2:make-lock :name "mqtt-integration-counts")))
     (labels ((start-broker ()
                (setf process
@@ -32,8 +32,9 @@
              (await (lambda () (gethash "connected" (mqtt-health-snapshot))) "connect")
              (let ((first (mqtt-subscribe "chipi/integration"
                                          (lambda (topic payload)
-                                           (declare (ignore topic payload))
+                                           (declare (ignore topic))
                                            (bt2:with-lock-held (counts-lock)
+                                             (setf first-json (jzon:parse payload))
                                              (incf first-count)))))
                    (second (mqtt-subscribe "chipi/integration"
                                           (lambda (topic payload)
@@ -46,8 +47,15 @@
                                   :test #'string=))) "shared subscription")
                (sleep 0.15)
                (assert (eq :acknowledged
-                           (mqtt-publish-confirmed "chipi/integration" "first")))
+                           (mqtt-publish-confirmed
+                            "chipi/integration"
+                            (alexandria:plist-hash-table
+                             (list "state" t "alarm" nil "null" 'cl:null) :test #'equal))))
                (await (lambda () (count-is 1 1)) "both consumers")
+               (assert (eq t (gethash "state" first-json)))
+               (assert (null (gethash "alarm" first-json)))
+               (assert (nth-value 1 (gethash "alarm" first-json)))
+               (assert (eq 'cl:null (gethash "null" first-json)))
                (mqtt-unsubscribe first)
                (assert (eq :acknowledged
                            (mqtt-publish-confirmed "chipi/integration" "second")))

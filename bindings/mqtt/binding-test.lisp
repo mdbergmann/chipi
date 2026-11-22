@@ -58,11 +58,10 @@
 (fm:test shared-topic-parses-once-and-does-not-echo
   (with-binding-fixture
     (let ((parse-count 0))
-      (with-functions ((yason:parse (payload &rest options)
-                           (declare (ignore options))
-                           (loop while (read-char payload nil nil))
+      (with-functions ((com.inuoe.jzon:parse (payload &rest options)
+                           (declare (ignore options payload))
                            (incf parse-count)
-                           (serapeum:dict "temperature" 21 "humidity" 45)))
+                           (alexandria:plist-hash-table (list "temperature" 21 "humidity" 45) :test #'equal)))
         (attach (mqtt:mqtt-binding :topic "room" :field "temperature"
                                    :publish-topic "room/set") :temperature)
         (attach (mqtt:mqtt-binding :topic "room" :field "humidity") :humidity)
@@ -319,7 +318,7 @@
 
 (fm:test reachability-requires-connection-and-live-loop
   (with-binding-fixture
-    (let ((health (serapeum:dict "connected" t "loop_alive" nil))
+    (let ((health (alexandria:plist-hash-table (list "connected" t "loop_alive" nil) :test #'equal))
           (binding (mqtt:mqtt-binding :publish-topic "command")))
       (with-functions ((mqtt:mqtt-health-snapshot (&rest ignored)
                          (declare (ignore ignored)) health))
@@ -359,3 +358,48 @@
       (handler-case (progn (mqtt:mqtt-publish "test" invalid) (fm:fail "Invalid keys accepted"))
         (mqtt:mqtt-publication-error (condition)
           (fm:is (not (search "private-payload" (princ-to-string condition)))))))))
+
+(fm:test jzon-preserves-false-zero-empty-values-and-rejects-null
+  (with-binding-fixture
+    (attach (mqtt:mqtt-binding :topic "json" :field "value") :json)
+    (dolist (payload '("{\"value\":0}" "{\"value\":\"\"}" "{\"value\":[]}" "{\"value\":{}}"))
+      (setf *updates* nil)
+      (deliver "json" payload)
+      (fm:is (= 1 (length *updates*))))
+    (fm:is (hash-table-p (update-value :json)))
+    (deliver "json" "{\"value\":false}")
+    (fm:is (eq 'item:false (update-value :json)))
+    (setf *updates* nil)
+    (deliver "json" "{\"value\":null}")
+    (deliver "json" "{}")
+    (fm:is (null *updates*))
+    (fm:is (equal '(:missing-field :null-value) (mapcar #'second *diagnostics*)))))
+
+(fm:test jzon-transport-dictionary-roundtrip
+  (let* ((payload (alexandria:plist-hash-table
+                   (list "true" t "false" nil "null" 'cl:null
+                         "array" (vector t nil 'cl:null) "empty" #()
+                         "text" (format nil "Вода ~C~C~C" #\" #\\ #\Newline)
+                         "integer" 9007199254740993 "zero" 0)
+                   :test #'equal))
+         (decoded (com.inuoe.jzon:parse (mqtt::%prepare-payload payload))))
+    (fm:is (eq t (gethash "true" decoded)))
+    (fm:is (null (gethash "false" decoded)))
+    (fm:is-true (nth-value 1 (gethash "false" decoded)))
+    (fm:is (eq 'cl:null (gethash "null" decoded)))
+    (fm:is (equalp (vector t nil 'cl:null) (gethash "array" decoded)))
+    (fm:is (equalp #() (gethash "empty" decoded)))
+    (fm:is (equal (gethash "text" payload) (gethash "text" decoded)))
+    (fm:is (= 9007199254740993 (gethash "integer" decoded)))
+    (fm:is (= 0 (gethash "zero" decoded)))
+    (fm:is (equal "{\"unchanged\":true}" (mqtt::%prepare-payload "{\"unchanged\":true}")))
+    (setf (gethash "cycle" payload) payload)
+    (fm:signals mqtt:mqtt-publication-error (mqtt::%prepare-payload payload))))
+
+(fm:test jzon-published-binding-object-converts-nested-booleans
+  (with-binding-fixture
+    (let ((binding (mqtt:mqtt-binding :publish-topic "device/set" :publish-field "value")))
+      (binding:exec-push binding (vector 'item:true 'item:false))
+      (let ((decoded (com.inuoe.jzon:parse
+                       (mqtt::%prepare-payload (second (first *publications*))))))
+        (fm:is (equalp (vector t nil) (gethash "value" decoded)))))))

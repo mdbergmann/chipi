@@ -37,9 +37,9 @@
 
 (defun %json-to-item (value)
   ;; MQTT-BINDING DR-3/4: null must not be confused with missing or false.
-  (cond ((eq value :null) (error 'unsupported-mqtt-null))
-        ((eq value 'yason:true) 'item:true)
-        ((eq value 'yason:false) 'item:false)
+  (cond ((eq value 'cl:null) (error 'unsupported-mqtt-null))
+        ((eq value t) 'item:true)
+        ((null value) 'item:false)
         ((hash-table-p value)
          (let ((copy (make-hash-table :test #'equal)))
            (maphash (lambda (key val) (setf (gethash key copy) (%json-to-item val))) value)
@@ -49,8 +49,8 @@
         (t value)))
 
 (defun %item-to-json (value)
-  (cond ((eq value 'item:true) 'yason:true)
-        ((eq value 'item:false) 'yason:false)
+  (cond ((eq value 'item:true) t)
+        ((eq value 'item:false) nil)
         ((hash-table-p value)
          (let ((copy (make-hash-table :test #'equal)))
            (maphash (lambda (key val)
@@ -96,13 +96,7 @@
 (defun %receive-topic (topic payload)
   (let ((snapshot
           (handler-case
-              (with-input-from-string (stream payload)
-                (prog1
-                    (yason:parse stream :json-arrays-as-vectors t
-                                       :json-booleans-as-symbols t :json-nulls-as-keyword t)
-                  (loop :for char = (read-char stream nil nil) :while char
-                        :unless (find char '(#\Space #\Tab #\Newline #\Return))
-                          :do (error "Trailing MQTT JSON data: ~A" :invalid-json))))
+              (jzon:parse payload)
             (error () (%diagnose topic :invalid-json) (return-from %receive-topic))))
         (timestamp (or (and (boundp '*message-received-at*) *message-received-at*)
                        (get-universal-time))))
@@ -173,9 +167,10 @@
                       (funcall (%binding-encode binding) value) value))
          (json (%item-to-json encoded))
          (payload (if (%publish-field binding)
-                      (serapeum:dict (%publish-field binding) json)
+                      (alexandria:plist-hash-table
+                       (list (%publish-field binding) json) :test #'equal)
                       ;; Strings representing item values are JSON strings on the wire.
-                      (yason:with-output-to-string* () (yason:encode json)))))
+                      (jzon:stringify json))))
     (mqtt-publish (%publish-topic binding) payload
                   :qos (%binding-qos binding) :retain (%binding-retain binding))))
 
