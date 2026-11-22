@@ -311,12 +311,3 @@ broker and SQLite; physical valve position stayed `unknown`.
   than introducing MQTT-specific concepts into the house layer.
 - Publishing, dependency pinning, deployment and real equipment checks are
   separate actions. Local validation does not establish physical valve state.
-
-### Test-loader compatibility
-
-The MQTT test system must load with the ASDF/UIOP supplied by the supported
-SBCL environment, including ASDF 3.3.1. Its test package uses native
-`defpackage` for package-local nicknames; older `uiop:define-package` does
-not accept that option. This affects test loading only, not the transport
-or the public binding package. Verify by compiling the test package and
-running all 89 checks with ASDF 3.3.1 against the pinned transport.

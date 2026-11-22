@@ -1,4 +1,4 @@
-(uiop:define-package #:chipi.binding.mqtt
+(defpackage #:chipi.binding.mqtt
   (:use #:cl)
   (:nicknames #:binding-mqtt)
   (:import-from #:serapeum #:->)
