@@ -1,7 +1,6 @@
 (defpackage #:chipi.binding.mqtt-test
   (:use #:cl)
-  (:local-nicknames (#:mqtt #:chipi.binding.mqtt) (#:fm #:fiveam))
-)
+  (:local-nicknames (#:mqtt #:chipi.binding.mqtt) (#:fm #:fiveam)))
 (in-package #:chipi.binding.mqtt-test)
 
 (fm:def-suite :mqtt-tests :description "MQTT binding and managed transport contracts")
