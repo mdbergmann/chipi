@@ -1,4 +1,4 @@
-(uiop:define-package #:chipi.binding.mqtt-test
+(defpackage #:chipi.binding.mqtt-test
   (:use #:cl)
   (:local-nicknames (#:mqtt #:chipi.binding.mqtt) (#:fm #:fiveam))
 )
